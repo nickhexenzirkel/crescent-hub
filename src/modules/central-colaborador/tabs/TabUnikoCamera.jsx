@@ -62,8 +62,9 @@ const MELHORAR_KEY = 'ucam_melhorar';
 
 /* Redimensiona uma imagem (dataURL) antes de guardar no localStorage — do
    contrário um papel de parede enviado cru (celular moderno tira foto de
-   4000px+) estoura a cota de ~5MB do navegador numa tacada só. */
-const encolherImagem = (dataUrl, maxW = 1100, quality = 0.82) => new Promise((resolve) => {
+   4000px+) estoura a cota de ~5MB do navegador numa tacada só. 1920px/88% já
+   fica nítido esticado numa tela cheia grande (1100px/82% saía borrado). */
+const encolherImagem = (dataUrl, maxW = 1920, quality = 0.88) => new Promise((resolve) => {
   try {
     const img = new Image();
     img.onload = () => {
@@ -110,7 +111,29 @@ const aplicarNitidez = (ctx, w, h) => {
   ctx.putImageData(out, 0, 0);
 };
 
-const ALVO_RATIO = 16 / 10; // mesma proporção do bezel — bem mais "tela de notebook" que quadrado
+const ALVO_RATIO = 16 / 10; // proporção PADRÃO do bezel ao abrir — depois disso a pessoa pode redimensionar livre
+
+/* ── Janela da câmera arrastável/redimensionável ─────────────────────────
+   Guarda {x,y,w,h} em px, relativos ao palco. `x,y` só entram em jogo depois
+   que a pessoa arrasta pela primeira vez — antes disso a janela reflui
+   sozinha pro tamanho/posição padrão a cada resize do palco (ver `defaultBox`
+   chamado com `personalizado=false`). */
+const JANELA_MIN_W = 260, JANELA_MIN_H = 170;
+const JANELA_KEY = 'ucam_janela_box';
+const clampBox = (box, sw, sh) => {
+  if (!sw || !sh) return box;
+  const w = Math.min(Math.max(box.w, JANELA_MIN_W), sw);
+  const h = Math.min(Math.max(box.h, JANELA_MIN_H), sh);
+  const x = Math.min(Math.max(box.x, 0), Math.max(0, sw - w));
+  const y = Math.min(Math.max(box.y, 0), Math.max(0, sh - h));
+  return { x, y, w, h };
+};
+const defaultBox = (sw, sh, padding) => {
+  const w0 = Math.min(sw * 0.94, 1400);
+  const h0 = Math.min(w0 / ALVO_RATIO, sh - padding);
+  const w = Math.min(w0, h0 * ALVO_RATIO);
+  return clampBox({ x: (sw - w) / 2, y: (sh - h0) / 2, w, h: h0 }, sw, sh);
+};
 
 const slugOwner = (s) => String(s || 'colaborador').toLowerCase().normalize('NFD')
   .replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'colaborador';
@@ -326,21 +349,82 @@ const TabUnikoCamera = () => {
   const streamRef = useRef(null);
   const toastTimer = useRef(null);
   const stageRef = useRef(null);
-  const [stageH, setStageH] = useState(null);
+  const bezelRef = useRef(null);
 
-  /* Mede a altura de verdade do palco (depois de resolvido flex/zoom/tela
-     cheia) pra dimensionar o bezel — nada de calc(vh) chutado, que erra toda
-     vez que o zoom:0.8 do Portal entra na conta (ver bug da tela cheia). */
+  /* ── janela da câmera: arrastar (título) e redimensionar (bordas/canto) ──
+     `janela` é o estado "oficial" (React, persistido) — só é atualizado no
+     fim do arraste. Durante o arraste em si, escreve direto no DOM via
+     `bezelRef` (sem passar por setState a cada pixel) pra não travar em
+     60fps; `arrastoRef` guarda os números "de verdade" nesse meio-tempo. */
+  const [janela, setJanela] = useState(() => {
+    try { const salva = JSON.parse(localStorage.getItem(JANELA_KEY) || 'null'); if (salva) return salva; } catch { /* sem localStorage */ }
+    return null; // null = ainda não mediu o palco / usa o padrão calculado
+  });
+  const personalizadaRef = useRef(!!janela);
+  const arrastoRef = useRef(null); // {modo, startX, startY, box} enquanto o ponteiro está pressionado
+
+  /* Mede o palco de verdade (depois de resolvido flex/zoom/tela cheia) —
+     nada de calc(vh) chutado, que erra toda vez que o zoom:0.8 do Portal
+     entra na conta (ver bug da tela cheia). Enquanto a pessoa não mexeu na
+     janela, ela reflui pro tamanho/posição padrão a cada resize do palco;
+     depois de personalizada, só é "clampada" pra continuar visível. */
+  const [stageSize, setStageSize] = useState({ w: 0, h: 0 });
   useEffect(() => {
     const el = stageRef.current;
     if (!el || typeof ResizeObserver === 'undefined') return;
     const ro = new ResizeObserver((entries) => {
-      const h = entries[0]?.contentRect?.height;
-      if (h) setStageH(h);
+      const r = entries[0]?.contentRect;
+      if (r) setStageSize({ w: r.width, h: r.height });
     });
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+  useEffect(() => {
+    if (!stageSize.w || !stageSize.h) return;
+    const padding = isMobile ? 32 : 48;
+    setJanela(j => (personalizadaRef.current && j)
+      ? clampBox(j, stageSize.w, stageSize.h)
+      : defaultBox(stageSize.w, stageSize.h, padding));
+  }, [stageSize, isMobile]);
+
+  const commitJanela = (box) => {
+    personalizadaRef.current = true;
+    setJanela(box);
+    try { localStorage.setItem(JANELA_KEY, JSON.stringify(box)); } catch { /* sem localStorage */ }
+  };
+  const iniciarArrasto = (e, modo) => {
+    if (!janela) return;
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    arrastoRef.current = { modo, startX: e.clientX, startY: e.clientY, box: { ...janela } };
+  };
+  const moverArrasto = (e) => {
+    const a = arrastoRef.current;
+    if (!a || !bezelRef.current) return;
+    const dx = e.clientX - a.startX, dy = e.clientY - a.startY;
+    let { x, y, w, h } = a.box;
+    if (a.modo === 'mover') {
+      x = Math.min(Math.max(a.box.x + dx, 0), Math.max(0, stageSize.w - w));
+      y = Math.min(Math.max(a.box.y + dy, 0), Math.max(0, stageSize.h - h));
+    } else {
+      if (a.modo.includes('x')) w = Math.min(Math.max(a.box.w + dx, JANELA_MIN_W), stageSize.w - x);
+      if (a.modo.includes('y')) h = Math.min(Math.max(a.box.h + dy, JANELA_MIN_H), stageSize.h - y);
+    }
+    const nova = { x, y, w, h };
+    arrastoRef.current.atual = nova;
+    const b = bezelRef.current.style;
+    b.left = `${x}px`; b.top = `${y}px`; b.width = `${w}px`; b.height = `${h}px`;
+  };
+  const soltarArrasto = () => {
+    const a = arrastoRef.current;
+    if (a?.atual) commitJanela(a.atual);
+    arrastoRef.current = null;
+  };
+  const resetarJanela = () => {
+    personalizadaRef.current = false;
+    try { localStorage.removeItem(JANELA_KEY); } catch { /* sem localStorage */ }
+    if (stageSize.w && stageSize.h) setJanela(defaultBox(stageSize.w, stageSize.h, isMobile ? 32 : 48));
+  };
 
   useEffect(() => { try { localStorage.setItem(FILTRO_KEY, filtroId); } catch { /* sem localStorage */ } }, [filtroId]);
   useEffect(() => { try { localStorage.setItem(MELHORAR_KEY, melhorar ? '1' : '0'); } catch { /* sem localStorage */ } }, [melhorar]);
@@ -485,7 +569,11 @@ const TabUnikoCamera = () => {
     : `${filtroAtual.css}${melhorar ? ' ' + ENHANCE_CSS : ''}`;
 
   const papelAtualCSS = (papelId === 'custom' && papelCustom)
-    ? `url(${papelCustom}) center/cover no-repeat`
+    // `contain` (não `cover`): mostra a imagem enviada INTEIRA, sem cortar
+    // nenhuma parte — o "zoom" que cortava a foto era o `cover`. A segunda
+    // camada (gradiente) preenche a sobra dos lados/topo quando a proporção
+    // da imagem não bate com a da tela.
+    ? `url(${papelCustom}) center/contain no-repeat, ${WALLPAPERS[0].css}`
     : (WALLPAPERS.find(w => w.id === papelId)?.css || WALLPAPERS[0].css);
 
   const escolherPapel = (id) => { setPapelId(id); try { localStorage.setItem(PAPEL_KEY, id); } catch { /* sem localStorage */ } setPainelAberto(null); };
@@ -528,11 +616,13 @@ const TabUnikoCamera = () => {
 
     const vw = v.videoWidth, vh = v.videoHeight;
     if (!vw || !vh) return;
-    // recorta do centro na mesma proporção do bezel (16:10) em vez de forçar quadrado
+    // recorta do centro na proporção ATUAL da janela (ela é redimensionável
+    // livremente agora, não é mais fixa em 16:10) em vez de forçar quadrado
+    const proporcao = janela ? janela.w / janela.h : ALVO_RATIO;
     let cw = vw, ch = vh;
-    if (vw / vh > ALVO_RATIO) cw = vh * ALVO_RATIO; else ch = vw / ALVO_RATIO;
+    if (vw / vh > proporcao) cw = vh * proporcao; else ch = vw / proporcao;
     const sx = (vw - cw) / 2, sy = (vh - ch) / 2;
-    const outW = Math.min(cw, 1100), outH = Math.round(outW / ALVO_RATIO);
+    const outW = Math.min(cw, 1100), outH = Math.round(outW / proporcao);
     canvas.width = outW; canvas.height = outH;
     const ctx = canvas.getContext('2d');
     ctx.filter = filtroCombinadoCSS;
@@ -582,35 +672,54 @@ const TabUnikoCamera = () => {
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
         padding: isMobile ? '16px 14px' : '20px 32px', flex: 1, minHeight: 0 }}>
 
-        {/* bezel estilo MacBook — bem maior e horizontal (16:10). O tamanho vem
-            da altura MEDIDA do palco (ref + ResizeObserver), não de vh/zoom
-            calculados — assim funciona igual em tela normal e em tela cheia,
-            sempre cabendo inteiro sem sobrar espaço nem precisar de scroll. */}
-        <div style={{ position: 'relative', width: 'min(94%, 1400px)',
-          maxHeight: stageH ? Math.max(200, stageH - (isMobile ? 32 : 48)) : undefined, aspectRatio: '16/10', borderRadius: 22,
-          background: 'linear-gradient(160deg,#3d4046,#1b1d21)', padding: isMobile ? 10 : 14,
-          boxShadow: '0 24px 60px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.08)' }}>
-          <div style={{ position: 'absolute', top: 13, left: 18, display: 'flex', gap: 6, zIndex: 2 }}>
-            <span style={dot('#FF5F57')} /><span style={dot('#FEBC2E')} /><span style={dot('#28C840')} />
-          </div>
-          {/* título da janela, tipo app de verdade — o LED de "câmera ativa" vem
-              junto, igual antes, só que agora ao lado do nome em vez de sozinho. */}
-          <div style={{ position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)', display: 'flex',
-            alignItems: 'center', gap: 6, zIndex: 2 }}>
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: camState === 'ativa' ? '#28C840' : '#555',
-              boxShadow: camState === 'ativa' ? '0 0 6px 2px rgba(40,200,64,.7)' : 'none', flexShrink: 0 }} />
-            <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '.08em', color: 'rgba(255,255,255,.5)', whiteSpace: 'nowrap' }}>UNIKO CAMERA</span>
-          </div>
+        {/* bezel estilo MacBook — arrastável (pelo título) e redimensionável
+            (bordas/canto), igual uma janela de verdade. `janela` é medida a
+            partir do palco de VERDADE (ref + ResizeObserver), não de vh/zoom
+            chutado — funciona igual em tela normal e em tela cheia. Enquanto
+            a pessoa não mexe nela, reflui sozinha pro tamanho padrão a cada
+            resize do palco; depois de arrastada/redimensionada uma vez, o
+            tamanho/posição escolhidos ficam salvos (double-click no título
+            volta ao padrão). */}
+        {janela && (
+          <div ref={bezelRef} style={{ position: 'absolute', left: janela.x, top: janela.y, width: janela.w, height: janela.h,
+            borderRadius: 22, background: 'linear-gradient(160deg,#3d4046,#1b1d21)', padding: isMobile ? 10 : 14,
+            boxShadow: '0 24px 60px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.08)' }}>
+            <div style={{ position: 'absolute', top: 13, left: 18, display: 'flex', gap: 6, zIndex: 2 }}>
+              <span style={dot('#FF5F57')} /><span style={dot('#FEBC2E')} /><span style={dot('#28C840')} />
+            </div>
+            {/* título da janela — arrasta pra mover, 2 cliques volta ao padrão.
+                O LED de "câmera ativa" vem junto, ao lado do nome. */}
+            <div onPointerDown={(e) => iniciarArrasto(e, 'mover')} onPointerMove={moverArrasto} onPointerUp={soltarArrasto}
+              onPointerCancel={soltarArrasto} onDoubleClick={resetarJanela} title="Arraste pra mover · duplo clique reseta"
+              style={{ position: 'absolute', inset: '0 0 auto 0', height: 30, cursor: 'move', zIndex: 1 }} />
+            <div style={{ position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)', display: 'flex',
+              alignItems: 'center', gap: 6, zIndex: 2, pointerEvents: 'none' }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: camState === 'ativa' ? '#28C840' : '#555',
+                boxShadow: camState === 'ativa' ? '0 0 6px 2px rgba(40,200,64,.7)' : 'none', flexShrink: 0 }} />
+              <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '.08em', color: 'rgba(255,255,255,.5)', whiteSpace: 'nowrap' }}>UNIKO CAMERA</span>
+            </div>
 
-          <div style={{ position: 'relative', width: '100%', height: '100%', borderRadius: 12, overflow: 'hidden', background: '#000', marginTop: 22 }}>
-            <video ref={videoRef} muted playsInline
-              style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)',
-                filter: filtroCombinadoCSS, display: camState === 'ativa' ? 'block' : 'none' }} />
-            {camState === 'ativa' && <EfeitosOverlay coracoes={efeitoCoracoes} estrelas={efeitoEstrelas} headPos={headPos} />}
-            <StatusTela camState={camState} onRetry={ligarCamera} />
-            {flash && <div style={{ position: 'absolute', inset: 0, background: '#fff', animation: 'ucamFlash .35s ease-out' }} />}
+            <div style={{ position: 'relative', width: '100%', height: '100%', borderRadius: 12, overflow: 'hidden', background: '#000', marginTop: 22 }}>
+              <video ref={videoRef} muted playsInline
+                style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)',
+                  filter: filtroCombinadoCSS, display: camState === 'ativa' ? 'block' : 'none' }} />
+              {camState === 'ativa' && <EfeitosOverlay coracoes={efeitoCoracoes} estrelas={efeitoEstrelas} headPos={headPos} />}
+              <StatusTela camState={camState} onRetry={ligarCamera} />
+              {flash && <div style={{ position: 'absolute', inset: 0, background: '#fff', animation: 'ucamFlash .35s ease-out' }} />}
+            </div>
+
+            {/* alças de redimensionar */}
+            <div onPointerDown={(e) => iniciarArrasto(e, 'x')} onPointerMove={moverArrasto} onPointerUp={soltarArrasto} onPointerCancel={soltarArrasto}
+              title="Arraste pra alargar" style={{ position: 'absolute', top: 20, right: -5, bottom: 16, width: 10, cursor: 'ew-resize', zIndex: 4 }} />
+            <div onPointerDown={(e) => iniciarArrasto(e, 'y')} onPointerMove={moverArrasto} onPointerUp={soltarArrasto} onPointerCancel={soltarArrasto}
+              title="Arraste pra aumentar/diminuir a altura" style={{ position: 'absolute', left: 16, right: 16, bottom: -5, height: 10, cursor: 'ns-resize', zIndex: 4 }} />
+            <div onPointerDown={(e) => iniciarArrasto(e, 'xy')} onPointerMove={moverArrasto} onPointerUp={soltarArrasto} onPointerCancel={soltarArrasto}
+              title="Arraste pra redimensionar" style={{ position: 'absolute', right: -6, bottom: -6, width: 18, height: 18, cursor: 'nwse-resize', zIndex: 5,
+                borderRadius: 4, display: 'grid', placeItems: 'center' }}>
+              <Sic size={11} stroke="rgba(255,255,255,.55)" sw={2}><path d="M21 15v6h-6" /><path d="M21 21L14 14" /></Sic>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* ── dock de controles: minimalista, vibe iOS, com abas (Filtros/Efeitos/
