@@ -1387,7 +1387,7 @@ function CardModal({ card, me, people, onClose, lists, onPatchLog, onDelete, onA
       {descExpanded && (
         <div onClick={e => { e.stopPropagation(); setDescExpanded(false); setExpComments(false); }}
           style={{ position: 'fixed', inset: 0, zIndex: 92, background: 'rgba(20,8,30,.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: isMobile ? 0 : 20, animation: 'csFade .2s ease' }}>
-          <div onClick={e => e.stopPropagation()} style={{ position: 'relative', width: isMobile ? '100%' : 820, maxWidth: '100%', height: isMobile ? '100%' : '86vh', maxHeight: isMobile ? '100%' : 780, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: surf, color: T.text, borderRadius: isMobile ? 0 : 18, border: `1px solid ${brd}`, boxShadow: '0 30px 80px rgba(80,20,120,.4)', animation: 'csPop .22s cubic-bezier(.2,1.25,.35,1)' }}>
+          <div onClick={e => e.stopPropagation()} style={{ position: 'relative', width: isMobile ? '100%' : (expComments ? 1140 : 820), maxWidth: '100%', height: isMobile ? '100%' : '86vh', maxHeight: isMobile ? '100%' : 780, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: surf, color: T.text, borderRadius: isMobile ? 0 : 18, border: `1px solid ${brd}`, boxShadow: '0 30px 80px rgba(80,20,120,.4)', transition: 'width .25s cubic-bezier(.2,1,.3,1)', animation: 'csPop .22s cubic-bezier(.2,1.25,.35,1)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '13px 18px', borderBottom: `1px solid ${brd}`, flexShrink: 0 }}>
               <div style={{ fontSize: 15, fontWeight: 800 }}>Descrição</div>
               <div style={{ flex: 1 }} />
@@ -1396,9 +1396,30 @@ function CardModal({ card, me, people, onClose, lists, onPatchLog, onDelete, onA
               <button className="cs-btn cs-ghost" onClick={() => { setDescExpanded(false); setExpComments(false); }}
                 style={{ background: sub, color: T.text, borderRadius: 10, width: 32, height: 32, display: 'grid', placeItems: 'center' }}><Ic n="x" size={15} /></button>
             </div>
-            <div className="cs-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', padding: '20px 22px' }}>
-              <div dangerouslySetInnerHTML={{ __html: stripInlineColors(card.description) }}
-                style={{ fontSize: 15.5, lineHeight: 1.7, color: T.textS, wordBreak: 'break-word', overflowWrap: 'anywhere' }} />
+
+            {/* corpo: descrição (esquerda) + comentários ao lado (direita, sem tampar nada) */}
+            <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: isMobile && expComments ? 'column' : 'row', overflow: 'hidden' }}>
+              <div className="cs-scroll" style={{ flex: 1, minWidth: 0, overflowY: 'auto', overflowX: 'hidden', padding: '20px 22px' }}>
+                <div dangerouslySetInnerHTML={{ __html: stripInlineColors(card.description) }}
+                  style={{ fontSize: 15.5, lineHeight: 1.7, color: T.textS, wordBreak: 'break-word', overflowWrap: 'anywhere' }} />
+              </div>
+
+              {/* barra de comentários — ao lado da descrição, empurrando o modal pra ficar mais largo */}
+              {expComments && (
+                <div className="cs-scroll" style={{
+                  width: isMobile ? '100%' : 320, flexShrink: 0, overflowY: 'auto', padding: 18,
+                  background: T.dark ? 'rgba(255,255,255,.025)' : 'rgba(0,0,0,.018)',
+                  borderLeft: isMobile ? 'none' : `1px solid ${brd}`, borderTop: isMobile ? `1px solid ${brd}` : 'none',
+                  animation: isMobile ? 'csSlideUp .22s cubic-bezier(.2,1,.3,1)' : 'csSlideIn .22s cubic-bezier(.2,1,.3,1)',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 14, fontWeight: 800, marginBottom: 12 }}>
+                    <Ic n="comment" size={16} /> Comentários e atividade
+                    <div style={{ flex: 1 }} />
+                    <button onClick={() => setExpComments(false)} style={{ background: 'transparent', border: 'none', color: T.textT, cursor: 'pointer', display: 'grid', placeItems: 'center' }}><Ic n="x" size={16} /></button>
+                  </div>
+                  {renderFeed()}
+                </div>
+              )}
             </div>
 
             {/* botão flutuante de comentários */}
@@ -1407,24 +1428,6 @@ function CardModal({ card, me, people, onClose, lists, onPatchLog, onDelete, onA
                 style={{ position: 'absolute', right: 18, bottom: 18, width: 48, height: 48, borderRadius: '50%', background: UNIKO_GRAD, color: '#fff', display: 'grid', placeItems: 'center', boxShadow: '0 10px 26px rgba(120,40,180,.4)', border: 'none', cursor: 'pointer', animation: 'csPop .18s ease' }}>
                 <Ic n="comment" size={19} />
               </button>
-            )}
-
-            {/* barra de comentários — expande de baixo pra cima por cima da descrição */}
-            {expComments && (
-              <div className="cs-scroll" style={{
-                position: 'absolute', right: 0, bottom: 0, left: isMobile ? 0 : 'auto', width: isMobile ? '100%' : 340, maxWidth: '100%',
-                height: '100%', overflowY: 'auto', padding: 18,
-                background: T.dark ? 'rgba(24,14,34,.98)' : 'rgba(255,255,255,.98)', backdropFilter: 'blur(6px)',
-                borderLeft: isMobile ? 'none' : `1px solid ${brd}`, borderTop: isMobile ? `1px solid ${brd}` : 'none',
-                boxShadow: '-14px 0 40px rgba(0,0,0,.18)', animation: 'csSlideUp .22s cubic-bezier(.2,1,.3,1)',
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 14, fontWeight: 800, marginBottom: 12 }}>
-                  <Ic n="comment" size={16} /> Comentários e atividade
-                  <div style={{ flex: 1 }} />
-                  <button onClick={() => setExpComments(false)} style={{ background: 'transparent', border: 'none', color: T.textT, cursor: 'pointer', display: 'grid', placeItems: 'center' }}><Ic n="x" size={16} /></button>
-                </div>
-                {renderFeed()}
-              </div>
             )}
           </div>
         </div>
