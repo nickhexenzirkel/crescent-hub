@@ -609,12 +609,12 @@ const THEMES = [
     'Ariana Grande', 'Billie Eilish', 'Dua Lipa', 'Bruno Mars', 'Ed Sheeran',
     'Justin Bieber', 'Katy Perry', 'Lady Gaga', 'Madonna', 'Michael Jackson',
     'Adele', 'Shakira', 'Selena Gomez', 'Miley Cyrus', 'Olivia Rodrigo',
-    'Harry Styles', 'Drake', 'Post Malone', 'Doja Cat', 'Freddie Mercury',
+    'Harry Styles', 'Drake', 'Post Malone', 'Doja Cat', 'Freddie Mercury', 'Lana Del Rey',
     'Anitta', 'Marina Sena', 'Gal Costa', 'Pabllo Vittar', 'Ivete Sangalo',
     'Ludmilla', 'Wesley Safadão', 'Gusttavo Lima', 'Marília Mendonça', 'Caetano Veloso',
     'Gilberto Gil', 'Roberto Carlos', 'Elis Regina', 'Zeca Pagodinho', 'Claudia Leitte',
-    'Daniela Mercury', 'Xuxa', 'Sandy', 'Luísa Sonza', 'Iza',
-    'Preta Gil', 'Maria Bethânia', 'Rita Lee', 'Tim Maia', 'Naiara Azevedo'] },
+    'Pedro Sampaio', 'Xuxa', 'Sandy', 'Luísa Sonza', 'Iza',
+    'Preta Gil', 'Maria Bethânia', 'Rita Lee', 'Tim Maia'] },
 ];
 const GERAL = { id: 'geral', nome: 'Geral', emoji: '🎲', words: [...new Set(THEMES.flatMap(t => t.words))] };
 const ALL_THEMES = [GERAL, ...THEMES];
