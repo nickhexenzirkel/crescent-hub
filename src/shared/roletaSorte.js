@@ -26,7 +26,13 @@
 //       baseAngle, finalAngle,        // graus ACUMULADOS (nunca normalizados)
 //       startedAt,                    // ISO — instante absoluto do giro
 //       durationMs, turns,
-//     }
+//     },
+//     history: [{                     // Histórico de Ganhadores — mais recente primeiro
+//       id,                           // = spin.id daquele giro
+//       label,                        // quem ganhou
+//       at,                           // ISO — quando ganhou
+//       photoUrl, photoPath,          // null até o admin anexar uma foto (bucket 'roleta-sorte')
+//     }]
 //   }
 import { supabase as _supabase } from '../contexts/user';
 export { nowMs, ensureServerClock } from './captureUniko';

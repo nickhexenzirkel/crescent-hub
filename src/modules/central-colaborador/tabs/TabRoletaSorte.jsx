@@ -7,7 +7,7 @@
 // funciona: relógio compartilhado, sem frame nenhum viajando pela rede).
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { T } from '../../../contexts/theme';
-import { SERVER_URL, getAuthUser } from '../../../contexts/user';
+import { SERVER_URL, getAuthUser, supabase } from '../../../contexts/user';
 import { useIsMobile } from '../../../hooks/useIsMobile';
 import {
   loadRoletaConfig, saveRoletaConfig, subscribeRoletaConfig,
@@ -61,6 +61,25 @@ const BellIcon = ({ size = 18, color = 'currentColor', strokeWidth = 1.8 }) => (
     <path d="M13.73 21a2 2 0 01-3.46 0"/>
   </svg>
 );
+
+const CameraIcon = ({ size = 18, color = 'currentColor', strokeWidth = 1.8 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
+    <circle cx="12" cy="13" r="4"/>
+  </svg>
+);
+
+const TrophyIcon = ({ size = 18, color = 'currentColor', strokeWidth = 1.8 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M8 21h8M12 17v4M7 4h10v4a5 5 0 01-10 0V4z"/>
+    <path d="M7 5H4a3 3 0 003 3M17 5h3a3 3 0 01-3 3"/>
+  </svg>
+);
+
+const fmtWinDate = (iso) => {
+  try { return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }); }
+  catch { return ''; }
+};
 
 const labelStyleFor = (n) => {
   if (n <= 6)  return { width: 112, fontSize: 15 };
@@ -190,6 +209,7 @@ const TabRoletaSorte = () => {
 
   const [entries, setEntries] = useState([]);
   const [spin, setSpin] = useState(null);
+  const [history, setHistory] = useState([]);
   const [loaded, setLoaded] = useState(false);
 
   const [angle, setAngle] = useState(0);
@@ -197,6 +217,12 @@ const TabRoletaSorte = () => {
   const [showConfetti, setShowConfetti] = useState(false);
   const revealedRef = useRef(null);
   const rafRef = useRef(null);
+
+  // Histórico de Ganhadores — anexar foto (admin)
+  const [lightboxUrl, setLightboxUrl] = useState(null);
+  const [uploadingId, setUploadingId] = useState(null);
+  const fileInputRef = useRef(null);
+  const pendingUploadIdRef = useRef(null);
 
   // Admin — formulário de participantes
   const [newLabel, setNewLabel] = useState('');
@@ -214,11 +240,13 @@ const TabRoletaSorte = () => {
       if (!alive) return;
       setEntries(cfg?.entries || []);
       setSpin(cfg?.spin || null);
+      setHistory(cfg?.history || []);
       setLoaded(true);
     })();
     const unsub = subscribeRoletaConfig((cfg) => {
       setEntries(cfg?.entries || []);
       setSpin(cfg?.spin || null);
+      setHistory(cfg?.history || []);
     });
     // Poll de segurança — cobre o raro caso do realtime cair; settings é leve.
     const poll = setInterval(async () => {
@@ -226,6 +254,7 @@ const TabRoletaSorte = () => {
       if (!alive || !cfg) return;
       setEntries(cfg.entries || []);
       setSpin(prev => (cfg.spin?.id !== prev?.id ? (cfg.spin || null) : prev));
+      setHistory(cfg.history || []);
     }, 25000);
     return () => { alive = false; unsub(); clearInterval(poll); };
   }, []);
@@ -272,7 +301,7 @@ const TabRoletaSorte = () => {
     const before = entries;
     setEntries(nextEntries); // otimista
     setBusy(true);
-    try { await saveRoletaConfig({ entries: nextEntries, spin }); }
+    try { await saveRoletaConfig({ entries: nextEntries, spin, history }); }
     catch (e) { setEntries(before); flash('❌ ' + (e.message || 'Erro ao salvar')); }
     setBusy(false);
   };
@@ -310,8 +339,13 @@ const TabRoletaSorte = () => {
       await ensureServerClock();
       const rest = restAngleOf({ spin });
       const s = buildSpin(entries, rest);
+      const winner = s.entries?.[s.winnerIndex];
+      // Já entra pro Histórico de Ganhadores na hora do giro (sem foto ainda —
+      // o admin anexa depois, num giro já resolvido).
+      const nextHistory = [{ id: s.id, label: winner?.label || '?', at: s.startedAt, photoUrl: null, photoPath: null }, ...history].slice(0, 60);
       setSpin(s); // otimista — todo mundo (inclusive este PC) já começa a girar na hora
-      await saveRoletaConfig({ entries, spin: s });
+      setHistory(nextHistory);
+      await saveRoletaConfig({ entries, spin: s, history: nextHistory });
     } catch (e) { flash('❌ ' + (e.message || 'Erro ao girar')); }
     setBusy(false);
   };
@@ -319,9 +353,37 @@ const TabRoletaSorte = () => {
     if (!window.confirm('Limpar o resultado e parar a roleta na estaca zero?')) return;
     setBusy(true);
     setSpin(null);
-    try { await saveRoletaConfig({ entries, spin: null }); }
+    try { await saveRoletaConfig({ entries, spin: null, history }); }
     catch (e) { flash('❌ ' + (e.message || 'Erro ao limpar')); }
     setBusy(false);
+  };
+
+  // ── Histórico de Ganhadores — anexar foto (visível pra todo mundo) ─────
+  const triggerUpload = (entryId) => { pendingUploadIdRef.current = entryId; fileInputRef.current?.click(); };
+  const uploadHistoryPhoto = async (entryId, file) => {
+    setUploadingId(entryId);
+    try {
+      const old = history.find(h => h.id === entryId);
+      const path = `${entryId}/${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}.jpg`;
+      const { error: upErr } = await supabase.storage.from('roleta-sorte').upload(path, file, { contentType: file.type || 'image/jpeg', upsert: false });
+      if (upErr) throw upErr;
+      const { data: pub } = supabase.storage.from('roleta-sorte').getPublicUrl(path);
+      const nextHistory = history.map(h => h.id === entryId ? { ...h, photoUrl: pub.publicUrl, photoPath: path } : h);
+      setHistory(nextHistory);
+      await saveRoletaConfig({ entries, spin, history: nextHistory });
+      if (old?.photoPath) { try { await supabase.storage.from('roleta-sorte').remove([old.photoPath]); } catch { /* já foi trocada; falha ao apagar a antiga não é crítica */ } }
+      flash('✅ Foto adicionada ao histórico!');
+    } catch (e) { flash('❌ ' + (e.message || 'Erro ao enviar a foto')); }
+    setUploadingId(null);
+  };
+  const onHistoryFileChosen = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    const entryId = pendingUploadIdRef.current;
+    pendingUploadIdRef.current = null;
+    if (!file || !entryId) return;
+    if (!file.type.startsWith('image/')) { flash('⚠️ Escolha um arquivo de imagem'); return; }
+    uploadHistoryPhoto(entryId, file);
   };
   // Avisa geral: manda um toast (só dentro do app — sem notificação de
   // desktop) pra quem estiver com o Portal aberto, com um botão que leva
@@ -343,7 +405,7 @@ const TabRoletaSorte = () => {
     outline: 'none', boxSizing: 'border-box' };
 
   return (
-    <div style={{ maxWidth: 980, margin: '0 auto' }}>
+    <div style={{ maxWidth: 1360, margin: '0 auto' }}>
       <style>{`
         @keyframes roletaBulb { 0%,100%{opacity:.25;transform:scale(.7)} 50%{opacity:1;transform:scale(1.2)} }
         @keyframes roletaPointer { 0%,100%{transform:translateX(-50%) translateY(0)} 50%{transform:translateX(-50%) translateY(4px)} }
@@ -367,6 +429,8 @@ const TabRoletaSorte = () => {
         </div>
       </div>
 
+      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 20, alignItems: 'flex-start' }}>
+      <div style={{ flex: '1 1 auto', minWidth: 0, width: '100%' }}>
       {/* Palco da roleta — fundo cósmico escuro (de propósito fixo, não segue o
           tema claro/escuro do resto do Portal) pra as estrelas brilharem. */}
       <div style={{ position: 'relative', borderRadius: 24, padding: isMobile ? '32px 12px' : '48px 20px',
@@ -480,6 +544,101 @@ const TabRoletaSorte = () => {
           <div style={{ fontSize: 11, color: T.textT, lineHeight: 1.6 }}>
             ℹ️ O giro aparece na hora pra todo mundo no Portal, mesmo quem estiver com a aba aberta em outro computador. Editar a lista não mexe num giro já em andamento — só vale pro próximo.
           </div>
+        </div>
+      )}
+      </div>
+
+      {/* Histórico de Ganhadores — foto grande do último ganhador + lista
+          completa. Visível pra todo mundo; só o admin consegue anexar foto,
+          mas a foto fica salva pra sempre nesse giro (bucket público). */}
+      <div style={{ width: isMobile ? '100%' : 340, flexShrink: 0, borderRadius: 13, background: T.surface,
+        border: `1px solid ${T.border}`, boxShadow: T.shM, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{ padding: '16px 18px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <TrophyIcon size={18} color={T.gold}/>
+          <div>
+            <div style={{ fontFamily: 'var(--font-brand)', fontSize: 15, fontWeight: 700, color: T.text }}>Histórico de Ganhadores</div>
+            <div style={{ fontSize: 11.5, color: T.textS, marginTop: 2 }}>Clique numa foto pra ver ela completa.</div>
+          </div>
+        </div>
+
+        <div style={{ padding: '0 18px 16px' }}>
+          {history.length === 0 ? (
+            <div style={{ borderRadius: 14, border: `1px dashed ${T.border}`, padding: '26px 12px', textAlign: 'center' }}>
+              <div style={{ fontSize: 12.5, color: T.textT }}>Ninguém ganhou ainda — o primeiro giro entra aqui.</div>
+            </div>
+          ) : (
+            <div>
+              <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: T.textT, marginBottom: 8 }}>
+                Último ganhador
+              </div>
+              <div onClick={() => history[0].photoUrl && setLightboxUrl(history[0].photoUrl)}
+                style={{ position: 'relative', width: '100%', aspectRatio: '1', borderRadius: 16, overflow: 'hidden',
+                  cursor: history[0].photoUrl ? 'zoom-in' : 'default',
+                  background: history[0].photoUrl ? `center/cover no-repeat url(${history[0].photoUrl})` : `linear-gradient(135deg,${T.gold}26,${T.gold}0d)`,
+                  border: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {!history[0].photoUrl && <CameraIcon size={38} color={T.textT}/>}
+                <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '12px 14px 10px',
+                  background: 'linear-gradient(0deg, rgba(0,0,0,.68), rgba(0,0,0,0))', color: '#fff' }}>
+                  <div style={{ fontSize: 16, fontWeight: 800, fontFamily: 'var(--font-brand)', textShadow: '0 1px 3px rgba(0,0,0,.5)' }}>{history[0].label}</div>
+                  <div style={{ fontSize: 11, opacity: .85 }}>{fmtWinDate(history[0].at)}</div>
+                </div>
+              </div>
+              {isAdmin && (
+                <button onClick={() => triggerUpload(history[0].id)} disabled={uploadingId === history[0].id}
+                  style={{ marginTop: 8, width: '100%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                    padding: '9px 12px', borderRadius: 10, cursor: 'pointer', border: `1px solid ${T.border}`,
+                    background: T.surfaceSub || 'rgba(0,0,0,.04)', color: T.text, fontWeight: 700, fontSize: 12.5,
+                    fontFamily: 'var(--font-body)', opacity: uploadingId === history[0].id ? .6 : 1 }}>
+                  <CameraIcon size={14} color={T.text}/>
+                  {uploadingId === history[0].id ? 'Enviando…' : (history[0].photoUrl ? 'Trocar foto' : 'Adicionar foto')}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
+        {history.length > 1 && (
+          <div style={{ borderTop: `1px solid ${T.border}`, maxHeight: 380, overflowY: 'auto' }}>
+            {history.slice(1).map(h => (
+              <div key={h.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 18px', borderBottom: `1px solid ${T.border}` }}>
+                <div onClick={() => h.photoUrl && setLightboxUrl(h.photoUrl)}
+                  style={{ width: 42, height: 42, borderRadius: 10, overflow: 'hidden', flexShrink: 0,
+                    cursor: h.photoUrl ? 'zoom-in' : 'default',
+                    background: h.photoUrl ? `center/cover no-repeat url(${h.photoUrl})` : (T.surfaceSub || 'rgba(0,0,0,.05)'),
+                    border: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {!h.photoUrl && <CameraIcon size={16} color={T.textT}/>}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 700, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{h.label}</div>
+                  <div style={{ fontSize: 10.5, color: T.textT }}>{fmtWinDate(h.at)}</div>
+                </div>
+                {isAdmin && (
+                  <button onClick={() => triggerUpload(h.id)} disabled={uploadingId === h.id} title={h.photoUrl ? 'Trocar foto' : 'Adicionar foto'}
+                    style={{ width: 30, height: 30, borderRadius: 9, flexShrink: 0, cursor: 'pointer', border: `1px solid ${T.border}`,
+                      background: T.surfaceSub || 'rgba(0,0,0,.04)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      opacity: uploadingId === h.id ? .6 : 1 }}>
+                    <CameraIcon size={14} color={T.text}/>
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={onHistoryFileChosen}/>
+      </div>
+      </div>
+
+      {/* Lightbox — foto do histórico em tamanho grande */}
+      {lightboxUrl && (
+        <div onClick={() => setLightboxUrl(null)} style={{ position: 'fixed', inset: 0, zIndex: 300,
+          background: 'rgba(6,6,10,.88)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: 24, cursor: 'zoom-out' }}>
+          <img src={lightboxUrl} alt="" onClick={e => e.stopPropagation()}
+            style={{ maxWidth: '92vw', maxHeight: '86vh', borderRadius: 14, boxShadow: '0 20px 60px rgba(0,0,0,.6)' }}/>
+          <button onClick={() => setLightboxUrl(null)}
+            style={{ position: 'absolute', top: 18, right: 18, width: 38, height: 38, borderRadius: '50%', border: 'none',
+              cursor: 'pointer', background: 'rgba(255,255,255,.14)', color: '#fff', fontSize: 18, lineHeight: 1 }}>×</button>
         </div>
       )}
     </div>
