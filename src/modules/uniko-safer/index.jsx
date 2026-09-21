@@ -109,6 +109,8 @@ const UnikoSafer = ({ onBack }) => {
   const [bulkCategory, setBulkCategory] = useState('faturamento');
   const [bulkDragOver, setBulkDragOver] = useState(false);
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkTotal, setBulkTotal] = useState(0);
+  const [bulkCurrentFile, setBulkCurrentFile] = useState(null);
   const [bulkLog, setBulkLog] = useState([]);
   const [importingContact, setImportingContact] = useState(false);
   const [toast, setToast] = useState('');
@@ -342,6 +344,9 @@ const UnikoSafer = ({ onBack }) => {
     const files = Array.from(fileList || []).filter(f => /\.(zip|txt)$/i.test(f.name));
     if (!files.length) { flash('Solte arquivos .zip ou .txt exportados do WhatsApp.'); return; }
     setBulkBusy(true);
+    setBulkLog([]);
+    setBulkTotal(files.length);
+    setBulkCurrentFile(null);
     // Casa só com contatos do setor escolhido no passo anterior do modal —
     // nomes iguais em Faturamento e Financeiro são pessoas/números
     // diferentes, não a mesma conversa.
@@ -349,7 +354,9 @@ const UnikoSafer = ({ onBack }) => {
     const results = [];
     for (const file of files) {
       const contactName = deriveContactNameFromFilename(file.name);
+      setBulkCurrentFile(contactName);
       const key = contactName.toLowerCase();
+      let result;
       try {
         let contact = byName.get(key);
         let createdContact = false;
@@ -360,12 +367,16 @@ const UnikoSafer = ({ onBack }) => {
         }
         const record = await importFileForContact(contact.id, file);
         const mc = record.new_message_count ?? 0;
-        results.push({ filename: file.name, contactName, createdContact, status: 'imported', message: `${mc} mensagem${mc === 1 ? '' : 's'} nova${mc === 1 ? '' : 's'}.` });
+        result = { filename: file.name, contactName, createdContact, status: 'imported', message: `${mc} mensagem${mc === 1 ? '' : 's'} nova${mc === 1 ? '' : 's'}.` };
       } catch (err) {
-        results.push({ filename: file.name, contactName, createdContact: false, status: 'error', message: err.message });
+        result = { filename: file.name, contactName, createdContact: false, status: 'error', message: err.message };
       }
+      results.push(result);
+      // Atualiza o log a CADA arquivo (não só no final) — é o que alimenta a
+      // tela de progresso, pra acompanhar em tempo real quem já foi.
+      setBulkLog(prev => [...prev, result]);
     }
-    setBulkLog(results);
+    setBulkCurrentFile(null);
     setBulkBusy(false);
     const importedCount = results.filter(r => r.status === 'imported').length;
     flash(`${importedCount} arquivo${importedCount === 1 ? '' : 's'} importado${importedCount === 1 ? '' : 's'}${results.length - importedCount > 0 ? `, ${results.length - importedCount} com erro.` : '.'}`);
@@ -680,19 +691,44 @@ const UnikoSafer = ({ onBack }) => {
                   <button onClick={() => setBulkModalOpen(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: T.textT }}><IcoClose /></button>
                 </div>
                 <div style={{ fontSize: 16, fontWeight: 700, color: T.text, margin: '6px 0' }}>Importar vários arquivos</div>
-                <div style={{ fontSize: 12, color: T.textT, marginBottom: 12, lineHeight: 1.5 }}>
-                  O nome do contato é identificado pelo nome do arquivo (ex: "Conversa do WhatsApp com João.zip"). Se o contato ainda não existir no setor <strong>{CATEGORIES.find(c => c.id === bulkCategory)?.label}</strong>, ele é criado automaticamente.
-                </div>
-                <div
-                  onDragOver={e => { e.preventDefault(); setBulkDragOver(true); }}
-                  onDragLeave={() => setBulkDragOver(false)}
-                  onDrop={e => { e.preventDefault(); setBulkDragOver(false); handleBulkFiles(e.dataTransfer?.files); }}
-                  onClick={() => !bulkBusy && bulkInputRef.current?.click()}
-                  style={{ padding: '26px 16px', border: `1.5px dashed ${bulkDragOver ? T.gold : T.border}`, borderRadius: 12,
-                    background: bulkDragOver ? T.goldGl : T.page, color: bulkDragOver ? T.gold : T.textT, fontSize: 12.5, lineHeight: 1.5,
-                    textAlign: 'center', cursor: bulkBusy ? 'default' : 'pointer', opacity: bulkBusy ? 0.6 : 1, pointerEvents: bulkBusy ? 'none' : 'auto' }}>
-                  {bulkBusy ? 'Importando…' : 'Arraste os arquivos .zip/.txt aqui, ou clique pra escolher'}
-                </div>
+
+                {bulkBusy ? (
+                  // Tela de progresso — some a área de soltar arquivo enquanto
+                  // processa, pra dar pra acompanhar contato por contato em
+                  // vez de só um "Importando…" parado.
+                  <div style={{ padding: '10px 2px 4px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
+                      <span style={{ fontSize: 12.5, fontWeight: 700, color: T.text }}>Importando conversas…</span>
+                      <span style={{ fontSize: 11.5, color: T.textT, fontWeight: 700 }}>{bulkLog.length}/{bulkTotal}</span>
+                    </div>
+                    <div style={{ height: 7, borderRadius: 99, background: T.page, overflow: 'hidden', marginBottom: 12, border: `1px solid ${T.border}` }}>
+                      <div style={{ height: '100%', width: `${bulkTotal ? Math.min(100, (bulkLog.length / bulkTotal) * 100) : 0}%`, background: T.gold, transition: 'width .25s ease' }} />
+                    </div>
+                    {bulkCurrentFile && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: T.textT }}>
+                        <span style={{ width: 13, height: 13, borderRadius: '50%', border: `2px solid ${T.border}`, borderTopColor: T.gold, flexShrink: 0, animation: 'saferBulkSpin .7s linear infinite' }} />
+                        Processando <strong style={{ color: T.text }}>{bulkCurrentFile}</strong>…
+                      </div>
+                    )}
+                    <style>{`@keyframes saferBulkSpin { to { transform: rotate(360deg); } }`}</style>
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ fontSize: 12, color: T.textT, marginBottom: 12, lineHeight: 1.5 }}>
+                      O nome do contato é identificado pelo nome do arquivo (ex: "Conversa do WhatsApp com João.zip"). Se o contato ainda não existir no setor <strong>{CATEGORIES.find(c => c.id === bulkCategory)?.label}</strong>, ele é criado automaticamente.
+                    </div>
+                    <div
+                      onDragOver={e => { e.preventDefault(); setBulkDragOver(true); }}
+                      onDragLeave={() => setBulkDragOver(false)}
+                      onDrop={e => { e.preventDefault(); setBulkDragOver(false); handleBulkFiles(e.dataTransfer?.files); }}
+                      onClick={() => bulkInputRef.current?.click()}
+                      style={{ padding: '26px 16px', border: `1.5px dashed ${bulkDragOver ? T.gold : T.border}`, borderRadius: 12,
+                        background: bulkDragOver ? T.goldGl : T.page, color: bulkDragOver ? T.gold : T.textT, fontSize: 12.5, lineHeight: 1.5,
+                        textAlign: 'center', cursor: 'pointer' }}>
+                      Arraste os arquivos .zip/.txt aqui, ou clique pra escolher
+                    </div>
+                  </>
+                )}
                 <input ref={bulkInputRef} type="file" accept=".zip,.txt" multiple style={{ display: 'none' }}
                   onChange={e => { handleBulkFiles(e.target.files); e.target.value = ''; }} />
 
