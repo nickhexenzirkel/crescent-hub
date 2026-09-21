@@ -21,12 +21,32 @@
 // deslogando o site em vez de voltar pro Uniko. Uma faixa de topo PRÓPRIA,
 // fora da área do iframe, elimina esse risco de vez: não há como um clique
 // nela nunca alcançar o conteúdo do site.
+//
+// Iframe ESCONDIDO (display:none) tem os timers desacelerados pelo
+// navegador, inclusive o de renovação automática do token de login do site
+// embutido — se o token vence enquanto escondido, a sessão cai sem aviso.
+// O documento do iframe não tem como perceber sozinho que um ancestral o
+// escondeu via CSS (a Page Visibility API dele só reflete a ABA inteira,
+// não isso) — por isso avisamos explicitamente por postMessage sempre que
+// o módulo volta a ficar visível, pra ele revalidar/renovar a sessão na
+// hora (ver o listener em 7beneficios: src/lib/auth.tsx).
+import { useEffect, useRef } from 'react';
 import { T } from '../../contexts/theme';
 
 const SITE_URL = 'https://7beneficios.vercel.app/';
+const SITE_ORIGIN = 'https://7beneficios.vercel.app';
 const BAR_HEIGHT = 44;
 
 const Beneficios7 = ({ onBack, active = true }) => {
+  const iframeRef = useRef(null);
+
+  useEffect(() => {
+    if (!active) return;
+    const win = iframeRef.current?.contentWindow;
+    if (!win) return;
+    win.postMessage({ source: 'uniko-hub', type: 'module-visible' }, SITE_ORIGIN);
+  }, [active]);
+
   return (
     <div style={{ position: 'fixed', inset: 0, background: '#fff', zIndex: 100, display: active ? 'flex' : 'none', flexDirection: 'column' }}>
       <div style={{
@@ -45,6 +65,7 @@ const Beneficios7 = ({ onBack, active = true }) => {
       </div>
 
       <iframe
+        ref={iframeRef}
         src={SITE_URL}
         title="Portal dos Credenciados"
         style={{ flex: 1, minHeight: 0, width: '100%', border: 'none' }}
