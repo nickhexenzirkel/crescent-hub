@@ -21,7 +21,32 @@ const BUCKET = 'uniko-safer';
 const initials = (name) => (name || '').trim().split(/\s+/).slice(0, 2).map(p => p[0]?.toUpperCase() ?? '').join('');
 const formatTime = (iso) => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }); };
 const formatDayLabel = (iso) => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' }); };
+const formatDateShort = (iso) => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleDateString('pt-BR'); };
 const dayKey = (iso) => iso.slice(0, 10);
+
+// Recorta um trecho em volta da primeira ocorrência do termo (pra não jogar
+// a mensagem inteira na lista de resultados, igual a busca global do
+// WhatsApp mostra só o pedaço relevante).
+const snippetAround = (text, q, radius = 42) => {
+  const idx = text.toLowerCase().indexOf(q.toLowerCase());
+  if (idx === -1) return text.slice(0, 90);
+  const start = Math.max(0, idx - radius);
+  const end = Math.min(text.length, idx + q.length + radius);
+  return (start > 0 ? '…' : '') + text.slice(start, end) + (end < text.length ? '…' : '');
+};
+
+const highlightMatch = (text, q) => {
+  if (!q) return text;
+  const idx = text.toLowerCase().indexOf(q.toLowerCase());
+  if (idx === -1) return text;
+  return (
+    <>
+      {text.slice(0, idx)}
+      <mark style={{ background: T.goldGl, color: T.gold, borderRadius: 3, padding: '0 1px' }}>{text.slice(idx, idx + q.length)}</mark>
+      {text.slice(idx + q.length)}
+    </>
+  );
+};
 
 const IcoBack = () => (
   <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M9 2L4 7L9 12" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" /></svg>
@@ -45,6 +70,15 @@ const IcoClose = () => (
   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
 );
 
+// Dois setores usando o mesmo Uniko Safer, cada um com seus próprios
+// contatos — abas dentro do módulo (não módulos separados no seletor
+// principal). Contato antigo sem categoria (coluna nova) cai em
+// 'faturamento' por padrão — era o que já estava sincronizado.
+const CATEGORIES = [
+  { id: 'faturamento', label: 'Faturamento' },
+  { id: 'financeiro', label: 'Financeiro' },
+];
+
 const btnStyle = (variant) => {
   const base = { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 10, cursor: 'pointer', fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-body)', border: '1px solid transparent', whiteSpace: 'nowrap' };
   if (variant === 'primary') return { ...base, background: T.gold, color: '#fff' };
@@ -57,7 +91,11 @@ const UnikoSafer = ({ onBack }) => {
   const inputStyle = { width: '100%', padding: '9px 11px', borderRadius: 10, border: `1px solid ${T.border}`, background: 'transparent', color: T.text, fontSize: 13, fontFamily: 'var(--font-body)', outline: 'none', boxSizing: 'border-box' };
   const [contacts, setContacts] = useState([]);
   const [loadingContacts, setLoadingContacts] = useState(true);
+  const [activeCategory, setActiveCategory] = useState('faturamento');
   const [search, setSearch] = useState('');
+  const [messageResults, setMessageResults] = useState([]);
+  const [searchingMessages, setSearchingMessages] = useState(false);
+  const messageSearchTimer = useRef(null);
   const [selectedContactId, setSelectedContactId] = useState(null);
   const [currentChatMessages, setCurrentChatMessages] = useState([]);
   const [loadingChat, setLoadingChat] = useState(false);
@@ -100,6 +138,27 @@ const UnikoSafer = ({ onBack }) => {
 
   useEffect(() => { loadContacts(); }, []);
 
+  // Busca global de mensagens (estilo WhatsApp): além de filtrar a lista de
+  // contatos por nome/número (client-side, já carregado), o mesmo campo
+  // também vasculha o CONTEÚDO das conversas no banco — com debounce pra não
+  // disparar uma consulta a cada tecla.
+  useEffect(() => {
+    clearTimeout(messageSearchTimer.current);
+    const q = search.trim();
+    if (q.length < 2) { setMessageResults([]); setSearchingMessages(false); return; }
+    messageSearchTimer.current = setTimeout(async () => {
+      setSearchingMessages(true);
+      const { data, error } = await supabase.from('uniko_safer_messages')
+        .select('id, contact_id, sent_at, sender, text')
+        .ilike('text', `%${q}%`)
+        .order('sent_at', { ascending: false })
+        .limit(80);
+      setSearchingMessages(false);
+      setMessageResults(error ? [] : (data || []));
+    }, 350);
+    return () => clearTimeout(messageSearchTimer.current);
+  }, [search]);
+
   const loadChatMessages = async (contactId) => {
     setLoadingChat(true);
     const { data, error } = await supabase.from('uniko_safer_messages').select('sent_at, sender, text').eq('contact_id', contactId).order('sent_at');
@@ -115,14 +174,33 @@ const UnikoSafer = ({ onBack }) => {
     loadChatMessages(id);
   };
 
+  // Resultado da busca global de mensagens: seleciona o contato (mesmo que
+  // esteja fora da categoria ativa — o resultado só apareceu porque a
+  // mensagem bateu) e já abre a busca dentro da conversa, com o mesmo termo,
+  // igual clicar num resultado de busca do WhatsApp.
+  const openMessageResult = (contactId) => {
+    setSelectedContactId(contactId);
+    loadChatMessages(contactId);
+    setChatSearchOpen(true);
+    setChatSearchTerm(search);
+  };
+
   const selectedContact = contacts.find(c => c.id === selectedContactId) || null;
+
+  const switchCategory = (cat) => {
+    setActiveCategory(cat);
+    // Sai da conversa aberta se ela não for da categoria pra onde acabou de
+    // trocar — senão a tela de chat ficava mostrando alguém que sumiu da
+    // lista ao lado.
+    if (selectedContact && selectedContact.category !== cat) setSelectedContactId(null);
+  };
 
   // ── Contato: criar/editar/excluir ──────────────────────────────────────
   const openContactModal = (mode) => {
     if (mode === 'edit' && selectedContact) {
-      setContactModal({ mode, id: selectedContact.id, name: selectedContact.name, phone: selectedContact.phone_number || '', notes: selectedContact.notes || '' });
+      setContactModal({ mode, id: selectedContact.id, name: selectedContact.name, phone: selectedContact.phone_number || '', notes: selectedContact.notes || '', category: selectedContact.category || 'faturamento' });
     } else {
-      setContactModal({ mode: 'create', id: null, name: '', phone: '', notes: '' });
+      setContactModal({ mode: 'create', id: null, name: '', phone: '', notes: '', category: activeCategory });
     }
   };
 
@@ -130,7 +208,7 @@ const UnikoSafer = ({ onBack }) => {
     if (!contactModal) return;
     const name = contactModal.name.trim();
     if (!name) { flash('Informe o nome do contato.'); return; }
-    const payload = { name, phone_number: contactModal.phone.trim() || null, notes: contactModal.notes.trim() || null };
+    const payload = { name, phone_number: contactModal.phone.trim() || null, notes: contactModal.notes.trim() || null, category: contactModal.category };
     if (contactModal.mode === 'edit') {
       const { error } = await supabase.from('uniko_safer_contacts').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', contactModal.id);
       if (error) { flash('Erro: ' + error.message); return; }
@@ -167,10 +245,20 @@ const UnikoSafer = ({ onBack }) => {
   const toggleSelectionMode = () => { setSelectionMode(v => !v); setSelectedIds(new Set()); };
   const toggleSelected = (id) => setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const filteredContacts = contacts.filter(c => {
+    if ((c.category || 'faturamento') !== activeCategory) return false;
     if (!search.trim()) return true;
     const q = search.trim().toLowerCase();
     return c.name.toLowerCase().includes(q) || (c.phone_number || '').toLowerCase().includes(q);
   });
+  // Resultados da busca global de mensagens, restritos à categoria ativa —
+  // o limite já veio maior do servidor (ver useEffect acima) pra sobrar
+  // resultado suficiente depois desse filtro.
+  const visibleMessageResults = search.trim().length >= 2
+    ? messageResults.filter(r => {
+        const c = contacts.find(x => x.id === r.contact_id);
+        return c && (c.category || 'faturamento') === activeCategory;
+      }).slice(0, 20)
+    : [];
   const selectAllVisible = () => setSelectedIds(new Set(filteredContacts.map(c => c.id)));
   const deselectAll = () => setSelectedIds(new Set());
   const deleteSelected = async () => {
@@ -252,7 +340,9 @@ const UnikoSafer = ({ onBack }) => {
     const files = Array.from(fileList || []).filter(f => /\.(zip|txt)$/i.test(f.name));
     if (!files.length) { flash('Solte arquivos .zip ou .txt exportados do WhatsApp.'); return; }
     setBulkBusy(true);
-    const byName = new Map(contacts.map(c => [c.name.toLowerCase(), c]));
+    // Casa só com contatos da categoria ATIVA — nomes iguais em Faturamento e
+    // Financeiro são pessoas/números diferentes, não a mesma conversa.
+    const byName = new Map(contacts.filter(c => c.category === activeCategory).map(c => [c.name.toLowerCase(), c]));
     const results = [];
     for (const file of files) {
       const contactName = deriveContactNameFromFilename(file.name);
@@ -261,7 +351,7 @@ const UnikoSafer = ({ onBack }) => {
         let contact = byName.get(key);
         let createdContact = false;
         if (!contact) {
-          const { data, error } = await supabase.from('uniko_safer_contacts').insert({ name: contactName }).select().single();
+          const { data, error } = await supabase.from('uniko_safer_contacts').insert({ name: contactName, category: activeCategory }).select().single();
           if (error) throw new Error(error.message);
           contact = data; createdContact = true; byName.set(key, contact);
         }
@@ -363,10 +453,23 @@ const UnikoSafer = ({ onBack }) => {
               </div>
             </div>
 
+            <div style={{ padding: '0 16px 10px', display: 'flex', gap: 6 }}>
+              {CATEGORIES.map(cat => {
+                const sel = activeCategory === cat.id;
+                return (
+                  <button key={cat.id} onClick={() => switchCategory(cat.id)}
+                    style={{ flex: 1, padding: '8px 10px', borderRadius: 10, cursor: 'pointer', fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-body)',
+                      border: `1.5px solid ${sel ? T.gold : T.border}`, background: sel ? T.goldGl : 'transparent', color: sel ? T.gold : T.textS }}>
+                    {cat.label}
+                  </button>
+                );
+              })}
+            </div>
+
             <div style={{ padding: '0 16px 10px' }}>
               <div style={{ position: 'relative' }}>
                 <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: T.textT }}><IcoSearch /></span>
-                <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por nome ou número"
+                <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por nome, número ou mensagem"
                   style={{ width: '100%', padding: '9px 12px 9px 30px', borderRadius: 10, border: `1px solid ${T.border}`, background: T.page, color: T.text, fontSize: 13, outline: 'none', fontFamily: 'var(--font-body)' }} />
               </div>
             </div>
@@ -409,6 +512,37 @@ const UnikoSafer = ({ onBack }) => {
                   </div>
                 );
               })}
+
+              {/* Busca global de mensagens — igual ao WhatsApp: mostra em qual
+                  conversa e onde o termo apareceu, clicar já abre lá dentro
+                  filtrado. Só dentro da categoria ativa. */}
+              {search.trim().length >= 2 && (searchingMessages || visibleMessageResults.length > 0) && (
+                <div style={{ marginTop: 12, borderTop: `1px solid ${T.border}`, paddingTop: 10 }}>
+                  <div style={{ padding: '0 10px 6px', fontSize: 11, fontWeight: 700, color: T.textT, textTransform: 'uppercase', letterSpacing: '.04em' }}>
+                    Mensagens{searchingMessages ? '…' : ''}
+                  </div>
+                  {visibleMessageResults.map(r => {
+                    const rc = contacts.find(x => x.id === r.contact_id);
+                    return (
+                      <div key={r.id} onClick={() => openMessageResult(r.contact_id)}
+                        style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '9px 10px', borderRadius: 10, cursor: 'pointer', marginBottom: 2 }}>
+                        <div style={{ width: 34, height: 34, borderRadius: '50%', background: T.surfaceSub || '#eceef0', color: T.textT,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, flexShrink: 0 }}>{initials(rc?.name) || '?'}</div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                            <div style={{ fontSize: 13.5, fontWeight: 600, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{rc?.name || 'Contato removido'}</div>
+                            <div style={{ fontSize: 10.5, color: T.textT, flexShrink: 0 }}>{formatDateShort(r.sent_at)}</div>
+                          </div>
+                          <div style={{ fontSize: 12, color: T.textT, lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {r.sender && <span style={{ fontWeight: 600 }}>{r.sender}: </span>}
+                            {highlightMatch(snippetAround(r.text, search.trim()), search.trim())}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -471,6 +605,19 @@ const UnikoSafer = ({ onBack }) => {
         <div onClick={() => setContactModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 500, padding: 16 }}>
           <div onClick={e => e.stopPropagation()} style={{ background: T.surface, borderRadius: 16, padding: 24, width: 380, maxWidth: '100%', boxShadow: T.shL }}>
             <div style={{ fontSize: 16, fontWeight: 700, color: T.text, marginBottom: 14 }}>{contactModal.mode === 'edit' ? 'Editar contato' : 'Novo contato'}</div>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: T.textT, margin: '0 0 6px' }}>Setor</label>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {CATEGORIES.map(cat => {
+                const sel = contactModal.category === cat.id;
+                return (
+                  <button key={cat.id} onClick={() => setContactModal(m => ({ ...m, category: cat.id }))}
+                    style={{ flex: 1, padding: '8px 10px', borderRadius: 10, cursor: 'pointer', fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-body)',
+                      border: `1.5px solid ${sel ? T.gold : T.border}`, background: sel ? T.goldGl : 'transparent', color: sel ? T.gold : T.textS }}>
+                    {cat.label}
+                  </button>
+                );
+              })}
+            </div>
             <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: T.textT, margin: '10px 0 6px' }}>Nome</label>
             <input autoFocus value={contactModal.name} onChange={e => setContactModal(m => ({ ...m, name: e.target.value }))}
               style={inputStyle} />

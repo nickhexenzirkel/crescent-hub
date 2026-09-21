@@ -20,10 +20,16 @@ create table if not exists public.uniko_safer_contacts (
   name         text not null,
   phone_number text,
   notes        text,
+  category     text not null default 'faturamento' check (category in ('faturamento','financeiro')),
   created_at   timestamptz not null default now(),
   updated_at   timestamptz not null default now()
 );
 create index if not exists uniko_safer_contacts_name_idx on public.uniko_safer_contacts (lower(name));
+-- Migração de uma versão anterior deste script (sem categoria) — contato já
+-- existente cai em 'faturamento' por padrão, que era o que já estava
+-- sincronizado quando o setor Financeiro entrou no módulo.
+alter table public.uniko_safer_contacts add column if not exists category text not null default 'faturamento';
+create index if not exists uniko_safer_contacts_category_idx on public.uniko_safer_contacts (category);
 
 -- Metadados de CADA importação (auditoria: quando, arquivo, tamanho). Não
 -- guarda o texto das mensagens — isso vive só em uniko_safer_messages, pra
@@ -64,6 +70,12 @@ create table if not exists public.uniko_safer_messages (
   unique (contact_id, message_hash)
 );
 create index if not exists uniko_safer_messages_contact_idx on public.uniko_safer_messages (contact_id, sent_at);
+-- Busca global de mensagens (estilo WhatsApp, ver index.jsx) usa
+-- ILIKE '%termo%' — sem índice isso é uma varredura completa da tabela.
+-- pg_trgm deixa esse tipo de busca rápido mesmo com anos de mensagens
+-- acumuladas. Extensão padrão disponível em qualquer projeto Supabase.
+create extension if not exists pg_trgm;
+create index if not exists uniko_safer_messages_text_trgm_idx on public.uniko_safer_messages using gin (text gin_trgm_ops);
 
 alter table public.uniko_safer_contacts enable row level security;
 alter table public.uniko_safer_exports  enable row level security;
