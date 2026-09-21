@@ -355,8 +355,9 @@ export default function CrescentHub() {
     const adminOnly = ['dashboard','ponto','uniko-safer'];
     const podeAdminOnly = authUser?.role === 'admin' || authUser?.role === 'moderador';
     if (adminOnly.includes(id) && !podeAdminOnly && !cargoModules.has(id)) return;
-    // Vitrines "em breve" — só admin de verdade, nem moderador (cargo ainda libera).
-    const strictAdminOnly = ['uniko-call','comercial'];
+    // Só admin de verdade, nem moderador (cargo ainda libera) — vitrines "em
+    // breve" e Portal dos Credenciados (7 Benefícios, dado de terceiro).
+    const strictAdminOnly = ['uniko-call','comercial','7-beneficios'];
     if (strictAdminOnly.includes(id) && authUser?.role !== 'admin' && !cargoModules.has(id)) return;
     setPortalInitialTab(initialTab || null);
     navPush(id);

@@ -388,8 +388,9 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto, cargoModules})
   const emLista = isMobile || alturaCurta;
   const isAdmin  = authUser?.role === 'admin';
   const isModerador = authUser?.role === 'moderador';
-  // Os únicos cards com adminOnly são Dashboard RH e Ponto Eletrônico — moderador
-  // tem acesso aos dois (o Dashboard RH internamente já restringe as abas dele).
+  // Cards com adminOnly (Dashboard RH, Ponto Eletrônico, Uniko Safer) liberam
+  // pra moderador também. Cards com strictAdmin (Uniko Call, Comercial, Portal
+  // dos Credenciados) NÃO liberam pra moderador — só admin de verdade ou cargo.
   const podeAdminOnly = isAdmin || isModerador;
 
   const IcoColab = (
@@ -496,7 +497,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto, cargoModules})
     {id:'conexao-setorial', label:'Trello',                sub:'Quadro Kanban · Salas por assunto',  icon:IcoConexao,        color:T.gold, bg:T.goldGl, tag:'Equipe',     adminOnly:false},
     {id:'info-adicional',   label:'Informações Adicionais', sub:'Instalar app · Sobre o Uniko',     icon:IcoInfo,        color:T.blue, bg:T.blueGl||T.goldGl, tag:'Guia', adminOnly:false},
     {id:'uniko-safer',      label:'Uniko Safer',           sub:'Conversas do WhatsApp organizadas', icon:IcoSafer,       color:T.gold, bg:T.goldGl, tag:'Admin',      adminOnly:true},
-    {id:'7-beneficios',     label:'Portal dos Credenciados', sub:'Plataforma 7 Benefícios',        icon:IcoBeneficios,  color:T.gold, bg:T.goldGl, tag:'Ferramenta', adminOnly:false},
+    {id:'7-beneficios',     label:'Portal dos Credenciados', sub:'Plataforma 7 Benefícios',        icon:IcoBeneficios,  color:T.gold, bg:T.goldGl, tag:'Ferramenta', adminOnly:true, strictAdmin:true},
     // Só admin vê (não moderador) — ainda sem módulo de verdade, é só a vitrine.
     {id:'uniko-call',       label:'Uniko Call',            sub:'Em breve',                         icon:IcoCall,        color:T.gold, bg:T.goldGl, tag:'Em breve', adminOnly:true, strictAdmin:true},
     {id:'comercial',        label:'Comercial',             sub:'Em breve',                         icon:IcoComercial,   color:T.gold, bg:T.goldGl, tag:'Em breve', adminOnly:true, strictAdmin:true},
