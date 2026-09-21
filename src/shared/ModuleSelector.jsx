@@ -457,12 +457,15 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
       <path d="M9 11.5c0-1.2 1.2-2 3-2s3 .8 3 2-1.2 2-3 2h-1.2l-1 1v-1.4c-.5-.2-.8-.9-.8-1.6z" fill="currentColor" stroke="none"/>
     </svg>
   );
-  // Presente (caixa com laço) — 7 Benefícios.
+  // Crachá/carteirinha de credenciado — Portal dos Credenciados.
   const IcoBeneficios = (
     <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="9" width="18" height="4" rx="1"/><rect x="4.5" y="13" width="15" height="8" rx="1"/><line x1="12" y1="9" x2="12" y2="21"/>
-      <path d="M12 9c-1.8 0-4-1-4-3.2C8 4.2 9 3 10.3 3 11.6 3 12 5 12 9z"/>
-      <path d="M12 9c1.8 0 4-1 4-3.2C16 4.2 15 3 13.7 3 12.4 3 12 5 12 9z"/>
+      <rect x="3" y="5" width="18" height="15" rx="2"/>
+      <path d="M9 2.5h6" strokeLinecap="round"/>
+      <circle cx="8.5" cy="11.3" r="2"/>
+      <path d="M6 16.5c.4-1.5 1.4-2.3 2.5-2.3s2.1.8 2.5 2.3"/>
+      <line x1="13.5" y1="9.8" x2="18" y2="9.8"/>
+      <line x1="13.5" y1="12.8" x2="18" y2="12.8"/>
     </svg>
   );
   // Módulos "em breve" — só admin vê, ainda sem tela de verdade por trás.
