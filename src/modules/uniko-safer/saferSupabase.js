@@ -16,6 +16,19 @@ import { createClient } from '@supabase/supabase-js';
 const SAFER_SUPABASE_URL = 'https://npfgggoavzzyzcjjachi.supabase.co';
 const SAFER_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5wZmdnZ29hdnp6eXpjamphY2hpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwMDEwNzgsImV4cCI6MjEwNTU3NzA3OH0.XUexLOmbg7zKknw_xx7pTegi7uoAHQ_gKI6_She3RZA';
 
-const supabase = createClient(SAFER_SUPABASE_URL, SAFER_SUPABASE_ANON_KEY);
+// Mesmo padrão de src/contexts/user.js: manda o ch_token no cabeçalho
+// x-ch-auth pra RLS poder checar admin/moderador de verdade (ver
+// jwt_claims() em supabase_seguranca_auth_helper.sql e as políticas em
+// supabase_seguranca_rls_uniko_safer.sql). Sem isso, depois da correção de
+// RLS, o módulo passaria a não ver NADA (falha fechada) mesmo pra admin.
+const _saferFetch = (url, options = {}) => {
+  const token = localStorage.getItem('ch_token');
+  const headers = { ...(options.headers || {}) };
+  if (token) headers['x-ch-auth'] = token;
+  return fetch(url, { ...options, headers });
+};
+const supabase = createClient(SAFER_SUPABASE_URL, SAFER_SUPABASE_ANON_KEY, {
+  global: { fetch: _saferFetch },
+});
 
 export { supabase };

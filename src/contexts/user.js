@@ -6,7 +6,24 @@ import { createClient as _createSupabaseClient } from '@supabase/supabase-js';
 const SERVER_URL = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SERVER_URL) || 'https://api.centraluniko.com.br';
 const SUPABASE_URL = 'https://iqsufxvuufkaswellisy.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlxc3VmeHZ1dWZrYXN3ZWxsaXN5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAwOTQ5MzUsImV4cCI6MjA5NTY3MDkzNX0.Cl6h-HM_RK0In5UTn2Hc-mhPQ2p8iOsG23EYfG8PX4c';
-const _supabase  = _createSupabaseClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// Manda o token de login (ch_token) num cabeçalho próprio, `x-ch-auth`, pra
+// que as políticas de RLS no Supabase consigam verificar quem é o usuário de
+// verdade (ver jwt_claims() em supabase_seguranca_auth_helper.sql). Não
+// reaproveita o cabeçalho `Authorization` porque esse o PostgREST tenta
+// validar com o segredo de Auth do PRÓPRIO projeto Supabase — sem trocar
+// aquele segredo no painel (fora do alcance do código), ele rejeitaria a
+// requisição inteira. Lido a cada chamada (não no momento de criar o
+// cliente) pra já valer no primeiro request depois do login, sem precisar
+// recriar o client.
+const _supabaseFetch = (url, options = {}) => {
+  const token = localStorage.getItem('ch_token');
+  const headers = { ...(options.headers || {}) };
+  if (token) headers['x-ch-auth'] = token;
+  return fetch(url, { ...options, headers });
+};
+const _supabase  = _createSupabaseClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  global: { fetch: _supabaseFetch },
+});
 
 // Decodifica o payload (base64url) do JWT preservando UTF-8.
 // `atob` devolve uma string binária (latin1); ler os bytes como UTF-8 evita
