@@ -23,8 +23,10 @@ const SAFER_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOi
 // RLS, o módulo passaria a não ver NADA (falha fechada) mesmo pra admin.
 const _saferFetch = (url, options = {}) => {
   const token = localStorage.getItem('ch_token');
-  const headers = { ...(options.headers || {}) };
-  if (token) headers['x-ch-auth'] = token;
+  // `new Headers(...)` combina objeto comum, Headers ou array de pares — ver
+  // o mesmo comentário em src/contexts/user.js (era isso que apagava o apikey).
+  const headers = new Headers(options.headers || {});
+  if (token) headers.set('x-ch-auth', token);
   return fetch(url, { ...options, headers });
 };
 const supabase = createClient(SAFER_SUPABASE_URL, SAFER_SUPABASE_ANON_KEY, {

@@ -17,8 +17,12 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 // recriar o client.
 const _supabaseFetch = (url, options = {}) => {
   const token = localStorage.getItem('ch_token');
-  const headers = { ...(options.headers || {}) };
-  if (token) headers['x-ch-auth'] = token;
+  // `new Headers(...)` sabe combinar objeto comum, Headers ou array de pares —
+  // diferente de `{ ...options.headers }`, que devolve VAZIO quando options.headers
+  // já é um Headers (spread não lê os pares internos). Foi isso que apagou o
+  // apikey original e quebrou toda chamada ao Supabase logo após o primeiro deploy.
+  const headers = new Headers(options.headers || {});
+  if (token) headers.set('x-ch-auth', token);
   return fetch(url, { ...options, headers });
 };
 const _supabase  = _createSupabaseClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
