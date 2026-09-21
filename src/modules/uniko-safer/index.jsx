@@ -105,6 +105,8 @@ const UnikoSafer = ({ onBack }) => {
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [bulkModalOpen, setBulkModalOpen] = useState(false);
+  const [bulkStep, setBulkStep] = useState('choose'); // 'choose' (confirma + escolhe setor) | 'drop' (solta os arquivos)
+  const [bulkCategory, setBulkCategory] = useState('faturamento');
   const [bulkDragOver, setBulkDragOver] = useState(false);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkLog, setBulkLog] = useState([]);
@@ -340,9 +342,10 @@ const UnikoSafer = ({ onBack }) => {
     const files = Array.from(fileList || []).filter(f => /\.(zip|txt)$/i.test(f.name));
     if (!files.length) { flash('Solte arquivos .zip ou .txt exportados do WhatsApp.'); return; }
     setBulkBusy(true);
-    // Casa só com contatos da categoria ATIVA — nomes iguais em Faturamento e
-    // Financeiro são pessoas/números diferentes, não a mesma conversa.
-    const byName = new Map(contacts.filter(c => c.category === activeCategory).map(c => [c.name.toLowerCase(), c]));
+    // Casa só com contatos do setor escolhido no passo anterior do modal —
+    // nomes iguais em Faturamento e Financeiro são pessoas/números
+    // diferentes, não a mesma conversa.
+    const byName = new Map(contacts.filter(c => c.category === bulkCategory).map(c => [c.name.toLowerCase(), c]));
     const results = [];
     for (const file of files) {
       const contactName = deriveContactNameFromFilename(file.name);
@@ -351,7 +354,7 @@ const UnikoSafer = ({ onBack }) => {
         let contact = byName.get(key);
         let createdContact = false;
         if (!contact) {
-          const { data, error } = await supabase.from('uniko_safer_contacts').insert({ name: contactName, category: activeCategory }).select().single();
+          const { data, error } = await supabase.from('uniko_safer_contacts').insert({ name: contactName, category: bulkCategory }).select().single();
           if (error) throw new Error(error.message);
           contact = data; createdContact = true; byName.set(key, contact);
         }
@@ -445,7 +448,7 @@ const UnikoSafer = ({ onBack }) => {
             <div style={{ padding: '16px 16px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
               <div style={{ fontSize: 16, fontWeight: 800, color: T.text }}>Contatos</div>
               <div style={{ display: 'flex', gap: 6 }}>
-                <button title="Importar vários (arrastar arquivos)" onClick={() => { setBulkLog([]); setBulkModalOpen(true); }} style={{ ...btnStyle('secondary'), padding: '7px 9px' }}><IcoImport /></button>
+                <button title="Importar vários (arrastar arquivos)" onClick={() => { setBulkLog([]); setBulkStep('choose'); setBulkCategory(activeCategory); setBulkModalOpen(true); }} style={{ ...btnStyle('secondary'), padding: '7px 9px' }}><IcoImport /></button>
                 <button title="Selecionar contatos" onClick={toggleSelectionMode} style={selectionMode ? { ...btnStyle('primary'), padding: '7px 9px' } : { ...btnStyle('secondary'), padding: '7px 9px' }}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 11 12 14 22 4" /><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" /></svg>
                 </button>
@@ -639,35 +642,71 @@ const UnikoSafer = ({ onBack }) => {
       {bulkModalOpen && (
         <div onClick={() => !bulkBusy && setBulkModalOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 500, padding: 16 }}>
           <div onClick={e => e.stopPropagation()} style={{ background: T.surface, borderRadius: 16, padding: 24, width: 460, maxWidth: '100%', boxShadow: T.shL }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-              <div style={{ fontSize: 16, fontWeight: 700, color: T.text }}>Importar vários arquivos</div>
-              <button onClick={() => setBulkModalOpen(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: T.textT }}><IcoClose /></button>
-            </div>
-            <div style={{ fontSize: 12, color: T.textT, marginBottom: 12, lineHeight: 1.5 }}>
-              O nome do contato é identificado pelo nome do arquivo (ex: "Conversa do WhatsApp com João.zip"). Se o contato ainda não existir, ele é criado automaticamente.
-            </div>
-            <div
-              onDragOver={e => { e.preventDefault(); setBulkDragOver(true); }}
-              onDragLeave={() => setBulkDragOver(false)}
-              onDrop={e => { e.preventDefault(); setBulkDragOver(false); handleBulkFiles(e.dataTransfer?.files); }}
-              onClick={() => !bulkBusy && bulkInputRef.current?.click()}
-              style={{ padding: '26px 16px', border: `1.5px dashed ${bulkDragOver ? T.gold : T.border}`, borderRadius: 12,
-                background: bulkDragOver ? T.goldGl : T.page, color: bulkDragOver ? T.gold : T.textT, fontSize: 12.5, lineHeight: 1.5,
-                textAlign: 'center', cursor: bulkBusy ? 'default' : 'pointer', opacity: bulkBusy ? 0.6 : 1, pointerEvents: bulkBusy ? 'none' : 'auto' }}>
-              {bulkBusy ? 'Importando…' : 'Arraste os arquivos .zip/.txt aqui, ou clique pra escolher'}
-            </div>
-            <input ref={bulkInputRef} type="file" accept=".zip,.txt" multiple style={{ display: 'none' }}
-              onChange={e => { handleBulkFiles(e.target.files); e.target.value = ''; }} />
+            {bulkStep === 'choose' ? (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: T.text }}>Adicionar mais conversas?</div>
+                  <button onClick={() => setBulkModalOpen(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: T.textT }}><IcoClose /></button>
+                </div>
+                <div style={{ fontSize: 12.5, color: T.textT, marginBottom: 16, lineHeight: 1.5 }}>
+                  Escolha pra qual setor vão as conversas que você vai importar agora. Vale pra todos os arquivos que você soltar em seguida.
+                </div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: T.textT, marginBottom: 6 }}>Setor</label>
+                <div style={{ display: 'flex', gap: 6, marginBottom: 20 }}>
+                  {CATEGORIES.map(cat => {
+                    const sel = bulkCategory === cat.id;
+                    return (
+                      <button key={cat.id} onClick={() => setBulkCategory(cat.id)}
+                        style={{ flex: 1, padding: '10px 10px', borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-body)',
+                          border: `1.5px solid ${sel ? T.gold : T.border}`, background: sel ? T.goldGl : 'transparent', color: sel ? T.gold : T.textS }}>
+                        {cat.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                  <button onClick={() => setBulkModalOpen(false)} style={btnStyle('secondary')}>Cancelar</button>
+                  <button onClick={() => setBulkStep('drop')} style={btnStyle('primary')}>Continuar</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <button onClick={() => setBulkStep('choose')} disabled={bulkBusy}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'transparent', border: 'none', cursor: bulkBusy ? 'default' : 'pointer',
+                      color: T.textT, fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-body)', padding: 0, opacity: bulkBusy ? 0.5 : 1 }}>
+                    <IcoBack /> {CATEGORIES.find(c => c.id === bulkCategory)?.label}
+                  </button>
+                  <button onClick={() => setBulkModalOpen(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: T.textT }}><IcoClose /></button>
+                </div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: T.text, margin: '6px 0' }}>Importar vários arquivos</div>
+                <div style={{ fontSize: 12, color: T.textT, marginBottom: 12, lineHeight: 1.5 }}>
+                  O nome do contato é identificado pelo nome do arquivo (ex: "Conversa do WhatsApp com João.zip"). Se o contato ainda não existir no setor <strong>{CATEGORIES.find(c => c.id === bulkCategory)?.label}</strong>, ele é criado automaticamente.
+                </div>
+                <div
+                  onDragOver={e => { e.preventDefault(); setBulkDragOver(true); }}
+                  onDragLeave={() => setBulkDragOver(false)}
+                  onDrop={e => { e.preventDefault(); setBulkDragOver(false); handleBulkFiles(e.dataTransfer?.files); }}
+                  onClick={() => !bulkBusy && bulkInputRef.current?.click()}
+                  style={{ padding: '26px 16px', border: `1.5px dashed ${bulkDragOver ? T.gold : T.border}`, borderRadius: 12,
+                    background: bulkDragOver ? T.goldGl : T.page, color: bulkDragOver ? T.gold : T.textT, fontSize: 12.5, lineHeight: 1.5,
+                    textAlign: 'center', cursor: bulkBusy ? 'default' : 'pointer', opacity: bulkBusy ? 0.6 : 1, pointerEvents: bulkBusy ? 'none' : 'auto' }}>
+                  {bulkBusy ? 'Importando…' : 'Arraste os arquivos .zip/.txt aqui, ou clique pra escolher'}
+                </div>
+                <input ref={bulkInputRef} type="file" accept=".zip,.txt" multiple style={{ display: 'none' }}
+                  onChange={e => { handleBulkFiles(e.target.files); e.target.value = ''; }} />
 
-            {bulkLog.length > 0 && (
-              <div style={{ marginTop: 14, maxHeight: 220, overflowY: 'auto', border: `1px solid ${T.border}`, borderRadius: 10, background: T.page, fontSize: 12 }}>
-                {bulkLog.map((r, i) => (
-                  <div key={i} style={{ padding: '7px 10px', borderBottom: i < bulkLog.length - 1 ? `1px solid ${T.border}` : 'none', display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                    <span style={{ fontWeight: 600, color: T.text, flexShrink: 0 }}>{r.filename} → {r.contactName}{r.createdContact ? ' (novo)' : ''}</span>
-                    <span style={{ color: r.status === 'imported' ? (T.green || T.gold) : T.danger, textAlign: 'right' }}>{r.message}</span>
+                {bulkLog.length > 0 && (
+                  <div style={{ marginTop: 14, maxHeight: 220, overflowY: 'auto', border: `1px solid ${T.border}`, borderRadius: 10, background: T.page, fontSize: 12 }}>
+                    {bulkLog.map((r, i) => (
+                      <div key={i} style={{ padding: '7px 10px', borderBottom: i < bulkLog.length - 1 ? `1px solid ${T.border}` : 'none', display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                        <span style={{ fontWeight: 600, color: T.text, flexShrink: 0 }}>{r.filename} → {r.contactName}{r.createdContact ? ' (novo)' : ''}</span>
+                        <span style={{ color: r.status === 'imported' ? (T.green || T.gold) : T.danger, textAlign: 'right' }}>{r.message}</span>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                )}
+              </>
             )}
           </div>
         </div>
