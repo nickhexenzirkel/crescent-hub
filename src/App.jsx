@@ -60,6 +60,12 @@ export default function CrescentHub() {
   const [userPhoto, setUserPhoto] = useState(null);
   const [portalInitialTab, setPortalInitialTab] = useState(null); // aba com que o Portal abre (ex: "dados" ao clicar em "Editar perfil")
   const isMobile = useIsMobile();
+  // 7 Benefícios embute um site de terceiro num <iframe>: desmontar o
+  // componente a cada troca de módulo destruía e recarregava esse iframe do
+  // zero, derrubando a sessão de login dele. Uma vez visitado, fica montado
+  // pra sempre (só escondido via `active`) — ver Beneficios7.
+  const [visited7Beneficios, setVisited7Beneficios] = useState(false);
+  useEffect(() => { if (screen === '7-beneficios') setVisited7Beneficios(true); }, [screen]);
 
   /* Favoritar Editor/Organizar/Mesclar de PDF (Oficina Estelar) no navegador
      e abrir DIRETO neles — ver rotaFerramenta.js. Guarda o alvo (se o hash de
@@ -653,7 +659,7 @@ export default function CrescentHub() {
           {screen==='conexao-setorial' && <ConexaoSetorial onBack={handleGoBack} authUser={authUser} initialTab={portalInitialTab}/>}
           {screen==='info-adicional' && <InfoAdicional onBack={handleGoBack}/>}
           {screen==='uniko-safer' && (authUser?.role==='admin'||authUser?.role==='moderador') && <UnikoSafer onBack={handleGoBack}/>}
-          {screen==='7-beneficios' && <Beneficios7 onBack={handleGoBack}/>}
+          {visited7Beneficios && <Beneficios7 onBack={handleGoBack} active={screen==='7-beneficios'}/>}
           {screen==='mercado-estelar' && <MercadoEstelar onBack={handleGoBack} authUser={authUser} userPhoto={userPhoto} initialTab={portalInitialTab}/>}
           {screen==='uniko-fit' && <UnikoFit onBack={handleGoBack} authUser={authUser} userPhoto={userPhoto}/>}
           {screen==='uniko-call' && authUser?.role==='admin' && <EmBreveModulo onBack={handleGoBack} title="Uniko Call" icon={IcoEmBreveCall}/>}

@@ -489,7 +489,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
     {id:'conexao-setorial', label:'Trello',                sub:'Quadro Kanban · Salas por assunto',  icon:IcoConexao,        color:T.gold, bg:T.goldGl, tag:'Equipe',     adminOnly:false},
     {id:'info-adicional',   label:'Informações Adicionais', sub:'Instalar app · Sobre o Uniko',     icon:IcoInfo,        color:T.blue, bg:T.blueGl||T.goldGl, tag:'Guia', adminOnly:false},
     {id:'uniko-safer',      label:'Uniko Safer',           sub:'Conversas do WhatsApp organizadas', icon:IcoSafer,       color:T.gold, bg:T.goldGl, tag:'Admin',      adminOnly:true},
-    {id:'7-beneficios',     label:'7 Benefícios',          sub:'Plataforma 7 Benefícios',          icon:IcoBeneficios,  color:T.gold, bg:T.goldGl, tag:'Ferramenta', adminOnly:false},
+    {id:'7-beneficios',     label:'Portal dos Credenciados', sub:'Plataforma 7 Benefícios',        icon:IcoBeneficios,  color:T.gold, bg:T.goldGl, tag:'Ferramenta', adminOnly:false},
     // Só admin vê (não moderador) — ainda sem módulo de verdade, é só a vitrine.
     {id:'uniko-call',       label:'Uniko Call',            sub:'Em breve',                         icon:IcoCall,        color:T.gold, bg:T.goldGl, tag:'Em breve', adminOnly:true, strictAdmin:true},
     {id:'comercial',        label:'Comercial',             sub:'Em breve',                         icon:IcoComercial,   color:T.gold, bg:T.goldGl, tag:'Em breve', adminOnly:true, strictAdmin:true},
