@@ -10,7 +10,6 @@ import { useIsMobile } from '../../hooks/useIsMobile';
 import { SERVER_URL, supabase as sb, getAuthUser, fetchPhotoByName } from '../../contexts/user';
 import { notifyDesktop, ensureNotifyPermission } from '../../utils/desktopNotify';
 import SalasLobby from './SalasLobby';
-import { bolhaGradiente } from '../../shared/bolhas';
 import { fetchColegas } from '../../shared/gameInvites';
 import { sendListShare, fetchListShare, respondListShare, fetchMyAcceptedShares,
   readPendingListInvite, clearPendingListInvite } from '../../shared/listShares';
@@ -265,6 +264,10 @@ export default function ConexaoSetorial({ onBack, authUser, initialTab }) {
   // drag & drop
   const [drag, setDrag] = useState(null);           // { cardId, fromList }
   const [dragOver, setDragOver] = useState(null);    // { listId, index }
+
+  // drag & drop de colunas (arrastar pelo cabeçalho pra reordenar)
+  const [dragList, setDragList] = useState(null);        // id da coluna sendo arrastada
+  const [dragOverList, setDragOverList] = useState(null); // { listId, before }
 
   // menu de contexto (botão direito no card)
   const [ctxMenu, setCtxMenu] = useState(null);      // { cardId, x, y, sub }
@@ -625,6 +628,29 @@ export default function ConexaoSetorial({ onBack, authUser, initialTab }) {
     await patchCard(d.cardId, { list_id: listId, position: pos });
   };
 
+  // ── Reordenar coluna (arrastar pelo cabeçalho) ────────────────
+  const performListDrop = async (targetId) => {
+    const hint = dragOverList; const sourceId = dragList;
+    setDragList(null); setDragOverList(null);
+    if (!sourceId || sourceId === targetId) return;
+    const ordered = [...lists].sort((a, b) => a.position - b.position);
+    const without = ordered.filter(l => l.id !== sourceId);
+    let idx = without.findIndex(l => l.id === targetId);
+    if (idx === -1) return;
+    if (hint && hint.listId === targetId && !hint.before) idx += 1;
+    idx = Math.max(0, Math.min(idx, without.length));
+    const prev = without[idx - 1], next = without[idx];
+    let pos;
+    if (!prev && !next) pos = 1000;
+    else if (!prev) pos = next.position - 1000;
+    else if (!next) pos = prev.position + 1000;
+    else pos = (prev.position + next.position) / 2;
+    const cur = lists.find(l => l.id === sourceId);
+    if (cur && cur.position === pos) return;
+    setLists(prev2 => prev2.map(l => l.id === sourceId ? { ...l, position: pos } : l));
+    await sb.from('conexao_lists').update({ position: pos }).eq('id', sourceId);
+  };
+
   // Move um card pro fim de outra coluna (usado pelo menu de contexto).
   const moveCardToList = async (cardId, listId) => {
     const cur = cardsRef.current.find(c => c.id === cardId);
@@ -671,60 +697,19 @@ export default function ConexaoSetorial({ onBack, authUser, initialTab }) {
   const LIST_W_MAX = 320;
 
   const shellStyle = { position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: T.page, color: T.text, fontFamily: 'var(--font-body)' };
-  const Blobs = (
-    <div className="cs-blobs" aria-hidden>
-      <div className="cs-blob cs-blob1" />
-      <div className="cs-blob cs-blob2" />
-      <div className="cs-blob cs-blob3" />
-    </div>
-  );
+  // Fundo animado (blobs "lava lamp") e transições/keyframes removidos daqui:
+  // com o board cheio de cards, o custo somado derrubava o FPS pra ~44 mesmo
+  // sem blur (ver perf_fundo_bolhas). Trello agora é a única tela sem esse
+  // efeito — o resto do app continua com bolhaGradiente normalmente.
   const CS_CSS = `
-        @keyframes csPop{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}
-        @keyframes csToast{from{opacity:0;transform:translateX(30px)}to{opacity:1;transform:none}}
-        @keyframes csFade{from{opacity:0}to{opacity:1}}
-        @keyframes csUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
-        @keyframes csSlideIn{from{transform:translateX(100%)}to{transform:none}}
-        @keyframes csSlideUp{from{transform:translateY(100%)}to{transform:none}}
         .cs-scroll::-webkit-scrollbar{height:10px;width:10px}
-        .cs-card{transition:transform .14s cubic-bezier(.2,1,.3,1), box-shadow .14s, border-color .14s}
-        .cs-card:hover{transform:translateY(-3px);box-shadow:0 10px 26px rgba(120,60,180,.2)}
-        .cs-card:active{transform:scale(.99)}
-        .cs-btn{cursor:pointer;border:none;font-family:inherit;transition:filter .15s, background .15s, transform .12s}
+        .cs-btn{cursor:pointer;border:none;font-family:inherit}
         .cs-btn:hover{filter:brightness(1.08)}
-        .cs-btn:active{transform:scale(.96)}
         .cs-ghost:hover{background:${T.itemHover || 'rgba(120,60,180,.08)'}}
-        .cs-chip{transition:transform .12s, background .15s}
-        .cs-chip:hover{transform:translateY(-1px);filter:brightness(.97)}
-        .cs-mi{transition:background .12s}
         .cs-mi:hover{background:${T.itemHover || 'rgba(120,60,180,.08)'}}
-        .cs-tb{transition:background .12s, transform .1s}
         .cs-tb:hover{background:${T.itemHover || 'rgba(120,60,180,.1)'}}
-        .cs-tb:active{transform:scale(.9)}
-        .cs-fade{animation:csUp .22s ease both}
         .cs-desc b,.cs-desc strong{color:${T.text}}
         .cs-desc:hover{background:${T.itemHover || 'rgba(120,60,180,.05)'};border-radius:8px}
-
-        /* ── blobs de fundo: manchas coloridas que vagam devagar. SEM filter:blur —
-           blur numa mancha de ~1000px animada em loop é refeito a cada frame e
-           derruba o FPS (medido: 6fps com blur, 144 sem). A queda suave vem pronta
-           no degradê (bolhaGradiente, shared/bolhas.js), custo de desenho zero. ── */
-        .cs-blobs{position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden;contain:paint}
-        .cs-blob{position:absolute;border-radius:50%;will-change:transform}
-        @keyframes csBlobA{0%,100%{transform:translate(0,0) scale(1)}
-          33%{transform:translate(9vw,7vh) scale(1.16)}
-          66%{transform:translate(-6vw,11vh) scale(.9)}}
-        @keyframes csBlobB{0%,100%{transform:translate(0,0) scale(1)}
-          40%{transform:translate(-11vw,8vh) scale(1.22)}
-          75%{transform:translate(7vw,-6vh) scale(.94)}}
-        @keyframes csBlobC{0%,100%{transform:translate(0,0) scale(1.05)}
-          50%{transform:translate(8vw,-10vh) scale(.86)}}
-        .cs-blob1{width:44vw;height:44vw;top:-12vh;left:-8vw;
-          background:${bolhaGradiente('#E0559A')};animation:csBlobA 26s ease-in-out infinite}
-        .cs-blob2{width:40vw;height:40vw;top:18vh;right:-10vw;
-          background:${bolhaGradiente('#A24CE0')};animation:csBlobB 32s ease-in-out infinite}
-        .cs-blob3{width:36vw;height:36vw;bottom:-16vh;left:28vw;
-          background:${bolhaGradiente('#5B8DEF')};animation:csBlobC 38s ease-in-out infinite}
-        @media (prefers-reduced-motion: reduce){ .cs-blob{animation:none !important} }
   `;
 
   // ── Sem sala aberta: lobby das salas ────────────────────────
@@ -732,7 +717,6 @@ export default function ConexaoSetorial({ onBack, authUser, initialTab }) {
     return (
       <div style={shellStyle}>
         <style>{CS_CSS}</style>
-        {Blobs}
         <SalasLobby key={salaPedida?.id || 'lobby'}
           rooms={rooms} loading={roomsLoading} isAdmin={isAdmin} brd={brd} onBack={onBack}
           jaAberta={(id) => lidasNaSessao().includes(id)} salaPedida={salaPedida}
@@ -748,9 +732,6 @@ export default function ConexaoSetorial({ onBack, authUser, initialTab }) {
   return (
     <div style={shellStyle}>
       <style>{CS_CSS}</style>
-
-      {/* fundo animado (atrás de tudo) */}
-      {Blobs}
 
       {/* ── Header ── */}
       {/* T.topbarBg já é 94% opaco em todos os temas — o backdrop-filter daqui não
@@ -809,14 +790,22 @@ export default function ConexaoSetorial({ onBack, authUser, initialTab }) {
             {visibleLists.map(list => {
               const listCards = cards.filter(c => c.list_id === list.id && passesFilter(c)).sort((a, b) => a.position - b.position);
               const isDoneList = /conclu/i.test(list.title || '');
+              const isListDragging = dragList === list.id;
+              const listDropSide = dragOverList && dragOverList.listId === list.id ? (dragOverList.before ? 'inset 3px 0 0 0 #A24CE0' : 'inset -3px 0 0 0 #A24CE0') : 'none';
               return (
                 <div key={list.id}
-                  onDragOver={e => { if (drag) { e.preventDefault(); if (!dragOver || dragOver.listId !== list.id || dragOver.index !== listCards.length) setDragOver({ listId: list.id, index: listCards.length }); } }}
-                  onDrop={() => performDrop(list.id)}
+                  onDragOver={e => {
+                    if (drag) { e.preventDefault(); if (!dragOver || dragOver.listId !== list.id || dragOver.index !== listCards.length) setDragOver({ listId: list.id, index: listCards.length }); }
+                    else if (dragList && dragList !== list.id) { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); const before = e.clientX < r.left + r.width / 2; if (!dragOverList || dragOverList.listId !== list.id || dragOverList.before !== before) setDragOverList({ listId: list.id, before }); }
+                  }}
+                  onDrop={() => { if (dragList) performListDrop(list.id); else performDrop(list.id); }}
                   onContextMenu={e => { if (guestListIds) return; e.preventDefault(); setCtxMenuList({ listId: list.id, x: e.clientX, y: e.clientY }); }}
-                  style={{ flex: `1 1 ${LIST_W_MIN}px`, minWidth: LIST_W_MIN, maxWidth: LIST_W_MAX, maxHeight: '100%', display: 'flex', flexDirection: 'column', background: colBg, borderRadius: 16, border: list.locked ? '1px solid #E0A83A' : `1px solid ${brd}` }}>
-                  {/* Cabeçalho da coluna */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 12px 8px' }}>
+                  style={{ flex: `1 1 ${LIST_W_MIN}px`, minWidth: LIST_W_MIN, maxWidth: LIST_W_MAX, maxHeight: '100%', display: 'flex', flexDirection: 'column', background: colBg, borderRadius: 16, border: list.locked ? '1px solid #E0A83A' : `1px solid ${brd}`, opacity: isListDragging ? 0.45 : 1, boxShadow: listDropSide, transition: 'opacity .12s' }}>
+                  {/* Cabeçalho da coluna — arrastável pra reordenar (exceto convidado) */}
+                  <div draggable={!guestListIds && editingList !== list.id}
+                    onDragStart={e => { e.stopPropagation(); setDragList(list.id); }}
+                    onDragEnd={() => { setDragList(null); setDragOverList(null); }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 12px 8px', cursor: guestListIds ? 'default' : 'grab' }}>
                     {list.locked && <span title="Coluna trancada" style={{ color: '#E0A83A', display: 'grid', placeItems: 'center' }}><Ic n="lock" size={14} /></span>}
                     {editingList === list.id ? (
                       <input autoFocus value={editListText} onChange={e => setEditListText(e.target.value)}

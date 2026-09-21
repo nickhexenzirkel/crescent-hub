@@ -450,6 +450,22 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
       <circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16.5"/><circle cx="12" cy="7.8" r="1" fill="currentColor" stroke="none"/>
     </svg>
   );
+  // Módulos "em breve" — só admin vê, ainda sem tela de verdade por trás.
+  const IcoSafer = (
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 3l7 3v5c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V6l7-3z"/><path d="M9 12l2 2 4-4"/>
+    </svg>
+  );
+  const IcoCall = (
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L14 13l5 2v4c0 1-1 2-2 2-8 0-15-7-15-15 0-1 1-2 2-2z"/>
+    </svg>
+  );
+  const IcoComercial = (
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="3" y1="12" x2="21" y2="12"/>
+    </svg>
+  );
   const allMods = [
     // `fixo`: o Portal é o módulo principal — sempre o primeiro, e nasce grande.
     {id:'colaborador',      label:'Portal do Colaborador', sub:'Portal RH completo',               icon:IcoColab,       color:T.gold, bg:T.goldGl, tag:'Principal',  adminOnly:false, fixo:true},
@@ -462,6 +478,10 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
     {id:'mercado-estelar',  label:'Prisma Store',          sub:'Loja de benefícios e recompensas', icon:IcoMercado,     color:T.gold, bg:T.goldGl, tag:'Recompensas', adminOnly:false},
     {id:'conexao-setorial', label:'Trello',                sub:'Quadro Kanban · Salas por assunto',  icon:IcoConexao,        color:T.gold, bg:T.goldGl, tag:'Equipe',     adminOnly:false},
     {id:'info-adicional',   label:'Informações Adicionais', sub:'Instalar app · Sobre o Uniko',     icon:IcoInfo,        color:T.blue, bg:T.blueGl||T.goldGl, tag:'Guia', adminOnly:false},
+    // Só admin vê (não moderador) — ainda sem módulo de verdade, é só a vitrine.
+    {id:'uniko-safer',      label:'Uniko Safer',           sub:'Em breve',                         icon:IcoSafer,       color:T.gold, bg:T.goldGl, tag:'Em breve', adminOnly:true, strictAdmin:true},
+    {id:'uniko-call',       label:'Uniko Call',            sub:'Em breve',                         icon:IcoCall,        color:T.gold, bg:T.goldGl, tag:'Em breve', adminOnly:true, strictAdmin:true},
+    {id:'comercial',        label:'Comercial',             sub:'Em breve',                         icon:IcoComercial,   color:T.gold, bg:T.goldGl, tag:'Em breve', adminOnly:true, strictAdmin:true},
   ];
   /* Os atalhos viram "módulos" de mentira: daí em diante tudo que a tela já
      sabe fazer (ordenar, redimensionar, colorir) vale pra eles de graça. O que
@@ -491,7 +511,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
   // Computador: 1ª vez (sem ordem salva) usa esta sequência. Depois que a
   // pessoa reorganiza, lista do celular e grade do computador seguem a MESMA
   // ordem escolhida por ela.
-  const ORDEM_PADRAO = ['colaborador','mercado-estelar','alexa','faturamento','dashboard','conexao-setorial','ponto','uniko-fit','info-adicional'];
+  const ORDEM_PADRAO = ['colaborador','mercado-estelar','alexa','faturamento','dashboard','conexao-setorial','ponto','uniko-fit','info-adicional','uniko-safer','uniko-call','comercial'];
   const modsTela = order.length ? mods : fixarPrincipal(applyOrder(filteredMods, ORDEM_PADRAO));
   /* Reordenar no celular é por SETAS, não arrastando. Não é preguiça: o
      drag-and-drop HTML5 (o mesmo que a grade usa no computador) simplesmente não

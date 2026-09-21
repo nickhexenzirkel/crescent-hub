@@ -2727,6 +2727,8 @@ const AdminTransacoes = ({ flash, isMobile, cardBg, adminName, ownSetState, miss
   const [hist, setHist] = useState([]);
   const [wallets, setWallets] = useState([]); // [{player, comum, premium}]
   const [busy, setBusy] = useState(true);
+  const [saldosOpen, setSaldosOpen] = useState(false);   // popup grande com o saldo de todo mundo
+  const [saldosQuery, setSaldosQuery] = useState('');
   const [to, setTo] = useState('');
   const [toQuery, setToQuery] = useState('');
   const [openTo, setOpenTo] = useState(false);
@@ -2857,6 +2859,7 @@ const AdminTransacoes = ({ flash, isMobile, cardBg, adminName, ownSetState, miss
   };
 
   return (
+    <>
     <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '340px 1fr', gap: 16, alignItems: 'start' }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Adicionar / Retirar prismas de um colaborador */}
@@ -2917,8 +2920,12 @@ const AdminTransacoes = ({ flash, isMobile, cardBg, adminName, ownSetState, miss
           ? { width: '100%', padding: '12px', borderRadius: 10, border: 'none', cursor: busy ? 'wait' : 'pointer', background: '#C04050', color: '#fff', fontWeight: 800, fontSize: 14, fontFamily: 'var(--font-body)' }
           : primaryBtn(T.gold)}>{dir === 'remove' ? 'Retirar' : 'Adicionar'}</button>
 
-        {/* Saldos atuais */}
-        <div style={{ marginTop: 18, fontSize: 13, fontWeight: 700, color: T.text, marginBottom: 8 }}>Saldos ({wallets.length})</div>
+        {/* Saldos atuais — clicar no título expande num popup grande com filtro */}
+        <button onClick={() => setSaldosOpen(true)} title="Ver saldo de todo mundo, expandido"
+          style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 18, marginBottom: 8, padding: 0, border: 'none', background: 'transparent', cursor: 'pointer', fontFamily: 'var(--font-body)' }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>Saldos ({wallets.length})</span>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={T.gold} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M8 3H5a2 2 0 00-2 2v3M16 3h3a2 2 0 012 2v3M8 21H5a2 2 0 01-2-2v-3M16 21h3a2 2 0 002-2v-3" /></svg>
+        </button>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 240, overflowY: 'auto' }}>
           {wallets.length === 0 ? <div style={{ fontSize: 12, color: T.textT }}>Nenhuma carteira ainda.</div> : wallets.map(w => (
             <div key={w.player} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5 }}>
@@ -3055,6 +3062,75 @@ const AdminTransacoes = ({ flash, isMobile, cardBg, adminName, ownSetState, miss
         })()}
       </div>
     </div>
+
+    {/* Popup grande: saldo de todo mundo, com filtro por nome */}
+    {saldosOpen && (() => {
+      const q = saldosQuery.trim().toLowerCase();
+      const filtered = (q ? wallets.filter(w => w.player.toLowerCase().includes(q)) : wallets)
+        .slice().sort((a, b) => a.player.localeCompare(b.player));
+      const totals = filtered.reduce((acc, w) => ({ comum: acc.comum + (w.comum || 0), premium: acc.premium + (w.premium || 0) }), { comum: 0, premium: 0 });
+      return (
+        <div onClick={() => setSaldosOpen(false)} style={{
+          position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: 20, background: 'rgba(8,8,16,0.55)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
+          animation: 'meFade .2s ease',
+        }}>
+          <style>{`@keyframes meFade{from{opacity:0}to{opacity:1}}@keyframes mePop{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:scale(1)}}`}</style>
+          <div onClick={e => e.stopPropagation()} style={{
+            position: 'relative', width: '100%', maxWidth: 640, maxHeight: '84vh', display: 'flex', flexDirection: 'column',
+            background: cardBg, borderRadius: 22, border: `1.5px solid ${T.border}`, boxShadow: '0 24px 80px rgba(0,0,0,0.45)',
+            overflow: 'hidden', animation: 'mePop .2s cubic-bezier(.16,1,.3,1)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '18px 20px 14px', borderBottom: `1px solid ${T.border}`, flexShrink: 0 }}>
+              <div style={{ fontSize: 17, fontWeight: 800, color: T.text, fontFamily: 'var(--font-brand)' }}>Saldo de todo mundo</div>
+              <div style={{ fontSize: 12.5, color: T.textT, fontWeight: 600 }}>({filtered.length}{q ? ` de ${wallets.length}` : ''})</div>
+              <button onClick={() => setSaldosOpen(false)} aria-label="Fechar" style={{
+                marginLeft: 'auto', width: 32, height: 32, borderRadius: '50%', border: 'none', cursor: 'pointer',
+                background: T.surfaceSub || 'rgba(0,0,0,0.06)', color: T.textS, fontSize: 17, lineHeight: 1,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+              }}>×</button>
+            </div>
+
+            <div style={{ padding: '14px 20px 0', flexShrink: 0 }}>
+              <div style={{ position: 'relative', marginBottom: 12 }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.textD} strokeWidth="2" strokeLinecap="round" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
+                  <circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
+                <input autoFocus value={saldosQuery} onChange={e => setSaldosQuery(e.target.value)} placeholder="Filtrar por colaborador..."
+                  style={{ ...adminField, paddingLeft: 34, paddingRight: saldosQuery ? 34 : 12 }} />
+                {saldosQuery && (
+                  <button onClick={() => setSaldosQuery('')} aria-label="Limpar filtro" style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', width: 22, height: 22, borderRadius: '50%', border: 'none', cursor: 'pointer', background: T.surfaceSub || 'rgba(0,0,0,0.06)', color: T.textT, fontSize: 13, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+                )}
+              </div>
+              {/* Somatório de quem está sendo mostrado — some sozinho quando filtra por 1 pessoa */}
+              <div style={{ display: 'flex', gap: 16, alignItems: 'center', padding: '9px 13px', borderRadius: 10, background: T.goldGl, marginBottom: 12, fontSize: 12.5, fontWeight: 700 }}>
+                <span style={{ color: T.textT, fontWeight: 600 }}>{q ? 'Total filtrado' : 'Total geral'}</span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: COMUM.color }}><PrismIcon type="comum" size={14} />{fmt(totals.comum)}</span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><PrismIcon type="premium" size={16} /><span style={prismText('premium')}>{fmt(totals.premium)}</span></span>
+              </div>
+            </div>
+
+            <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '0 20px 20px' }}>
+              {filtered.length === 0 ? (
+                <div style={{ fontSize: 13, color: T.textT, textAlign: 'center', padding: '30px 0' }}>Nenhum colaborador encontrado.</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {filtered.map(w => (
+                    <div key={w.player} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 12, border: `1px solid ${T.border}`, background: T.surfaceSub || 'rgba(0,0,0,0.015)' }}>
+                      <AvatarCircle name={w.player} size={30} fontSize={11} />
+                      <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, fontWeight: 700, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{w.player}</span>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13.5, fontWeight: 700, color: COMUM.color }}><PrismIcon type="comum" size={15} />{fmt(w.comum)}</span>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13.5, fontWeight: 700 }}><PrismIcon type="premium" size={17} /><span style={prismText('premium')}>{fmt(w.premium)}</span></span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    })()}
+    </>
   );
 };
 

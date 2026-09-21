@@ -667,7 +667,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
   //  • acesso_bloqueado → não entra mais no Uniko (login barrado e sessão já
   //                       aberta derrubada no próximo request).
   const [desModal,  setDesModal]  = useState(null); // null | employee
-  const [desForm,   setDesForm]   = useState({ desligado:false, desligamento_data:'', desligamento_motivo:'', acesso_bloqueado:false });
+  const [desForm,   setDesForm]   = useState({ desligado:false, desligamento_data:'', desligamento_motivo:'', acesso_bloqueado:false, apagar_ponto:false });
   const [desSaving, setDesSaving] = useState(false);
   const [desMsg,    setDesMsg]    = useState('');
 
@@ -678,12 +678,35 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
       desligamento_data:   (emp.desligamento_data || '').slice(0, 10),
       desligamento_motivo: emp.desligamento_motivo || '',
       acesso_bloqueado:    !!emp.acesso_bloqueado,
+      apagar_ponto:        false, // ação de uma vez só — nunca vem persistida do funcionário
     });
     setDesModal(emp);
   };
 
+  // Apaga as marcações do Ponto Eletrônico da pessoa. Resolve o id do ponto
+  // (que costuma ser PIS/PASEP, ≠ CPF) pelo vínculo explícito (ponto_vinculo)
+  // e, na falta dele, pelo próprio CPF (com e sem zero à esquerda) — sem
+  // tentar casar por nome aqui, que é fuzzy demais pra uma exclusão que não
+  // tem volta.
+  const excluirRegistrosPonto = async (emp) => {
+    const cpfDigits = (emp.cpf || '').replace(/\D/g, '');
+    if (!cpfDigits) return { ok:false, msg:'funcionário sem CPF cadastrado, não deu pra achar o ponto dele(a).' };
+    const ids = new Set([cpfDigits, cpfDigits.padStart(11, '0')]);
+    try {
+      const { data: vinc } = await _supabase.from('ponto_vinculo').select('ponto_id').eq('portal_cpf', cpfDigits).maybeSingle();
+      if (vinc?.ponto_id) ids.add(vinc.ponto_id);
+    } catch {}
+    const { error } = await _supabase.from('ponto_marcacoes').delete().in('cpf', [...ids]);
+    if (error) return { ok:false, msg:'erro ao apagar o ponto: ' + error.message };
+    return { ok:true };
+  };
+
   const saveDesligamento = async () => {
     if (desForm.desligado && !desForm.desligamento_data) { setDesMsg('⚠️ Informe a data do desligamento.'); return; }
+    if (desForm.desligado && desForm.apagar_ponto) {
+      const ok = window.confirm(`Isso vai apagar PERMANENTEMENTE todos os registros de ponto batidos de ${desModal.name} no Ponto Eletrônico.\n\nNão tem como desfazer. Confirma?`);
+      if (!ok) return;
+    }
     setDesSaving(true); setDesMsg('');
     try {
       const r = await fetch(`${SERVER_URL}/api/employees/${desModal.id}/desligamento`, {
@@ -691,8 +714,12 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
       });
       const d = await r.json();
       if (!r.ok) { setDesMsg('⚠️ ' + (d.error || 'Erro ao salvar')); setDesSaving(false); return; }
+      if (desForm.desligado && desForm.apagar_ponto) {
+        const res = await excluirRegistrosPonto(desModal);
+        if (!res.ok) { setDesMsg(`⚠️ Desligamento salvo, mas ${res.msg}`); setDesSaving(false); return; }
+      }
       await loadGerList();
-      setDesMsg('✅ Salvo!');
+      setDesMsg(desForm.desligado && desForm.apagar_ponto ? '✅ Salvo e registros de ponto apagados!' : '✅ Salvo!');
       setTimeout(()=>{ setDesModal(null); setDesMsg(''); }, 1200);
     } catch { setDesMsg('⚠️ Erro de conexão'); }
     setDesSaving(false);
@@ -2595,6 +2622,19 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
                             placeholder="Ex: Pedido de demissão, término de contrato..."
                             onChange={e=>setDesForm(p=>({...p,desligamento_motivo:e.target.value}))}
                             style={{width:'100%',padding:'9px 11px',borderRadius:9,border:`1.5px solid ${T.border}`,background:T.surface||'white',fontSize:13,color:T.text,outline:'none',resize:'vertical',boxSizing:'border-box',fontFamily:'var(--font-body)'}}/>
+                        </div>
+
+                        {/* Ação de uma vez só — não é uma chave persistida, some assim que salva */}
+                        <div style={{display:'flex',alignItems:'flex-start',gap:12,padding:'12px 14px',borderRadius:12,border:`1.5px solid ${desForm.apagar_ponto?'rgba(192,64,80,0.5)':T.border}`,background:desForm.apagar_ponto?'rgba(192,64,80,0.08)':'transparent'}}>
+                          <Switch on={desForm.apagar_ponto} onClick={()=>setDesForm(p=>({...p,apagar_ponto:!p.apagar_ponto}))}/>
+                          <div style={{flex:1}}>
+                            <div style={{fontSize:13.5,fontWeight:600,color:desForm.apagar_ponto?'#C04050':T.text}}>🗑️ Apagar registros de ponto batidos</div>
+                            <div style={{fontSize:12,color:T.textT,marginTop:3,lineHeight:1.45}}>
+                              Ao salvar, apaga PERMANENTEMENTE as marcações dessa pessoa no Ponto
+                              Eletrônico (diferente da chave acima, que só para de contar — o
+                              histórico continua). Não tem como desfazer.
+                            </div>
+                          </div>
                         </div>
                       </div>
                     )}
