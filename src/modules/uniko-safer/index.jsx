@@ -1,0 +1,539 @@
+// src/modules/uniko-safer/index.jsx
+// Uniko Safer — organizador manual de conversas exportadas do WhatsApp.
+// Portado do app desktop (Electron) "uniko safer": cadastro de contatos,
+// importação manual de .txt/.zip exportados e histórico por contato,
+// virando um visualizador estilo WhatsApp. A parte de AUTOMAÇÃO (que abria
+// o WhatsApp Web e exportava sozinha) ficou de fora de propósito — é pra
+// virar uma integração futura com o WhatsApp Web.
+import { useState, useEffect, useRef } from 'react';
+import { T } from '../../contexts/theme';
+import { supabase } from './saferSupabase';
+import { useIsMobile } from '../../hooks/useIsMobile';
+import {
+  parseWhatsappTxt, parseWhatsappMessages, hashMessage,
+  sniffFileType, readChatText, deriveContactNameFromFilename, sanitizeStorageName,
+} from './parseWhatsapp';
+
+const MESSAGE_UPSERT_CHUNK = 500;
+
+const BUCKET = 'uniko-safer';
+
+const initials = (name) => (name || '').trim().split(/\s+/).slice(0, 2).map(p => p[0]?.toUpperCase() ?? '').join('');
+const formatTime = (iso) => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }); };
+const formatDayLabel = (iso) => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' }); };
+const dayKey = (iso) => iso.slice(0, 10);
+
+const IcoBack = () => (
+  <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M9 2L4 7L9 12" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" /></svg>
+);
+const IcoPlus = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+);
+const IcoSearch = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+);
+const IcoTrash = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" /><path d="M10 11v6M14 11v6" /><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2" /></svg>
+);
+const IcoEdit = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" /></svg>
+);
+const IcoImport = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+);
+const IcoClose = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+);
+
+const btnStyle = (variant) => {
+  const base = { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 10, cursor: 'pointer', fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-body)', border: '1px solid transparent', whiteSpace: 'nowrap' };
+  if (variant === 'primary') return { ...base, background: T.gold, color: '#fff' };
+  if (variant === 'danger') return { ...base, background: 'transparent', color: T.danger, border: `1px solid ${T.dangerGl ? T.danger + '55' : T.border}` };
+  return { ...base, background: T.surfaceSub || 'rgba(0,0,0,0.04)', color: T.textS, border: `1px solid ${T.border}` };
+};
+
+const UnikoSafer = ({ onBack }) => {
+  const isMobile = useIsMobile();
+  const inputStyle = { width: '100%', padding: '9px 11px', borderRadius: 10, border: `1px solid ${T.border}`, background: 'transparent', color: T.text, fontSize: 13, fontFamily: 'var(--font-body)', outline: 'none', boxSizing: 'border-box' };
+  const [contacts, setContacts] = useState([]);
+  const [loadingContacts, setLoadingContacts] = useState(true);
+  const [search, setSearch] = useState('');
+  const [selectedContactId, setSelectedContactId] = useState(null);
+  const [currentChatMessages, setCurrentChatMessages] = useState([]);
+  const [loadingChat, setLoadingChat] = useState(false);
+  const [chatSearchOpen, setChatSearchOpen] = useState(false);
+  const [chatSearchTerm, setChatSearchTerm] = useState('');
+  const [contactModal, setContactModal] = useState(null); // {mode, id, name, phone, notes}
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [bulkModalOpen, setBulkModalOpen] = useState(false);
+  const [bulkDragOver, setBulkDragOver] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkLog, setBulkLog] = useState([]);
+  const [importingContact, setImportingContact] = useState(false);
+  const [toast, setToast] = useState('');
+  const toastTimer = useRef(null);
+  const fileInputRef = useRef(null);
+  const bulkInputRef = useRef(null);
+
+  const flash = (msg) => {
+    setToast(msg);
+    clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(''), 2800);
+  };
+
+  const loadContacts = async () => {
+    setLoadingContacts(true);
+    const { data: contactRows, error } = await supabase.from('uniko_safer_contacts').select('*').order('name');
+    if (error) { flash('Erro ao carregar contatos: ' + error.message); setLoadingContacts(false); return; }
+    const { data: exportRows } = await supabase.from('uniko_safer_exports').select('contact_id, imported_at');
+    const stats = new Map();
+    (exportRows || []).forEach(e => {
+      const s = stats.get(e.contact_id) || { count: 0, last: null };
+      s.count += 1;
+      if (!s.last || e.imported_at > s.last) s.last = e.imported_at;
+      stats.set(e.contact_id, s);
+    });
+    setContacts((contactRows || []).map(c => ({ ...c, exportCount: stats.get(c.id)?.count || 0, lastImportedAt: stats.get(c.id)?.last || null })));
+    setLoadingContacts(false);
+  };
+
+  useEffect(() => { loadContacts(); }, []);
+
+  const loadChatMessages = async (contactId) => {
+    setLoadingChat(true);
+    const { data, error } = await supabase.from('uniko_safer_messages').select('sent_at, sender, text').eq('contact_id', contactId).order('sent_at');
+    if (error) { flash('Erro ao carregar mensagens: ' + error.message); setLoadingChat(false); return; }
+    setCurrentChatMessages((data || []).map(r => ({ timestamp: r.sent_at, sender: r.sender, text: r.text })));
+    setLoadingChat(false);
+  };
+
+  const selectContact = (id) => {
+    setSelectedContactId(id);
+    setChatSearchOpen(false);
+    setChatSearchTerm('');
+    loadChatMessages(id);
+  };
+
+  const selectedContact = contacts.find(c => c.id === selectedContactId) || null;
+
+  // ── Contato: criar/editar/excluir ──────────────────────────────────────
+  const openContactModal = (mode) => {
+    if (mode === 'edit' && selectedContact) {
+      setContactModal({ mode, id: selectedContact.id, name: selectedContact.name, phone: selectedContact.phone_number || '', notes: selectedContact.notes || '' });
+    } else {
+      setContactModal({ mode: 'create', id: null, name: '', phone: '', notes: '' });
+    }
+  };
+
+  const saveContact = async () => {
+    if (!contactModal) return;
+    const name = contactModal.name.trim();
+    if (!name) { flash('Informe o nome do contato.'); return; }
+    const payload = { name, phone_number: contactModal.phone.trim() || null, notes: contactModal.notes.trim() || null };
+    if (contactModal.mode === 'edit') {
+      const { error } = await supabase.from('uniko_safer_contacts').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', contactModal.id);
+      if (error) { flash('Erro: ' + error.message); return; }
+      flash('Contato atualizado.');
+    } else {
+      const { data, error } = await supabase.from('uniko_safer_contacts').insert(payload).select().single();
+      if (error) { flash('Erro: ' + error.message); return; }
+      flash('Contato criado.');
+      setContactModal(null);
+      await loadContacts();
+      selectContact(data.id);
+      return;
+    }
+    setContactModal(null);
+    await loadContacts();
+  };
+
+  const removeContactStorage = async (contactId) => {
+    const { data: files } = await supabase.storage.from(BUCKET).list(String(contactId), { limit: 1000 });
+    if (files?.length) await supabase.storage.from(BUCKET).remove(files.map(f => `${contactId}/${f.name}`));
+  };
+
+  const deleteContact = async (contact) => {
+    if (!window.confirm(`Excluir "${contact.name}" e todo o histórico de exportações associado? Essa ação não pode ser desfeita.`)) return;
+    await removeContactStorage(contact.id);
+    const { error } = await supabase.from('uniko_safer_contacts').delete().eq('id', contact.id);
+    if (error) { flash('Erro: ' + error.message); return; }
+    if (selectedContactId === contact.id) setSelectedContactId(null);
+    flash('Contato excluído.');
+    await loadContacts();
+  };
+
+  // ── Modo seleção (excluir vários contatos) ──────────────────────────────
+  const toggleSelectionMode = () => { setSelectionMode(v => !v); setSelectedIds(new Set()); };
+  const toggleSelected = (id) => setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const filteredContacts = contacts.filter(c => {
+    if (!search.trim()) return true;
+    const q = search.trim().toLowerCase();
+    return c.name.toLowerCase().includes(q) || (c.phone_number || '').toLowerCase().includes(q);
+  });
+  const selectAllVisible = () => setSelectedIds(new Set(filteredContacts.map(c => c.id)));
+  const deselectAll = () => setSelectedIds(new Set());
+  const deleteSelected = async () => {
+    const ids = Array.from(selectedIds);
+    if (!ids.length) return;
+    if (!window.confirm(`Excluir ${ids.length} contato${ids.length > 1 ? 's' : ''} selecionado${ids.length > 1 ? 's' : ''} e todo o histórico associado? Essa ação não pode ser desfeita.`)) return;
+    for (const id of ids) await removeContactStorage(id);
+    const { error } = await supabase.from('uniko_safer_contacts').delete().in('id', ids);
+    if (error) { flash('Erro: ' + error.message); return; }
+    if (selectedContactId && ids.includes(selectedContactId)) setSelectedContactId(null);
+    flash(`${ids.length} contato${ids.length > 1 ? 's' : ''} excluído${ids.length > 1 ? 's' : ''}.`);
+    setSelectionMode(false); setSelectedIds(new Set());
+    await loadContacts();
+  };
+
+  // ── Importação ───────────────────────────────────────────────────────
+  // Exportação do WhatsApp é sempre CUMULATIVA (o histórico inteiro de novo
+  // a cada vez) — em vez de gravar esse snapshot todo de novo, cada mensagem
+  // vira upsert com hash único por contato: o que já existe é ignorado, só
+  // entra o que é de fato novo. É isso que faz reimportar toda semana não
+  // duplicar o espaço usado (ver conversa sobre o volume de anos de dados).
+  const upsertNewMessages = async (contactId, messages) => {
+    let newCount = 0;
+    for (let i = 0; i < messages.length; i += MESSAGE_UPSERT_CHUNK) {
+      const chunk = messages.slice(i, i + MESSAGE_UPSERT_CHUNK);
+      const rows = await Promise.all(chunk.map(async m => ({
+        contact_id: contactId, sent_at: m.timestamp, sender: m.sender, text: m.text,
+        message_hash: await hashMessage(m.timestamp, m.sender, m.text),
+      })));
+      const { data, error } = await supabase.from('uniko_safer_messages')
+        .upsert(rows, { onConflict: 'contact_id,message_hash', ignoreDuplicates: true })
+        .select('id');
+      if (error) throw new Error(error.message);
+      newCount += data?.length || 0;
+    }
+    return newCount;
+  };
+
+  const importFileForContact = async (contactId, file) => {
+    const fileType = await sniffFileType(file);
+    if (fileType === 'other') throw new Error('Formato não suportado (use .txt ou .zip com chat.txt).');
+
+    const storagePath = `${contactId}/${Date.now()}_${sanitizeStorageName(file.name)}`;
+    const { error: upErr } = await supabase.storage.from(BUCKET).upload(storagePath, file, { contentType: fileType === 'zip' ? 'application/zip' : 'text/plain', upsert: false });
+    if (upErr) throw new Error(upErr.message);
+
+    let messages = [];
+    let summary = { messageCount: null, dateRangeStart: null, dateRangeEnd: null };
+    const content = await readChatText(file, fileType);
+    if (content) { summary = parseWhatsappTxt(content); messages = parseWhatsappMessages(content); }
+
+    const newMessageCount = messages.length ? await upsertNewMessages(contactId, messages) : 0;
+
+    const { data, error } = await supabase.from('uniko_safer_exports').insert({
+      contact_id: contactId, original_filename: file.name, storage_path: storagePath, file_type: fileType,
+      file_size: file.size, message_count: summary.messageCount, new_message_count: newMessageCount,
+      date_range_start: summary.dateRangeStart, date_range_end: summary.dateRangeEnd,
+    }).select().single();
+    if (error) throw new Error(error.message);
+    return data;
+  };
+
+  const handleImportFiles = async (fileList) => {
+    if (!selectedContactId || !fileList?.length) return;
+    setImportingContact(true);
+    let importedCount = 0; const skipped = [];
+    for (const file of Array.from(fileList)) {
+      try { await importFileForContact(selectedContactId, file); importedCount += 1; }
+      catch (err) { skipped.push({ filename: file.name, reason: err.message }); }
+    }
+    setImportingContact(false);
+    if (importedCount) flash(`${importedCount} arquivo${importedCount > 1 ? 's' : ''} importado${importedCount > 1 ? 's' : ''}.`);
+    if (skipped.length) flash(`${skipped.length} arquivo(s) não importado(s): ${skipped[0].reason}`);
+    await loadChatMessages(selectedContactId);
+    await loadContacts();
+  };
+
+  const handleBulkFiles = async (fileList) => {
+    const files = Array.from(fileList || []).filter(f => /\.(zip|txt)$/i.test(f.name));
+    if (!files.length) { flash('Solte arquivos .zip ou .txt exportados do WhatsApp.'); return; }
+    setBulkBusy(true);
+    const byName = new Map(contacts.map(c => [c.name.toLowerCase(), c]));
+    const results = [];
+    for (const file of files) {
+      const contactName = deriveContactNameFromFilename(file.name);
+      const key = contactName.toLowerCase();
+      try {
+        let contact = byName.get(key);
+        let createdContact = false;
+        if (!contact) {
+          const { data, error } = await supabase.from('uniko_safer_contacts').insert({ name: contactName }).select().single();
+          if (error) throw new Error(error.message);
+          contact = data; createdContact = true; byName.set(key, contact);
+        }
+        const record = await importFileForContact(contact.id, file);
+        const mc = record.new_message_count ?? 0;
+        results.push({ filename: file.name, contactName, createdContact, status: 'imported', message: `${mc} mensagem${mc === 1 ? '' : 's'} nova${mc === 1 ? '' : 's'}.` });
+      } catch (err) {
+        results.push({ filename: file.name, contactName, createdContact: false, status: 'error', message: err.message });
+      }
+    }
+    setBulkLog(results);
+    setBulkBusy(false);
+    const importedCount = results.filter(r => r.status === 'imported').length;
+    flash(`${importedCount} arquivo${importedCount === 1 ? '' : 's'} importado${importedCount === 1 ? '' : 's'}${results.length - importedCount > 0 ? `, ${results.length - importedCount} com erro.` : '.'}`);
+    await loadContacts();
+    if (selectedContactId) await loadChatMessages(selectedContactId);
+  };
+
+  // ── Render: mensagens do chat ────────────────────────────────────────
+  const term = chatSearchTerm.trim().toLowerCase();
+  const visibleMessages = term ? currentChatMessages.filter(m => m.text.toLowerCase().includes(term)) : currentChatMessages;
+
+  const renderChat = () => {
+    if (loadingChat) return <div style={{ padding: 40, textAlign: 'center', color: T.textT, fontSize: 13 }}>Carregando conversa…</div>;
+    if (currentChatMessages.length === 0) {
+      return (
+        <div style={{ margin: '40px 24px', padding: 28, textAlign: 'center', color: T.textT, fontSize: 13, background: T.surface, border: `1px dashed ${T.border}`, borderRadius: 16 }}>
+          Nenhuma conversa importada ainda pra esse contato. Use "Importar conversa" pra adicionar um arquivo .txt ou .zip exportado do WhatsApp.
+        </div>
+      );
+    }
+    if (term && visibleMessages.length === 0) {
+      return <div style={{ alignSelf: 'center', textAlign: 'center', color: T.textT, fontSize: 12.5, padding: '20px 0' }}>Nenhuma mensagem encontrada.</div>;
+    }
+    let lastDay = null;
+    return visibleMessages.map((m, i) => {
+      const key = dayKey(m.timestamp);
+      const divider = key !== lastDay;
+      lastDay = key;
+      if (m.sender === null) {
+        return (
+          <div key={i}>
+            {divider && <div style={dividerStyle}>{formatDayLabel(m.timestamp)}</div>}
+            <div style={{ alignSelf: 'center', textAlign: 'center', fontSize: 11.5, color: T.textT, padding: '6px 14px', maxWidth: '70%', margin: '0 auto' }}>{m.text}</div>
+          </div>
+        );
+      }
+      const fromMe = m.sender === 'Você' || m.sender === 'You';
+      return (
+        <div key={i}>
+          {divider && <div style={dividerStyle}>{formatDayLabel(m.timestamp)}</div>}
+          <div style={{ display: 'flex', flexDirection: 'column', maxWidth: '68%', marginTop: 8, alignSelf: fromMe ? 'flex-end' : 'flex-start', alignItems: fromMe ? 'flex-end' : 'flex-start' }}>
+            {!fromMe && <div style={{ fontSize: 11, fontWeight: 700, color: T.green || T.gold, margin: '0 4px 3px' }}>{m.sender}</div>}
+            <div style={{ padding: '8px 12px', borderRadius: 16, fontSize: 13.5, lineHeight: 1.45, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+              background: fromMe ? (T.green || T.gold) : T.surface, color: fromMe ? '#fff' : T.text,
+              border: fromMe ? 'none' : `1px solid ${T.border}`,
+              borderBottomRightRadius: fromMe ? 4 : 16, borderBottomLeftRadius: fromMe ? 16 : 4 }}>
+              {m.text}
+            </div>
+            <div style={{ fontSize: 10.5, color: T.textT, margin: '3px 4px 0' }}>{formatTime(m.timestamp)}</div>
+          </div>
+        </div>
+      );
+    });
+  };
+  const dividerStyle = { alignSelf: 'center', textAlign: 'center', fontSize: 11, fontWeight: 700, color: T.textT, background: T.surface, border: `1px solid ${T.border}`, borderRadius: 20, padding: '4px 14px', margin: '16px auto 8px', width: 'fit-content' };
+
+  const mobileShowList = !isMobile || !selectedContactId;
+  const mobileShowChat = !isMobile || !!selectedContactId;
+
+  return (
+    <div style={{ minHeight: '100vh', background: T.page, fontFamily: 'var(--font-body)', display: 'flex', flexDirection: 'column' }}>
+      {/* Topbar */}
+      <div style={{ height: 56, flexShrink: 0, background: T.topbarBg || (T.dark ? `${T.surface}ee` : 'rgba(245,250,255,0.75)'),
+        backdropFilter: 'blur(28px)', WebkitBackdropFilter: 'blur(28px)', borderBottom: `1px solid ${T.border}`,
+        display: 'flex', alignItems: 'center', padding: '0 24px', gap: 14, position: 'sticky', top: 0, zIndex: 200 }}>
+        <button onClick={onBack}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '7px 14px', background: T.surfaceSub || 'rgba(0,0,0,0.04)',
+            border: `1px solid ${T.border}`, borderRadius: 9, cursor: 'pointer', color: T.textS, outline: 'none', fontFamily: 'var(--font-body)', fontSize: 13 }}>
+          <IcoBack /> Módulos
+        </button>
+        <div style={{ fontFamily: 'var(--font-brand)', fontSize: 15, fontWeight: 700, color: T.text }}>Uniko Safer</div>
+      </div>
+
+      {/* Corpo: sidebar + conversa */}
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden' }}>
+        {/* Sidebar */}
+        {mobileShowList && (
+          <div style={{ width: isMobile ? '100%' : 320, flexShrink: 0, background: T.surface, borderRight: isMobile ? 'none' : `1px solid ${T.border}`,
+            display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+            <div style={{ padding: '16px 16px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+              <div style={{ fontSize: 16, fontWeight: 800, color: T.text }}>Contatos</div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button title="Importar vários (arrastar arquivos)" onClick={() => { setBulkLog([]); setBulkModalOpen(true); }} style={{ ...btnStyle('secondary'), padding: '7px 9px' }}><IcoImport /></button>
+                <button title="Selecionar contatos" onClick={toggleSelectionMode} style={selectionMode ? { ...btnStyle('primary'), padding: '7px 9px' } : { ...btnStyle('secondary'), padding: '7px 9px' }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 11 12 14 22 4" /><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" /></svg>
+                </button>
+                <button title="Novo contato" onClick={() => openContactModal('create')} style={{ ...btnStyle('primary'), padding: '7px 9px' }}><IcoPlus /></button>
+              </div>
+            </div>
+
+            <div style={{ padding: '0 16px 10px' }}>
+              <div style={{ position: 'relative' }}>
+                <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: T.textT }}><IcoSearch /></span>
+                <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por nome ou número"
+                  style={{ width: '100%', padding: '9px 12px 9px 30px', borderRadius: 10, border: `1px solid ${T.border}`, background: T.page, color: T.text, fontSize: 13, outline: 'none', fontFamily: 'var(--font-body)' }} />
+              </div>
+            </div>
+
+            {selectionMode && (
+              <div style={{ padding: '0 16px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+                <div style={{ fontSize: 12, color: T.textT, fontWeight: 600 }}>{selectedIds.size} selecionado{selectedIds.size === 1 ? '' : 's'}</div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button onClick={selectAllVisible} style={btnStyle('secondary')}>Todos</button>
+                  <button onClick={deselectAll} style={btnStyle('secondary')}>Nenhum</button>
+                  <button onClick={deleteSelected} disabled={!selectedIds.size} style={{ ...btnStyle('danger'), opacity: selectedIds.size ? 1 : 0.45, cursor: selectedIds.size ? 'pointer' : 'default' }}>Excluir</button>
+                </div>
+              </div>
+            )}
+
+            <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '4px 10px 18px' }}>
+              {loadingContacts ? (
+                <div style={{ padding: '24px 12px', textAlign: 'center', color: T.textT, fontSize: 13 }}>Carregando…</div>
+              ) : filteredContacts.length === 0 ? (
+                <div style={{ padding: '24px 12px', textAlign: 'center', color: T.textT, fontSize: 13 }}>
+                  {contacts.length === 0 ? 'Nenhum contato ainda. Crie o primeiro com o botão +.' : 'Nenhum contato encontrado.'}
+                </div>
+              ) : filteredContacts.map(c => {
+                const active = c.id === selectedContactId;
+                const checked = selectedIds.has(c.id);
+                return (
+                  <div key={c.id} onClick={() => selectionMode ? toggleSelected(c.id) : selectContact(c.id)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 10px', borderRadius: 10, cursor: 'pointer', marginBottom: 2,
+                      background: (active || checked) ? (T.goldGl || T.surfaceSub) : 'transparent' }}>
+                    {selectionMode && <input type="checkbox" checked={checked} onChange={() => toggleSelected(c.id)} onClick={e => e.stopPropagation()} style={{ width: 16, height: 16, flexShrink: 0, accentColor: T.gold }} />}
+                    <div style={{ width: 34, height: 34, borderRadius: '50%', background: active ? T.gold : (T.surfaceSub || '#eceef0'), color: active ? '#fff' : T.textT,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, flexShrink: 0 }}>{initials(c.name) || '?'}</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</div>
+                      <div style={{ fontSize: 12, color: T.textT, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.phone_number || 'Sem número cadastrado'}</div>
+                    </div>
+                    {c.exportCount > 0 && (
+                      <span style={{ fontSize: 11, fontWeight: 700, color: T.gold, background: T.goldGl, borderRadius: 20, padding: '2px 8px', flexShrink: 0 }}>{c.exportCount}</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Conversa */}
+        {mobileShowChat && (
+          <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+            {!selectedContact ? (
+              <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', color: T.textT, maxWidth: 420, margin: '0 auto', padding: '40px 24px' }}>
+                <div style={{ fontSize: 40, marginBottom: 10 }}>💬</div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: T.text, marginBottom: 6 }}>Escolha um contato</div>
+                <div style={{ fontSize: 13, lineHeight: 1.5 }}>Selecione um contato na lista pra ver o histórico de conversa, ou crie um novo com o botão +.</div>
+              </div>
+            ) : (
+              <>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, padding: isMobile ? '14px 16px' : '20px 28px', borderBottom: `1px solid ${T.border}`, flexShrink: 0, flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+                    {isMobile && (
+                      <button onClick={() => setSelectedContactId(null)} style={{ ...btnStyle('secondary'), padding: '7px 9px', flexShrink: 0 }}><IcoBack /></button>
+                    )}
+                    <div style={{ width: 42, height: 42, borderRadius: '50%', background: T.gold, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700, flexShrink: 0 }}>{initials(selectedContact.name) || '?'}</div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 18, fontWeight: 700, color: T.text }}>{selectedContact.name}</div>
+                      <div style={{ fontSize: 12.5, color: T.textT }}>{selectedContact.phone_number || 'Sem número cadastrado'}</div>
+                      {selectedContact.notes && <div style={{ marginTop: 4, fontSize: 12, color: T.textT, maxWidth: 420, whiteSpace: 'pre-wrap' }}>{selectedContact.notes}</div>}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, flexShrink: 0, flexWrap: 'wrap' }}>
+                    <button onClick={() => setChatSearchOpen(v => !v)} style={btnStyle('secondary')}><IcoSearch /> Buscar</button>
+                    <button onClick={() => openContactModal('edit')} style={btnStyle('secondary')}><IcoEdit /> Editar</button>
+                    <button onClick={() => deleteContact(selectedContact)} style={btnStyle('danger')}><IcoTrash /></button>
+                    <button onClick={() => fileInputRef.current?.click()} disabled={importingContact} style={{ ...btnStyle('primary'), opacity: importingContact ? 0.6 : 1 }}>
+                      <IcoImport /> {importingContact ? 'Importando…' : 'Importar conversa'}
+                    </button>
+                    <input ref={fileInputRef} type="file" accept=".zip,.txt" multiple style={{ display: 'none' }}
+                      onChange={e => { handleImportFiles(e.target.files); e.target.value = ''; }} />
+                  </div>
+                </div>
+
+                {chatSearchOpen && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 20px', borderBottom: `1px solid ${T.border}`, background: T.surface, flexShrink: 0 }}>
+                    <input autoFocus value={chatSearchTerm} onChange={e => setChatSearchTerm(e.target.value)} placeholder="Buscar na conversa"
+                      style={{ flex: 1, padding: '8px 12px', borderRadius: 10, border: `1px solid ${T.border}`, background: T.page, color: T.text, fontSize: 13, outline: 'none', fontFamily: 'var(--font-body)' }} />
+                    {term && <span style={{ fontSize: 11.5, color: T.textT, flexShrink: 0 }}>{visibleMessages.length} resultado{visibleMessages.length === 1 ? '' : 's'}</span>}
+                    <button onClick={() => { setChatSearchOpen(false); setChatSearchTerm(''); }} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: T.textT, display: 'flex' }}><IcoClose /></button>
+                  </div>
+                )}
+
+                <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: isMobile ? '16px' : '20px 28px', display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  {renderChat()}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Modal: criar/editar contato */}
+      {contactModal && (
+        <div onClick={() => setContactModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 500, padding: 16 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: T.surface, borderRadius: 16, padding: 24, width: 380, maxWidth: '100%', boxShadow: T.shL }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: T.text, marginBottom: 14 }}>{contactModal.mode === 'edit' ? 'Editar contato' : 'Novo contato'}</div>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: T.textT, margin: '10px 0 6px' }}>Nome</label>
+            <input autoFocus value={contactModal.name} onChange={e => setContactModal(m => ({ ...m, name: e.target.value }))}
+              style={inputStyle} />
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: T.textT, margin: '10px 0 6px' }}>Telefone</label>
+            <input value={contactModal.phone} onChange={e => setContactModal(m => ({ ...m, phone: e.target.value }))} placeholder="(85) 9xxxx-xxxx"
+              style={inputStyle} />
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: T.textT, margin: '10px 0 6px' }}>Notas</label>
+            <textarea value={contactModal.notes} onChange={e => setContactModal(m => ({ ...m, notes: e.target.value }))} rows={3}
+              style={{ ...inputStyle, resize: 'vertical' }} />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 20 }}>
+              <button onClick={() => setContactModal(null)} style={btnStyle('secondary')}>Cancelar</button>
+              <button onClick={saveContact} style={btnStyle('primary')}>Salvar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: importar vários (arrastar/soltar, deriva contato do nome do arquivo) */}
+      {bulkModalOpen && (
+        <div onClick={() => !bulkBusy && setBulkModalOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 500, padding: 16 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: T.surface, borderRadius: 16, padding: 24, width: 460, maxWidth: '100%', boxShadow: T.shL }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: T.text }}>Importar vários arquivos</div>
+              <button onClick={() => setBulkModalOpen(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: T.textT }}><IcoClose /></button>
+            </div>
+            <div style={{ fontSize: 12, color: T.textT, marginBottom: 12, lineHeight: 1.5 }}>
+              O nome do contato é identificado pelo nome do arquivo (ex: "Conversa do WhatsApp com João.zip"). Se o contato ainda não existir, ele é criado automaticamente.
+            </div>
+            <div
+              onDragOver={e => { e.preventDefault(); setBulkDragOver(true); }}
+              onDragLeave={() => setBulkDragOver(false)}
+              onDrop={e => { e.preventDefault(); setBulkDragOver(false); handleBulkFiles(e.dataTransfer?.files); }}
+              onClick={() => !bulkBusy && bulkInputRef.current?.click()}
+              style={{ padding: '26px 16px', border: `1.5px dashed ${bulkDragOver ? T.gold : T.border}`, borderRadius: 12,
+                background: bulkDragOver ? T.goldGl : T.page, color: bulkDragOver ? T.gold : T.textT, fontSize: 12.5, lineHeight: 1.5,
+                textAlign: 'center', cursor: bulkBusy ? 'default' : 'pointer', opacity: bulkBusy ? 0.6 : 1, pointerEvents: bulkBusy ? 'none' : 'auto' }}>
+              {bulkBusy ? 'Importando…' : 'Arraste os arquivos .zip/.txt aqui, ou clique pra escolher'}
+            </div>
+            <input ref={bulkInputRef} type="file" accept=".zip,.txt" multiple style={{ display: 'none' }}
+              onChange={e => { handleBulkFiles(e.target.files); e.target.value = ''; }} />
+
+            {bulkLog.length > 0 && (
+              <div style={{ marginTop: 14, maxHeight: 220, overflowY: 'auto', border: `1px solid ${T.border}`, borderRadius: 10, background: T.page, fontSize: 12 }}>
+                {bulkLog.map((r, i) => (
+                  <div key={i} style={{ padding: '7px 10px', borderBottom: i < bulkLog.length - 1 ? `1px solid ${T.border}` : 'none', display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                    <span style={{ fontWeight: 600, color: T.text, flexShrink: 0 }}>{r.filename} → {r.contactName}{r.createdContact ? ' (novo)' : ''}</span>
+                    <span style={{ color: r.status === 'imported' ? (T.green || T.gold) : T.danger, textAlign: 'right' }}>{r.message}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {toast && (
+        <div style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', zIndex: 9999, background: T.text, color: T.surface, padding: '12px 22px', borderRadius: 12, fontSize: 13.5, fontWeight: 600, boxShadow: '0 8px 30px rgba(0,0,0,0.3)', maxWidth: '90vw', textAlign: 'center' }}>
+          {toast}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export { UnikoSafer };
+export default UnikoSafer;

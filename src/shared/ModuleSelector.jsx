@@ -450,12 +450,22 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
       <circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16.5"/><circle cx="12" cy="7.8" r="1" fill="currentColor" stroke="none"/>
     </svg>
   );
-  // Módulos "em breve" — só admin vê, ainda sem tela de verdade por trás.
+  // Escudo com balão de conversa — organizador de conversas exportadas do WhatsApp.
   const IcoSafer = (
     <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 3l7 3v5c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V6l7-3z"/><path d="M9 12l2 2 4-4"/>
+      <path d="M12 3l7 3v5.5c0 4.6-3 8.3-7 9.5-4-1.2-7-4.9-7-9.5V6z"/>
+      <path d="M9 11.5c0-1.2 1.2-2 3-2s3 .8 3 2-1.2 2-3 2h-1.2l-1 1v-1.4c-.5-.2-.8-.9-.8-1.6z" fill="currentColor" stroke="none"/>
     </svg>
   );
+  // Presente (caixa com laço) — 7 Benefícios.
+  const IcoBeneficios = (
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="9" width="18" height="4" rx="1"/><rect x="4.5" y="13" width="15" height="8" rx="1"/><line x1="12" y1="9" x2="12" y2="21"/>
+      <path d="M12 9c-1.8 0-4-1-4-3.2C8 4.2 9 3 10.3 3 11.6 3 12 5 12 9z"/>
+      <path d="M12 9c1.8 0 4-1 4-3.2C16 4.2 15 3 13.7 3 12.4 3 12 5 12 9z"/>
+    </svg>
+  );
+  // Módulos "em breve" — só admin vê, ainda sem tela de verdade por trás.
   const IcoCall = (
     <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <path d="M4 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L14 13l5 2v4c0 1-1 2-2 2-8 0-15-7-15-15 0-1 1-2 2-2z"/>
@@ -478,8 +488,9 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
     {id:'mercado-estelar',  label:'Prisma Store',          sub:'Loja de benefícios e recompensas', icon:IcoMercado,     color:T.gold, bg:T.goldGl, tag:'Recompensas', adminOnly:false},
     {id:'conexao-setorial', label:'Trello',                sub:'Quadro Kanban · Salas por assunto',  icon:IcoConexao,        color:T.gold, bg:T.goldGl, tag:'Equipe',     adminOnly:false},
     {id:'info-adicional',   label:'Informações Adicionais', sub:'Instalar app · Sobre o Uniko',     icon:IcoInfo,        color:T.blue, bg:T.blueGl||T.goldGl, tag:'Guia', adminOnly:false},
+    {id:'uniko-safer',      label:'Uniko Safer',           sub:'Conversas do WhatsApp organizadas', icon:IcoSafer,       color:T.gold, bg:T.goldGl, tag:'Admin',      adminOnly:true},
+    {id:'7-beneficios',     label:'7 Benefícios',          sub:'Plataforma 7 Benefícios',          icon:IcoBeneficios,  color:T.gold, bg:T.goldGl, tag:'Ferramenta', adminOnly:false},
     // Só admin vê (não moderador) — ainda sem módulo de verdade, é só a vitrine.
-    {id:'uniko-safer',      label:'Uniko Safer',           sub:'Em breve',                         icon:IcoSafer,       color:T.gold, bg:T.goldGl, tag:'Em breve', adminOnly:true, strictAdmin:true},
     {id:'uniko-call',       label:'Uniko Call',            sub:'Em breve',                         icon:IcoCall,        color:T.gold, bg:T.goldGl, tag:'Em breve', adminOnly:true, strictAdmin:true},
     {id:'comercial',        label:'Comercial',             sub:'Em breve',                         icon:IcoComercial,   color:T.gold, bg:T.goldGl, tag:'Em breve', adminOnly:true, strictAdmin:true},
   ];
@@ -511,7 +522,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
   // Computador: 1ª vez (sem ordem salva) usa esta sequência. Depois que a
   // pessoa reorganiza, lista do celular e grade do computador seguem a MESMA
   // ordem escolhida por ela.
-  const ORDEM_PADRAO = ['colaborador','mercado-estelar','alexa','faturamento','dashboard','conexao-setorial','ponto','uniko-fit','info-adicional','uniko-safer','uniko-call','comercial'];
+  const ORDEM_PADRAO = ['colaborador','mercado-estelar','alexa','faturamento','dashboard','conexao-setorial','ponto','uniko-fit','info-adicional','uniko-safer','7-beneficios','uniko-call','comercial'];
   const modsTela = order.length ? mods : fixarPrincipal(applyOrder(filteredMods, ORDEM_PADRAO));
   /* Reordenar no celular é por SETAS, não arrastando. Não é preguiça: o
      drag-and-drop HTML5 (o mesmo que a grade usa no computador) simplesmente não

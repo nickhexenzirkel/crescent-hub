@@ -18,6 +18,8 @@ import MercadoEstelar from './modules/mercado-estelar';
 import UnikoFit from './modules/uniko-fit';
 import InfoAdicional from './modules/info-adicional';
 import EmBreveModulo from './shared/EmBreveModulo';
+import UnikoSafer from './modules/uniko-safer';
+import Beneficios7 from './modules/beneficios-7';
 import { notifyDesktop, ensureNotifyPermission } from './utils/desktopNotify';
 import { useIsMobile } from './hooks/useIsMobile';
 import UnikoAssistant from './shared/UnikoAssistant';
@@ -31,13 +33,9 @@ import { initAssistantSkinSync } from './shared/assistantSkin';
 import PerfHud from './shared/diagnosticoPerf';
 import { abaDaUrl } from './modules/faturamento/rotaFerramenta';
 
-// Ícones das vitrines "em breve" (Uniko Safer / Uniko Call / Comercial) —
-// mesmo estilo dos ícones de módulo do ModuleSelector.
-const IcoEmBreveSafer = (
-  <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M12 3l7 3v5c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V6l7-3z"/><path d="M9 12l2 2 4-4"/>
-  </svg>
-);
+// Ícones das vitrines "em breve" (Uniko Call / Comercial) — mesmo estilo dos
+// ícones de módulo do ModuleSelector. (Uniko Safer saiu daqui: ganhou módulo
+// de verdade, ver import UnikoSafer acima.)
 const IcoEmBreveCall = (
   <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
     <path d="M4 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L14 13l5 2v4c0 1-1 2-2 2-8 0-15-7-15-15 0-1 1-2 2-2z"/>
@@ -338,7 +336,7 @@ export default function CrescentHub() {
     const podeAdminOnly = authUser?.role === 'admin' || authUser?.role === 'moderador';
     if (adminOnly.includes(id) && !podeAdminOnly) return;
     // Vitrines "em breve" — só admin de verdade, nem moderador.
-    const strictAdminOnly = ['uniko-safer','uniko-call','comercial'];
+    const strictAdminOnly = ['uniko-call','comercial'];
     if (strictAdminOnly.includes(id) && authUser?.role !== 'admin') return;
     setPortalInitialTab(initialTab || null);
     navPush(id);
@@ -654,9 +652,10 @@ export default function CrescentHub() {
           {screen==='faturamento' && <FaturamentoPortal onBack={handleGoBack} authUser={authUser} initialTab={portalInitialTab}/>}
           {screen==='conexao-setorial' && <ConexaoSetorial onBack={handleGoBack} authUser={authUser} initialTab={portalInitialTab}/>}
           {screen==='info-adicional' && <InfoAdicional onBack={handleGoBack}/>}
+          {screen==='uniko-safer' && (authUser?.role==='admin'||authUser?.role==='moderador') && <UnikoSafer onBack={handleGoBack}/>}
+          {screen==='7-beneficios' && <Beneficios7 onBack={handleGoBack}/>}
           {screen==='mercado-estelar' && <MercadoEstelar onBack={handleGoBack} authUser={authUser} userPhoto={userPhoto} initialTab={portalInitialTab}/>}
           {screen==='uniko-fit' && <UnikoFit onBack={handleGoBack} authUser={authUser} userPhoto={userPhoto}/>}
-          {screen==='uniko-safer' && authUser?.role==='admin' && <EmBreveModulo onBack={handleGoBack} title="Uniko Safer" icon={IcoEmBreveSafer}/>}
           {screen==='uniko-call' && authUser?.role==='admin' && <EmBreveModulo onBack={handleGoBack} title="Uniko Call" icon={IcoEmBreveCall}/>}
           {screen==='comercial' && authUser?.role==='admin' && <EmBreveModulo onBack={handleGoBack} title="Comercial" icon={IcoEmBreveComercial}/>}
         </div>
