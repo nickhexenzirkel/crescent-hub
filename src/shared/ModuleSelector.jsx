@@ -240,7 +240,11 @@ const SHOOT_POS = [
   {x:'74%', y:'78%', delay:'-3.1s'},
 ];
 
-const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
+const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto, cargoModules}) => {
+  // Cargos (Dashboard RH → Gerenciar Permissões) liberam módulo por módulo
+  // pra quem não é admin/moderador — camada ADICIONAL, só soma acesso, nunca
+  // tira o que admin/moderador já tinham.
+  const temCargoPara = (id) => cargoModules?.has?.(id) || false;
   useNomesExibicao(); // re-renderiza quando o nome de exibição carrega/muda
   const [pressed, setPressed] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
@@ -514,7 +518,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto}) => {
       tamPadrao: chave === 'dados' ? 'g' : undefined,
     }));
   const filteredMods = [...allMods, ...atalhoMods]
-    .filter(m => !m.adminOnly || (m.strictAdmin ? isAdmin : podeAdminOnly));
+    .filter(m => !m.adminOnly || (m.strictAdmin ? isAdmin : podeAdminOnly) || temCargoPara(m.id));
   /* O Portal do Colaborador fica SEMPRE em primeiro — em qualquer ordem salva,
      no computador e no celular. Reordenar mexe só nos outros. */
   const fixarPrincipal = (lista) => {

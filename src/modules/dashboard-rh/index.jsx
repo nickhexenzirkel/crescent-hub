@@ -6,6 +6,7 @@ import { splitContrachequesPDF, normName, onlyDigits } from './contrachequeSplit
 import UnikoQATab from './UnikoQATab';
 import UnikoFitPosesTab from './UnikoFitPosesTab';
 import UnikoSuspectMapTab from './UnikoSuspectMapTab';
+import GerenciarPermissoesTab from './GerenciarPermissoesTab';
 import {
   saveCaptureConfig, CAPTURE_UNIKOS, resetCaptures, getCaptureReward,
   getUniko, loadCustomUnikos, saveCustomUniko, deleteCustomUniko, deriveUnikoTheme, getCustomUnikoRaw,
@@ -285,8 +286,15 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
      Os dois modais de senha do admin mantêm o desfoque — lá ele é visível e
      só existe enquanto o modal está aberto. */
   const isModerador = role === 'moderador';
-  // Abas às quais o Moderador tem acesso — as demais (funcionários, feedback,
-  // perguntas do UNIKO, lembretes, máquina do tempo, capture, oficina) continuam
+  // "Restrito" cobre moderador E quem entrou aqui via cargo (Gerenciar
+  // Permissões) sem ser admin/moderador de verdade — mesmo conjunto de abas
+  // dos dois casos, e "Gerenciar Permissões" nunca entra nessa lista, então
+  // só um admin de verdade pode criar/editar cargo (evita que um cargo se
+  // auto-conceda mais acesso).
+  const isRestrito = role !== 'admin';
+  // Abas às quais o Moderador (e quem tem cargo, mas não é admin/moderador)
+  // tem acesso — as demais (funcionários, feedback, perguntas do UNIKO,
+  // lembretes, máquina do tempo, capture, oficina, permissões) continuam
   // exclusivas do Administrador.
   const MODERADOR_TABS = ['funcionarios','gerenciar','infopessoal','atualizacoes','contracheques','maquina','banco','justificativas','vinculo','calendario','comunicados','feedback'];
   const [tab, setTab]         = useState(isModerador ? MODERADOR_TABS[0] : 'funcionarios');
@@ -2102,6 +2110,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
   const TABS=[
     {id:'funcionarios',   label:'Funcionários',      icon:<><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="23" y1="11" x2="17" y2="11"/><line x1="20" y1="8" x2="20" y2="14"/></>},
     {id:'gerenciar',      label:'Gerenciar Usuários', icon:<><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></>},
+    {id:'permissoes',     label:'Gerenciar Permissões', icon:<><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></>},
     {id:'infopessoal',    label:'Informações Pessoais', icon:<><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/><line x1="18" y1="8" x2="23" y2="8"/></>},
     {id:'atualizacoes',   label:'Atualizações',        icon:<><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0115-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 01-15 6.7L3 16"/></>},
     {id:'contracheques',  label:'Contracheques',      icon:<><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></>},
@@ -2202,7 +2211,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
           {/* Menu items */}
           <div style={{padding:'10px 10px',display:'flex',flexDirection:'column',gap:2}}>
             <div style={{fontSize:9,fontWeight:700,color:T.textD,textTransform:'uppercase',letterSpacing:'.12em',padding:'0 6px 6px',borderBottom:`1px solid ${T.border}`,marginBottom:4}}>Menu</div>
-            {TABS.filter(({id}) => !isModerador || MODERADOR_TABS.includes(id)).map(({id,label,icon})=>(
+            {TABS.filter(({id}) => !isRestrito || MODERADOR_TABS.includes(id)).map(({id,label,icon})=>(
               <button key={id} onClick={()=>setTab(id)} style={{
                 display:'flex',alignItems:'center',gap:8,padding:'9px 12px',borderRadius:9,
                 cursor:'pointer',outline:'none',fontFamily:'var(--font-body)',fontSize:13,
@@ -3506,6 +3515,9 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
               </Card>
             </div>
           )}
+
+          {/* ── TAB: GERENCIAR PERMISSÕES (cargos → módulos liberados) ── */}
+          {tab==='permissoes'&&<GerenciarPermissoesTab cardBg={cardBg}/>}
 
           {/* ── TAB: PERGUNTAS DO UNIKO (cache/aprendizado da IA) ── */}
           {tab==='uniko_ia'&&<UnikoQATab cardBg={cardBg}/>}

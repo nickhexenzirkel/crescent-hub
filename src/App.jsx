@@ -31,6 +31,7 @@ import { loadCaptureConfig, CONFIG_KEY, loadCustomUnikos, loadRewardOverrides, l
 import { loadCaptureConfig as loadCaptureNumeroConfig, CONFIG_KEY as CAPTURE_NUMERO_CONFIG_KEY, runCaptureScheduler as runCaptureNumeroScheduler } from './shared/captureNumero';
 import { initAssistantSkinSync } from './shared/assistantSkin';
 import PerfHud from './shared/diagnosticoPerf';
+import { loadCargoModulesForEmployeeId } from './shared/cargoPermissions';
 import { abaDaUrl } from './modules/faturamento/rotaFerramenta';
 
 // Ícones das vitrines "em breve" (Uniko Call / Comercial) — mesmo estilo dos
@@ -58,6 +59,16 @@ export default function CrescentHub() {
   const [captureNumeroCfg, setCaptureNumeroCfg] = useState(null); // "Capture o Número" — sistema paralelo, global
   const [authChecked, setAuthChecked] = useState(false);
   const [userPhoto, setUserPhoto] = useState(null);
+  // Cargos (Dashboard RH → Gerenciar Permissões): camada ADICIONAL de acesso
+  // a módulo por cima do role admin/moderador, que continuam vendo tudo sem
+  // nenhuma mudança. Recarrega sempre que o usuário logado muda.
+  const [cargoModules, setCargoModules] = useState(() => new Set());
+  useEffect(() => {
+    if (!authUser?.id) { setCargoModules(new Set()); return; }
+    let ativo = true;
+    loadCargoModulesForEmployeeId(authUser.id).then(set => { if (ativo) setCargoModules(set); });
+    return () => { ativo = false; };
+  }, [authUser]);
   const [portalInitialTab, setPortalInitialTab] = useState(null); // aba com que o Portal abre (ex: "dados" ao clicar em "Editar perfil")
   const isMobile = useIsMobile();
   // 7 Benefícios embute um site de terceiro num <iframe>: desmontar o
@@ -338,12 +349,15 @@ export default function CrescentHub() {
     // Conexão Setorial é liberada pra todo mundo — não entra na lista abaixo.
     // Moderador tem o mesmo acesso de admin ao ponto e ao dashboard (esse último
     // com abas restritas — ver filtragem de TABS dentro do DashboardRH).
-    const adminOnly = ['dashboard','ponto'];
+    // Cargo (Dashboard RH → Gerenciar Permissões) é uma camada ADICIONAL por
+    // cima disso — libera módulo por módulo pra quem não é admin/moderador,
+    // sem alterar em nada o que admin/moderador já enxergam.
+    const adminOnly = ['dashboard','ponto','uniko-safer'];
     const podeAdminOnly = authUser?.role === 'admin' || authUser?.role === 'moderador';
-    if (adminOnly.includes(id) && !podeAdminOnly) return;
-    // Vitrines "em breve" — só admin de verdade, nem moderador.
+    if (adminOnly.includes(id) && !podeAdminOnly && !cargoModules.has(id)) return;
+    // Vitrines "em breve" — só admin de verdade, nem moderador (cargo ainda libera).
     const strictAdminOnly = ['uniko-call','comercial'];
-    if (strictAdminOnly.includes(id) && authUser?.role !== 'admin') return;
+    if (strictAdminOnly.includes(id) && authUser?.role !== 'admin' && !cargoModules.has(id)) return;
     setPortalInitialTab(initialTab || null);
     navPush(id);
   };
@@ -650,20 +664,20 @@ export default function CrescentHub() {
         <div style={{position:'relative',zIndex:1,minHeight:'100vh'}}>
           {screen==='landing'     && <LandingPage    onStart={()=>navPush('login')}/>}
           {screen==='login'       && <LoginScreen    onLogin={handleLogin}/>}
-          {screen==='modules'     && <ModuleSelector onSelect={handleModuleSelect} authUser={authUser} onLogout={handleLogout} userPhoto={userPhoto}/>}
+          {screen==='modules'     && <ModuleSelector onSelect={handleModuleSelect} authUser={authUser} onLogout={handleLogout} userPhoto={userPhoto} cargoModules={cargoModules}/>}
           {screen==='colaborador' && <Portal         onBack={handleGoBack} onGoAlexa={()=>navPush('alexa')} userPhoto={userPhoto} onPhotoChange={p=>setUserPhoto(p)} initialTab={portalInitialTab}/>}
-          {screen==='ponto'       && (authUser?.role==='admin'||authUser?.role==='moderador') && <PontoEletronico onBack={handleGoBack} isAdmin={true}/>}
-          {screen==='dashboard'   && (authUser?.role==='admin'||authUser?.role==='moderador') && <DashboardRH onBack={handleGoBack} adminName={authUser.name} role={authUser.role}/>}
+          {screen==='ponto'       && (authUser?.role==='admin'||authUser?.role==='moderador'||cargoModules.has('ponto')) && <PontoEletronico onBack={handleGoBack} isAdmin={true}/>}
+          {screen==='dashboard'   && (authUser?.role==='admin'||authUser?.role==='moderador'||cargoModules.has('dashboard')) && <DashboardRH onBack={handleGoBack} adminName={authUser.name} role={authUser.role}/>}
           {screen==='alexa'       && <CentralAlexa        onBack={handleGoBack} userPhoto={userPhoto} initialTab={portalInitialTab}/>}
           {screen==='faturamento' && <FaturamentoPortal onBack={handleGoBack} authUser={authUser} initialTab={portalInitialTab}/>}
           {screen==='conexao-setorial' && <ConexaoSetorial onBack={handleGoBack} authUser={authUser} initialTab={portalInitialTab}/>}
           {screen==='info-adicional' && <InfoAdicional onBack={handleGoBack}/>}
-          {screen==='uniko-safer' && (authUser?.role==='admin'||authUser?.role==='moderador') && <UnikoSafer onBack={handleGoBack}/>}
+          {screen==='uniko-safer' && (authUser?.role==='admin'||authUser?.role==='moderador'||cargoModules.has('uniko-safer')) && <UnikoSafer onBack={handleGoBack}/>}
           {visited7Beneficios && <Beneficios7 onBack={handleGoBack} active={screen==='7-beneficios'}/>}
           {screen==='mercado-estelar' && <MercadoEstelar onBack={handleGoBack} authUser={authUser} userPhoto={userPhoto} initialTab={portalInitialTab}/>}
           {screen==='uniko-fit' && <UnikoFit onBack={handleGoBack} authUser={authUser} userPhoto={userPhoto}/>}
-          {screen==='uniko-call' && authUser?.role==='admin' && <EmBreveModulo onBack={handleGoBack} title="Uniko Call" icon={IcoEmBreveCall}/>}
-          {screen==='comercial' && authUser?.role==='admin' && <EmBreveModulo onBack={handleGoBack} title="Comercial" icon={IcoEmBreveComercial}/>}
+          {screen==='uniko-call' && (authUser?.role==='admin'||cargoModules.has('uniko-call')) && <EmBreveModulo onBack={handleGoBack} title="Uniko Call" icon={IcoEmBreveCall}/>}
+          {screen==='comercial' && (authUser?.role==='admin'||cargoModules.has('comercial')) && <EmBreveModulo onBack={handleGoBack} title="Comercial" icon={IcoEmBreveComercial}/>}
         </div>
 
         {/* ── Aviso Urgente — tela cheia ── */}
