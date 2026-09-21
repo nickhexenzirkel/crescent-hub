@@ -6,22 +6,16 @@
 // sistema (RH, ponto, jogos). Isolar evita que o crescimento desse arquivo
 // dispute cota/desempenho com o resto do Portal.
 //
-// Ainda não existe um projeto Supabase próprio pra ele (decisão de plano
-// pendente de aprovação). Enquanto SAFER_SUPABASE_URL/ANON_KEY estiverem
-// vazios, cai de volta pro client compartilhado — o módulo funciona
-// normalmente contra o projeto principal até a migração.
-//
-// Quando o projeto novo for criado: Supabase Dashboard → Settings → API,
-// cole a URL e a chave "anon" (pública) aqui embaixo, e rode
-// supabase_uniko_safer.sql nesse projeto novo.
+// Projeto dedicado (plano Micro) — ver Settings → API do projeto no
+// dashboard da Supabase. Só a chave "anon" (pública) vai aqui — o módulo
+// não usa nem precisa da service_role/secret key pra nada (todo o controle
+// de acesso é RLS + gating de admin/moderador no cliente, mesmo padrão do
+// resto do Portal).
 import { createClient } from '@supabase/supabase-js';
-import { supabase as sharedSupabase } from '../../contexts/user';
 
-const SAFER_SUPABASE_URL = '';      // ex: https://xxxxxxxxxxxx.supabase.co
-const SAFER_SUPABASE_ANON_KEY = ''; // chave "anon" (pública) do projeto dedicado
+const SAFER_SUPABASE_URL = 'https://npfgggoavzzyzcjjachi.supabase.co';
+const SAFER_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5wZmdnZ29hdnp6eXpjamphY2hpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwMDEwNzgsImV4cCI6MjEwNTU3NzA3OH0.XUexLOmbg7zKknw_xx7pTegi7uoAHQ_gKI6_She3RZA';
 
-const supabase = (SAFER_SUPABASE_URL && SAFER_SUPABASE_ANON_KEY)
-  ? createClient(SAFER_SUPABASE_URL, SAFER_SUPABASE_ANON_KEY)
-  : sharedSupabase;
+const supabase = createClient(SAFER_SUPABASE_URL, SAFER_SUPABASE_ANON_KEY);
 
 export { supabase };
