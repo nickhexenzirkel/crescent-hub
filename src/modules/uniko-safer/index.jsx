@@ -72,6 +72,12 @@ const IcoImport = () => (
 const IcoClose = () => (
   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
 );
+const IcoCheck = () => (
+  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+);
+const IcoWarn = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="8" x2="12" y2="13" /><circle cx="12" cy="16.3" r="0.9" fill="currentColor" stroke="none" /><circle cx="12" cy="12" r="9" /></svg>
+);
 
 // Dois setores usando o mesmo Uniko Safer, cada um com seus próprios
 // contatos — abas dentro do módulo (não módulos separados no seletor
@@ -963,38 +969,57 @@ const UnikoSafer = ({ onBack }) => {
               </>
             )}
 
-            {autoStep === 'running' && (
-              <>
-                {autoJobStatus === 'running' && (
-                  <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0 18px' }}>
-                    <span style={{ width: 44, height: 44, borderRadius: '50%', border: `4px solid ${T.border}`, borderTopColor: T.gold, flexShrink: 0, animation: 'saferBulkSpin .8s linear infinite' }} />
-                  </div>
-                )}
-                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'baseline', marginBottom: 8 }}>
-                  <span style={{ fontSize: 12.5, fontWeight: 700, color: T.text }}>
-                    {autoJobStatus === 'done' ? 'Concluído' : autoJobStatus === 'error' ? 'Encerrado com erro' : 'Importando pelo WhatsApp Web…'}
-                  </span>
-                </div>
-                <style>{`@keyframes saferBulkSpin { to { transform: rotate(360deg); } }`}</style>
-                {autoLog.length > 0 && (
-                  <div style={{ maxHeight: 260, overflowY: 'auto', border: `1px solid ${T.border}`, borderRadius: 10, background: T.page, fontSize: 12, marginBottom: 14 }}>
-                    {autoLog.map((r, i) => (
-                      <div key={i} style={{ padding: '7px 10px', borderBottom: i < autoLog.length - 1 ? `1px solid ${T.border}` : 'none', display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                        <span style={{ fontWeight: 600, color: T.text, flexShrink: 0 }}>{r.contactName || '—'}</span>
-                        <span style={{ color: r.status === 'ready' ? (T.green || T.gold) : r.status === 'error' ? T.danger : T.textT, textAlign: 'right' }}>{r.message}</span>
+            {autoStep === 'running' && (() => {
+              const isDone = autoJobStatus === 'done';
+              const isError = autoJobStatus === 'error';
+              const okColor = T.green || T.gold;
+              const successCount = autoLog.filter(l => l.status === 'ready').length;
+              const errorCount = autoLog.filter(l => l.status === 'error').length;
+              return (
+                <>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '6px 0 20px' }}>
+                    {autoJobStatus === 'running' ? (
+                      <span style={{ width: 52, height: 52, borderRadius: '50%', border: `4px solid ${T.border}`, borderTopColor: T.gold, flexShrink: 0, animation: 'saferBulkSpin .8s linear infinite' }} />
+                    ) : (
+                      <div style={{ width: 52, height: 52, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                        background: isDone ? `${okColor}22` : `${T.danger}22`, color: isDone ? okColor : T.danger }}>
+                        {isDone ? <IcoCheck /> : <IcoWarn />}
                       </div>
-                    ))}
+                    )}
+                    <div style={{ fontSize: 15.5, fontWeight: 800, color: T.text, marginTop: 14 }}>
+                      {isDone ? 'Concluído' : isError ? 'Encerrado com erro' : 'Importando pelo WhatsApp Web…'}
+                    </div>
+                    {(isDone || isError) && (successCount > 0 || errorCount > 0) && (
+                      <div style={{ fontSize: 12, color: T.textT, marginTop: 4 }}>
+                        {successCount} exportada{successCount === 1 ? '' : 's'}{errorCount > 0 ? ` · ${errorCount} com erro` : ''}
+                      </div>
+                    )}
                   </div>
-                )}
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                  {autoJobStatus === 'running' ? (
-                    <button onClick={stopAutoImport} disabled={autoStopping} style={{ ...btnStyle('danger'), opacity: autoStopping ? 0.6 : 1 }}>{autoStopping ? 'Parando…' : 'Parar'}</button>
-                  ) : (
-                    <button onClick={closeAutoModal} style={btnStyle('primary')}>Fechar</button>
+                  <style>{`@keyframes saferBulkSpin { to { transform: rotate(360deg); } }`}</style>
+                  {autoLog.length > 0 && (
+                    <div style={{ maxHeight: 260, overflowY: 'auto', border: `1px solid ${T.border}`, borderRadius: 10, background: T.page, fontSize: 12, marginBottom: 14 }}>
+                      {autoLog.map((r, i) => {
+                        const rowColor = r.status === 'ready' ? okColor : r.status === 'error' ? T.danger : T.textT;
+                        return (
+                          <div key={i} style={{ padding: '7px 10px', borderBottom: i < autoLog.length - 1 ? `1px solid ${T.border}` : 'none', display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ width: 6, height: 6, borderRadius: '50%', background: rowColor, flexShrink: 0 }} />
+                            <span style={{ fontWeight: 600, color: T.text, flexShrink: 0 }}>{r.contactName || '—'}</span>
+                            <span style={{ color: rowColor, textAlign: 'right', marginLeft: 'auto' }}>{r.message}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
                   )}
-                </div>
-              </>
-            )}
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                    {autoJobStatus === 'running' ? (
+                      <button onClick={stopAutoImport} disabled={autoStopping} style={{ ...btnStyle('danger'), opacity: autoStopping ? 0.6 : 1 }}>{autoStopping ? 'Parando…' : 'Parar'}</button>
+                    ) : (
+                      <button onClick={closeAutoModal} style={btnStyle('primary')}>Fechar</button>
+                    )}
+                  </div>
+                </>
+              );
+            })()}
           </div>
         </div>
       )}
