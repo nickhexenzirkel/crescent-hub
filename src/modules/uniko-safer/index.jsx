@@ -697,7 +697,7 @@ const UnikoSafer = ({ onBack }) => {
                       display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, flexShrink: 0 }}>{initials(c.name) || '?'}</div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 14, fontWeight: 600, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</div>
-                      <div style={{ fontSize: 12, color: T.textT, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.phone_number || 'Sem número cadastrado'}</div>
+                      {c.phone_number && <div style={{ fontSize: 12, color: T.textT, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.phone_number}</div>}
                     </div>
                     {c.exportCount > 0 && (
                       <span style={{ fontSize: 11, fontWeight: 700, color: T.gold, background: T.goldGl, borderRadius: 20, padding: '2px 8px', flexShrink: 0 }}>{c.exportCount}</span>
@@ -759,7 +759,7 @@ const UnikoSafer = ({ onBack }) => {
                     <div style={{ width: 42, height: 42, borderRadius: '50%', background: T.gold, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700, flexShrink: 0 }}>{initials(selectedContact.name) || '?'}</div>
                     <div style={{ minWidth: 0 }}>
                       <div style={{ fontSize: 18, fontWeight: 700, color: T.text }}>{selectedContact.name}</div>
-                      <div style={{ fontSize: 12.5, color: T.textT }}>{selectedContact.phone_number || 'Sem número cadastrado'}</div>
+                      {selectedContact.phone_number && <div style={{ fontSize: 12.5, color: T.textT }}>{selectedContact.phone_number}</div>}
                       {selectedContact.notes && <div style={{ marginTop: 4, fontSize: 12, color: T.textT, maxWidth: 420, whiteSpace: 'pre-wrap' }}>{selectedContact.notes}</div>}
                     </div>
                   </div>
