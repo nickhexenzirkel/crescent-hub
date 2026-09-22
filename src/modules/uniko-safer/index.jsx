@@ -150,15 +150,7 @@ const UnikoSafer = ({ onBack }) => {
     setLoadingContacts(true);
     const { data: contactRows, error } = await supabase.from('uniko_safer_contacts').select('*').order('name');
     if (error) { flash('Erro ao carregar contatos: ' + error.message); setLoadingContacts(false); return; }
-    const { data: exportRows } = await supabase.from('uniko_safer_exports').select('contact_id, imported_at');
-    const stats = new Map();
-    (exportRows || []).forEach(e => {
-      const s = stats.get(e.contact_id) || { count: 0, last: null };
-      s.count += 1;
-      if (!s.last || e.imported_at > s.last) s.last = e.imported_at;
-      stats.set(e.contact_id, s);
-    });
-    setContacts((contactRows || []).map(c => ({ ...c, exportCount: stats.get(c.id)?.count || 0, lastImportedAt: stats.get(c.id)?.last || null })));
+    setContacts(contactRows || []);
     setLoadingContacts(false);
   };
 
@@ -613,7 +605,7 @@ const UnikoSafer = ({ onBack }) => {
   const mobileShowChat = !isMobile || !!selectedContactId;
 
   return (
-    <div style={{ minHeight: '100vh', background: T.page, fontFamily: 'var(--font-body)', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ height: '100vh', background: T.page, fontFamily: 'var(--font-body)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* Topbar */}
       <div style={{ height: 56, flexShrink: 0, background: T.topbarBg || (T.dark ? `${T.surface}ee` : 'rgba(245,250,255,0.75)'),
         backdropFilter: 'blur(28px)', WebkitBackdropFilter: 'blur(28px)', borderBottom: `1px solid ${T.border}`,
@@ -699,9 +691,6 @@ const UnikoSafer = ({ onBack }) => {
                       <div style={{ fontSize: 14, fontWeight: 600, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</div>
                       {c.phone_number && <div style={{ fontSize: 12, color: T.textT, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.phone_number}</div>}
                     </div>
-                    {c.exportCount > 0 && (
-                      <span style={{ fontSize: 11, fontWeight: 700, color: T.gold, background: T.goldGl, borderRadius: 20, padding: '2px 8px', flexShrink: 0 }}>{c.exportCount}</span>
-                    )}
                   </div>
                 );
               })}
