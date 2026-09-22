@@ -595,15 +595,21 @@ const UnikoSafer = ({ onBack }) => {
       return (
         <div key={i}>
           {divider && <div style={dividerStyle}>{formatDayLabel(m.timestamp)}</div>}
-          <div style={{ display: 'flex', flexDirection: 'column', maxWidth: '68%', marginTop: 8, alignSelf: fromMe ? 'flex-end' : 'flex-start', alignItems: fromMe ? 'flex-end' : 'flex-start' }}>
-            {!fromMe && <div style={{ fontSize: 11, fontWeight: 700, color: T.green || T.gold, margin: '0 4px 3px' }}>{m.sender}</div>}
-            <div style={{ padding: '8px 12px', borderRadius: 16, fontSize: 13.5, lineHeight: 1.45, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-              background: fromMe ? (T.green || T.gold) : T.surface, color: fromMe ? '#fff' : T.text,
-              border: fromMe ? 'none' : `1px solid ${T.border}`,
-              borderBottomRightRadius: fromMe ? 4 : 16, borderBottomLeftRadius: fromMe ? 16 : 4 }}>
-              {m.text}
+          {/* Linha de largura total + justifyContent (em vez de só alignSelf no
+              item) — garante que a mensagem encoste na margem de verdade,
+              não fique "flutuando" perto do meio quando a coluna de mensagens
+              é bem larga. */}
+          <div style={{ display: 'flex', justifyContent: fromMe ? 'flex-end' : 'flex-start', width: '100%', marginTop: 8 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', maxWidth: '68%', alignItems: fromMe ? 'flex-end' : 'flex-start' }}>
+              {!fromMe && <div style={{ fontSize: 11, fontWeight: 700, color: T.green || T.gold, margin: '0 4px 3px' }}>{m.sender}</div>}
+              <div style={{ padding: '8px 12px', borderRadius: 16, fontSize: 13.5, lineHeight: 1.45, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                background: fromMe ? (T.green || T.gold) : T.surface, color: fromMe ? '#fff' : T.text,
+                border: fromMe ? 'none' : `1px solid ${T.border}`,
+                borderBottomRightRadius: fromMe ? 4 : 16, borderBottomLeftRadius: fromMe ? 16 : 4 }}>
+                {m.text}
+              </div>
+              <div style={{ fontSize: 10.5, color: T.textT, margin: '3px 4px 0' }}>{formatTime(m.timestamp)}</div>
             </div>
-            <div style={{ fontSize: 10.5, color: T.textT, margin: '3px 4px 0' }}>{formatTime(m.timestamp)}</div>
           </div>
         </div>
       );
