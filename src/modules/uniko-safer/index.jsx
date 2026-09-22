@@ -126,6 +126,7 @@ const UnikoSafer = ({ onBack }) => {
   const [tagPickerOpen, setTagPickerOpen] = useState(false);
   const [newTagName, setNewTagName] = useState('');
   const [newTagColor, setNewTagColor] = useState(TAG_COLORS[0]);
+  const [tagContextMenu, setTagContextMenu] = useState(null); // {contactId, x, y}
   const [messageResults, setMessageResults] = useState([]);
   const [searchingMessages, setSearchingMessages] = useState(false);
   const messageSearchTimer = useRef(null);
@@ -213,7 +214,26 @@ const UnikoSafer = ({ onBack }) => {
     });
   };
 
+  // Atalho do menu de clique direito — muda a etiqueta na hora, sem abrir o
+  // modal inteiro de editar contato. Atualiza local primeiro (otimista) pra
+  // o menu responder na hora; se o Supabase falhar, recarrega pra corrigir.
+  const toggleContactTagDirect = async (contact, tagId) => {
+    const has = (contact.tag_ids || []).includes(tagId);
+    const nextTagIds = has ? contact.tag_ids.filter(id => id !== tagId) : [...(contact.tag_ids || []), tagId];
+    setContacts(prev => prev.map(c => c.id === contact.id ? { ...c, tag_ids: nextTagIds } : c));
+    const { error } = await supabase.from('uniko_safer_contacts').update({ tag_ids: nextTagIds }).eq('id', contact.id);
+    if (error) { flash('Erro: ' + error.message); await loadContacts(); }
+  };
+
   useEffect(() => { loadContacts(); loadTags(); }, []);
+
+  // Fecha o menu de clique direito com Escape.
+  useEffect(() => {
+    if (!tagContextMenu) return;
+    const onKey = (e) => { if (e.key === 'Escape') setTagContextMenu(null); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [tagContextMenu]);
 
   // Busca global de mensagens (estilo WhatsApp): além de filtrar a lista de
   // contatos por nome/número (client-side, já carregado), o mesmo campo
@@ -750,6 +770,7 @@ const UnikoSafer = ({ onBack }) => {
                 const checked = selectedIds.has(c.id);
                 return (
                   <div key={c.id} onClick={() => selectionMode ? toggleSelected(c.id) : selectContact(c.id)}
+                    onContextMenu={e => { e.preventDefault(); setTagContextMenu({ contactId: c.id, x: e.clientX, y: e.clientY }); }}
                     style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 10px', borderRadius: 10, cursor: 'pointer', marginBottom: 2,
                       background: (active || checked) ? (T.goldGl || T.surfaceSub) : 'transparent' }}>
                     {selectionMode && <input type="checkbox" checked={checked} onChange={() => toggleSelected(c.id)} onClick={e => e.stopPropagation()} style={{ width: 16, height: 16, flexShrink: 0, accentColor: T.gold }} />}
@@ -957,6 +978,46 @@ const UnikoSafer = ({ onBack }) => {
           </div>
         </div>
       )}
+
+      {/* Menu de clique direito num contato: marcar/desmarcar etiquetas na hora */}
+      {tagContextMenu && (() => {
+        const contact = contacts.find(c => c.id === tagContextMenu.contactId);
+        if (!contact) return null;
+        const left = Math.min(tagContextMenu.x, window.innerWidth - 240);
+        const top = Math.min(tagContextMenu.y, window.innerHeight - 60 - tags.length * 36);
+        return (
+          <>
+            <div onClick={() => setTagContextMenu(null)} onContextMenu={e => { e.preventDefault(); setTagContextMenu(null); }}
+              style={{ position: 'fixed', inset: 0, zIndex: 550 }} />
+            <div style={{ position: 'fixed', top, left, zIndex: 551, background: T.surface, border: `1px solid ${T.border}`, borderRadius: 10,
+              boxShadow: T.shL, padding: 6, minWidth: 220 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: T.textT, padding: '6px 8px 4px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Etiquetas de {contact.name}
+              </div>
+              {tags.length === 0 ? (
+                <div style={{ fontSize: 12, color: T.textT, padding: '4px 8px 8px' }}>Nenhuma etiqueta criada ainda.</div>
+              ) : tags.map(tag => {
+                const sel = (contact.tag_ids || []).includes(tag.id);
+                return (
+                  <button key={tag.id} onClick={() => toggleContactTagDirect(contact, tag.id)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '7px 8px', borderRadius: 6, cursor: 'pointer',
+                      background: sel ? `${tag.color}18` : 'transparent', border: 'none', textAlign: 'left', fontFamily: 'var(--font-body)' }}>
+                    <span style={{ width: 10, height: 10, borderRadius: '50%', background: tag.color, flexShrink: 0 }} />
+                    <span style={{ fontSize: 13, color: T.text, flex: 1 }}>{tag.name}</span>
+                    {sel && <span style={{ color: tag.color, fontWeight: 900 }}>✓</span>}
+                  </button>
+                );
+              })}
+              <div style={{ height: 1, background: T.border, margin: '6px 0' }} />
+              <button onClick={() => { setTagContextMenu(null); setTagPickerOpen(true); }}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '7px 8px', borderRadius: 6, cursor: 'pointer',
+                  background: 'transparent', border: 'none', textAlign: 'left', color: T.gold, fontWeight: 700, fontSize: 12.5, fontFamily: 'var(--font-body)' }}>
+                <IcoPlus /> Nova etiqueta
+              </button>
+            </div>
+          </>
+        );
+      })()}
 
       {/* Menu "Mais opções": 3 cards grandes, cada um abre uma função em tela cheia */}
       {moreMenuOpen && (
