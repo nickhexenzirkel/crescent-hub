@@ -926,9 +926,10 @@ const UnikoSafer = ({ onBack }) => {
                     <div style={{ fontSize: 11.5, color: T.textT, marginTop: 10 }}>No celular do WhatsApp do setor: Configurações → Aparelhos conectados → Conectar um aparelho.</div>
                   </div>
                 ) : (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: T.textT, justifyContent: 'center', padding: '20px 0' }}>
-                    <span style={{ width: 13, height: 13, borderRadius: '50%', border: `2px solid ${T.border}`, borderTopColor: T.gold, flexShrink: 0, animation: 'saferBulkSpin .7s linear infinite' }} />
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, fontSize: 12.5, color: T.textT, justifyContent: 'center', padding: '20px 0' }}>
+                    <span style={{ width: 44, height: 44, borderRadius: '50%', border: `4px solid ${T.border}`, borderTopColor: T.gold, flexShrink: 0, animation: 'saferBulkSpin .8s linear infinite' }} />
                     Verificando…
+                    <style>{`@keyframes saferBulkSpin { to { transform: rotate(360deg); } }`}</style>
                   </div>
                 )}
               </>
@@ -964,14 +965,17 @@ const UnikoSafer = ({ onBack }) => {
 
             {autoStep === 'running' && (
               <>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
+                {autoJobStatus === 'running' && (
+                  <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0 18px' }}>
+                    <span style={{ width: 44, height: 44, borderRadius: '50%', border: `4px solid ${T.border}`, borderTopColor: T.gold, flexShrink: 0, animation: 'saferBulkSpin .8s linear infinite' }} />
+                  </div>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'baseline', marginBottom: 8 }}>
                   <span style={{ fontSize: 12.5, fontWeight: 700, color: T.text }}>
                     {autoJobStatus === 'done' ? 'Concluído' : autoJobStatus === 'error' ? 'Encerrado com erro' : 'Importando pelo WhatsApp Web…'}
                   </span>
-                  {autoJobStatus === 'running' && (
-                    <span style={{ width: 13, height: 13, borderRadius: '50%', border: `2px solid ${T.border}`, borderTopColor: T.gold, flexShrink: 0, animation: 'saferBulkSpin .7s linear infinite' }} />
-                  )}
                 </div>
+                <style>{`@keyframes saferBulkSpin { to { transform: rotate(360deg); } }`}</style>
                 {autoLog.length > 0 && (
                   <div style={{ maxHeight: 260, overflowY: 'auto', border: `1px solid ${T.border}`, borderRadius: 10, background: T.page, fontSize: 12, marginBottom: 14 }}>
                     {autoLog.map((r, i) => (
