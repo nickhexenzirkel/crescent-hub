@@ -7,6 +7,7 @@
 // virar uma integração futura com o WhatsApp Web.
 import { useState, useEffect, useRef } from 'react';
 import { T } from '../../contexts/theme';
+import { getAuthUser } from '../../contexts/user';
 import { supabase } from './saferSupabase';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import {
@@ -163,8 +164,25 @@ const UnikoSafer = ({ onBack }) => {
     return () => clearTimeout(messageSearchTimer.current);
   }, [search]);
 
+  // Best-effort, nunca trava a tela: se o log falhar (rede, tabela ainda não
+  // criada), a conversa abre normal do mesmo jeito — a auditoria é extra,
+  // não um bloqueio de acesso (isso já é papel da RLS).
+  const logAcessoConversa = (contactId) => {
+    try {
+      const auth = getAuthUser();
+      const contactName = contacts.find(c => c.id === contactId)?.name || null;
+      supabase.from('uniko_safer_access_log').insert({
+        contact_id: contactId,
+        contact_name: contactName,
+        viewer_name: auth?.name || null,
+        viewer_role: auth?.role || null,
+      }).then(() => {}, () => {});
+    } catch {}
+  };
+
   const loadChatMessages = async (contactId) => {
     setLoadingChat(true);
+    logAcessoConversa(contactId);
     const { data, error } = await supabase.from('uniko_safer_messages').select('sent_at, sender, text').eq('contact_id', contactId).order('sent_at');
     if (error) { flash('Erro ao carregar mensagens: ' + error.message); setLoadingChat(false); return; }
     setCurrentChatMessages((data || []).map(r => ({ timestamp: r.sent_at, sender: r.sender, text: r.text })));

@@ -1947,12 +1947,16 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
         .upload(filePath, chFile, { contentType: 'application/pdf', upsert: false });
       if (upErr) throw new Error('Erro no upload: ' + upErr.message);
 
+      // file_url guardado só como referência legível (bucket é privado agora —
+      // não abre mais direto); o que o Financeiro realmente usa pra exibir é
+      // storage_path, via link assinado gerado na hora (ver TabFinanceiro.jsx).
       const { data: urlData } = _supabase.storage.from('contracheques').getPublicUrl(filePath);
 
       const { error: insErr } = await _supabase.from('contracheques').insert({
         employee_name: chForm.employee_name,
         competencia:   chForm.competencia,
         file_url:      urlData.publicUrl,
+        storage_path:  filePath,
         created_at:    new Date().toISOString(),
       });
       if (insErr) throw new Error('Erro ao salvar: ' + insErr.message);
@@ -2052,6 +2056,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
           employee_name: r.employee_name,
           competencia:   r.competencia,
           file_url:      urlData.publicUrl,
+          storage_path:  filePath,
           created_at:    new Date().toISOString(),
         });
         if (insErr) throw new Error(insErr.message);

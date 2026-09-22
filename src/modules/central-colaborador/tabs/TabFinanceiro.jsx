@@ -103,10 +103,26 @@ const TabFinanceiro = () => {
         .finally(() => setHistLoading(false));
     } else setHistLoading(false);
 
+    // O bucket é privado agora (ver supabase_seguranca_contracheques_link_assinado.sql)
+    // — file_url guardado no banco não abre mais direto. Troca por um link
+    // assinado (expira em 10 min) na hora de exibir. Registros antigos sem
+    // storage_path (enviados antes desta correção) caem de volta pro file_url
+    // salvo, que continua existindo na tabela mesmo sem funcionar mais —
+    // aparecerão como "arquivo indisponível" até o RH reenviar.
     _supabase.from('contracheques').select('*')
       .eq('employee_name', USER.name)
       .order('competencia', { ascending: false })
-      .then(({ data }) => setContracheques(data || []))
+      .then(async ({ data }) => {
+        const rows = data || [];
+        const comLink = await Promise.all(rows.map(async (ch) => {
+          if (!ch.storage_path) return ch;
+          try {
+            const { data: signed } = await _supabase.storage.from('contracheques').createSignedUrl(ch.storage_path, 600);
+            return signed?.signedUrl ? { ...ch, file_url: signed.signedUrl } : ch;
+          } catch { return ch; }
+        }));
+        setContracheques(comLink);
+      })
       .catch(() => {})
       .finally(() => setChLoading(false));
   }, []);
