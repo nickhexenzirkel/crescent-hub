@@ -186,6 +186,19 @@ const UnikoSafer = ({ onBack }) => {
   const [autoStopping, setAutoStopping] = useState(false);
   const autoProcessedIdx = useRef(new Set());
 
+  // ── Sincronização automática periódica (só reprocessa quem mudou) ──────
+  // Guardado no localStorage: continua ligado se a página recarregar, mas só
+  // roda de verdade enquanto ESSA aba do Uniko Safer estiver aberta (pode
+  // estar minimizada) — não é um processo do servidor, é um setInterval daqui.
+  const [periodicSyncEnabled, setPeriodicSyncEnabled] = useState(() => {
+    try { return localStorage.getItem('uniko_safer_periodic_sync') === '1'; } catch { return false; }
+  });
+  const [periodicSyncMinutes, setPeriodicSyncMinutes] = useState(() => {
+    try { return Math.max(1, Number(localStorage.getItem('uniko_safer_periodic_sync_minutes')) || 2); } catch { return 2; }
+  });
+  const [lastPeriodicSyncAt, setLastPeriodicSyncAt] = useState(null);
+  const periodicSyncRunningRef = useRef(false);
+
   const flash = (msg) => {
     setToast(msg);
     clearTimeout(toastTimer.current);
@@ -680,6 +693,79 @@ const UnikoSafer = ({ onBack }) => {
   const closeAutoModal = () => {
     setAutoModalOpen(false); setAutoJobId(null); setAutoLog([]); setAutoStep('connect'); setAutoStopping(false);
   };
+
+  useEffect(() => { try { localStorage.setItem('uniko_safer_periodic_sync', periodicSyncEnabled ? '1' : '0'); } catch { /* localStorage indisponível */ } }, [periodicSyncEnabled]);
+  useEffect(() => { try { localStorage.setItem('uniko_safer_periodic_sync_minutes', String(periodicSyncMinutes)); } catch { /* localStorage indisponível */ } }, [periodicSyncMinutes]);
+
+  // Um ciclo de sincronização incremental: só existe enquanto essa aba está
+  // aberta (é um setInterval no navegador, não um processo do servidor) —
+  // busca contatos do setor DIRETO no Supabase (não do estado React, que
+  // pode estar desatualizado dentro de um closure de intervalo antigo).
+  const runPeriodicSyncCycle = async () => {
+    if (periodicSyncRunningRef.current) return;
+    periodicSyncRunningRef.current = true;
+    try {
+      const statusRes = await fetch(`${SERVER_URL}/api/safer/whatsapp/status`, { headers: authHeaders() });
+      const statusData = await statusRes.json().catch(() => ({}));
+      if (!statusData.loggedIn) return; // sem sessão conectada — tenta de novo no próximo ciclo, sem incomodar
+
+      const startRes = await fetch(`${SERVER_URL}/api/safer/whatsapp/import/start`, {
+        method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pauseSeconds: 8, onlyChanged: true }),
+      });
+      const startData = await startRes.json().catch(() => ({}));
+      if (!startRes.ok || !startData.jobId) return;
+      const jobId = startData.jobId;
+
+      const { data: freshContacts } = await supabase.from('uniko_safer_contacts').select('*').eq('category', autoCategory);
+      const byName = new Map((freshContacts || []).map(c => [c.name.toLowerCase(), c]));
+      const processed = new Set();
+      let importedCount = 0;
+
+      // Até uns 6min esperando esse ciclo terminar (contatos que mudam
+      // costumam ser poucos — se passar disso, solta e tenta de novo no
+      // próximo intervalo).
+      for (let i = 0; i < 120; i++) {
+        await new Promise(r => setTimeout(r, 3000));
+        let data;
+        try {
+          const res = await fetch(`${SERVER_URL}/api/safer/whatsapp/import/status/${jobId}`, { headers: authHeaders() });
+          data = await res.json();
+        } catch { continue; }
+        const ready = (data.logs || []).filter(l => l.status === 'ready' && !processed.has(l.fileIndex));
+        for (const entry of ready) {
+          processed.add(entry.fileIndex);
+          try {
+            const fileRes = await fetch(`${SERVER_URL}/api/safer/whatsapp/import/${jobId}/file/${entry.fileIndex}`, { headers: authHeaders() });
+            if (!fileRes.ok) throw new Error('download falhou');
+            const blob = await fileRes.blob();
+            const disp = fileRes.headers.get('Content-Disposition') || '';
+            const filename = disp.match(/filename="([^"]+)"/)?.[1] ? decodeURIComponent(disp.match(/filename="([^"]+)"/)[1]) : `${entry.contactName}.zip`;
+            const file = new File([blob], filename, { type: blob.type });
+            await importOneFile(file, entry.contactName, autoCategory, byName);
+            importedCount++;
+          } catch { /* um arquivo falhando não derruba o ciclo — tenta de novo no próximo */ }
+        }
+        if (data.status === 'done' || data.status === 'error') break;
+      }
+
+      setLastPeriodicSyncAt(new Date().toISOString());
+      if (importedCount > 0) {
+        await loadContacts();
+        if (selectedContactId) await loadChatMessages(selectedContactId);
+        flash(`Sincronização automática: ${importedCount} conversa${importedCount === 1 ? '' : 's'} atualizada${importedCount === 1 ? '' : 's'}.`);
+      }
+    } catch { /* melhor esforço — próximo ciclo tenta de novo */ }
+    finally { periodicSyncRunningRef.current = false; }
+  };
+
+  useEffect(() => {
+    if (!periodicSyncEnabled) return;
+    runPeriodicSyncCycle();
+    const t = setInterval(runPeriodicSyncCycle, periodicSyncMinutes * 60 * 1000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [periodicSyncEnabled, periodicSyncMinutes, autoCategory]);
 
   // ── Render: mensagens do chat ────────────────────────────────────────
   const term = chatSearchTerm.trim().toLowerCase();
@@ -1252,6 +1338,33 @@ const UnikoSafer = ({ onBack }) => {
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: T.textT, marginBottom: 6 }}>Pausa entre contatos (segundos)</label>
                 <input type="number" min={5} value={autoPauseSeconds} onChange={e => setAutoPauseSeconds(Math.max(5, Number(e.target.value) || 5))}
                   style={{ ...inputStyle, marginBottom: 20 }} />
+
+                <div style={{ border: `1px solid ${T.border}`, borderRadius: 10, padding: 14, marginBottom: 20 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <button onClick={() => setPeriodicSyncEnabled(v => !v)} aria-label="Ativar sincronização automática periódica"
+                      style={{ width: 38, height: 22, borderRadius: 11, border: `1.5px solid ${periodicSyncEnabled ? T.gold : T.border}`, background: periodicSyncEnabled ? T.goldGl : T.page, position: 'relative', cursor: 'pointer', flexShrink: 0, padding: 0 }}>
+                      <span style={{ position: 'absolute', top: 1.5, left: periodicSyncEnabled ? 17 : 1.5, width: 17, height: 17, borderRadius: '50%', background: periodicSyncEnabled ? T.gold : T.textT, transition: 'left .15s' }} />
+                    </button>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: T.text }}>Sincronização automática periódica</div>
+                      <div style={{ fontSize: 11.5, color: T.textT, marginTop: 2, lineHeight: 1.4 }}>
+                        Reexporta só os contatos com atividade nova a cada intervalo, enquanto o Uniko Safer estiver aberto nesta aba.
+                      </div>
+                    </div>
+                  </div>
+                  {periodicSyncEnabled && (
+                    <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                      <label style={{ fontSize: 12, color: T.textT }}>A cada</label>
+                      <input type="number" min={1} value={periodicSyncMinutes} onChange={e => setPeriodicSyncMinutes(Math.max(1, Number(e.target.value) || 1))}
+                        style={{ ...inputStyle, width: 70, marginBottom: 0 }} />
+                      <span style={{ fontSize: 12, color: T.textT }}>minuto(s)</span>
+                      <span style={{ fontSize: 11.5, color: T.textT, marginLeft: 'auto' }}>
+                        {lastPeriodicSyncAt ? `Última checagem: ${formatDateTime(lastPeriodicSyncAt)}` : 'Ainda não checou nenhuma vez.'}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
                   <button onClick={closeAutoModal} style={btnStyle('secondary')}>Cancelar</button>
                   <button onClick={startAutoImport} style={btnStyle('primary')}>Iniciar importação automática</button>
