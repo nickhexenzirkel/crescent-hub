@@ -973,7 +973,7 @@ export default function ConexaoSetorial({ onBack, authUser, initialTab }) {
       {/* ── Painel de arquivados ── */}
       {showArchived && (
         <div onClick={() => setShowArchived(false)}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(10,6,20,.55)', backdropFilter: 'blur(3px)', zIndex: 60, display: 'flex', justifyContent: 'flex-end', animation: 'csFade .2s ease' }}>
+          style={{ position: 'fixed', inset: 0, background: 'rgba(10,6,20,.72)', zIndex: 60, display: 'flex', justifyContent: 'flex-end', animation: 'csFade .2s ease' }}>
           <div onClick={e => e.stopPropagation()}
             style={{ width: isMobile ? '100%' : 420, maxWidth: '100%', height: '100%', background: T.surface, borderLeft: `1px solid ${brd}`, display: 'flex', flexDirection: 'column', boxShadow: '-12px 0 40px rgba(0,0,0,.3)', animation: 'csSlideIn .25s cubic-bezier(.2,1,.3,1)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '16px 18px', borderBottom: `1px solid ${brd}` }}>
@@ -1252,7 +1252,7 @@ function CardModal({ card, me, people, onClose, lists, onPatchLog, onDelete, onA
   const tbStyle = { background: 'transparent', color: T.text, borderRadius: 7, minWidth: 30, height: 30, display: 'grid', placeItems: 'center', cursor: 'pointer', border: 'none' };
 
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 80, background: 'rgba(20,8,30,.55)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: isMobile ? 'stretch' : 'center', justifyContent: 'center', padding: isMobile ? 0 : 20, animation: 'csFade .2s ease' }}>
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 80, background: 'rgba(20,8,30,.72)', display: 'flex', alignItems: isMobile ? 'stretch' : 'center', justifyContent: 'center', padding: isMobile ? 0 : 20, animation: 'csFade .2s ease' }}>
       <div onClick={e => e.stopPropagation()} style={{ width: isMobile ? '100%' : 950, maxWidth: '100%', maxHeight: isMobile ? '100%' : '92vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: surf, color: T.text, borderRadius: isMobile ? 0 : 18, border: `1px solid ${brd}`, boxShadow: '0 30px 80px rgba(80,20,120,.4)', animation: 'csPop .24s cubic-bezier(.2,1.25,.35,1)' }}>
         <div style={{ height: 6, background: UNIKO_GRAD, flexShrink: 0 }} />
 
@@ -1375,7 +1375,7 @@ function CardModal({ card, me, people, onClose, lists, onPatchLog, onDelete, onA
       {/* Descrição expandida: versão grande, sem scroll lateral, com atalho pra comentários */}
       {descExpanded && (
         <div onClick={e => { e.stopPropagation(); setDescExpanded(false); setExpComments(false); }}
-          style={{ position: 'fixed', inset: 0, zIndex: 92, background: 'rgba(20,8,30,.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: isMobile ? 0 : 20, animation: 'csFade .2s ease' }}>
+          style={{ position: 'fixed', inset: 0, zIndex: 92, background: 'rgba(20,8,30,.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: isMobile ? 0 : 20, animation: 'csFade .2s ease' }}>
           <div onClick={e => e.stopPropagation()} style={{ position: 'relative', width: isMobile ? '100%' : (expComments ? 1140 : 820), maxWidth: '100%', height: isMobile ? '100%' : '86vh', maxHeight: isMobile ? '100%' : 780, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: surf, color: T.text, borderRadius: isMobile ? 0 : 18, border: `1px solid ${brd}`, boxShadow: '0 30px 80px rgba(80,20,120,.4)', transition: 'width .25s cubic-bezier(.2,1,.3,1)', animation: 'csPop .22s cubic-bezier(.2,1.25,.35,1)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '13px 18px', borderBottom: `1px solid ${brd}`, flexShrink: 0 }}>
               <div style={{ fontSize: 15, fontWeight: 800 }}>Descrição</div>
@@ -1437,7 +1437,7 @@ function ConviteColunaModal({ share, onAceitar, onRecusar, onFechar, brd, cardBg
   const [busy, setBusy] = useState(null); // 'aceitar' | 'recusar'
   const agir = async (fn, qual) => { setBusy(qual); try { await fn(); } finally { setBusy(null); } };
   return (
-    <div onClick={onFechar} style={{ position: 'fixed', inset: 0, zIndex: 970, background: 'rgba(10,6,24,.6)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+    <div onClick={onFechar} style={{ position: 'fixed', inset: 0, zIndex: 970, background: 'rgba(10,6,24,.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
       <div onClick={e => e.stopPropagation()} style={{ background: cardBg, borderRadius: 18, border: `1px solid ${brd}`, padding: 24, width: 420, maxWidth: '95vw', boxShadow: '0 24px 70px rgba(0,0,0,.4)' }}>
         <div style={{ width: 46, height: 46, borderRadius: 12, background: share.room_color || '#A24CE0', display: 'grid', placeItems: 'center', color: '#fff', marginBottom: 14 }}>
           <Ic n="share" size={22} />
@@ -1474,7 +1474,7 @@ function CompartilharColunaModal({ listTitle, brd, cardBg, onFechar, onEnviar })
   const filtrados = q ? colegas.filter(c => c.name.toLowerCase().includes(q)) : colegas;
   const enviar = async () => { if (!alvo) return; setEnviando(true); try { await onEnviar(alvo); } finally { setEnviando(false); } };
   return (
-    <div onClick={onFechar} style={{ position: 'fixed', inset: 0, zIndex: 970, background: 'rgba(10,6,24,.6)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+    <div onClick={onFechar} style={{ position: 'fixed', inset: 0, zIndex: 970, background: 'rgba(10,6,24,.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
       <div onClick={e => e.stopPropagation()} style={{ background: cardBg, borderRadius: 18, border: `1px solid ${brd}`, padding: 20, width: 420, maxWidth: '95vw', maxHeight: '82vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 70px rgba(0,0,0,.4)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
           <div style={{ fontFamily: 'var(--font-brand)', fontSize: 16, fontWeight: 800, color: T.text }}>Compartilhar coluna</div>
