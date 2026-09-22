@@ -761,9 +761,19 @@ const UnikoSafer = ({ onBack }) => {
 
   useEffect(() => {
     if (!periodicSyncEnabled) return;
-    runPeriodicSyncCycle();
+    let cancelled = false;
+    // Ativar o modo não deve disparar uma rodada completa de exportação —
+    // só marca "a partir de agora" no servidor (sem exportar nada) e deixa
+    // o primeiro ciclo de verdade rodar só no próximo intervalo, quando aí
+    // sim pode ter atividade nova de fato.
+    (async () => {
+      try {
+        await fetch(`${SERVER_URL}/api/safer/whatsapp/sync/baseline`, { method: 'POST', headers: authHeaders() });
+      } catch { /* melhor esforço — o próximo ciclo periódico ainda funciona */ }
+      if (!cancelled) setLastPeriodicSyncAt(new Date().toISOString());
+    })();
     const t = setInterval(runPeriodicSyncCycle, periodicSyncMinutes * 60 * 1000);
-    return () => clearInterval(t);
+    return () => { cancelled = true; clearInterval(t); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [periodicSyncEnabled, periodicSyncMinutes, autoCategory]);
 
