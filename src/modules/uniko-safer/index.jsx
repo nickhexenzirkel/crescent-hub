@@ -93,6 +93,9 @@ const IcoSort = () => (
 const IcoTag = () => (
   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.6 12.3L12.7 20.2a2 2 0 01-2.8 0l-6-6a2 2 0 010-2.8l7.9-7.9A2 2 0 0113.3 3H19a2 2 0 012 2v5.7a2 2 0 01-.4 1.6z" /><circle cx="15.5" cy="8.5" r="1.2" fill="currentColor" stroke="none" /></svg>
 );
+const IcoAudit = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 3h6a2 2 0 012 2v1h1a1 1 0 011 1v13a1 1 0 01-1 1H6a1 1 0 01-1-1V7a1 1 0 011-1h1V5a2 2 0 012-2z" /><path d="M9 3a2 2 0 002 2h2a2 2 0 002-2" /><line x1="8" y1="12" x2="16" y2="12" /><line x1="8" y1="16" x2="13" y2="16" /></svg>
+);
 
 // Dois setores usando o mesmo Uniko Safer, cada um com seus próprios
 // contatos — abas dentro do módulo (não módulos separados no seletor
@@ -107,6 +110,17 @@ const CATEGORIES = [
 // visual consistente com o resto do Portal.
 const TAG_COLORS = ['#d4a017', '#e0533d', '#3ba55c', '#4a90d9', '#9b59b6', '#e8935a', '#5bb8a8', '#c65da0'];
 
+const AUDIT_ACTIONS = [
+  { id: 'all', label: 'Tudo' },
+  { id: 'view', label: 'Visualizações', color: '#4a90d9' },
+  { id: 'edit', label: 'Edições', color: '#e8935a' },
+  { id: 'delete', label: 'Exclusões', color: '#e0533d' },
+  { id: 'import', label: 'Sincronizações', color: '#3ba55c' },
+];
+const auditActionLabel = (action) => ({ view: 'Visualizou', edit: 'Editou', delete: 'Excluiu', import: 'Sincronizou' }[action] || action);
+const auditActionColor = (action) => AUDIT_ACTIONS.find(a => a.id === action)?.color || '#888';
+const formatDateTime = (iso) => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }); };
+
 const btnStyle = (variant) => {
   const base = { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 10, cursor: 'pointer', fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-body)', border: '1px solid transparent', whiteSpace: 'nowrap' };
   if (variant === 'primary') return { ...base, background: T.gold, color: '#fff' };
@@ -116,6 +130,8 @@ const btnStyle = (variant) => {
 
 const UnikoSafer = ({ onBack }) => {
   const isMobile = useIsMobile();
+  const authUser = getAuthUser();
+  const isAdmin = authUser?.role === 'admin';
   const inputStyle = { width: '100%', padding: '9px 11px', borderRadius: 10, border: `1px solid ${T.border}`, background: 'transparent', color: T.text, fontSize: 13, fontFamily: 'var(--font-body)', outline: 'none', boxSizing: 'border-box' };
   const [contacts, setContacts] = useState([]);
   const [loadingContacts, setLoadingContacts] = useState(true);
@@ -127,6 +143,10 @@ const UnikoSafer = ({ onBack }) => {
   const [newTagName, setNewTagName] = useState('');
   const [newTagColor, setNewTagColor] = useState(TAG_COLORS[0]);
   const [tagContextMenu, setTagContextMenu] = useState(null); // {contactId, x, y}
+  const [auditModalOpen, setAuditModalOpen] = useState(false);
+  const [auditLog, setAuditLog] = useState([]);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditFilter, setAuditFilter] = useState('all'); // 'all' | 'view' | 'edit' | 'delete' | 'import'
   const [messageResults, setMessageResults] = useState([]);
   const [searchingMessages, setSearchingMessages] = useState(false);
   const messageSearchTimer = useRef(null);
@@ -257,19 +277,23 @@ const UnikoSafer = ({ onBack }) => {
   }, [search]);
 
   // Best-effort, nunca trava a tela: se o log falhar (rede, tabela ainda não
-  // criada), a conversa abre normal do mesmo jeito — a auditoria é extra,
-  // não um bloqueio de acesso (isso já é papel da RLS).
-  const logAcessoConversa = (contactId) => {
+  // criada), a ação segue normal do mesmo jeito — a auditoria é extra, não
+  // um bloqueio (isso já é papel da RLS). action: 'view'|'edit'|'delete'|'import'.
+  const logSaferAction = (action, { contactId = null, contactName = null, details = null } = {}) => {
     try {
-      const auth = getAuthUser();
-      const contactName = contacts.find(c => c.id === contactId)?.name || null;
       supabase.from('uniko_safer_access_log').insert({
         contact_id: contactId,
         contact_name: contactName,
-        viewer_name: auth?.name || null,
-        viewer_role: auth?.role || null,
+        viewer_name: authUser?.name || null,
+        viewer_role: authUser?.role || null,
+        action,
+        details,
       }).then(() => {}, () => {});
     } catch {}
+  };
+
+  const logAcessoConversa = (contactId) => {
+    logSaferAction('view', { contactId, contactName: contacts.find(c => c.id === contactId)?.name || null });
   };
 
   const loadChatMessages = async (contactId) => {
@@ -309,6 +333,17 @@ const UnikoSafer = ({ onBack }) => {
     if (selectedContact && selectedContact.category !== cat) setSelectedContactId(null);
   };
 
+  // ── Auditoria (admin-only, ver RLS em supabase_uniko_safer_auditoria.sql) ──
+  const loadAuditLog = async () => {
+    setAuditLoading(true);
+    const { data, error } = await supabase.from('uniko_safer_access_log').select('*').order('viewed_at', { ascending: false }).limit(300);
+    if (error) { flash('Erro ao carregar auditoria: ' + error.message); setAuditLoading(false); return; }
+    setAuditLog(data || []);
+    setAuditLoading(false);
+  };
+
+  const openAuditLog = () => { setAuditFilter('all'); setAuditModalOpen(true); loadAuditLog(); };
+
   // ── Contato: criar/editar/excluir ──────────────────────────────────────
   const openContactModal = (mode) => {
     if (mode === 'edit' && selectedContact) {
@@ -324,8 +359,14 @@ const UnikoSafer = ({ onBack }) => {
     if (!name) { flash('Informe o nome do contato.'); return; }
     const payload = { name, phone_number: contactModal.phone.trim() || null, notes: contactModal.notes.trim() || null, category: contactModal.category, tag_ids: contactModal.tag_ids || [] };
     if (contactModal.mode === 'edit') {
+      const before = contacts.find(c => c.id === contactModal.id);
       const { error } = await supabase.from('uniko_safer_contacts').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', contactModal.id);
       if (error) { flash('Erro: ' + error.message); return; }
+      const changes = [];
+      if (before && before.name !== payload.name) changes.push(`nome: "${before.name}" → "${payload.name}"`);
+      if (before && (before.phone_number || '') !== (payload.phone_number || '')) changes.push(`telefone: "${before.phone_number || '—'}" → "${payload.phone_number || '—'}"`);
+      if (before && (before.category || 'faturamento') !== payload.category) changes.push(`setor: "${before.category}" → "${payload.category}"`);
+      logSaferAction('edit', { contactId: contactModal.id, contactName: payload.name, details: changes.length ? changes.join('; ') : 'Notas/etiquetas atualizadas' });
       flash('Contato atualizado.');
     } else {
       const { data, error } = await supabase.from('uniko_safer_contacts').insert(payload).select().single();
@@ -348,6 +389,7 @@ const UnikoSafer = ({ onBack }) => {
   const deleteContact = async (contact) => {
     if (!window.confirm(`Excluir "${contact.name}" e todo o histórico de exportações associado? Essa ação não pode ser desfeita.`)) return;
     await removeContactStorage(contact.id);
+    logSaferAction('delete', { contactId: contact.id, contactName: contact.name, details: `Setor: ${CATEGORIES.find(c => c.id === contact.category)?.label || contact.category}` });
     const { error } = await supabase.from('uniko_safer_contacts').delete().eq('id', contact.id);
     if (error) { flash('Erro: ' + error.message); return; }
     if (selectedContactId === contact.id) setSelectedContactId(null);
@@ -380,6 +422,10 @@ const UnikoSafer = ({ onBack }) => {
     if (!ids.length) return;
     if (!window.confirm(`Excluir ${ids.length} contato${ids.length > 1 ? 's' : ''} selecionado${ids.length > 1 ? 's' : ''} e todo o histórico associado? Essa ação não pode ser desfeita.`)) return;
     for (const id of ids) await removeContactStorage(id);
+    ids.forEach(id => {
+      const c = contacts.find(x => x.id === id);
+      logSaferAction('delete', { contactId: id, contactName: c?.name || null, details: 'Exclusão em massa' });
+    });
     const { error } = await supabase.from('uniko_safer_contacts').delete().in('id', ids);
     if (error) { flash('Erro: ' + error.message); return; }
     if (selectedContactId && ids.includes(selectedContactId)) setSelectedContactId(null);
@@ -425,7 +471,7 @@ const UnikoSafer = ({ onBack }) => {
     }
   };
 
-  const importFileForContact = async (contactId, file) => {
+  const importFileForContact = async (contactId, file, contactName) => {
     const fileType = await sniffFileType(file);
     if (fileType === 'other') throw new Error('Formato não suportado (use .txt ou .zip com chat.txt).');
 
@@ -445,6 +491,10 @@ const UnikoSafer = ({ onBack }) => {
       date_range_start: summary.dateRangeStart, date_range_end: summary.dateRangeEnd,
     }).select().single();
     if (error) throw new Error(error.message);
+    logSaferAction('import', {
+      contactId, contactName: contactName || contacts.find(c => c.id === contactId)?.name || null,
+      details: `${newMessageCount} mensagem${newMessageCount === 1 ? '' : 's'} nova${newMessageCount === 1 ? '' : 's'} via "${file.name}"`,
+    });
     return data;
   };
 
@@ -453,7 +503,7 @@ const UnikoSafer = ({ onBack }) => {
     setImportingContact(true);
     let importedCount = 0; const skipped = [];
     for (const file of Array.from(fileList)) {
-      try { await importFileForContact(selectedContactId, file); importedCount += 1; }
+      try { await importFileForContact(selectedContactId, file, selectedContact?.name); importedCount += 1; }
       catch (err) { skipped.push({ filename: file.name, reason: err.message }); }
     }
     setImportingContact(false);
@@ -476,7 +526,7 @@ const UnikoSafer = ({ onBack }) => {
       if (error) throw new Error(error.message);
       contact = data; createdContact = true; byNameMap.set(key, contact);
     }
-    const record = await importFileForContact(contact.id, file);
+    const record = await importFileForContact(contact.id, file, contact.name);
     const mc = record.new_message_count ?? 0;
     return { createdContact, message: `${mc} mensagem${mc === 1 ? '' : 's'} nova${mc === 1 ? '' : 's'}.` };
   };
@@ -1032,6 +1082,7 @@ const UnikoSafer = ({ onBack }) => {
                 { icon: <IcoImport />, title: 'Importar vários', desc: 'Arraste vários arquivos .zip/.txt de uma vez', onClick: () => { setMoreMenuOpen(false); setBulkLog([]); setBulkStep('choose'); setBulkCategory(activeCategory); setBulkModalOpen(true); } },
                 { icon: <IcoAuto />, title: 'Importação automática', desc: 'O robô entra no WhatsApp Web e importa sozinho', onClick: () => { setMoreMenuOpen(false); openAutoModal(); } },
                 { icon: <IcoSelect />, title: 'Selecionar contatos', desc: 'Marque vários contatos pra excluir de uma vez', onClick: () => { setMoreMenuOpen(false); toggleSelectionMode(); } },
+                ...(isAdmin ? [{ icon: <IcoAudit />, title: 'Registro de auditoria', desc: 'Quem viu, editou, excluiu ou sincronizou cada conversa', onClick: () => { setMoreMenuOpen(false); openAuditLog(); } }] : []),
               ].map(card => (
                 <button key={card.title} onClick={card.onClick}
                   style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '16px 16px', borderRadius: 12, cursor: 'pointer', textAlign: 'left',
@@ -1260,6 +1311,60 @@ const UnikoSafer = ({ onBack }) => {
               );
             })()}
           </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tela cheia: registro de auditoria (admin-only) */}
+      {auditModalOpen && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 600, background: T.page, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ height: 56, flexShrink: 0, background: T.topbarBg || (T.dark ? `${T.surface}ee` : 'rgba(245,250,255,0.75)'), borderBottom: `1px solid ${T.border}`,
+            display: 'flex', alignItems: 'center', padding: '0 20px', gap: 12 }}>
+            <button onClick={() => setAuditModalOpen(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: T.textT, display: 'flex' }}><IcoClose /></button>
+            <div style={{ fontSize: 15, fontWeight: 700, color: T.text }}>Registro de auditoria</div>
+          </div>
+          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', justifyContent: 'center', padding: '28px 20px' }}>
+            <div style={{ width: '100%', maxWidth: 720 }}>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>
+                {AUDIT_ACTIONS.map(a => {
+                  const sel = auditFilter === a.id;
+                  return (
+                    <button key={a.id} onClick={() => setAuditFilter(a.id)}
+                      style={{ padding: '7px 14px', borderRadius: 20, cursor: 'pointer', fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-body)',
+                        border: `1.5px solid ${sel ? T.gold : T.border}`, background: sel ? T.goldGl : 'transparent', color: sel ? T.gold : T.textS }}>
+                      {a.label}
+                    </button>
+                  );
+                })}
+                <button onClick={loadAuditLog} title="Atualizar" style={{ ...btnStyle('secondary'), padding: '7px 10px', marginLeft: 'auto' }}>↻</button>
+              </div>
+
+              {auditLoading ? (
+                <div style={{ padding: '24px 0', textAlign: 'center', color: T.textT, fontSize: 13 }}>Carregando…</div>
+              ) : (() => {
+                const rows = auditFilter === 'all' ? auditLog : auditLog.filter(r => r.action === auditFilter);
+                if (rows.length === 0) return <div style={{ padding: '24px 0', textAlign: 'center', color: T.textT, fontSize: 13 }}>Nada registrado ainda.</div>;
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {rows.map(r => (
+                      <div key={r.id} style={{ padding: '12px 14px', borderRadius: 10, border: `1px solid ${T.border}`, background: T.surface }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: auditActionColor(r.action), background: `${auditActionColor(r.action)}22`, borderRadius: 20, padding: '2px 9px' }}>
+                            {auditActionLabel(r.action)}
+                          </span>
+                          <span style={{ fontSize: 13.5, fontWeight: 700, color: T.text }}>{r.contact_name || 'Contato removido'}</span>
+                          <span style={{ fontSize: 11.5, color: T.textT, marginLeft: 'auto', whiteSpace: 'nowrap' }}>{formatDateTime(r.viewed_at)}</span>
+                        </div>
+                        <div style={{ fontSize: 12, color: T.textT, marginTop: 4 }}>
+                          {r.viewer_name || 'Alguém'}{r.viewer_role ? ` (${r.viewer_role})` : ''}
+                        </div>
+                        {r.details && <div style={{ fontSize: 12, color: T.textT, marginTop: 4, fontStyle: 'italic' }}>{r.details}</div>}
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
           </div>
         </div>
       )}
