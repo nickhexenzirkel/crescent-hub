@@ -87,6 +87,12 @@ const IcoAuto = () => (
 const IcoSelect = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 11 12 14 22 4" /><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" /></svg>
 );
+const IcoSort = () => (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7h6M3 12h4M3 17h2" /><path d="M17 4v16M17 4l4 4M17 4l-4 4" /></svg>
+);
+const IcoTag = () => (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.6 12.3L12.7 20.2a2 2 0 01-2.8 0l-6-6a2 2 0 010-2.8l7.9-7.9A2 2 0 0113.3 3H19a2 2 0 012 2v5.7a2 2 0 01-.4 1.6z" /><circle cx="15.5" cy="8.5" r="1.2" fill="currentColor" stroke="none" /></svg>
+);
 
 // Dois setores usando o mesmo Uniko Safer, cada um com seus próprios
 // contatos — abas dentro do módulo (não módulos separados no seletor
@@ -96,6 +102,10 @@ const CATEGORIES = [
   { id: 'faturamento', label: 'Faturamento' },
   { id: 'financeiro', label: 'Financeiro' },
 ];
+
+// Paleta curada pras etiquetas — em vez de um seletor de cor livre, mantém
+// visual consistente com o resto do Portal.
+const TAG_COLORS = ['#d4a017', '#e0533d', '#3ba55c', '#4a90d9', '#9b59b6', '#e8935a', '#5bb8a8', '#c65da0'];
 
 const btnStyle = (variant) => {
   const base = { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 10, cursor: 'pointer', fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-body)', border: '1px solid transparent', whiteSpace: 'nowrap' };
@@ -111,6 +121,11 @@ const UnikoSafer = ({ onBack }) => {
   const [loadingContacts, setLoadingContacts] = useState(true);
   const [activeCategory, setActiveCategory] = useState('faturamento');
   const [search, setSearch] = useState('');
+  const [sortDir, setSortDir] = useState('asc'); // 'asc' (A→Z) | 'desc' (Z→A)
+  const [tags, setTags] = useState([]);
+  const [tagPickerOpen, setTagPickerOpen] = useState(false);
+  const [newTagName, setNewTagName] = useState('');
+  const [newTagColor, setNewTagColor] = useState(TAG_COLORS[0]);
   const [messageResults, setMessageResults] = useState([]);
   const [searchingMessages, setSearchingMessages] = useState(false);
   const messageSearchTimer = useRef(null);
@@ -164,7 +179,41 @@ const UnikoSafer = ({ onBack }) => {
     setLoadingContacts(false);
   };
 
-  useEffect(() => { loadContacts(); }, []);
+  const loadTags = async () => {
+    const { data, error } = await supabase.from('uniko_safer_tags').select('*').order('name');
+    if (!error) setTags(data || []);
+  };
+
+  const createTag = async () => {
+    const name = newTagName.trim();
+    if (!name) return;
+    const { error } = await supabase.from('uniko_safer_tags').insert({ name, color: newTagColor });
+    if (error) { flash('Erro ao criar etiqueta: ' + error.message); return; }
+    setNewTagName('');
+    setNewTagColor(TAG_COLORS[0]);
+    await loadTags();
+  };
+
+  const deleteTag = async (tagId) => {
+    if (!window.confirm('Excluir essa etiqueta? Ela some de todos os contatos que a usam.')) return;
+    await supabase.from('uniko_safer_tags').delete().eq('id', tagId);
+    // Tira a referência de quem usava — o array não tem foreign key (Postgres
+    // não suporta FK em array), então a limpeza é feita aqui.
+    const affected = contacts.filter(c => (c.tag_ids || []).includes(tagId));
+    await Promise.all(affected.map(c =>
+      supabase.from('uniko_safer_contacts').update({ tag_ids: c.tag_ids.filter(id => id !== tagId) }).eq('id', c.id)
+    ));
+    await Promise.all([loadTags(), loadContacts()]);
+  };
+
+  const toggleContactTag = (tagId) => {
+    setContactModal(m => {
+      const has = (m.tag_ids || []).includes(tagId);
+      return { ...m, tag_ids: has ? m.tag_ids.filter(id => id !== tagId) : [...(m.tag_ids || []), tagId] };
+    });
+  };
+
+  useEffect(() => { loadContacts(); loadTags(); }, []);
 
   // Busca global de mensagens (estilo WhatsApp): além de filtrar a lista de
   // contatos por nome/número (client-side, já carregado), o mesmo campo
@@ -243,9 +292,9 @@ const UnikoSafer = ({ onBack }) => {
   // ── Contato: criar/editar/excluir ──────────────────────────────────────
   const openContactModal = (mode) => {
     if (mode === 'edit' && selectedContact) {
-      setContactModal({ mode, id: selectedContact.id, name: selectedContact.name, phone: selectedContact.phone_number || '', notes: selectedContact.notes || '', category: selectedContact.category || 'faturamento' });
+      setContactModal({ mode, id: selectedContact.id, name: selectedContact.name, phone: selectedContact.phone_number || '', notes: selectedContact.notes || '', category: selectedContact.category || 'faturamento', tag_ids: selectedContact.tag_ids || [] });
     } else {
-      setContactModal({ mode: 'create', id: null, name: '', phone: '', notes: '', category: activeCategory });
+      setContactModal({ mode: 'create', id: null, name: '', phone: '', notes: '', category: activeCategory, tag_ids: [] });
     }
   };
 
@@ -253,7 +302,7 @@ const UnikoSafer = ({ onBack }) => {
     if (!contactModal) return;
     const name = contactModal.name.trim();
     if (!name) { flash('Informe o nome do contato.'); return; }
-    const payload = { name, phone_number: contactModal.phone.trim() || null, notes: contactModal.notes.trim() || null, category: contactModal.category };
+    const payload = { name, phone_number: contactModal.phone.trim() || null, notes: contactModal.notes.trim() || null, category: contactModal.category, tag_ids: contactModal.tag_ids || [] };
     if (contactModal.mode === 'edit') {
       const { error } = await supabase.from('uniko_safer_contacts').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', contactModal.id);
       if (error) { flash('Erro: ' + error.message); return; }
@@ -294,7 +343,7 @@ const UnikoSafer = ({ onBack }) => {
     if (!search.trim()) return true;
     const q = search.trim().toLowerCase();
     return c.name.toLowerCase().includes(q) || (c.phone_number || '').toLowerCase().includes(q);
-  });
+  }).sort((a, b) => sortDir === 'asc' ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name));
   // Resultados da busca global de mensagens, restritos à categoria ativa —
   // o limite já veio maior do servidor (ver useEffect acima) pra sobrar
   // resultado suficiente depois desse filtro.
@@ -669,6 +718,15 @@ const UnikoSafer = ({ onBack }) => {
               </div>
             </div>
 
+            <div style={{ padding: '0 16px 10px', display: 'flex', gap: 6 }}>
+              <button onClick={() => setSortDir(d => d === 'asc' ? 'desc' : 'asc')} title="Ordenar por nome" style={{ ...btnStyle('secondary'), padding: '7px 10px' }}>
+                <IcoSort /> {sortDir === 'asc' ? 'A—Z' : 'Z—A'}
+              </button>
+              <button onClick={() => setTagPickerOpen(true)} title="Etiquetas personalizadas" style={{ ...btnStyle('secondary'), padding: '7px 10px' }}>
+                <IcoTag /> Etiquetas
+              </button>
+            </div>
+
             {selectionMode && (
               <div style={{ padding: '0 16px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
                 <div style={{ fontSize: 12, color: T.textT, fontWeight: 600 }}>{selectedIds.size} selecionado{selectedIds.size === 1 ? '' : 's'}</div>
@@ -700,6 +758,17 @@ const UnikoSafer = ({ onBack }) => {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 14, fontWeight: 600, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</div>
                       {c.phone_number && <div style={{ fontSize: 12, color: T.textT, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.phone_number}</div>}
+                      {(c.tag_ids || []).length > 0 && (
+                        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4 }}>
+                          {c.tag_ids.map(tid => {
+                            const tag = tags.find(t => t.id === tid);
+                            if (!tag) return null;
+                            return (
+                              <span key={tid} style={{ fontSize: 10, fontWeight: 700, color: tag.color, background: `${tag.color}22`, borderRadius: 20, padding: '1px 7px' }}>{tag.name}</span>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -826,9 +895,64 @@ const UnikoSafer = ({ onBack }) => {
             <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: T.textT, margin: '10px 0 6px' }}>Notas</label>
             <textarea value={contactModal.notes} onChange={e => setContactModal(m => ({ ...m, notes: e.target.value }))} rows={3}
               style={{ ...inputStyle, resize: 'vertical' }} />
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: T.textT, margin: '10px 0 6px' }}>Etiquetas</label>
+            {tags.length === 0 ? (
+              <div style={{ fontSize: 11.5, color: T.textT }}>Nenhuma etiqueta criada ainda — use o botão "Etiquetas" na lista de contatos.</div>
+            ) : (
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {tags.map(tag => {
+                  const sel = (contactModal.tag_ids || []).includes(tag.id);
+                  return (
+                    <button key={tag.id} onClick={() => toggleContactTag(tag.id)}
+                      style={{ fontSize: 12, fontWeight: 700, borderRadius: 20, padding: '5px 12px', cursor: 'pointer', fontFamily: 'var(--font-body)',
+                        border: `1.5px solid ${sel ? tag.color : T.border}`, background: sel ? `${tag.color}22` : 'transparent', color: sel ? tag.color : T.textS }}>
+                      {tag.name}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 20 }}>
               <button onClick={() => setContactModal(null)} style={btnStyle('secondary')}>Cancelar</button>
               <button onClick={saveContact} style={btnStyle('primary')}>Salvar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: gerenciar etiquetas personalizadas (criar/excluir) */}
+      {tagPickerOpen && (
+        <div onClick={() => setTagPickerOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 500, padding: 16 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: T.surface, borderRadius: 16, padding: 24, width: 380, maxWidth: '100%', boxShadow: T.shL }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: T.text }}>Etiquetas</div>
+              <button onClick={() => setTagPickerOpen(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: T.textT }}><IcoClose /></button>
+            </div>
+
+            {tags.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 18 }}>
+                {tags.map(tag => (
+                  <div key={tag.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 8, border: `1px solid ${T.border}` }}>
+                    <span style={{ width: 12, height: 12, borderRadius: '50%', background: tag.color, flexShrink: 0 }} />
+                    <span style={{ fontSize: 13, fontWeight: 600, color: T.text, flex: 1 }}>{tag.name}</span>
+                    <button onClick={() => deleteTag(tag.id)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: T.danger, display: 'flex' }}><IcoTrash /></button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: T.textT, marginBottom: 6 }}>Nova etiqueta</label>
+            <input value={newTagName} onChange={e => setNewTagName(e.target.value)} placeholder="Ex: Urgente"
+              style={{ ...inputStyle, marginBottom: 10 }} />
+            <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
+              {TAG_COLORS.map(color => (
+                <button key={color} onClick={() => setNewTagColor(color)}
+                  style={{ width: 26, height: 26, borderRadius: '50%', background: color, cursor: 'pointer',
+                    border: newTagColor === color ? `2.5px solid ${T.text}` : '2.5px solid transparent' }} />
+              ))}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button onClick={createTag} disabled={!newTagName.trim()} style={{ ...btnStyle('primary'), opacity: newTagName.trim() ? 1 : 0.5 }}>Criar etiqueta</button>
             </div>
           </div>
         </div>
