@@ -56,7 +56,16 @@ $$;
 grant execute on function public.ultima_marcacao_ponto() to anon, authenticated;
 
 -- ── ponto_vinculo — só o próprio vínculo (colaborador) ou tudo (RH) ─────
+-- ⚠️ Os nomes REAIS da política antiga (supabase_ponto_vinculo.sql) são
+-- ponto_vinculo_read/_insert/_update/_delete — não "_all". Uma tentativa
+-- anterior deste script só derrubava "_all" (que nunca existiu) e deixava
+-- a "_read"/"_insert" antiga (using(true)) VIVA ao lado da nova: o Postgres
+-- combina políticas permissivas com OU, então a antiga sozinha já liberava
+-- tudo de novo, cancelando a correção sem erro nenhum aparecer. Por isso
+-- os nomes antigos entram explicitamente aqui.
 drop policy if exists ponto_vinculo_all    on public.ponto_vinculo;
+drop policy if exists ponto_vinculo_read   on public.ponto_vinculo;
+drop policy if exists ponto_vinculo_insert on public.ponto_vinculo;
 drop policy if exists ponto_vinculo_select on public.ponto_vinculo;
 drop policy if exists ponto_vinculo_write  on public.ponto_vinculo;
 drop policy if exists ponto_vinculo_update on public.ponto_vinculo;
@@ -71,7 +80,12 @@ create policy ponto_vinculo_delete on public.ponto_vinculo
   for delete using (is_admin_ou_moderador());
 
 -- ── ponto_marcacoes — leitura só do próprio ponto; escrita (import AFD) só RH ──
+-- ⚠️ Nomes reais da política antiga (supabase_ponto_eletronico.sql, criada
+-- num loop): ponto_marcacoes_read/_insert/_update/_delete. Mesmo motivo do
+-- aviso em ponto_vinculo acima.
 drop policy if exists ponto_marcacoes_all    on public.ponto_marcacoes;
+drop policy if exists ponto_marcacoes_read   on public.ponto_marcacoes;
+drop policy if exists ponto_marcacoes_insert on public.ponto_marcacoes;
 drop policy if exists ponto_marcacoes_select on public.ponto_marcacoes;
 drop policy if exists ponto_marcacoes_write  on public.ponto_marcacoes;
 drop policy if exists ponto_marcacoes_update on public.ponto_marcacoes;
@@ -86,7 +100,10 @@ create policy ponto_marcacoes_delete on public.ponto_marcacoes
   for delete using (is_admin_ou_moderador());
 
 -- ── ponto_justificativas — leitura só do próprio ponto; escrita (RH abona) só RH ──
+-- ⚠️ Nomes reais da política antiga: ponto_justificativas_read/_insert/_update/_delete.
 drop policy if exists ponto_justificativas_all    on public.ponto_justificativas;
+drop policy if exists ponto_justificativas_read   on public.ponto_justificativas;
+drop policy if exists ponto_justificativas_insert on public.ponto_justificativas;
 drop policy if exists ponto_justificativas_select on public.ponto_justificativas;
 drop policy if exists ponto_justificativas_write  on public.ponto_justificativas;
 drop policy if exists ponto_justificativas_update on public.ponto_justificativas;
@@ -121,7 +138,10 @@ create policy ponto_solic_delete on public.ponto_solicitacoes
 --    casar o colaborador logado pelo nome quando não há vínculo explícito
 --    ainda. Só passa a exigir estar logado de verdade (antes era anon puro).
 --    Escrita continua só RH (importação do AFD). ─────────────────────────
+-- ⚠️ Nomes reais da política antiga: ponto_funcionarios_read/_insert/_update/_delete.
 drop policy if exists ponto_funcionarios_all    on public.ponto_funcionarios;
+drop policy if exists ponto_funcionarios_read   on public.ponto_funcionarios;
+drop policy if exists ponto_funcionarios_insert on public.ponto_funcionarios;
 drop policy if exists ponto_funcionarios_select on public.ponto_funcionarios;
 drop policy if exists ponto_funcionarios_write  on public.ponto_funcionarios;
 drop policy if exists ponto_funcionarios_update on public.ponto_funcionarios;
@@ -136,7 +156,13 @@ create policy ponto_funcionarios_delete on public.ponto_funcionarios
   for delete using (is_admin_ou_moderador());
 
 -- ── ponto_empresa — cabeçalho único da empresa, baixa sensibilidade ─────
+-- ⚠️ Nomes reais da política antiga: ponto_empresa_read/_insert/_update/_delete
+-- (inclusive um "_delete" que este script nunca recriava — ficaria pra sempre
+-- permissivo se não fosse derrubado explicitamente aqui).
 drop policy if exists ponto_empresa_all    on public.ponto_empresa;
+drop policy if exists ponto_empresa_read   on public.ponto_empresa;
+drop policy if exists ponto_empresa_insert on public.ponto_empresa;
+drop policy if exists ponto_empresa_delete on public.ponto_empresa;
 drop policy if exists ponto_empresa_select on public.ponto_empresa;
 drop policy if exists ponto_empresa_write  on public.ponto_empresa;
 drop policy if exists ponto_empresa_update on public.ponto_empresa;
@@ -146,6 +172,8 @@ create policy ponto_empresa_write on public.ponto_empresa
   for insert with check (is_admin_ou_moderador());
 create policy ponto_empresa_update on public.ponto_empresa
   for update using (is_admin_ou_moderador()) with check (is_admin_ou_moderador());
+create policy ponto_empresa_delete on public.ponto_empresa
+  for delete using (is_admin_ou_moderador());
 
 -- ── ROLLBACK (reverter às pressas, se algo travar acesso indevido) ─────
 -- drop policy ponto_marcacoes_select on public.ponto_marcacoes;
