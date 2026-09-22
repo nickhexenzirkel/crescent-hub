@@ -481,9 +481,11 @@ const UnikoSafer = ({ onBack }) => {
   useEffect(() => {
     if (!autoJobId || autoStep !== 'running') return;
     let cancelled = false;
+    let finished = false;
     const byName = new Map(contacts.filter(c => c.category === autoCategory).map(c => [c.name.toLowerCase(), c]));
 
     const poll = async () => {
+      if (finished) return;
       let data;
       try {
         const res = await fetch(`${SERVER_URL}/api/safer/whatsapp/import/status/${autoJobId}`, { headers: authHeaders() });
@@ -509,6 +511,8 @@ const UnikoSafer = ({ onBack }) => {
         }
       }
       if (data.status === 'done' || data.status === 'error') {
+        finished = true;
+        clearInterval(t);
         await loadContacts();
         if (selectedContactId) await loadChatMessages(selectedContactId);
       }
