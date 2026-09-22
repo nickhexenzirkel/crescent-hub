@@ -137,7 +137,7 @@ const UnikoSafer = ({ onBack }) => {
   const [loadingContacts, setLoadingContacts] = useState(true);
   const [activeCategory, setActiveCategory] = useState('faturamento');
   const [search, setSearch] = useState('');
-  const [sortDir, setSortDir] = useState('asc'); // 'asc' (A→Z) | 'desc' (Z→A)
+  const [sortMode, setSortMode] = useState('recent'); // 'recent' (msg. mais nova primeiro) | 'asc' (A→Z) | 'desc' (Z→A)
   const [tags, setTags] = useState([]);
   const [tagPickerOpen, setTagPickerOpen] = useState(false);
   const [newTagName, setNewTagName] = useState('');
@@ -418,7 +418,16 @@ const UnikoSafer = ({ onBack }) => {
     if (!search.trim()) return true;
     const q = search.trim().toLowerCase();
     return c.name.toLowerCase().includes(q) || (c.phone_number || '').toLowerCase().includes(q);
-  }).sort((a, b) => sortDir === 'asc' ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name));
+  }).sort((a, b) => {
+    if (sortMode === 'asc') return a.name.localeCompare(b.name);
+    if (sortMode === 'desc') return b.name.localeCompare(a.name);
+    // 'recent': quem mandou mensagem mais recente fica em cima, estilo
+    // WhatsApp; sem nenhuma mensagem ainda vai pro fim, por nome.
+    if (!a.last_message_at && !b.last_message_at) return a.name.localeCompare(b.name);
+    if (!a.last_message_at) return 1;
+    if (!b.last_message_at) return -1;
+    return b.last_message_at.localeCompare(a.last_message_at);
+  });
   // Resultados da busca global de mensagens, restritos à categoria ativa —
   // o limite já veio maior do servidor (ver useEffect acima) pra sobrar
   // resultado suficiente depois desse filtro.
@@ -497,6 +506,18 @@ const UnikoSafer = ({ onBack }) => {
     if (content) { summary = parseWhatsappTxt(content); messages = parseWhatsappMessages(content); }
 
     const newMessageCount = messages.length ? await upsertNewMessages(contactId, messages) : 0;
+
+    // Data da mensagem mais recente do ARQUIVO (não "agora") — é o que a
+    // barra lateral usa pra ordenar estilo WhatsApp (mais recente primeiro).
+    // Só avança pra frente: reimportar um export mais antigo não deve
+    // "voltar no tempo" um contato que já tinha atividade mais nova.
+    if (messages.length) {
+      const maxSentAt = messages.reduce((max, m) => (!max || m.timestamp > max) ? m.timestamp : max, null);
+      const existing = contacts.find(c => c.id === contactId);
+      if (maxSentAt && (!existing?.last_message_at || maxSentAt > existing.last_message_at)) {
+        await supabase.from('uniko_safer_contacts').update({ last_message_at: maxSentAt }).eq('id', contactId);
+      }
+    }
 
     const { data, error } = await supabase.from('uniko_safer_exports').insert({
       contact_id: contactId, original_filename: file.name, storage_path: storagePath, file_type: fileType,
@@ -885,8 +906,8 @@ const UnikoSafer = ({ onBack }) => {
             </div>
 
             <div style={{ padding: '0 16px 10px', display: 'flex', gap: 6 }}>
-              <button onClick={() => setSortDir(d => d === 'asc' ? 'desc' : 'asc')} title="Ordenar por nome" style={{ ...btnStyle('secondary'), padding: '7px 10px' }}>
-                <IcoSort /> {sortDir === 'asc' ? 'A—Z' : 'Z—A'}
+              <button onClick={() => setSortMode(m => m === 'recent' ? 'asc' : m === 'asc' ? 'desc' : 'recent')} title="Ordenar contatos" style={{ ...btnStyle('secondary'), padding: '7px 10px' }}>
+                <IcoSort /> {sortMode === 'recent' ? 'Recentes' : sortMode === 'asc' ? 'A—Z' : 'Z—A'}
               </button>
               <button onClick={() => setTagPickerOpen(true)} title="Etiquetas personalizadas" style={{ ...btnStyle('secondary'), padding: '7px 10px' }}>
                 <IcoTag /> Etiquetas
