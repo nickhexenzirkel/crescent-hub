@@ -56,7 +56,11 @@ $$;
 grant execute on function public.ultima_marcacao_ponto() to anon, authenticated;
 
 -- ── ponto_vinculo — só o próprio vínculo (colaborador) ou tudo (RH) ─────
-drop policy if exists ponto_vinculo_all on public.ponto_vinculo;
+drop policy if exists ponto_vinculo_all    on public.ponto_vinculo;
+drop policy if exists ponto_vinculo_select on public.ponto_vinculo;
+drop policy if exists ponto_vinculo_write  on public.ponto_vinculo;
+drop policy if exists ponto_vinculo_update on public.ponto_vinculo;
+drop policy if exists ponto_vinculo_delete on public.ponto_vinculo;
 create policy ponto_vinculo_select on public.ponto_vinculo
   for select using (is_admin_ou_moderador() or portal_cpf = current_cpf());
 create policy ponto_vinculo_write on public.ponto_vinculo
@@ -67,7 +71,11 @@ create policy ponto_vinculo_delete on public.ponto_vinculo
   for delete using (is_admin_ou_moderador());
 
 -- ── ponto_marcacoes — leitura só do próprio ponto; escrita (import AFD) só RH ──
-drop policy if exists ponto_marcacoes_all on public.ponto_marcacoes;
+drop policy if exists ponto_marcacoes_all    on public.ponto_marcacoes;
+drop policy if exists ponto_marcacoes_select on public.ponto_marcacoes;
+drop policy if exists ponto_marcacoes_write  on public.ponto_marcacoes;
+drop policy if exists ponto_marcacoes_update on public.ponto_marcacoes;
+drop policy if exists ponto_marcacoes_delete on public.ponto_marcacoes;
 create policy ponto_marcacoes_select on public.ponto_marcacoes
   for select using (is_admin_ou_moderador() or public.e_meu_ponto(cpf));
 create policy ponto_marcacoes_write on public.ponto_marcacoes
@@ -78,7 +86,11 @@ create policy ponto_marcacoes_delete on public.ponto_marcacoes
   for delete using (is_admin_ou_moderador());
 
 -- ── ponto_justificativas — leitura só do próprio ponto; escrita (RH abona) só RH ──
-drop policy if exists ponto_justificativas_all on public.ponto_justificativas;
+drop policy if exists ponto_justificativas_all    on public.ponto_justificativas;
+drop policy if exists ponto_justificativas_select on public.ponto_justificativas;
+drop policy if exists ponto_justificativas_write  on public.ponto_justificativas;
+drop policy if exists ponto_justificativas_update on public.ponto_justificativas;
+drop policy if exists ponto_justificativas_delete on public.ponto_justificativas;
 create policy ponto_justificativas_select on public.ponto_justificativas
   for select using (is_admin_ou_moderador() or public.e_meu_ponto(cpf));
 create policy ponto_justificativas_write on public.ponto_justificativas
@@ -109,7 +121,11 @@ create policy ponto_solic_delete on public.ponto_solicitacoes
 --    casar o colaborador logado pelo nome quando não há vínculo explícito
 --    ainda. Só passa a exigir estar logado de verdade (antes era anon puro).
 --    Escrita continua só RH (importação do AFD). ─────────────────────────
-drop policy if exists ponto_funcionarios_all on public.ponto_funcionarios;
+drop policy if exists ponto_funcionarios_all    on public.ponto_funcionarios;
+drop policy if exists ponto_funcionarios_select on public.ponto_funcionarios;
+drop policy if exists ponto_funcionarios_write  on public.ponto_funcionarios;
+drop policy if exists ponto_funcionarios_update on public.ponto_funcionarios;
+drop policy if exists ponto_funcionarios_delete on public.ponto_funcionarios;
 create policy ponto_funcionarios_select on public.ponto_funcionarios
   for select using (esta_logado());
 create policy ponto_funcionarios_write on public.ponto_funcionarios
@@ -120,7 +136,10 @@ create policy ponto_funcionarios_delete on public.ponto_funcionarios
   for delete using (is_admin_ou_moderador());
 
 -- ── ponto_empresa — cabeçalho único da empresa, baixa sensibilidade ─────
-drop policy if exists ponto_empresa_all on public.ponto_empresa;
+drop policy if exists ponto_empresa_all    on public.ponto_empresa;
+drop policy if exists ponto_empresa_select on public.ponto_empresa;
+drop policy if exists ponto_empresa_write  on public.ponto_empresa;
+drop policy if exists ponto_empresa_update on public.ponto_empresa;
 create policy ponto_empresa_select on public.ponto_empresa
   for select using (esta_logado());
 create policy ponto_empresa_write on public.ponto_empresa

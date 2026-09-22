@@ -63,8 +63,16 @@ create policy contracheques_tbl_delete on public.contracheques
 -- Escrita (criar/editar cargo, atribuir colaborador) passa a exigir admin
 -- de verdade, batendo com a regra que já existe na tela (só admin vê a aba
 -- Gerenciar Permissões).
-drop policy if exists uniko_cargos_all        on public.uniko_cargos;
-drop policy if exists uniko_cargo_membros_all on public.uniko_cargo_membros;
+drop policy if exists uniko_cargos_all    on public.uniko_cargos;
+drop policy if exists uniko_cargos_read   on public.uniko_cargos;
+drop policy if exists uniko_cargos_write  on public.uniko_cargos;
+drop policy if exists uniko_cargos_update on public.uniko_cargos;
+drop policy if exists uniko_cargos_delete on public.uniko_cargos;
+drop policy if exists uniko_cargo_membros_all    on public.uniko_cargo_membros;
+drop policy if exists uniko_cargo_membros_read   on public.uniko_cargo_membros;
+drop policy if exists uniko_cargo_membros_write  on public.uniko_cargo_membros;
+drop policy if exists uniko_cargo_membros_update on public.uniko_cargo_membros;
+drop policy if exists uniko_cargo_membros_delete on public.uniko_cargo_membros;
 
 create policy uniko_cargos_read on public.uniko_cargos
   for select using (esta_logado());
