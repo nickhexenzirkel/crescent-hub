@@ -776,6 +776,13 @@ const UnikoSafer = ({ onBack }) => {
                 <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: isMobile ? '16px' : '20px 28px', display: 'flex', flexDirection: 'column', gap: 3 }}>
                   {renderChat()}
                 </div>
+
+                {/* Ocupa o lugar de "digite uma mensagem" do WhatsApp de propósito —
+                    deixa claro que isso é só um histórico, não dá pra responder daqui. */}
+                <div style={{ flexShrink: 0, padding: '14px 20px', borderTop: `1px solid ${T.border}`, background: T.surface,
+                  textAlign: 'center', fontSize: 11.5, fontWeight: 700, letterSpacing: '0.06em', color: T.textT }}>
+                  VISUALIZAÇÃO DE HISTÓRICO DE CONVERSA
+                </div>
               </>
             )}
           </div>
