@@ -469,6 +469,7 @@ const UnikoSafer = ({ onBack }) => {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Falha ao iniciar a importação automática.');
+      console.log('[uniko-safer-auto] job iniciado:', data.jobId); // pra buscar o debug-shot depois, se precisar
       setAutoJobId(data.jobId);
     } catch (err) {
       flash(`Erro: ${err.message}`);
