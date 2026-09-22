@@ -1,13 +1,15 @@
 // src/modules/uniko-safer/index.jsx
-// Uniko Safer — organizador manual de conversas exportadas do WhatsApp.
-// Portado do app desktop (Electron) "uniko safer": cadastro de contatos,
-// importação manual de .txt/.zip exportados e histórico por contato,
-// virando um visualizador estilo WhatsApp. A parte de AUTOMAÇÃO (que abria
-// o WhatsApp Web e exportava sozinha) ficou de fora de propósito — é pra
-// virar uma integração futura com o WhatsApp Web.
+// Uniko Safer — organizador de conversas exportadas do WhatsApp: cadastro de
+// contatos, importação manual (ou em massa) de .txt/.zip exportados e
+// histórico por contato, virando um visualizador estilo WhatsApp.
+// Importação automática (22/set/2026): um servidor Playwright dedicado na
+// VPS (`crescent-hub-server/whatsappSafer.js`) mantém uma sessão logada no
+// WhatsApp Web e faz a exportação sozinho, contato por contato — este
+// arquivo só dispara o job, acompanha o progresso e importa cada arquivo
+// pronto pelo MESMO caminho (`importOneFile`) do import manual/em massa.
 import { useState, useEffect, useRef } from 'react';
 import { T } from '../../contexts/theme';
-import { getAuthUser } from '../../contexts/user';
+import { getAuthUser, SERVER_URL } from '../../contexts/user';
 import { supabase } from './saferSupabase';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import {
@@ -118,6 +120,19 @@ const UnikoSafer = ({ onBack }) => {
   const toastTimer = useRef(null);
   const fileInputRef = useRef(null);
   const bulkInputRef = useRef(null);
+
+  // ── Importação automática via WhatsApp Web (servidor Playwright na VPS) ──
+  const [autoModalOpen, setAutoModalOpen] = useState(false);
+  const [autoStep, setAutoStep] = useState('connect'); // 'connect' | 'choose' | 'running'
+  const [autoCategory, setAutoCategory] = useState('faturamento');
+  const [autoPauseSeconds, setAutoPauseSeconds] = useState(8);
+  const [autoConnectMsg, setAutoConnectMsg] = useState('');
+  const [autoQrImage, setAutoQrImage] = useState(null);
+  const [autoJobId, setAutoJobId] = useState(null);
+  const [autoLog, setAutoLog] = useState([]);
+  const [autoJobStatus, setAutoJobStatus] = useState('running'); // status do job no servidor
+  const [autoStopping, setAutoStopping] = useState(false);
+  const autoProcessedIdx = useRef(new Set());
 
   const flash = (msg) => {
     setToast(msg);
@@ -358,6 +373,24 @@ const UnikoSafer = ({ onBack }) => {
     await loadContacts();
   };
 
+  // Acha (ou cria) o contato pelo nome dentro do setor dado e importa o
+  // arquivo — usado tanto pelo bulk import manual (arrastar/soltar) quanto
+  // pela importação automática via WhatsApp Web, pra não duplicar essa
+  // lógica em dois lugares.
+  const importOneFile = async (file, contactName, category, byNameMap) => {
+    const key = contactName.toLowerCase();
+    let contact = byNameMap.get(key);
+    let createdContact = false;
+    if (!contact) {
+      const { data, error } = await supabase.from('uniko_safer_contacts').insert({ name: contactName, category }).select().single();
+      if (error) throw new Error(error.message);
+      contact = data; createdContact = true; byNameMap.set(key, contact);
+    }
+    const record = await importFileForContact(contact.id, file);
+    const mc = record.new_message_count ?? 0;
+    return { createdContact, message: `${mc} mensagem${mc === 1 ? '' : 's'} nova${mc === 1 ? '' : 's'}.` };
+  };
+
   const handleBulkFiles = async (fileList) => {
     const files = Array.from(fileList || []).filter(f => /\.(zip|txt)$/i.test(f.name));
     if (!files.length) { flash('Solte arquivos .zip ou .txt exportados do WhatsApp.'); return; }
@@ -373,19 +406,10 @@ const UnikoSafer = ({ onBack }) => {
     for (const file of files) {
       const contactName = deriveContactNameFromFilename(file.name);
       setBulkCurrentFile(contactName);
-      const key = contactName.toLowerCase();
       let result;
       try {
-        let contact = byName.get(key);
-        let createdContact = false;
-        if (!contact) {
-          const { data, error } = await supabase.from('uniko_safer_contacts').insert({ name: contactName, category: bulkCategory }).select().single();
-          if (error) throw new Error(error.message);
-          contact = data; createdContact = true; byName.set(key, contact);
-        }
-        const record = await importFileForContact(contact.id, file);
-        const mc = record.new_message_count ?? 0;
-        result = { filename: file.name, contactName, createdContact, status: 'imported', message: `${mc} mensagem${mc === 1 ? '' : 's'} nova${mc === 1 ? '' : 's'}.` };
+        const { createdContact, message } = await importOneFile(file, contactName, bulkCategory, byName);
+        result = { filename: file.name, contactName, createdContact, status: 'imported', message };
       } catch (err) {
         result = { filename: file.name, contactName, createdContact: false, status: 'error', message: err.message };
       }
@@ -400,6 +424,109 @@ const UnikoSafer = ({ onBack }) => {
     flash(`${importedCount} arquivo${importedCount === 1 ? '' : 's'} importado${importedCount === 1 ? '' : 's'}${results.length - importedCount > 0 ? `, ${results.length - importedCount} com erro.` : '.'}`);
     await loadContacts();
     if (selectedContactId) await loadChatMessages(selectedContactId);
+  };
+
+  // ── Importação automática via WhatsApp Web ─────────────────────────────
+  const authHeaders = () => ({ Authorization: `Bearer ${localStorage.getItem('ch_token') || ''}` });
+
+  const checkWaStatus = async () => {
+    try {
+      const res = await fetch(`${SERVER_URL}/api/safer/whatsapp/status`, { headers: authHeaders() });
+      const data = await res.json();
+      if (data.loggedIn) { setAutoQrImage(null); setAutoStep('choose'); return true; }
+      if (data.needsQr) { setAutoQrImage(data.qrImageBase64); setAutoConnectMsg('Escaneie o QR Code com o celular do WhatsApp do setor.'); return false; }
+      setAutoConnectMsg(data.message || 'Carregando WhatsApp Web…');
+      return false;
+    } catch {
+      setAutoConnectMsg('Não foi possível falar com o servidor. Tente de novo em instantes.');
+      return false;
+    }
+  };
+
+  const openAutoModal = () => {
+    setAutoStep('connect'); setAutoQrImage(null);
+    setAutoConnectMsg('Verificando sessão do WhatsApp Web…');
+    setAutoCategory(activeCategory); setAutoLog([]); setAutoJobId(null); setAutoStopping(false);
+    autoProcessedIdx.current = new Set();
+    setAutoModalOpen(true);
+    checkWaStatus();
+  };
+
+  // Enquanto não conecta, sonda a cada 3s (dá tempo do usuário escanear o QR Code).
+  useEffect(() => {
+    if (!autoModalOpen || autoStep !== 'connect') return;
+    const t = setInterval(async () => { if (await checkWaStatus()) clearInterval(t); }, 3000);
+    return () => clearInterval(t);
+  }, [autoModalOpen, autoStep]);
+
+  const startAutoImport = async () => {
+    setAutoStep('running'); setAutoLog([]); setAutoJobStatus('running');
+    autoProcessedIdx.current = new Set();
+    try {
+      const res = await fetch(`${SERVER_URL}/api/safer/whatsapp/import/start`, {
+        method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pauseSeconds: autoPauseSeconds }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Falha ao iniciar a importação automática.');
+      setAutoJobId(data.jobId);
+    } catch (err) {
+      flash(`Erro: ${err.message}`);
+      setAutoStep('choose');
+    }
+  };
+
+  // Faz o polling do job: acompanha o log e, a cada contato pronto, busca o
+  // arquivo exportado e importa pelo MESMO caminho do bulk manual.
+  useEffect(() => {
+    if (!autoJobId || autoStep !== 'running') return;
+    let cancelled = false;
+    const byName = new Map(contacts.filter(c => c.category === autoCategory).map(c => [c.name.toLowerCase(), c]));
+
+    const poll = async () => {
+      let data;
+      try {
+        const res = await fetch(`${SERVER_URL}/api/safer/whatsapp/import/status/${autoJobId}`, { headers: authHeaders() });
+        data = await res.json();
+      } catch { return; }
+      if (cancelled || !data) return;
+      setAutoLog(data.logs || []);
+      setAutoJobStatus(data.status);
+
+      const readyEntries = (data.logs || []).filter(l => l.status === 'ready' && !autoProcessedIdx.current.has(l.fileIndex));
+      for (const entry of readyEntries) {
+        autoProcessedIdx.current.add(entry.fileIndex);
+        try {
+          const fileRes = await fetch(`${SERVER_URL}/api/safer/whatsapp/import/${autoJobId}/file/${entry.fileIndex}`, { headers: authHeaders() });
+          if (!fileRes.ok) throw new Error('Falha ao baixar o arquivo exportado.');
+          const blob = await fileRes.blob();
+          const disp = fileRes.headers.get('Content-Disposition') || '';
+          const filename = disp.match(/filename="([^"]+)"/)?.[1] ? decodeURIComponent(disp.match(/filename="([^"]+)"/)[1]) : `${entry.contactName}.zip`;
+          const file = new File([blob], filename, { type: blob.type });
+          await importOneFile(file, entry.contactName, autoCategory, byName);
+        } catch (err) {
+          setAutoLog(prev => [...prev, { contactName: entry.contactName, status: 'error', message: `Falha ao importar: ${err.message}` }]);
+        }
+      }
+      if (data.status === 'done' || data.status === 'error') {
+        await loadContacts();
+        if (selectedContactId) await loadChatMessages(selectedContactId);
+      }
+    };
+
+    poll();
+    const t = setInterval(poll, 2000);
+    return () => { cancelled = true; clearInterval(t); };
+  }, [autoJobId, autoStep, autoCategory]);
+
+  const stopAutoImport = async () => {
+    if (!autoJobId) return;
+    setAutoStopping(true);
+    try { await fetch(`${SERVER_URL}/api/safer/whatsapp/import/stop/${autoJobId}`, { method: 'POST', headers: authHeaders() }); } catch {}
+  };
+
+  const closeAutoModal = () => {
+    setAutoModalOpen(false); setAutoJobId(null); setAutoLog([]); setAutoStep('connect'); setAutoStopping(false);
   };
 
   // ── Render: mensagens do chat ────────────────────────────────────────
@@ -478,6 +605,9 @@ const UnikoSafer = ({ onBack }) => {
               <div style={{ fontSize: 16, fontWeight: 800, color: T.text }}>Contatos</div>
               <div style={{ display: 'flex', gap: 6 }}>
                 <button title="Importar vários (arrastar arquivos)" onClick={() => { setBulkLog([]); setBulkStep('choose'); setBulkCategory(activeCategory); setBulkModalOpen(true); }} style={{ ...btnStyle('secondary'), padding: '7px 9px' }}><IcoImport /></button>
+                <button title="Importação automática (WhatsApp Web)" onClick={openAutoModal} style={{ ...btnStyle('secondary'), padding: '7px 9px' }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><polyline points="12 7 12 12 15.5 14" /></svg>
+                </button>
                 <button title="Selecionar contatos" onClick={toggleSelectionMode} style={selectionMode ? { ...btnStyle('primary'), padding: '7px 9px' } : { ...btnStyle('secondary'), padding: '7px 9px' }}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 11 12 14 22 4" /><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" /></svg>
                 </button>
@@ -760,6 +890,93 @@ const UnikoSafer = ({ onBack }) => {
                     ))}
                   </div>
                 )}
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal: importação automática via WhatsApp Web */}
+      {autoModalOpen && (
+        <div onClick={() => autoStep !== 'running' && closeAutoModal()} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 500, padding: 16 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: T.surface, borderRadius: 16, padding: 24, width: 460, maxWidth: '100%', boxShadow: T.shL }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: T.text }}>Importação automática</div>
+              {autoStep !== 'running' && <button onClick={closeAutoModal} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: T.textT }}><IcoClose /></button>}
+            </div>
+
+            {autoStep === 'connect' && (
+              <>
+                <div style={{ fontSize: 12.5, color: T.textT, marginBottom: 16, lineHeight: 1.5 }}>{autoConnectMsg}</div>
+                {autoQrImage ? (
+                  <div style={{ textAlign: 'center' }}>
+                    <img src={`data:image/png;base64,${autoQrImage}`} alt="QR Code do WhatsApp Web" style={{ width: 220, height: 220, borderRadius: 10, border: `1px solid ${T.border}` }} />
+                    <div style={{ fontSize: 11.5, color: T.textT, marginTop: 10 }}>No celular do WhatsApp do setor: Configurações → Aparelhos conectados → Conectar um aparelho.</div>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: T.textT, justifyContent: 'center', padding: '20px 0' }}>
+                    <span style={{ width: 13, height: 13, borderRadius: '50%', border: `2px solid ${T.border}`, borderTopColor: T.gold, flexShrink: 0, animation: 'saferBulkSpin .7s linear infinite' }} />
+                    Verificando…
+                  </div>
+                )}
+              </>
+            )}
+
+            {autoStep === 'choose' && (
+              <>
+                <div style={{ fontSize: 12.5, color: T.textT, marginBottom: 16, lineHeight: 1.5 }}>
+                  WhatsApp Web conectado. Escolha o setor e o intervalo entre cada contato (evita disparar detecção de automação no WhatsApp) e inicie a importação — ela percorre todos os contatos da barra lateral, exporta e importa sozinha.
+                </div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: T.textT, marginBottom: 6 }}>Setor</label>
+                <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
+                  {CATEGORIES.map(cat => {
+                    const sel = autoCategory === cat.id;
+                    return (
+                      <button key={cat.id} onClick={() => setAutoCategory(cat.id)}
+                        style={{ flex: 1, padding: '10px 10px', borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-body)',
+                          border: `1.5px solid ${sel ? T.gold : T.border}`, background: sel ? T.goldGl : 'transparent', color: sel ? T.gold : T.textS }}>
+                        {cat.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: T.textT, marginBottom: 6 }}>Pausa entre contatos (segundos)</label>
+                <input type="number" min={5} value={autoPauseSeconds} onChange={e => setAutoPauseSeconds(Math.max(5, Number(e.target.value) || 5))}
+                  style={{ ...inputStyle, marginBottom: 20 }} />
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                  <button onClick={closeAutoModal} style={btnStyle('secondary')}>Cancelar</button>
+                  <button onClick={startAutoImport} style={btnStyle('primary')}>Iniciar importação automática</button>
+                </div>
+              </>
+            )}
+
+            {autoStep === 'running' && (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
+                  <span style={{ fontSize: 12.5, fontWeight: 700, color: T.text }}>
+                    {autoJobStatus === 'done' ? 'Concluído' : autoJobStatus === 'error' ? 'Encerrado com erro' : 'Importando pelo WhatsApp Web…'}
+                  </span>
+                  {autoJobStatus === 'running' && (
+                    <span style={{ width: 13, height: 13, borderRadius: '50%', border: `2px solid ${T.border}`, borderTopColor: T.gold, flexShrink: 0, animation: 'saferBulkSpin .7s linear infinite' }} />
+                  )}
+                </div>
+                {autoLog.length > 0 && (
+                  <div style={{ maxHeight: 260, overflowY: 'auto', border: `1px solid ${T.border}`, borderRadius: 10, background: T.page, fontSize: 12, marginBottom: 14 }}>
+                    {autoLog.map((r, i) => (
+                      <div key={i} style={{ padding: '7px 10px', borderBottom: i < autoLog.length - 1 ? `1px solid ${T.border}` : 'none', display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                        <span style={{ fontWeight: 600, color: T.text, flexShrink: 0 }}>{r.contactName || '—'}</span>
+                        <span style={{ color: r.status === 'ready' ? (T.green || T.gold) : r.status === 'error' ? T.danger : T.textT, textAlign: 'right' }}>{r.message}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                  {autoJobStatus === 'running' ? (
+                    <button onClick={stopAutoImport} disabled={autoStopping} style={{ ...btnStyle('danger'), opacity: autoStopping ? 0.6 : 1 }}>{autoStopping ? 'Parando…' : 'Parar'}</button>
+                  ) : (
+                    <button onClick={closeAutoModal} style={btnStyle('primary')}>Fechar</button>
+                  )}
+                </div>
               </>
             )}
           </div>
