@@ -28,6 +28,16 @@ const fmtSaldo = m => (m > 0 ? '+' : '') + fmtMin(m);
 const fmtData = iso => { if (!iso) return '—'; try { return new Date(iso + 'T00:00:00').toLocaleDateString('pt-BR'); } catch { return iso; } };
 const fmtDataHora = ts => { try { return new Date(ts).toLocaleDateString('pt-BR'); } catch { return ''; } };
 const dow = iso => new Date(iso + 'T12:00:00').getDay();
+
+// Bucket 'ponto-anexos' é privado — troca o file_url salvo (não abre mais
+// direto) por um link assinado gerado na hora.
+const comLinksAssinados = async (rows) => Promise.all((rows || []).map(async (s) => {
+  if (!s.file_url || !s.storage_path) return s;
+  try {
+    const { data } = await _supabase.storage.from('ponto-anexos').createSignedUrl(s.storage_path, 600);
+    return data?.signedUrl ? { ...s, file_url: data.signedUrl } : s;
+  } catch { return s; }
+}));
 const SEM_CURTO = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
 const SEM_LONGO = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
 const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
@@ -108,7 +118,7 @@ const TabMeuPonto = () => {
 
   const loadSolics = async () => {
     const { data } = await _supabase.from('ponto_solicitacoes').select('*').eq('cpf', cpf).order('created_at', { ascending: false });
-    setSolics(data || []);
+    setSolics(await comLinksAssinados(data));
   };
 
   useEffect(() => {
@@ -126,7 +136,7 @@ const TabMeuPonto = () => {
         setJustifs(pt.justifs);
         setPontoCpf(pt.pontoCpf || '');
         setLimiteISO(pt.limiteISO || '');
-        setSolics(sol.data || []);
+        setSolics(await comLinksAssinados(sol.data));
       } catch {}
       if (alive) setLoading(false);
     })();
@@ -249,18 +259,18 @@ const TabMeuPonto = () => {
     if (!form.titulo.trim()) { setMsg('Informe um título'); return; }
     setSaving(true); setMsg('');
     try {
-      let file_url = null, file_name = null;
+      let file_url = null, file_name = null, storage_path = null;
       if (file) {
         const ext = (file.name.split('.').pop() || 'dat').replace(/[^a-zA-Z0-9]/g, '');
         const path = `${cpf || 'anon'}/${Date.now()}.${ext}`;
         const { error: upErr } = await _supabase.storage.from('ponto-anexos').upload(path, file, { contentType: file.type || undefined, upsert: false });
         if (upErr) throw new Error('Falha ao enviar o anexo: ' + upErr.message);
-        const { data } = _supabase.storage.from('ponto-anexos').getPublicUrl(path);
-        file_url = data.publicUrl; file_name = file.name;
+        const { data } = await _supabase.storage.from('ponto-anexos').createSignedUrl(path, 600);
+        file_url = data?.signedUrl || null; file_name = file.name; storage_path = path;
       }
       const { error } = await _supabase.from('ponto_solicitacoes').insert({
         cpf, ponto_cpf: pontoCpf || null, nome: USER.name, titulo: form.titulo.trim(), descricao: form.descricao.trim() || null,
-        data_ref: form.data_ref || null, file_url, file_name, status: 'pendente',
+        data_ref: form.data_ref || null, file_url, file_name, storage_path, status: 'pendente',
       });
       if (error) throw new Error(error.message);
       setModal(false);

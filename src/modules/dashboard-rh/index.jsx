@@ -1860,7 +1860,16 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
   const loadSolics = async () => {
     setSolicLoading(true);
     const { data } = await _supabase.from('ponto_solicitacoes').select('*').order('created_at', { ascending: false });
-    setSolics(data || []);
+    // Bucket 'ponto-anexos' é privado — troca o file_url salvo (não abre mais
+    // direto) por um link assinado gerado na hora.
+    const rows = await Promise.all((data || []).map(async (s) => {
+      if (!s.file_url || !s.storage_path) return s;
+      try {
+        const { data: signed } = await _supabase.storage.from('ponto-anexos').createSignedUrl(s.storage_path, 600);
+        return signed?.signedUrl ? { ...s, file_url: signed.signedUrl } : s;
+      } catch { return s; }
+    }));
+    setSolics(rows);
     setSolicLoading(false);
   };
   const setSolicStatus = async (id, status) => {

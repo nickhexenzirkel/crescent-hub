@@ -9,6 +9,18 @@ import { supabase, getAuthUser, SERVER_URL } from '../../contexts/user';
 const nowISO = () => new Date().toISOString();
 const justKey = (cpf, data) => `${cpf}_${data}`;
 
+// Bucket 'ponto-anexos' é privado (ver supabase_seguranca_ponto_anexos_link_assinado.sql)
+// — troca o file_url salvo (não abre mais direto) por um link assinado, gerado
+// na hora. storage_path ausente = registro anterior à correção; cai de volta
+// pro file_url antigo (vai aparecer "arquivo indisponível" até reenviar).
+async function comLinkAssinado(storagePath, fileUrlAntigo, ttl = 600) {
+  if (!storagePath) return fileUrlAntigo;
+  try {
+    const { data } = await supabase.storage.from('ponto-anexos').createSignedUrl(storagePath, ttl);
+    return data?.signedUrl || fileUrlAntigo;
+  } catch { return fileUrlAntigo; }
+}
+
 /* Busca paginada — Supabase devolve no máx. 1000 linhas por request */
 async function fetchAll(table, columns) {
   const PAGE = 1000;
@@ -30,7 +42,7 @@ async function fetchAll(table, columns) {
 // o módulo inteiro. Se as colunas não existem, recarrega sem elas.
 async function fetchJustificativas() {
   try {
-    return await fetchAll('ponto_justificativas', 'cpf,data,texto,abonado,autor,file_url,file_name,updated_at');
+    return await fetchAll('ponto_justificativas', 'cpf,data,texto,abonado,autor,file_url,file_name,storage_path,updated_at');
   } catch (e) {
     if (e?.code === '42703') return await fetchAll('ponto_justificativas', 'cpf,data,texto,abonado,autor,updated_at');
     throw e;
@@ -56,12 +68,13 @@ export async function loadPonto() {
   }
 
   const justifs = {};
-  for (const j of justificativas) {
+  await Promise.all(justificativas.map(async (j) => {
+    const file_url = j.file_url ? await comLinkAssinado(j.storage_path, j.file_url) : null;
     justifs[justKey(j.cpf, j.data)] = {
       text: j.texto || '', abonado: !!j.abonado, autor: j.autor || '',
-      file_url: j.file_url || null, file_name: j.file_name || null, updatedAt: j.updated_at,
+      file_url, file_name: j.file_name || null, storage_path: j.storage_path || null, updatedAt: j.updated_at,
     };
-  }
+  }));
 
   const empresa = empresaRes?.data || null;
   const header = empresa
@@ -217,24 +230,31 @@ export async function savePontoNegativos(employees) {
    ex.: atestado em PDF/foto), pra o RH ver ao justificar o dia. Tabela: ponto_solicitacoes. */
 export async function loadSolicitacoes() {
   try {
-    return await fetchAll('ponto_solicitacoes', 'id,cpf,ponto_cpf,nome,titulo,descricao,data_ref,file_url,file_name,status,created_at');
+    const rows = await fetchAll('ponto_solicitacoes', 'id,cpf,ponto_cpf,nome,titulo,descricao,data_ref,file_url,file_name,storage_path,status,created_at');
+    return await Promise.all(rows.map(async (r) => ({
+      ...r, file_url: r.file_url ? await comLinkAssinado(r.storage_path, r.file_url) : null,
+    })));
   } catch { return []; }
 }
 
-/* Sobe um anexo (atestado etc.) da justificativa do RH pro bucket público `ponto-anexos`
-   e devolve { file_url, file_name }. Usado quando o colaborador não mandou solicitação. */
+/* Sobe um anexo (atestado etc.) da justificativa do RH pro bucket `ponto-anexos`
+   (privado) e devolve { file_url, file_name, storage_path }. Usado quando o
+   colaborador não mandou solicitação. file_url aqui já sai como link assinado
+   (só vale por alguns minutos) — storage_path é o que fica de fato salvo no
+   banco, pra gerar um link novo cada vez que a justificativa for exibida. */
 export async function uploadJustifAnexo(file, cpf, date) {
   const ext = (file.name.split('.').pop() || 'dat').replace(/[^a-zA-Z0-9]/g, '');
   const path = `justif/${cpf || 'anon'}/${date}_${Date.now()}.${ext}`;
   const { error } = await supabase.storage.from('ponto-anexos').upload(path, file, { contentType: file.type || undefined, upsert: false });
   if (error) throw new Error('Falha ao enviar o anexo: ' + error.message);
-  const { data } = supabase.storage.from('ponto-anexos').getPublicUrl(path);
-  return { file_url: data.publicUrl, file_name: file.name };
+  const { data } = await supabase.storage.from('ponto-anexos').createSignedUrl(path, 600);
+  return { file_url: data?.signedUrl || null, file_name: file.name, storage_path: path };
 }
 
 /* Cria/atualiza ou remove uma justificativa. Texto vazio = apaga.
-   file_url/file_name: anexo opcional do RH (null preserva? não — grava o que vier). */
-export async function saveJustificativa({ cpf, date, text, file_url = null, file_name = null }) {
+   file_url/file_name/storage_path: anexo opcional do RH (null preserva? não —
+   grava o que vier). */
+export async function saveJustificativa({ cpf, date, text, file_url = null, file_name = null, storage_path = null }) {
   const clean = (text || '').trim();
   if (!clean) {
     const { error } = await supabase.from('ponto_justificativas').delete().eq('cpf', cpf).eq('data', date);
@@ -243,11 +263,11 @@ export async function saveJustificativa({ cpf, date, text, file_url = null, file
   }
   const autor = getAuthUser()?.name || 'Admin';
   const updatedAt = nowISO();
-  const row = { cpf, data: date, texto: clean, abonado: true, autor, file_url, file_name, updated_at: updatedAt };
+  const row = { cpf, data: date, texto: clean, abonado: true, autor, file_url, file_name, storage_path, updated_at: updatedAt };
   let { error } = await supabase.from('ponto_justificativas').upsert(row, { onConflict: 'cpf,data' });
   // Banco ainda sem as colunas de anexo (migration não rodada) → grava sem elas.
   if (error?.code === '42703') {
-    const { file_url: _u, file_name: _n, ...semAnexo } = row;
+    const { file_url: _u, file_name: _n, storage_path: _p, ...semAnexo } = row;
     ({ error } = await supabase.from('ponto_justificativas').upsert(semAnexo, { onConflict: 'cpf,data' }));
   }
   if (error) throw error;

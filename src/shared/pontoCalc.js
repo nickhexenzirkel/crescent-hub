@@ -77,7 +77,7 @@ export async function loadColaboradorPonto({ cpf, name }) {
   // Justificativas tolerando o banco AINDA sem as colunas de anexo (migration
   // supabase_ponto_justificativa_anexo.sql não rodada) → recarrega sem elas.
   const fetchJust = async () => {
-    const full = await supabase.from('ponto_justificativas').select('cpf,data,texto,abonado,autor,file_url,file_name').in('cpf', cpfs);
+    const full = await supabase.from('ponto_justificativas').select('cpf,data,texto,abonado,autor,file_url,file_name,storage_path').in('cpf', cpfs);
     if (full.error?.code === '42703') return supabase.from('ponto_justificativas').select('cpf,data,texto,abonado,autor').in('cpf', cpfs);
     return full;
   };
@@ -86,6 +86,15 @@ export async function loadColaboradorPonto({ cpf, name }) {
     fetchJust(),
   ]);
   const marcacoes = mar.data || [];
+  // Bucket 'ponto-anexos' é privado — troca o file_url salvo (não abre mais
+  // direto) por um link assinado gerado na hora.
+  const justifsComLink = await Promise.all((just.data || []).map(async (j) => {
+    if (!j.file_url || !j.storage_path) return j;
+    try {
+      const { data: signed } = await supabase.storage.from('ponto-anexos').createSignedUrl(j.storage_path, 600);
+      return signed?.signedUrl ? { ...j, file_url: signed.signedUrl } : j;
+    } catch { return j; }
+  }));
   // id do ponto = cpf mais frequente nas marcações
   const freq = {};
   for (const m of marcacoes) if (m.cpf) freq[m.cpf] = (freq[m.cpf] || 0) + 1;
@@ -97,12 +106,18 @@ export async function loadColaboradorPonto({ cpf, name }) {
   // se afastou depois dela simplesmente não via esses dias (bug real: a
   // colaboradora tinha afastamento em dias posteriores à última batida dela e
   // eles não apareciam, embora o RH os tivesse lançado).
+  // RPC em vez de select direto: depois da correção de RLS (ver
+  // supabase_seguranca_rls_ponto.sql), um colaborador comum só lê as PRÓPRIAS
+  // marcações — um select() sem filtro de cpf voltaria vazio pra ele. A função
+  // ultima_marcacao_ponto() devolve só a data (agregada, sem nenhuma linha
+  // pessoal), então pode ficar liberada pra qualquer um logado sem reabrir o
+  // problema que a RLS acabou de fechar.
   let limiteISO = '';
   try {
-    const { data: ult } = await supabase.from('ponto_marcacoes').select('data').order('data', { ascending: false }).limit(1);
-    limiteISO = ult?.[0]?.data || '';
+    const { data: ult } = await supabase.rpc('ultima_marcacao_ponto');
+    limiteISO = ult || '';
   } catch { /* sem limite global: cai no comportamento antigo */ }
-  return { marcacoes, justifs: just.data || [], cpfs, pontoCpf, limiteISO };
+  return { marcacoes, justifs: justifsComLink, cpfs, pontoCpf, limiteISO };
 }
 
 export const PONTO_DEFAULTS = { jornada: 480, tolerance: 1, toleranciaAtraso: 10 };

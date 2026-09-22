@@ -600,13 +600,13 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
     setJustSaving(true);
     try {
       // Anexo do RH: mantém o atual, sobe um novo, ou remove.
-      let file_url = existing.file_url || null, file_name = existing.file_name || null;
-      if (justFile === 'remove') { file_url = null; file_name = null; }
+      let file_url = existing.file_url || null, file_name = existing.file_name || null, storage_path = existing.storage_path || null;
+      if (justFile === 'remove') { file_url = null; file_name = null; storage_path = null; }
       else if (justFile instanceof File) {
         const up = await uploadJustifAnexo(justFile, cpf, date);
-        file_url = up.file_url; file_name = up.file_name;
+        file_url = up.file_url; file_name = up.file_name; storage_path = up.storage_path;
       }
-      const saved = await saveJustificativa({ cpf, date, text, file_url, file_name });
+      const saved = await saveJustificativa({ cpf, date, text, file_url, file_name, storage_path });
       setJustifs(prev => {
         const next = { ...prev };
         if (saved) next[key] = saved; else delete next[key];
@@ -659,15 +659,16 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
     if (dias.length > 200){ setAfastMsg('⚠️ Período muito longo (máx. ~200 dias úteis).'); return; }
     setAfastSaving(true); setAfastMsg('');
     try {
-      // Sobe o anexo UMA vez e reusa a mesma URL em todos os dias.
-      let file_url = null, file_name = null;
+      // Sobe o anexo UMA vez e reusa o mesmo storage_path em todos os dias
+      // (cada dia gera seu próprio link assinado quando for exibido).
+      let file_url = null, file_name = null, storage_path = null;
       if (afastFile) {
         const up = await uploadJustifAnexo(afastFile, cpf, `afast_${inicio}_${fim}`);
-        file_url = up.file_url; file_name = up.file_name;
+        file_url = up.file_url; file_name = up.file_name; storage_path = up.storage_path;
       }
       const texto = `Afastamento (${fmtDate(inicio)} a ${fmtDate(fim)}): ${motivo}`;
       const results = await Promise.all(dias.map(date =>
-        saveJustificativa({ cpf, date, text: texto, file_url, file_name })
+        saveJustificativa({ cpf, date, text: texto, file_url, file_name, storage_path })
           .then(s => [date, s]).catch(() => [date, null])
       ));
       const saved = {};

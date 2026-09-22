@@ -39,6 +39,22 @@ language sql stable as $$
 $$;
 grant execute on function public.e_meu_ponto(text) to anon, authenticated;
 
+-- Data da última marcação de QUALQUER pessoa no sistema — usada só pra saber
+-- até onde os dados do ponto vão (limite honesto pra contar falta, ver
+-- src/shared/pontoCalc.js). É uma agregação (uma data só, sem nenhuma linha
+-- pessoal), então pode ficar liberada pra qualquer colaborador logado sem
+-- reabrir o que a RLS de ponto_marcacoes acima acabou de fechar.
+create or replace function public.ultima_marcacao_ponto()
+returns date
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select max(data) from public.ponto_marcacoes;
+$$;
+grant execute on function public.ultima_marcacao_ponto() to anon, authenticated;
+
 -- ── ponto_vinculo — só o próprio vínculo (colaborador) ou tudo (RH) ─────
 drop policy if exists ponto_vinculo_all on public.ponto_vinculo;
 create policy ponto_vinculo_select on public.ponto_vinculo
