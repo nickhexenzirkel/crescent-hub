@@ -340,13 +340,26 @@ const UnikoSafer = ({ onBack }) => {
     return newCount;
   };
 
+  // 504/timeout do Storage do Supabase são passageiros (visto ao vivo: 1 em
+  // 21 arquivos numa importação automática) — vale tentar de novo antes de
+  // desistir. Erro que não parece transitório (ex: permissão, duplicado)
+  // falha na hora, sem ficar tentando à toa.
+  const uploadWithRetry = async (path, file, options, attempts = 3) => {
+    for (let i = 0; i < attempts; i++) {
+      const { error } = await supabase.storage.from(BUCKET).upload(path, file, options);
+      if (!error) return;
+      const transient = /50\d|timeout|network|fetch failed/i.test(error.message || '');
+      if (!transient || i === attempts - 1) throw new Error(error.message);
+      await new Promise(r => setTimeout(r, 1500 * (i + 1)));
+    }
+  };
+
   const importFileForContact = async (contactId, file) => {
     const fileType = await sniffFileType(file);
     if (fileType === 'other') throw new Error('Formato não suportado (use .txt ou .zip com chat.txt).');
 
     const storagePath = `${contactId}/${Date.now()}_${sanitizeStorageName(file.name)}`;
-    const { error: upErr } = await supabase.storage.from(BUCKET).upload(storagePath, file, { contentType: fileType === 'zip' ? 'application/zip' : 'text/plain', upsert: false });
-    if (upErr) throw new Error(upErr.message);
+    await uploadWithRetry(storagePath, file, { contentType: fileType === 'zip' ? 'application/zip' : 'text/plain', upsert: false });
 
     let messages = [];
     let summary = { messageCount: null, dateRangeStart: null, dateRangeEnd: null };
