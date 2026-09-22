@@ -482,6 +482,8 @@ const UnikoSafer = ({ onBack }) => {
     if (!autoJobId || autoStep !== 'running') return;
     let cancelled = false;
     let finished = false;
+    let lastLogCount = -1;
+    let lastStatus = null;
     const byName = new Map(contacts.filter(c => c.category === autoCategory).map(c => [c.name.toLowerCase(), c]));
 
     const poll = async () => {
@@ -492,8 +494,13 @@ const UnikoSafer = ({ onBack }) => {
         data = await res.json();
       } catch { return; }
       if (cancelled || !data) return;
-      setAutoLog(data.logs || []);
-      setAutoJobStatus(data.status);
+      // Só re-renderiza quando o log/status realmente mudou — fazia
+      // setState (e reflow da tela toda) a cada 2s mesmo sem novidade
+      // nenhuma, e isso já tinha derrubado o FPS em outro módulo antes
+      // (ver commit do Trello removendo backdrop-filter dos modais).
+      const logs = data.logs || [];
+      if (logs.length !== lastLogCount) { lastLogCount = logs.length; setAutoLog(logs); }
+      if (data.status !== lastStatus) { lastStatus = data.status; setAutoJobStatus(data.status); }
 
       const readyEntries = (data.logs || []).filter(l => l.status === 'ready' && !autoProcessedIdx.current.has(l.fileIndex));
       for (const entry of readyEntries) {
