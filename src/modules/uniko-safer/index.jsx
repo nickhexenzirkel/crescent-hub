@@ -78,6 +78,15 @@ const IcoCheck = () => (
 const IcoWarn = () => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="8" x2="12" y2="13" /><circle cx="12" cy="16.3" r="0.9" fill="currentColor" stroke="none" /><circle cx="12" cy="12" r="9" /></svg>
 );
+const IcoDots = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" /></svg>
+);
+const IcoAuto = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><polyline points="12 7 12 12 15.5 14" /></svg>
+);
+const IcoSelect = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 11 12 14 22 4" /><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" /></svg>
+);
 
 // Dois setores usando o mesmo Uniko Safer, cada um com seus próprios
 // contatos — abas dentro do módulo (não módulos separados no seletor
@@ -111,6 +120,7 @@ const UnikoSafer = ({ onBack }) => {
   const [chatSearchOpen, setChatSearchOpen] = useState(false);
   const [chatSearchTerm, setChatSearchTerm] = useState('');
   const [contactModal, setContactModal] = useState(null); // {mode, id, name, phone, notes}
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [bulkModalOpen, setBulkModalOpen] = useState(false);
@@ -627,13 +637,7 @@ const UnikoSafer = ({ onBack }) => {
             <div style={{ padding: '16px 16px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
               <div style={{ fontSize: 16, fontWeight: 800, color: T.text }}>Contatos</div>
               <div style={{ display: 'flex', gap: 6 }}>
-                <button title="Importar vários (arrastar arquivos)" onClick={() => { setBulkLog([]); setBulkStep('choose'); setBulkCategory(activeCategory); setBulkModalOpen(true); }} style={{ ...btnStyle('secondary'), padding: '7px 9px' }}><IcoImport /></button>
-                <button title="Importação automática (WhatsApp Web)" onClick={openAutoModal} style={{ ...btnStyle('secondary'), padding: '7px 9px' }}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><polyline points="12 7 12 12 15.5 14" /></svg>
-                </button>
-                <button title="Selecionar contatos" onClick={toggleSelectionMode} style={selectionMode ? { ...btnStyle('primary'), padding: '7px 9px' } : { ...btnStyle('secondary'), padding: '7px 9px' }}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 11 12 14 22 4" /><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" /></svg>
-                </button>
+                <button title="Mais opções" onClick={() => setMoreMenuOpen(true)} style={{ ...btnStyle('secondary'), padding: '7px 9px' }}><IcoDots /></button>
                 <button title="Novo contato" onClick={() => openContactModal('create')} style={{ ...btnStyle('primary'), padding: '7px 9px' }}><IcoPlus /></button>
               </div>
             </div>
@@ -824,16 +828,51 @@ const UnikoSafer = ({ onBack }) => {
         </div>
       )}
 
-      {/* Modal: importar vários (arrastar/soltar, deriva contato do nome do arquivo) */}
+      {/* Menu "Mais opções": 3 cards grandes, cada um abre uma função em tela cheia */}
+      {moreMenuOpen && (
+        <div onClick={() => setMoreMenuOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 500, padding: 16 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: T.surface, borderRadius: 16, padding: 24, width: 420, maxWidth: '100%', boxShadow: T.shL }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: T.text }}>Mais opções</div>
+              <button onClick={() => setMoreMenuOpen(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: T.textT }}><IcoClose /></button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {[
+                { icon: <IcoImport />, title: 'Importar vários', desc: 'Arraste vários arquivos .zip/.txt de uma vez', onClick: () => { setMoreMenuOpen(false); setBulkLog([]); setBulkStep('choose'); setBulkCategory(activeCategory); setBulkModalOpen(true); } },
+                { icon: <IcoAuto />, title: 'Importação automática', desc: 'O robô entra no WhatsApp Web e importa sozinho', onClick: () => { setMoreMenuOpen(false); openAutoModal(); } },
+                { icon: <IcoSelect />, title: 'Selecionar contatos', desc: 'Marque vários contatos pra excluir de uma vez', onClick: () => { setMoreMenuOpen(false); toggleSelectionMode(); } },
+              ].map(card => (
+                <button key={card.title} onClick={card.onClick}
+                  style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '16px 16px', borderRadius: 12, cursor: 'pointer', textAlign: 'left',
+                    border: `1.5px solid ${T.border}`, background: T.page, fontFamily: 'var(--font-body)' }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 12, background: T.goldGl, color: T.gold, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{card.icon}</div>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: T.text }}>{card.title}</div>
+                    <div style={{ fontSize: 12, color: T.textT, marginTop: 2 }}>{card.desc}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tela cheia: importar vários (arrastar/soltar, deriva contato do nome do arquivo) */}
       {bulkModalOpen && (
-        <div onClick={() => !bulkBusy && setBulkModalOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 500, padding: 16 }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: T.surface, borderRadius: 16, padding: 24, width: 460, maxWidth: '100%', boxShadow: T.shL }}>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 600, background: T.page, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ height: 56, flexShrink: 0, background: T.topbarBg || (T.dark ? `${T.surface}ee` : 'rgba(245,250,255,0.75)'), borderBottom: `1px solid ${T.border}`,
+            display: 'flex', alignItems: 'center', padding: '0 20px', gap: 12 }}>
+            <button onClick={() => !bulkBusy && setBulkModalOpen(false)} disabled={bulkBusy}
+              style={{ background: 'transparent', border: 'none', cursor: bulkBusy ? 'default' : 'pointer', color: T.textT, display: 'flex', opacity: bulkBusy ? 0.4 : 1 }}>
+              <IcoClose />
+            </button>
+            <div style={{ fontSize: 15, fontWeight: 700, color: T.text }}>Importar vários arquivos</div>
+          </div>
+          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', justifyContent: 'center', padding: '32px 20px' }}>
+          <div style={{ width: '100%', maxWidth: 460 }}>
             {bulkStep === 'choose' ? (
               <>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: T.text }}>Adicionar mais conversas?</div>
-                  <button onClick={() => setBulkModalOpen(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: T.textT }}><IcoClose /></button>
-                </div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: T.text, marginBottom: 6 }}>Adicionar mais conversas?</div>
                 <div style={{ fontSize: 12.5, color: T.textT, marginBottom: 16, lineHeight: 1.5 }}>
                   Escolha pra qual setor vão as conversas que você vai importar agora. Vale pra todos os arquivos que você soltar em seguida.
                 </div>
@@ -857,15 +896,11 @@ const UnikoSafer = ({ onBack }) => {
               </>
             ) : (
               <>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <button onClick={() => setBulkStep('choose')} disabled={bulkBusy}
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'transparent', border: 'none', cursor: bulkBusy ? 'default' : 'pointer',
-                      color: T.textT, fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-body)', padding: 0, opacity: bulkBusy ? 0.5 : 1 }}>
-                    <IcoBack /> {CATEGORIES.find(c => c.id === bulkCategory)?.label}
-                  </button>
-                  <button onClick={() => setBulkModalOpen(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: T.textT }}><IcoClose /></button>
-                </div>
-                <div style={{ fontSize: 16, fontWeight: 700, color: T.text, margin: '6px 0' }}>Importar vários arquivos</div>
+                <button onClick={() => setBulkStep('choose')} disabled={bulkBusy}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'transparent', border: 'none', cursor: bulkBusy ? 'default' : 'pointer',
+                    color: T.textT, fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-body)', padding: 0, opacity: bulkBusy ? 0.5 : 1, marginBottom: 10 }}>
+                  <IcoBack /> {CATEGORIES.find(c => c.id === bulkCategory)?.label}
+                </button>
 
                 {bulkBusy ? (
                   // Tela de progresso — some a área de soltar arquivo enquanto
@@ -920,18 +955,22 @@ const UnikoSafer = ({ onBack }) => {
               </>
             )}
           </div>
+          </div>
         </div>
       )}
 
-      {/* Modal: importação automática via WhatsApp Web */}
+      {/* Tela cheia: importação automática via WhatsApp Web */}
       {autoModalOpen && (
-        <div onClick={() => autoStep !== 'running' && closeAutoModal()} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 500, padding: 16 }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: T.surface, borderRadius: 16, padding: 24, width: 460, maxWidth: '100%', boxShadow: T.shL }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-              <div style={{ fontSize: 16, fontWeight: 700, color: T.text }}>Importação automática</div>
-              {autoStep !== 'running' && <button onClick={closeAutoModal} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: T.textT }}><IcoClose /></button>}
-            </div>
-
+        <div style={{ position: 'fixed', inset: 0, zIndex: 600, background: T.page, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ height: 56, flexShrink: 0, background: T.topbarBg || (T.dark ? `${T.surface}ee` : 'rgba(245,250,255,0.75)'), borderBottom: `1px solid ${T.border}`,
+            display: 'flex', alignItems: 'center', padding: '0 20px', gap: 12 }}>
+            {autoStep !== 'running' ? (
+              <button onClick={closeAutoModal} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: T.textT, display: 'flex' }}><IcoClose /></button>
+            ) : <div style={{ width: 15 }} />}
+            <div style={{ fontSize: 15, fontWeight: 700, color: T.text }}>Importação automática</div>
+          </div>
+          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', justifyContent: 'center', padding: '32px 20px' }}>
+          <div style={{ width: '100%', maxWidth: 460 }}>
             {autoStep === 'connect' && (
               <>
                 <div style={{ fontSize: 12.5, color: T.textT, marginBottom: 16, lineHeight: 1.5 }}>{autoConnectMsg}</div>
@@ -1029,6 +1068,7 @@ const UnikoSafer = ({ onBack }) => {
                 </>
               );
             })()}
+          </div>
           </div>
         </div>
       )}
