@@ -198,6 +198,13 @@ const UnikoSafer = ({ onBack }) => {
   });
   const [lastPeriodicSyncAt, setLastPeriodicSyncAt] = useState(null);
   const periodicSyncRunningRef = useRef(false);
+  // Log visível do que cada ciclo faz — sem isso, uma falha silenciosa (ex:
+  // WhatsApp exportou mas a importação pro Supabase deu erro) não deixava
+  // rastro nenhum pra ninguém perceber.
+  const [periodicSyncLog, setPeriodicSyncLog] = useState([]);
+  const pushPeriodicSyncLog = (message, level = 'info') => {
+    setPeriodicSyncLog(prev => [{ time: new Date().toISOString(), message, level }, ...prev].slice(0, 30));
+  };
 
   const flash = (msg) => {
     setToast(msg);
@@ -728,24 +735,29 @@ const UnikoSafer = ({ onBack }) => {
     try {
       const statusRes = await fetch(`${SERVER_URL}/api/safer/whatsapp/status`, { headers: authHeaders() });
       const statusData = await statusRes.json().catch(() => ({}));
-      if (!statusData.loggedIn) return; // sem sessão conectada — tenta de novo no próximo ciclo, sem incomodar
+      if (!statusData.loggedIn) { pushPeriodicSyncLog('WhatsApp Web não está conectado — pulando este ciclo.', 'error'); return; }
 
       const startRes = await fetch(`${SERVER_URL}/api/safer/whatsapp/import/start`, {
         method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify({ pauseSeconds: 8, onlyChanged: true }),
       });
       const startData = await startRes.json().catch(() => ({}));
-      if (!startRes.ok || !startData.jobId) return;
+      if (!startRes.ok || !startData.jobId) {
+        pushPeriodicSyncLog(`Falha ao iniciar a checagem: ${startData.error || startRes.status}`, 'error');
+        return;
+      }
       const jobId = startData.jobId;
 
       const { data: freshContacts } = await supabase.from('uniko_safer_contacts').select('*').eq('category', autoCategory);
       const byName = new Map((freshContacts || []).map(c => [c.name.toLowerCase(), c]));
-      const processed = new Set();
+      const processedFiles = new Set();
+      let loggedInfoCount = 0;
       let importedCount = 0;
 
       // Até uns 6min esperando esse ciclo terminar (contatos que mudam
       // costumam ser poucos — se passar disso, solta e tenta de novo no
       // próximo intervalo).
+      let finalStatus = null, finalMessage = null;
       for (let i = 0; i < 120; i++) {
         await new Promise(r => setTimeout(r, 3000));
         let data;
@@ -753,9 +765,20 @@ const UnikoSafer = ({ onBack }) => {
           const res = await fetch(`${SERVER_URL}/api/safer/whatsapp/import/status/${jobId}`, { headers: authHeaders() });
           data = await res.json();
         } catch { continue; }
-        const ready = (data.logs || []).filter(l => l.status === 'ready' && !processed.has(l.fileIndex));
+
+        // Repassa pro log visível cada entrada nova que o backend registrou
+        // (ex: "3 contato(s) com atividade nova", erro de exportação de um
+        // contato específico) — antes isso ficava só no servidor.
+        const newLogs = (data.logs || []).slice(loggedInfoCount);
+        loggedInfoCount = (data.logs || []).length;
+        for (const entry of newLogs) {
+          if (entry.type === 'info') pushPeriodicSyncLog(entry.message, 'info');
+          else if (entry.status === 'error') pushPeriodicSyncLog(`${entry.contactName || '?'}: falha ao exportar — ${entry.message}`, 'error');
+        }
+
+        const ready = (data.logs || []).filter(l => l.status === 'ready' && !processedFiles.has(l.fileIndex));
         for (const entry of ready) {
-          processed.add(entry.fileIndex);
+          processedFiles.add(entry.fileIndex);
           try {
             const fileRes = await fetch(`${SERVER_URL}/api/safer/whatsapp/import/${jobId}/file/${entry.fileIndex}`, { headers: authHeaders() });
             if (!fileRes.ok) throw new Error('download falhou');
@@ -763,12 +786,18 @@ const UnikoSafer = ({ onBack }) => {
             const disp = fileRes.headers.get('Content-Disposition') || '';
             const filename = disp.match(/filename="([^"]+)"/)?.[1] ? decodeURIComponent(disp.match(/filename="([^"]+)"/)[1]) : `${entry.contactName}.zip`;
             const file = new File([blob], filename, { type: blob.type });
-            await importOneFile(file, entry.contactName, autoCategory, byName);
+            const result = await importOneFile(file, entry.contactName, autoCategory, byName);
             importedCount++;
-          } catch { /* um arquivo falhando não derruba o ciclo — tenta de novo no próximo */ }
+            pushPeriodicSyncLog(`${entry.contactName}: ${result.message}`, 'success');
+          } catch (err) {
+            pushPeriodicSyncLog(`${entry.contactName}: exportou do WhatsApp mas falhou ao importar — ${err.message}`, 'error');
+          }
         }
-        if (data.status === 'done' || data.status === 'error') break;
+        if (data.status === 'done' || data.status === 'error') { finalStatus = data.status; finalMessage = data.message; break; }
       }
+
+      if (finalStatus === 'error' && finalMessage) pushPeriodicSyncLog(`Checagem terminou com erro: ${finalMessage}`, 'error');
+      else if (!finalStatus) pushPeriodicSyncLog('Checagem não terminou a tempo (mais de 6min) — tenta de novo no próximo ciclo.', 'error');
 
       setLastPeriodicSyncAt(new Date().toISOString());
       if (importedCount > 0) {
@@ -776,7 +805,7 @@ const UnikoSafer = ({ onBack }) => {
         if (selectedContactId) await loadChatMessages(selectedContactId);
         flash(`Sincronização automática: ${importedCount} conversa${importedCount === 1 ? '' : 's'} atualizada${importedCount === 1 ? '' : 's'}.`);
       }
-    } catch { /* melhor esforço — próximo ciclo tenta de novo */ }
+    } catch (err) { pushPeriodicSyncLog(`Erro inesperado no ciclo: ${err.message}`, 'error'); }
     finally { periodicSyncRunningRef.current = false; }
   };
 
@@ -789,8 +818,13 @@ const UnikoSafer = ({ onBack }) => {
     // sim pode ter atividade nova de fato.
     (async () => {
       try {
-        await fetch(`${SERVER_URL}/api/safer/whatsapp/sync/baseline`, { method: 'POST', headers: authHeaders() });
-      } catch { /* melhor esforço — o próximo ciclo periódico ainda funciona */ }
+        const res = await fetch(`${SERVER_URL}/api/safer/whatsapp/sync/baseline`, { method: 'POST', headers: authHeaders() });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+        if (!cancelled) pushPeriodicSyncLog(`Modo ativado — vigiando ${data.count ?? '?'} contato(s) a partir de agora.`, 'info');
+      } catch (err) {
+        if (!cancelled) pushPeriodicSyncLog(`Falha ao ativar (marcar ponto de partida): ${err.message}`, 'error');
+      }
       if (!cancelled) setLastPeriodicSyncAt(new Date().toISOString());
     })();
     const t = setInterval(runPeriodicSyncCycle, periodicSyncMinutes * 60 * 1000);
@@ -1392,6 +1426,16 @@ const UnikoSafer = ({ onBack }) => {
                       <span style={{ fontSize: 11.5, color: T.textT, marginLeft: 'auto' }}>
                         {lastPeriodicSyncAt ? `Última checagem: ${formatDateTime(lastPeriodicSyncAt)}` : 'Ainda não checou nenhuma vez.'}
                       </span>
+                    </div>
+                  )}
+                  {periodicSyncEnabled && periodicSyncLog.length > 0 && (
+                    <div style={{ marginTop: 10, maxHeight: 140, overflowY: 'auto', border: `1px solid ${T.border}`, borderRadius: 8, background: T.page }}>
+                      {periodicSyncLog.map((entry, i) => (
+                        <div key={i} style={{ padding: '6px 9px', borderBottom: i < periodicSyncLog.length - 1 ? `1px solid ${T.border}` : 'none', display: 'flex', gap: 8, alignItems: 'baseline' }}>
+                          <span style={{ fontSize: 10, color: T.textT, flexShrink: 0 }}>{formatDateTime(entry.time).split(' ')[1] || ''}</span>
+                          <span style={{ fontSize: 11.5, color: entry.level === 'error' ? T.danger : entry.level === 'success' ? (T.green || T.gold) : T.textS }}>{entry.message}</span>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
