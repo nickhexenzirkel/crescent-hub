@@ -586,6 +586,58 @@ if (chrome.notifications && chrome.notifications.onClicked) {
   });
 }
 
+/* ── Uniko Call — orquestra a gravação de chamada do WhatsApp Web ────────
+   O trabalho pesado (Web Audio, MediaRecorder) roda no offscreen document
+   (offscreen.js) — o service worker aqui só descobre QUAL aba capturar e
+   repassa o streamId. ATENÇÃO ao testar: chrome.tabCapture.getMediaStreamId
+   pode exigir um gesto do usuário recente (clique) pra funcionar — se a
+   detecção AUTOMÁTICA (sem clique nenhum, só polling do content script)
+   falhar silenciosamente por causa disso, o botão manual do popup (que É um
+   clique) é o caminho que garantidamente funciona. ────────────────────── */
+
+let unikoCallState = 'idle'; // 'idle' | 'recording'
+
+function setUnikoCallState(state) {
+  unikoCallState = state;
+  chrome.action.setBadgeText({ text: state === 'recording' ? '●' : '' }).catch(() => {});
+  chrome.action.setBadgeBackgroundColor({ color: '#e0533d' }).catch(() => {});
+}
+
+async function ensureOffscreenDocument() {
+  const has = await chrome.offscreen.hasDocument?.();
+  if (has) return;
+  await chrome.offscreen.createDocument({
+    url: 'offscreen.html',
+    reasons: ['USER_MEDIA'],
+    justification: 'Gravar áudio de chamada do WhatsApp Web (com aviso ao usuário) pro Uniko Call',
+  });
+}
+
+async function findWhatsAppTabId() {
+  const tabs = await chrome.tabs.query({ url: 'https://web.whatsapp.com/*' });
+  // Prioriza a aba ativa/focada, se alguma das abas do WhatsApp Web for ela;
+  // senão pega a primeira encontrada.
+  return (tabs.find((t) => t.active) || tabs[0])?.id ?? null;
+}
+
+async function startUnikoCallRecording(tabId, contactName) {
+  if (unikoCallState === 'recording' || !tabId) return;
+  try {
+    const streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: tabId });
+    await ensureOffscreenDocument();
+    chrome.runtime.sendMessage({ type: 'UNIKO_CALL_START', streamId, contactName });
+    setUnikoCallState('recording');
+  } catch (e) {
+    console.error('[uniko-call] falha ao iniciar (provável falta de gesto do usuário):', e.message);
+  }
+}
+
+function stopUnikoCallRecording() {
+  if (unikoCallState !== 'recording') return;
+  chrome.runtime.sendMessage({ type: 'UNIKO_CALL_STOP' }).catch(() => {});
+  setUnikoCallState('idle');
+}
+
 /* ── Listener de mensagens ────────────────────────────────── */
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -621,6 +673,41 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const ok = showDesktopNotification(message.notif || {});
     if (ok && sender.tab?.id != null) {
       chrome.tabs.sendMessage(sender.tab.id, { type: 'UNIKO_NOTIFY_OK' }).catch(() => {});
+    }
+  }
+
+  // Uniko Call — detecção automática (content script em web.whatsapp.com)
+  if (message.type === 'UNIKO_CALL_DETECTED_START') {
+    const tabId = sender.tab?.id;
+    if (tabId) startUnikoCallRecording(tabId, message.contactName);
+  }
+  if (message.type === 'UNIKO_CALL_DETECTED_STOP') stopUnikoCallRecording();
+
+  // Uniko Call — botão manual (popup)
+  if (message.type === 'UNIKO_CALL_MANUAL_START') {
+    (async () => {
+      const tabId = await findWhatsAppTabId();
+      if (!tabId) { console.warn('[uniko-call] nenhuma aba do WhatsApp Web aberta'); return; }
+      let contactName = null;
+      try {
+        const res = await chrome.tabs.sendMessage(tabId, { type: 'UNIKO_CALL_QUERY_CONTACT' });
+        contactName = res?.contactName || null;
+      } catch {}
+      startUnikoCallRecording(tabId, contactName);
+    })();
+  }
+  if (message.type === 'UNIKO_CALL_MANUAL_STOP') stopUnikoCallRecording();
+
+  // Uniko Call — popup pergunta o estado atual pra pintar o botão certo
+  if (message.type === 'UNIKO_CALL_GET_STATE') {
+    sendResponse({ state: unikoCallState });
+  }
+
+  // Uniko Call — offscreen document avisa quando termina de subir a gravação
+  if (message.type === 'UNIKO_CALL_STATE' && message.state !== 'recording') {
+    setUnikoCallState('idle');
+    if (message.state === 'upload_error' || message.state === 'capture_error') {
+      console.error('[uniko-call] problema na gravação:', message.state, message.error || '');
     }
   }
 

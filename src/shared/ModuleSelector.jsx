@@ -511,8 +511,8 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto, cargoModules})
     // WhatsApp Cloud API oficial (Coexistence), não export manual.
     {id:'uniko-security',   label:'Uniko Security',        sub:'Conversas via WhatsApp Cloud API', icon:IcoSecurityMod, color:T.gold, bg:T.goldGl, tag:'Admin',      adminOnly:true, strictAdmin:true},
     {id:'7-beneficios',     label:'Portal dos Credenciados', sub:'Plataforma 7 Benefícios',        icon:IcoBeneficios,  color:T.gold, bg:T.goldGl, tag:'Ferramenta', adminOnly:true, strictAdmin:true},
-    // Só admin vê (não moderador) — ainda sem módulo de verdade, é só a vitrine.
-    {id:'uniko-call',       label:'Uniko Call',            sub:'Em breve',                         icon:IcoCall,        color:T.gold, bg:T.goldGl, tag:'Em breve', adminOnly:true, strictAdmin:true},
+    // Só admin vê (não moderador) — chamadas gravadas do WhatsApp Web, dado sensível.
+    {id:'uniko-call',       label:'Uniko Call',            sub:'Chamadas gravadas e transcritas',  icon:IcoCall,        color:T.gold, bg:T.goldGl, tag:'Admin',    adminOnly:true, strictAdmin:true},
     {id:'comercial',        label:'Comercial',             sub:'Em breve',                         icon:IcoComercial,   color:T.gold, bg:T.goldGl, tag:'Em breve', adminOnly:true, strictAdmin:true},
   ];
   /* Os atalhos viram "módulos" de mentira: daí em diante tudo que a tela já

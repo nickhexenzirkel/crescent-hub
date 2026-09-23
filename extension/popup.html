@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  body { width: 260px; font-family: -apple-system, Segoe UI, Arial, sans-serif; padding: 14px; margin: 0; color: #222; }
+  h1 { font-size: 14px; margin: 0 0 4px; }
+  .sub { font-size: 11.5px; color: #777; margin: 0 0 12px; }
+  .status { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 8px; background: #f2f2f2; font-size: 12.5px; font-weight: 600; margin-bottom: 10px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: #999; flex-shrink: 0; }
+  .dot.recording { background: #e0533d; animation: pulse 1.2s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+  button { width: 100%; padding: 9px; border-radius: 8px; border: none; font-size: 12.5px; font-weight: 700; cursor: pointer; margin-bottom: 8px; font-family: inherit; }
+  .primary { background: #d4a017; color: #fff; }
+  .danger { background: #e0533d; color: #fff; }
+  .secondary { background: #eee; color: #333; }
+  .warn { font-size: 10.5px; color: #999; line-height: 1.4; margin-top: 8px; }
+</style>
+</head>
+<body>
+  <h1>Uniko Call</h1>
+  <p class="sub">Gravação de chamadas do WhatsApp Web</p>
+  <div class="status"><span id="dot" class="dot"></span><span id="statusText">Verificando…</span></div>
+  <button id="micBtn" class="secondary">Autorizar microfone</button>
+  <button id="toggleBtn" class="primary">Iniciar gravação manual</button>
+  <p class="warn">Avise sempre a pessoa do outro lado que a ligação está sendo gravada, no início da chamada. A detecção automática já grava sozinha quando percebe uma chamada ativa no WhatsApp Web — use o botão manual só se ela falhar.</p>
+  <script src="popup.js"></script>
+</body>
+</html>

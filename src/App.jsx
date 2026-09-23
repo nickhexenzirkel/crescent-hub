@@ -20,6 +20,7 @@ import InfoAdicional from './modules/info-adicional';
 import EmBreveModulo from './shared/EmBreveModulo';
 import UnikoSafer from './modules/uniko-safer';
 import UnikoSecurity from './modules/uniko-security';
+import UnikoCall from './modules/uniko-call';
 import Beneficios7 from './modules/beneficios-7';
 import { notifyDesktop, ensureNotifyPermission } from './utils/desktopNotify';
 import { useIsMobile } from './hooks/useIsMobile';
@@ -35,14 +36,9 @@ import PerfHud from './shared/diagnosticoPerf';
 import { loadCargoModulesForEmployeeId } from './shared/cargoPermissions';
 import { abaDaUrl } from './modules/faturamento/rotaFerramenta';
 
-// Ícones das vitrines "em breve" (Uniko Call / Comercial) — mesmo estilo dos
-// ícones de módulo do ModuleSelector. (Uniko Safer saiu daqui: ganhou módulo
-// de verdade, ver import UnikoSafer acima.)
-const IcoEmBreveCall = (
-  <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M4 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L14 13l5 2v4c0 1-1 2-2 2-8 0-15-7-15-15 0-1 1-2 2-2z"/>
-  </svg>
-);
+// Ícone da vitrine "em breve" (Comercial) — mesmo estilo dos ícones de
+// módulo do ModuleSelector. (Uniko Safer e Uniko Call saíram daqui: cada um
+// ganhou módulo de verdade, ver imports acima.)
 const IcoEmBreveComercial = (
   <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
     <rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="3" y1="12" x2="21" y2="12"/>
@@ -679,7 +675,7 @@ export default function CrescentHub() {
           {visited7Beneficios && <Beneficios7 onBack={handleGoBack} active={screen==='7-beneficios'}/>}
           {screen==='mercado-estelar' && <MercadoEstelar onBack={handleGoBack} authUser={authUser} userPhoto={userPhoto} initialTab={portalInitialTab}/>}
           {screen==='uniko-fit' && <UnikoFit onBack={handleGoBack} authUser={authUser} userPhoto={userPhoto}/>}
-          {screen==='uniko-call' && (authUser?.role==='admin'||cargoModules.has('uniko-call')) && <EmBreveModulo onBack={handleGoBack} title="Uniko Call" icon={IcoEmBreveCall}/>}
+          {screen==='uniko-call' && (authUser?.role==='admin'||cargoModules.has('uniko-call')) && <UnikoCall onBack={handleGoBack}/>}
           {screen==='comercial' && (authUser?.role==='admin'||cargoModules.has('comercial')) && <EmBreveModulo onBack={handleGoBack} title="Comercial" icon={IcoEmBreveComercial}/>}
         </div>
 
@@ -750,7 +746,7 @@ export default function CrescentHub() {
 
         {/* ── Assistente UNIKO — robô fixo no canto inferior esquerdo (voca os lembretes/avisos) ── */}
         {/* Some dentro do Uniko Fit e do Uniko Safer (pedido explícito — layout próprio, sem espaço pro robô). */}
-        {screen!=='uniko-fit' && screen!=='uniko-safer' && screen!=='uniko-security' && !(isMobile && screen==='alexa') && <UnikoAssistant authUser={authUser} notif={lembreteNotif} onDismissNotif={dismissNotif} inPortal={screen==='colaborador'} />}
+        {screen!=='uniko-fit' && screen!=='uniko-safer' && screen!=='uniko-security' && screen!=='uniko-call' && !(isMobile && screen==='alexa') && <UnikoAssistant authUser={authUser} notif={lembreteNotif} onDismissNotif={dismissNotif} inPortal={screen==='colaborador'} />}
 
         {/* ── Capture o Uniko — widget GLOBAL (aparece em qualquer tela, com som) ── */}
         {authUser && captureCfg && <CaptureUnikoWidget cfg={captureCfg} inPortal={screen==='colaborador'} />}
