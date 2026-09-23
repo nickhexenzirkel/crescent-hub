@@ -13,17 +13,12 @@ function render(state) {
 
 chrome.runtime.sendMessage({ type: 'UNIKO_CALL_GET_STATE' }).then((res) => render(res?.state || 'idle')).catch(() => render('idle'));
 
-// Pede a permissão de microfone numa página VISÍVEL (o offscreen document
-// não consegue mostrar esse prompt) — só precisa ser feito uma vez; depois
-// disso o Chrome lembra a permissão pra essa extensão.
-micBtn.addEventListener('click', async () => {
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    stream.getTracks().forEach((t) => t.stop());
-    micBtn.textContent = '✓ Microfone autorizado';
-  } catch (e) {
-    micBtn.textContent = 'Permissão negada — tente de novo';
-  }
+// Abre numa ABA (não pede aqui no popup) — o Chrome não mostra o prompt de
+// permissão direito numa janela de popup de extensão (fecha rápido demais /
+// contexto efêmero demais), costuma devolver "Permission denied" na hora,
+// mesmo sem o usuário ter clicado em nada. Ver permissoes.html/js.
+micBtn.addEventListener('click', () => {
+  chrome.tabs.create({ url: chrome.runtime.getURL('permissoes.html') });
 });
 
 toggleBtn.addEventListener('click', async () => {
