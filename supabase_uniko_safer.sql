@@ -71,11 +71,15 @@ create table if not exists public.uniko_safer_messages (
 );
 create index if not exists uniko_safer_messages_contact_idx on public.uniko_safer_messages (contact_id, sent_at);
 -- Busca global de mensagens (estilo WhatsApp, ver index.jsx) usa
--- ILIKE '%termo%' — sem índice isso é uma varredura completa da tabela.
--- pg_trgm deixa esse tipo de busca rápido mesmo com anos de mensagens
--- acumuladas. Extensão padrão disponível em qualquer projeto Supabase.
+-- ILIKE '%termo%' ORDER BY sent_at DESC LIMIT 80, sem filtrar por contato —
+-- sem índice isso é uma varredura completa da tabela. pg_trgm deixa achar o
+-- texto rápido; o índice em sent_at sozinho (não o composto acima, que exige
+-- contact_id fixo) é o que deixa ORDENAR por data rápido também, deixando o
+-- Postgres parar assim que achar as 80 mais recentes sem tocar no histórico
+-- velho. Ver supabase_uniko_safer_indice_busca.sql pra mais contexto.
 create extension if not exists pg_trgm;
 create index if not exists uniko_safer_messages_text_trgm_idx on public.uniko_safer_messages using gin (text gin_trgm_ops);
+create index if not exists uniko_safer_messages_sent_at_idx on public.uniko_safer_messages (sent_at desc);
 
 alter table public.uniko_safer_contacts enable row level security;
 alter table public.uniko_safer_exports  enable row level security;
