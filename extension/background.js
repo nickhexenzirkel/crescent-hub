@@ -588,19 +588,24 @@ if (chrome.notifications && chrome.notifications.onClicked) {
 
 /* ── Uniko Call — orquestra a gravação de chamada do WhatsApp Web ────────
    O trabalho pesado (Web Audio, MediaRecorder) roda no offscreen document
-   (offscreen.js) — o service worker aqui só descobre QUAL aba capturar e
-   repassa o streamId. ATENÇÃO ao testar: chrome.tabCapture.getMediaStreamId
-   pode exigir um gesto do usuário recente (clique) pra funcionar — se a
-   detecção AUTOMÁTICA (sem clique nenhum, só polling do content script)
-   falhar silenciosamente por causa disso, o botão manual do popup (que É um
-   clique) é o caminho que garantidamente funciona. ────────────────────── */
+   (offscreen.js) — o service worker aqui só prepara o offscreen document e
+   repassa o streamId. CONFIRMADO AO VIVO (23/set/2026): chrome.tabCapture.
+   getMediaStreamId só funciona chamado DIRETO na resposta a um clique — se
+   pedido aqui no background (depois de um await no meio do caminho, ou sem
+   clique nenhum como na detecção automática), o Chrome recusa com erro
+   silencioso. Por isso o streamId agora é obtido no PRÓPRIO clique, dentro
+   de popup.js — aqui só recebe pronto (ver UNIKO_CALL_START_WITH_STREAM). A
+   detecção automática (content script, sem clique) não tem como iniciar a
+   gravação sozinha — só avisa (badge + notificação) pra pessoa clicar. ── */
 
-let unikoCallState = 'idle'; // 'idle' | 'recording'
+let unikoCallState = 'idle'; // 'idle' | 'aguardando' | 'recording'
 
 function setUnikoCallState(state) {
   unikoCallState = state;
-  chrome.action.setBadgeText({ text: state === 'recording' ? '●' : '' }).catch(() => {});
-  chrome.action.setBadgeBackgroundColor({ color: '#e0533d' }).catch(() => {});
+  const badge = state === 'recording' ? '●' : state === 'aguardando' ? '!' : '';
+  const cor = state === 'recording' ? '#e0533d' : '#d4a017';
+  chrome.action.setBadgeText({ text: badge }).catch(() => {});
+  chrome.action.setBadgeBackgroundColor({ color: cor }).catch(() => {});
 }
 
 async function ensureOffscreenDocument() {
@@ -613,22 +618,16 @@ async function ensureOffscreenDocument() {
   });
 }
 
-async function findWhatsAppTabId() {
-  const tabs = await chrome.tabs.query({ url: 'https://web.whatsapp.com/*' });
-  // Prioriza a aba ativa/focada, se alguma das abas do WhatsApp Web for ela;
-  // senão pega a primeira encontrada.
-  return (tabs.find((t) => t.active) || tabs[0])?.id ?? null;
-}
-
-async function startUnikoCallRecording(tabId, contactName) {
-  if (unikoCallState === 'recording' || !tabId) return;
+// streamId já vem PRONTO (obtido no clique, dentro de popup.js) — aqui só
+// prepara o offscreen document e repassa pra gravação de verdade começar.
+async function startUnikoCallRecordingWithStream(streamId, contactName) {
+  if (unikoCallState === 'recording') return;
   try {
-    const streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: tabId });
     await ensureOffscreenDocument();
     chrome.runtime.sendMessage({ type: 'UNIKO_CALL_START', streamId, contactName });
     setUnikoCallState('recording');
   } catch (e) {
-    console.error('[uniko-call] falha ao iniciar (provável falta de gesto do usuário):', e.message);
+    console.error('[uniko-call] falha ao preparar o offscreen document:', e.message);
   }
 }
 
@@ -636,6 +635,22 @@ function stopUnikoCallRecording() {
   if (unikoCallState !== 'recording') return;
   chrome.runtime.sendMessage({ type: 'UNIKO_CALL_STOP' }).catch(() => {});
   setUnikoCallState('idle');
+}
+
+// Chamada detectada sem nenhum clique (polling do content script) — não dá
+// pra iniciar a captura sozinha (ver aviso no topo do bloco), só avisa.
+function avisarChamadaDetectada() {
+  if (unikoCallState === 'recording') return; // já gravando manualmente — nada a fazer
+  setUnikoCallState('aguardando');
+  showDesktopNotification({
+    id: 'uniko-call-detectada',
+    title: 'Chamada do WhatsApp detectada',
+    message: 'Clique no ícone do Uniko Cat-Bot e em "Iniciar gravação manual" pra gravar esta chamada.',
+  });
+}
+
+function limparAvisoChamada() {
+  if (unikoCallState === 'aguardando') setUnikoCallState('idle');
 }
 
 /* ── Listener de mensagens ────────────────────────────────── */
@@ -676,25 +691,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
   }
 
-  // Uniko Call — detecção automática (content script em web.whatsapp.com)
-  if (message.type === 'UNIKO_CALL_DETECTED_START') {
-    const tabId = sender.tab?.id;
-    if (tabId) startUnikoCallRecording(tabId, message.contactName);
-  }
-  if (message.type === 'UNIKO_CALL_DETECTED_STOP') stopUnikoCallRecording();
+  // Uniko Call — detecção automática (content script em web.whatsapp.com):
+  // não tem clique nenhum associado, não dá pra iniciar a captura sozinha —
+  // só avisa (ver comentário no bloco de definição das funções acima).
+  if (message.type === 'UNIKO_CALL_DETECTED_START') avisarChamadaDetectada();
+  if (message.type === 'UNIKO_CALL_DETECTED_STOP') limparAvisoChamada();
 
-  // Uniko Call — botão manual (popup)
-  if (message.type === 'UNIKO_CALL_MANUAL_START') {
-    (async () => {
-      const tabId = await findWhatsAppTabId();
-      if (!tabId) { console.warn('[uniko-call] nenhuma aba do WhatsApp Web aberta'); return; }
-      let contactName = null;
-      try {
-        const res = await chrome.tabs.sendMessage(tabId, { type: 'UNIKO_CALL_QUERY_CONTACT' });
-        contactName = res?.contactName || null;
-      } catch {}
-      startUnikoCallRecording(tabId, contactName);
-    })();
+  // Uniko Call — streamId já obtido no clique, dentro do popup (única forma
+  // que o Chrome aceita) — aqui só prepara o offscreen document e repassa.
+  if (message.type === 'UNIKO_CALL_START_WITH_STREAM') {
+    startUnikoCallRecordingWithStream(message.streamId, message.contactName);
   }
   if (message.type === 'UNIKO_CALL_MANUAL_STOP') stopUnikoCallRecording();
 

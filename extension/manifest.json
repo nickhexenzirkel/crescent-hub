@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Uniko Cat-Bot",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "Automação de downloads do módulo Faturamento do Uniko HUB + notificações desktop do Portal do Colaborador + gravação de chamadas do WhatsApp Web (Uniko Call)",
   "icons": {
     "16": "icon.png",
