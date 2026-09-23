@@ -172,6 +172,7 @@ const UnikoSafer = ({ onBack }) => {
   const toastTimer = useRef(null);
   const fileInputRef = useRef(null);
   const bulkInputRef = useRef(null);
+  const chatScrollRef = useRef(null);
 
   // ── Importação automática via WhatsApp Web (servidor Playwright na VPS) ──
   const [autoModalOpen, setAutoModalOpen] = useState(false);
@@ -331,6 +332,14 @@ const UnikoSafer = ({ onBack }) => {
     setChatSearchTerm('');
     loadChatMessages(id);
   };
+
+  // Abre a conversa já na mensagem mais recente (igual ao WhatsApp de
+  // verdade) em vez de começar do topo — sem isso, tinha que rolar até o
+  // fim toda vez só pra ver a última mensagem.
+  useEffect(() => {
+    const el = chatScrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [currentChatMessages]);
 
   // Resultado da busca global de mensagens: seleciona o contato (mesmo que
   // esteja fora da categoria ativa — o resultado só apareceu porque a
@@ -1074,7 +1083,7 @@ const UnikoSafer = ({ onBack }) => {
                   </div>
                 )}
 
-                <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: isMobile ? '16px' : '20px 28px', display: 'flex', flexDirection: 'column', gap: 3 }}>
+                <div ref={chatScrollRef} style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: isMobile ? '16px' : '20px 28px', display: 'flex', flexDirection: 'column', gap: 3 }}>
                   {renderChat()}
                 </div>
 
