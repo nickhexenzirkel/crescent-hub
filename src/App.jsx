@@ -19,6 +19,7 @@ import UnikoFit from './modules/uniko-fit';
 import InfoAdicional from './modules/info-adicional';
 import EmBreveModulo from './shared/EmBreveModulo';
 import UnikoSafer from './modules/uniko-safer';
+import UnikoSecurity from './modules/uniko-security';
 import Beneficios7 from './modules/beneficios-7';
 import { notifyDesktop, ensureNotifyPermission } from './utils/desktopNotify';
 import { useIsMobile } from './hooks/useIsMobile';
@@ -357,7 +358,7 @@ export default function CrescentHub() {
     if (adminOnly.includes(id) && !podeAdminOnly && !cargoModules.has(id)) return;
     // Só admin de verdade, nem moderador (cargo ainda libera) — vitrines "em
     // breve" e Portal dos Credenciados (7 Benefícios, dado de terceiro).
-    const strictAdminOnly = ['uniko-call','comercial','7-beneficios'];
+    const strictAdminOnly = ['uniko-call','comercial','7-beneficios','uniko-security'];
     if (strictAdminOnly.includes(id) && authUser?.role !== 'admin' && !cargoModules.has(id)) return;
     setPortalInitialTab(initialTab || null);
     navPush(id);
@@ -674,6 +675,7 @@ export default function CrescentHub() {
           {screen==='conexao-setorial' && <ConexaoSetorial onBack={handleGoBack} authUser={authUser} initialTab={portalInitialTab}/>}
           {screen==='info-adicional' && <InfoAdicional onBack={handleGoBack}/>}
           {screen==='uniko-safer' && (authUser?.role==='admin'||authUser?.role==='moderador'||cargoModules.has('uniko-safer')) && <UnikoSafer onBack={handleGoBack}/>}
+          {screen==='uniko-security' && (authUser?.role==='admin'||cargoModules.has('uniko-security')) && <UnikoSecurity onBack={handleGoBack}/>}
           {visited7Beneficios && <Beneficios7 onBack={handleGoBack} active={screen==='7-beneficios'}/>}
           {screen==='mercado-estelar' && <MercadoEstelar onBack={handleGoBack} authUser={authUser} userPhoto={userPhoto} initialTab={portalInitialTab}/>}
           {screen==='uniko-fit' && <UnikoFit onBack={handleGoBack} authUser={authUser} userPhoto={userPhoto}/>}
@@ -748,7 +750,7 @@ export default function CrescentHub() {
 
         {/* ── Assistente UNIKO — robô fixo no canto inferior esquerdo (voca os lembretes/avisos) ── */}
         {/* Some dentro do Uniko Fit e do Uniko Safer (pedido explícito — layout próprio, sem espaço pro robô). */}
-        {screen!=='uniko-fit' && screen!=='uniko-safer' && !(isMobile && screen==='alexa') && <UnikoAssistant authUser={authUser} notif={lembreteNotif} onDismissNotif={dismissNotif} inPortal={screen==='colaborador'} />}
+        {screen!=='uniko-fit' && screen!=='uniko-safer' && screen!=='uniko-security' && !(isMobile && screen==='alexa') && <UnikoAssistant authUser={authUser} notif={lembreteNotif} onDismissNotif={dismissNotif} inPortal={screen==='colaborador'} />}
 
         {/* ── Capture o Uniko — widget GLOBAL (aparece em qualquer tela, com som) ── */}
         {authUser && captureCfg && <CaptureUnikoWidget cfg={captureCfg} inPortal={screen==='colaborador'} />}

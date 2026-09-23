@@ -462,6 +462,16 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto, cargoModules})
       <path d="M9 11.5c0-1.2 1.2-2 3-2s3 .8 3 2-1.2 2-3 2h-1.2l-1 1v-1.4c-.5-.2-.8-.9-.8-1.6z" fill="currentColor" stroke="none"/>
     </svg>
   );
+  // Escudo com cadeado — Uniko Security (mesma família visual do IcoSafer,
+  // mas com cadeado em vez de balão de conversa: dado oficial/API, não
+  // export manual).
+  const IcoSecurityMod = (
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 3l7 3v5.5c0 4.6-3 8.3-7 9.5-4-1.2-7-4.9-7-9.5V6z"/>
+      <rect x="9.3" y="11.2" width="5.4" height="4.2" rx="1" fill="currentColor" stroke="none"/>
+      <path d="M10.3 11.2v-1.4a1.7 1.7 0 013.4 0v1.4"/>
+    </svg>
+  );
   // Crachá/carteirinha de credenciado — Portal dos Credenciados.
   const IcoBeneficios = (
     <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -497,6 +507,9 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto, cargoModules})
     {id:'conexao-setorial', label:'Trello',                sub:'Quadro Kanban · Salas por assunto',  icon:IcoConexao,        color:T.gold, bg:T.goldGl, tag:'Equipe',     adminOnly:false},
     {id:'info-adicional',   label:'Informações Adicionais', sub:'Instalar app · Sobre o Uniko',     icon:IcoInfo,        color:T.blue, bg:T.blueGl||T.goldGl, tag:'Guia', adminOnly:false},
     {id:'uniko-safer',      label:'Uniko Safer',           sub:'Conversas do WhatsApp organizadas', icon:IcoSafer,       color:T.gold, bg:T.goldGl, tag:'Admin',      adminOnly:true},
+    // Só admin vê (não moderador) — pedido explícito: dado sensível vindo da
+    // WhatsApp Cloud API oficial (Coexistence), não export manual.
+    {id:'uniko-security',   label:'Uniko Security',        sub:'Conversas via WhatsApp Cloud API', icon:IcoSecurityMod, color:T.gold, bg:T.goldGl, tag:'Admin',      adminOnly:true, strictAdmin:true},
     {id:'7-beneficios',     label:'Portal dos Credenciados', sub:'Plataforma 7 Benefícios',        icon:IcoBeneficios,  color:T.gold, bg:T.goldGl, tag:'Ferramenta', adminOnly:true, strictAdmin:true},
     // Só admin vê (não moderador) — ainda sem módulo de verdade, é só a vitrine.
     {id:'uniko-call',       label:'Uniko Call',            sub:'Em breve',                         icon:IcoCall,        color:T.gold, bg:T.goldGl, tag:'Em breve', adminOnly:true, strictAdmin:true},
@@ -530,7 +543,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto, cargoModules})
   // Computador: 1ª vez (sem ordem salva) usa esta sequência. Depois que a
   // pessoa reorganiza, lista do celular e grade do computador seguem a MESMA
   // ordem escolhida por ela.
-  const ORDEM_PADRAO = ['colaborador','mercado-estelar','alexa','faturamento','dashboard','conexao-setorial','ponto','uniko-fit','info-adicional','uniko-safer','7-beneficios','uniko-call','comercial'];
+  const ORDEM_PADRAO = ['colaborador','mercado-estelar','alexa','faturamento','dashboard','conexao-setorial','ponto','uniko-fit','info-adicional','uniko-safer','uniko-security','7-beneficios','uniko-call','comercial'];
   const modsTela = order.length ? mods : fixarPrincipal(applyOrder(filteredMods, ORDEM_PADRAO));
   /* Reordenar no celular é por SETAS, não arrastando. Não é preguiça: o
      drag-and-drop HTML5 (o mesmo que a grade usa no computador) simplesmente não
