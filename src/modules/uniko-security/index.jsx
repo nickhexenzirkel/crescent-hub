@@ -56,6 +56,14 @@ const IcoRefresh = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="
 
 const TAG_COLORS = ['#d4a017', '#e0533d', '#3ba55c', '#4a90d9', '#9b59b6', '#e8935a', '#5bb8a8', '#c65da0'];
 
+// Um setor = um número/conexão Dualhook diferente (ver UNIKO_SECURITY_SECTORS
+// em whatsappCloudApi.js). Acrescente aqui quando conectar um setor novo —
+// precisa bater com o `category` configurado no servidor.
+const CATEGORIES = [
+  { id: 'faturamento', label: 'Faturamento' },
+  { id: 'financeiro', label: 'Financeiro' },
+];
+
 const AUDIT_ACTIONS = [
   { id: 'all', label: 'Tudo' },
   { id: 'view', label: 'Visualizações', color: '#4a90d9' },
@@ -87,6 +95,7 @@ const UnikoSecurity = ({ onBack }) => {
   const inputStyle = { width: '100%', padding: '9px 11px', borderRadius: 10, border: `1px solid ${T.border}`, background: 'transparent', color: T.text, fontSize: 13, fontFamily: 'var(--font-body)', outline: 'none', boxSizing: 'border-box' };
 
   const [contacts, setContacts] = useState([]);
+  const [activeCategory, setActiveCategory] = useState('faturamento');
   const [loadingContacts, setLoadingContacts] = useState(true);
   const [search, setSearch] = useState('');
   const [sortMode, setSortMode] = useState('recent'); // 'recent' | 'asc' | 'desc'
@@ -126,6 +135,15 @@ const UnikoSecurity = ({ onBack }) => {
     if (error) { flash('Erro ao carregar contatos: ' + error.message); setLoadingContacts(false); return; }
     setContacts(data || []);
     setLoadingContacts(false);
+  };
+
+  const switchCategory = (cat) => {
+    setActiveCategory(cat);
+    // Sai da conversa aberta se ela não for do setor pra onde acabou de
+    // trocar — senão a tela de chat ficava mostrando alguém que sumiu da
+    // lista ao lado.
+    const sel = contacts.find(c => c.id === selectedContactId);
+    if (sel && (sel.category || 'faturamento') !== cat) setSelectedContactId(null);
   };
 
   const loadTags = async () => {
@@ -302,6 +320,7 @@ const UnikoSecurity = ({ onBack }) => {
   const toggleSelectionMode = () => { setSelectionMode(v => !v); setSelectedIds(new Set()); };
   const toggleSelected = (id) => setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const filteredContacts = contacts.filter(c => {
+    if ((c.category || 'faturamento') !== activeCategory) return false;
     if (!search.trim()) return true;
     const q = search.trim().toLowerCase();
     return c.name.toLowerCase().includes(q) || (c.wa_id || '').toLowerCase().includes(q);
@@ -313,7 +332,12 @@ const UnikoSecurity = ({ onBack }) => {
     if (!b.last_message_at) return -1;
     return b.last_message_at.localeCompare(a.last_message_at);
   });
-  const visibleMessageResults = search.trim().length >= 2 ? messageResults.slice(0, 20) : [];
+  // Resultado de busca de mensagem só conta se o contato dono dela for do
+  // setor ativo (a busca em si roda em uniko_security_messages, sem coluna
+  // de setor própria — cruza com a lista de contatos já carregada).
+  const visibleMessageResults = search.trim().length >= 2
+    ? messageResults.filter(r => (contacts.find(c => c.id === r.contact_id)?.category || 'faturamento') === activeCategory).slice(0, 20)
+    : [];
   const selectAllVisible = () => setSelectedIds(new Set(filteredContacts.map(c => c.id)));
   const deselectAll = () => setSelectedIds(new Set());
   const deleteSelected = async () => {
@@ -405,6 +429,19 @@ const UnikoSecurity = ({ onBack }) => {
               </div>
             </div>
 
+            <div style={{ padding: '0 16px 10px', display: 'flex', gap: 6 }}>
+              {CATEGORIES.map(cat => {
+                const sel = activeCategory === cat.id;
+                return (
+                  <button key={cat.id} onClick={() => switchCategory(cat.id)}
+                    style={{ flex: 1, padding: '8px 10px', borderRadius: 10, cursor: 'pointer', fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-body)',
+                      border: `1.5px solid ${sel ? T.gold : T.border}`, background: sel ? T.goldGl : 'transparent', color: sel ? T.gold : T.textS }}>
+                    {cat.label}
+                  </button>
+                );
+              })}
+            </div>
+
             <div style={{ padding: '0 16px 10px' }}>
               <div style={{ position: 'relative' }}>
                 <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: T.textT }}><IcoSearch /></span>
@@ -438,7 +475,9 @@ const UnikoSecurity = ({ onBack }) => {
                 <div style={{ padding: '24px 12px', textAlign: 'center', color: T.textT, fontSize: 13 }}>Carregando…</div>
               ) : filteredContacts.length === 0 ? (
                 <div style={{ padding: '24px 12px', textAlign: 'center', color: T.textT, fontSize: 13 }}>
-                  {contacts.length === 0 ? 'Nenhuma conversa chegou ainda. Assim que alguém mandar mensagem pro número, o contato aparece aqui sozinho.' : 'Nenhum contato encontrado.'}
+                  {contacts.filter(c => (c.category || 'faturamento') === activeCategory).length === 0
+                    ? 'Nenhuma conversa chegou ainda nesse setor. Assim que alguém mandar mensagem pro número, o contato aparece aqui sozinho.'
+                    : 'Nenhum contato encontrado.'}
                 </div>
               ) : filteredContacts.map(c => {
                 const active = c.id === selectedContactId;
