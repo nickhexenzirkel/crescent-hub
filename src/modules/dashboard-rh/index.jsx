@@ -1627,7 +1627,19 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
     catch (e) { setNumSched(before); flashNumSched('❌ ' + (e.message || 'Erro ao salvar a fila')); }
     setNumSchedBusy(false);
   };
-  const toggleNumFormPoolValue = (n) => setNumSchedForm(f => ({ ...f, pool: f.pool.includes(n) ? f.pool.filter(x => x !== n) : [...f.pool, n].sort((a, b) => a - b) }));
+  // Sincroniza "Vagas" com a quantidade de números marcados — evita o bug relatado
+  // de marcar N números na grade e esquecer de subir "Vagas" (que fica em 3 por
+  // padrão), fazendo só parte dos números escolhidos serem sorteados de verdade.
+  // Só se aplica no modo "1 diferente por vaga" (NUMERO_RANDOM_PER_SLOT_ID) — nos
+  // outros modos (número fixo / mesmo número pra todo mundo) o tamanho do pool não
+  // tem relação nenhuma com quantas vagas devem existir.
+  const toggleNumFormPoolValue = (n) => setNumSchedForm(f => {
+    const pool = f.pool.includes(n) ? f.pool.filter(x => x !== n) : [...f.pool, n].sort((a, b) => a - b);
+    const maxWinners = f.numeroMode === NUMERO_RANDOM_PER_SLOT_ID
+      ? Math.min(Math.max(pool.length, 1), 10)
+      : f.maxWinners;
+    return { ...f, pool, maxWinners };
+  });
   const addNumSchedEntry = async () => {
     const f = numSchedForm;
     if (!f.pool.length) { flashNumSched('⚠️ Marque pelo menos 1 número elegível'); return; }

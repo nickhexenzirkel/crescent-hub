@@ -87,9 +87,9 @@ export function numeroValueForSlot(cfg, taken = 0) {
   return cfg?.numeroValue;
 }
 
-/* ── Até N capturadores por evento (1 a 5, padrão 3 — mesmo teto do Uniko) ── */
+/* ── Até N capturadores por evento (1 a 10, padrão 3) ── */
 export const CAPTURE_MAX_WINNERS_DEFAULT = 3;
-export const CAPTURE_MAX_WINNERS_CAP = 5;
+export const CAPTURE_MAX_WINNERS_CAP = 10;
 export function maxWinnersFor(cfg) {
   const n = Math.floor(Number(cfg?.maxWinners));
   if (!Number.isFinite(n) || n < 1) return CAPTURE_MAX_WINNERS_DEFAULT;

@@ -30,7 +30,7 @@ create policy capture_numero_read   on public.capture_numero_captures for select
 create policy capture_numero_insert on public.capture_numero_captures for insert with check (true);
 create policy capture_numero_delete on public.capture_numero_captures for delete using (true);
 
--- ── Vagas do evento: até 5 capturadores por evento (event_id, player), 1 slot cada ──
+-- ── Vagas do evento: até 10 capturadores por evento (event_id, player), 1 slot cada ──
 create table if not exists public.capture_numero_event (
   event_id      text not null,
   player        text not null,
@@ -79,7 +79,7 @@ create or replace function public.capture_numero_try(
 declare
   v_slot  integer;
   v_count integer;
-  v_max   integer := greatest(1, least(coalesce(p_max_winners, 3), 5));
+  v_max   integer := greatest(1, least(coalesce(p_max_winners, 3), 10));
   v_num   integer;
 begin
   if exists (select 1 from public.capture_numero_event where event_id = p_event_id and player = p_player) then
