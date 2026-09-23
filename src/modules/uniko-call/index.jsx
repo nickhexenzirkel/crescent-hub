@@ -144,6 +144,9 @@ const UnikoCall = ({ onBack }) => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, fontWeight: 700, color: T.gold, marginBottom: 6 }}>
                   <IcoPhone /> Chamada{dur ? ` · ${dur}` : ''}
                 </div>
+                {call.audio_url && (
+                  <audio controls preload="none" src={call.audio_url} style={{ width: '100%', height: 32, marginBottom: 8 }} />
+                )}
                 {status
                   ? <span style={{ color: call.status === 'error' ? T.danger : T.textT, fontStyle: 'italic' }}>{status}</span>
                   : (call.transcript || <span style={{ color: T.textT, fontStyle: 'italic' }}>(sem fala reconhecida)</span>)}
