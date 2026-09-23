@@ -85,6 +85,15 @@ $$;
 create or replace function public.jwt_claims()
 returns jsonb
 language plpgsql
+stable -- CAUSA RAIZ ACHADA AO VIVO (22/09/2026): sem isso, o Postgres não sabe
+       -- que o resultado é o mesmo durante toda a consulta e recalcula a
+       -- assinatura HMAC-SHA256 (+ parsing) LINHA POR LINHA em toda política
+       -- de RLS que chama is_admin_ou_moderador()/current_role_uniko() — numa
+       -- tabela com dezenas de milhares de linhas (ex: uniko_safer_messages)
+       -- isso sozinho estourava o statement_timeout, mesmo com os índices
+       -- certos no lugar (confirmado: mesma query direto no SQL Editor, que
+       -- roda como superusuário e ignora RLS, levava 6ms). `request.headers`
+       -- não muda no meio de uma consulta, então marcar como stable é seguro.
 security definer
 set search_path = public, private, extensions, pg_temp
 as $$
