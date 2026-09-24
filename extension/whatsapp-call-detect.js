@@ -17,12 +17,17 @@ let callActive = false;
 let pollTimer = null;
 
 function findEndCallButton() {
-  // Botão de "Encerrar chamada" só existe na tela enquanto a chamada está
-  // em andamento — é o sinal mais confiável de "chamada ativa" no WhatsApp Web.
+  // Botão de encerrar/desligar só existe na tela enquanto a chamada está em
+  // andamento — é o sinal mais confiável de "chamada ativa" no WhatsApp Web.
+  // "Desligar" confirmado ao vivo 24/set/2026 (inspecionei uma chamada real)
+  // — a Meta trocou o texto de "Encerrar chamada" em algum momento; mantém
+  // os textos antigos também, de graça, caso outra versão/idioma ainda use.
   const selectors = [
+    '[aria-label*="Desligar" i]',
     '[aria-label*="Encerrar chamada" i]',
     '[aria-label*="End call" i]',
     '[aria-label*="Recusar chamada" i]', // ainda tocando, mas indica UI de chamada na tela
+    '[data-testid="voip-container-audio-call"]', // widget da ligação em si — presente sempre que há uma chamada ativa, redundante de propósito
   ];
   for (const sel of selectors) {
     const el = document.querySelector(sel);
@@ -31,9 +36,19 @@ function findEndCallButton() {
   return null;
 }
 
-// Nome do contato: tenta pegar do cabeçalho da conversa aberta (mesma
-// pessoa que está ligando/recebendo, na esmagadora maioria dos casos).
+// Nome do contato: PRIORIZA o nome de quem está NA LIGAÇÃO (widget da
+// própria chamada, seletor estável achado ao vivo 24/set/2026 inspecionando
+// o DOM durante uma chamada real: data-testid="voip-call-participant-info-name"
+// — atributo interno do WhatsApp, não classe CSS ofuscada, bem mais confiável
+// que ler o cabeçalho da conversa aberta) — antes o nome vinha da CONVERSA
+// aberta na tela, que podia ser uma pessoa DIFERENTE de quem estava
+// ligando (ex: ligação toca enquanto outra conversa está aberta), fazendo
+// tudo cair em "Contato desconhecido" e misturar chamadas de gente
+// diferente no mesmo contato. Cabeçalho da conversa some como último
+// recurso, se por algum motivo o widget da ligação não for encontrado.
 function currentContactName() {
+  const callName = document.querySelector('[data-testid="voip-call-participant-info-name"]');
+  if (callName?.textContent?.trim()) return callName.textContent.trim();
   const header = document.querySelector('header [role="button"] span[dir="auto"], header span[dir="auto"][title]');
   return header?.getAttribute('title') || header?.textContent?.trim() || null;
 }
