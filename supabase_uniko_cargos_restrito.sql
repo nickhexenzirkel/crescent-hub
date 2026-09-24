@@ -1,0 +1,21 @@
+-- ════════════════════════════════════════════════════════════════════════
+--  Cargos (Dashboard RH → Gerenciar Permissões) — modo "restrito".
+--
+--  Hoje o cargo só ADICIONA acesso a módulos sensíveis (marcados adminOnly
+--  no código) — módulos abertos por padrão (Portal do Colaborador, Prisma
+--  Store, Central Alexa, Trello...) continuam visíveis pra QUALQUER
+--  colaborador logado, cargo ou não. Achado ao vivo (24/set/2026): usuário
+--  queria um cargo "Comercial" que restringisse Raniere a só 3 módulos
+--  específicos, escondendo o resto — isso não existia.
+--
+--  `restrict_only`: por cargo, opt-in (default false, sem mudar nada pra
+--  cargo já existente). Quando true, quem tem ESSE cargo (e nenhum outro
+--  que não seja restrito) passa a ver SÓ os módulos marcados nesse cargo,
+--  mesmo os que normalmente são abertos por padrão. Nunca afeta
+--  admin/moderador — eles continuam vendo tudo, sempre.
+--
+--  Rode no projeto Supabase principal do Uniko (não é o do Safer/Security).
+--  É idempotente.
+-- ════════════════════════════════════════════════════════════════════════
+
+alter table public.uniko_cargos add column if not exists restrict_only boolean not null default false;

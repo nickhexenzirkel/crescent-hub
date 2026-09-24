@@ -51,11 +51,15 @@ export default function CrescentHub() {
   // Cargos (Dashboard RH → Gerenciar Permissões): camada ADICIONAL de acesso
   // a módulo por cima do role admin/moderador, que continuam vendo tudo sem
   // nenhuma mudança. Recarrega sempre que o usuário logado muda.
+  // cargoRestricted: true se algum cargo do usuário é "modo restrito" (ver
+  // supabase_uniko_cargos_restrito.sql) — nesse caso, módulos abertos por
+  // padrão (sem adminOnly) também passam a exigir estar em cargoModules.
   const [cargoModules, setCargoModules] = useState(() => new Set());
+  const [cargoRestricted, setCargoRestricted] = useState(false);
   useEffect(() => {
-    if (!authUser?.id) { setCargoModules(new Set()); return; }
+    if (!authUser?.id) { setCargoModules(new Set()); setCargoRestricted(false); return; }
     let ativo = true;
-    loadCargoModulesForEmployeeId(authUser.id).then(set => { if (ativo) setCargoModules(set); });
+    loadCargoModulesForEmployeeId(authUser.id).then(({ moduleIds, restricted }) => { if (ativo) { setCargoModules(moduleIds); setCargoRestricted(restricted); } });
     return () => { ativo = false; };
   }, [authUser]);
   const [portalInitialTab, setPortalInitialTab] = useState(null); // aba com que o Portal abre (ex: "dados" ao clicar em "Editar perfil")
@@ -348,6 +352,11 @@ export default function CrescentHub() {
     // breve" e Portal dos Credenciados (7 Benefícios, dado de terceiro).
     const strictAdminOnly = ['uniko-call','comercial','7-beneficios','uniko-security'];
     if (strictAdminOnly.includes(id) && authUser?.role !== 'admin' && !cargoModules.has(id)) return;
+    // Modo restrito (cargo com restrict_only): quem tem cargo assim só vê os
+    // módulos marcados nele — inclusive os que normalmente são abertos por
+    // padrão pra todo mundo (Portal do Colaborador, Prisma Store, etc.).
+    // Nunca vale pra admin/moderador, que continuam vendo tudo sempre.
+    if (cargoRestricted && !podeAdminOnly && !cargoModules.has(id)) return;
     setPortalInitialTab(initialTab || null);
     navPush(id);
   };
@@ -654,7 +663,7 @@ export default function CrescentHub() {
         <div style={{position:'relative',zIndex:1,minHeight:'100vh'}}>
           {screen==='landing'     && <LandingPage    onStart={()=>navPush('login')}/>}
           {screen==='login'       && <LoginScreen    onLogin={handleLogin}/>}
-          {screen==='modules'     && <ModuleSelector onSelect={handleModuleSelect} authUser={authUser} onLogout={handleLogout} userPhoto={userPhoto} cargoModules={cargoModules}/>}
+          {screen==='modules'     && <ModuleSelector onSelect={handleModuleSelect} authUser={authUser} onLogout={handleLogout} userPhoto={userPhoto} cargoModules={cargoModules} cargoRestricted={cargoRestricted}/>}
           {screen==='colaborador' && <Portal         onBack={handleGoBack} onGoAlexa={()=>navPush('alexa')} userPhoto={userPhoto} onPhotoChange={p=>setUserPhoto(p)} initialTab={portalInitialTab}/>}
           {screen==='ponto'       && (authUser?.role==='admin'||authUser?.role==='moderador'||cargoModules.has('ponto')) && <PontoEletronico onBack={handleGoBack} isAdmin={true}/>}
           {screen==='dashboard'   && (authUser?.role==='admin'||authUser?.role==='moderador'||cargoModules.has('dashboard')) && <DashboardRH onBack={handleGoBack} adminName={authUser.name} role={authUser.role}/>}

@@ -17,18 +17,29 @@ import { supabase } from '../contexts/user';
 const TABLE_CARGOS = 'uniko_cargos';
 const TABLE_MEMBROS = 'uniko_cargo_membros';
 
-// Módulos liberados pro funcionário informado, pela união de todos os
-// cargos dele.
+// Módulos liberados pro funcionário informado (união de todos os cargos
+// dele) + se algum desses cargos é "restrito" (ver supabase_uniko_cargos_restrito.sql):
+// nesse caso, quem chama (App.jsx) esconde até os módulos abertos por
+// padrão que não estiverem nessa união — não só os sensíveis de sempre.
 export async function loadCargoModulesForEmployeeId(employeeId) {
-  if (!employeeId) return new Set();
+  if (!employeeId) return { moduleIds: new Set(), restricted: false };
   const { data, error } = await supabase
     .from(TABLE_MEMBROS)
-    .select('uniko_cargos(module_ids)')
+    .select('uniko_cargos(module_ids, restrict_only)')
     .eq('employee_id', employeeId);
-  if (error || !data) return new Set();
-  const ids = new Set();
-  data.forEach(row => { (row.uniko_cargos?.module_ids || []).forEach(id => ids.add(id)); });
-  return ids;
+  if (error || !data) return { moduleIds: new Set(), restricted: false };
+  const moduleIds = new Set();
+  let restricted = false;
+  data.forEach(row => {
+    (row.uniko_cargos?.module_ids || []).forEach(id => moduleIds.add(id));
+    if (row.uniko_cargos?.restrict_only) restricted = true;
+  });
+  return { moduleIds, restricted };
+}
+
+export async function updateCargoRestrict(cargoId, restrictOnly) {
+  const { error } = await supabase.from(TABLE_CARGOS).update({ restrict_only: restrictOnly, updated_at: new Date().toISOString() }).eq('id', cargoId);
+  if (error) throw new Error(error.message);
 }
 
 export async function loadCargos() {

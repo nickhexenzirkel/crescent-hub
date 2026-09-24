@@ -13,7 +13,7 @@ import { Card, Btn } from '../../shared/components';
 import { MODULES_CATALOG } from '../../shared/modulesCatalog';
 import {
   loadCargos, loadCargoMembros, createCargo, renameCargo,
-  updateCargoModules, deleteCargo, addMembro, removeMembro,
+  updateCargoModules, updateCargoRestrict, deleteCargo, addMembro, removeMembro,
 } from '../../shared/cargoPermissions';
 
 const authHeader = () => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('ch_token') || ''}` });
@@ -90,6 +90,17 @@ const GerenciarPermissoesTab = ({ cardBg }) => {
     }
   };
 
+  const toggleRestrito = async (cargo) => {
+    const novo = !cargo.restrict_only;
+    setCargos(prev => prev.map(c => c.id === cargo.id ? { ...c, restrict_only: novo } : c)); // otimista
+    try {
+      await updateCargoRestrict(cargo.id, novo);
+    } catch (err) {
+      flash('Erro: ' + err.message);
+      setCargos(prev => prev.map(c => c.id === cargo.id ? { ...c, restrict_only: !novo } : c)); // desfaz
+    }
+  };
+
   const excluirCargo = async (cargo) => {
     if (!window.confirm(`Excluir o cargo "${cargo.name}"? Quem estava nele perde o acesso liberado por ele imediatamente.`)) return;
     try {
@@ -122,7 +133,7 @@ const GerenciarPermissoesTab = ({ cardBg }) => {
       <div style={{ padding: '14px 20px', borderRadius: 13, background: bg, border: `1px solid ${T.border}`, boxShadow: T.shM }}>
         <div style={{ fontFamily: 'var(--font-brand)', fontSize: 18, fontWeight: 700, color: T.text, letterSpacing: '.04em' }}>Gerenciar Permissões</div>
         <div style={{ fontSize: 13, color: T.textS, marginTop: 2 }}>
-          Crie cargos e marque quais módulos cada um libera. Isso é ADICIONAL ao acesso de Administrador/Moderador — eles continuam vendo tudo do jeito que já é. Um colaborador pode ter vários cargos ao mesmo tempo: o acesso dele é a soma dos módulos de todos os cargos que tiver.
+          Crie cargos e marque quais módulos cada um libera. Por padrão isso é ADICIONAL ao acesso de Administrador/Moderador (que continuam vendo tudo) e aos módulos já abertos pra todo mundo — só soma acesso extra. Ative "Modo restrito" num cargo pra fazer o oposto: quem tiver só esse cargo passa a ver SÓ os módulos marcados, escondendo até os abertos por padrão. Um colaborador pode ter vários cargos ao mesmo tempo: o acesso dele é a soma dos módulos de todos.
         </div>
       </div>
 
@@ -163,6 +174,7 @@ const GerenciarPermissoesTab = ({ cardBg }) => {
                 <div style={{ fontSize: 14.5, fontWeight: 700, color: T.text }}>{cargo.name}</div>
                 <div style={{ fontSize: 11.5, color: T.textT, marginTop: 2 }}>
                   {(cargo.module_ids || []).length} módulo{(cargo.module_ids || []).length === 1 ? '' : 's'} · {membrosDoCargo.length} pessoa{membrosDoCargo.length === 1 ? '' : 's'}
+                  {cargo.restrict_only && <span style={{ marginLeft: 8, color: T.gold, fontWeight: 700 }}>· Restrito</span>}
                 </div>
               </div>
             </div>
@@ -185,6 +197,21 @@ const GerenciarPermissoesTab = ({ cardBg }) => {
                       Renomear cargo
                     </button>
                   )}
+                </div>
+
+                {/* Modo restrito */}
+                <div onClick={() => toggleRestrito(cargo)} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 12px', borderRadius: 10, cursor: 'pointer',
+                  background: cargo.restrict_only ? T.goldGl : (T.surfaceSub || 'rgba(0,0,0,0.03)'), border: `1.5px solid ${cargo.restrict_only ? T.gold : T.border}` }}>
+                  <div style={{ width: 34, height: 20, borderRadius: 999, flexShrink: 0, marginTop: 1, position: 'relative', transition: 'background .15s',
+                    background: cargo.restrict_only ? T.gold : (T.border) }}>
+                    <div style={{ position: 'absolute', top: 2, left: cargo.restrict_only ? 16 : 2, width: 16, height: 16, borderRadius: '50%', background: '#fff', transition: 'left .15s', boxShadow: '0 1px 3px rgba(0,0,0,.3)' }} />
+                  </div>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 12.5, fontWeight: 700, color: cargo.restrict_only ? T.gold : T.text }}>Modo restrito</div>
+                    <div style={{ fontSize: 11.5, color: T.textT, marginTop: 2, lineHeight: 1.5 }}>
+                      Quem tem esse cargo só vê os módulos marcados abaixo — inclusive os que normalmente são abertos pra todo mundo (Portal do Colaborador, Prisma Store, Central Alexa, Trello...). Nunca afeta Administrador/Moderador.
+                    </div>
+                  </div>
                 </div>
 
                 {/* Módulos liberados */}

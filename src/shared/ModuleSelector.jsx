@@ -240,10 +240,13 @@ const SHOOT_POS = [
   {x:'74%', y:'78%', delay:'-3.1s'},
 ];
 
-const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto, cargoModules}) => {
+const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto, cargoModules, cargoRestricted}) => {
   // Cargos (Dashboard RH → Gerenciar Permissões) liberam módulo por módulo
   // pra quem não é admin/moderador — camada ADICIONAL, só soma acesso, nunca
-  // tira o que admin/moderador já tinham.
+  // tira o que admin/moderador já tinham. `cargoRestricted` é a exceção: um
+  // cargo em "modo restrito" (ver supabase_uniko_cargos_restrito.sql) faz a
+  // pessoa só ver os módulos marcados nele, escondendo até os que normalmente
+  // são abertos por padrão pra todo mundo — nunca afeta admin/moderador.
   const temCargoPara = (id) => cargoModules?.has?.(id) || false;
   useNomesExibicao(); // re-renderiza quando o nome de exibição carrega/muda
   const [pressed, setPressed] = useState(null);
@@ -532,7 +535,13 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto, cargoModules})
       tamPadrao: chave === 'dados' ? 'g' : undefined,
     }));
   const filteredMods = [...allMods, ...atalhoMods]
-    .filter(m => !m.adminOnly || (m.strictAdmin ? isAdmin : podeAdminOnly) || temCargoPara(m.id));
+    .filter(m => {
+      // Atalho aponta pra um módulo de verdade via `m.modulo` (ex: atalho
+      // "Seus Dados" → módulo 'colaborador') — no modo restrito, checa esse
+      // alvo real, senão um atalho furava a restrição do card principal.
+      if (cargoRestricted && !isAdmin && !isModerador) return temCargoPara(m.modulo || m.id);
+      return !m.adminOnly || (m.strictAdmin ? isAdmin : podeAdminOnly) || temCargoPara(m.id);
+    });
   /* O Portal do Colaborador fica SEMPRE em primeiro — em qualquer ordem salva,
      no computador e no celular. Reordenar mexe só nos outros. */
   const fixarPrincipal = (lista) => {
