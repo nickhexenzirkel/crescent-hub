@@ -134,22 +134,37 @@ const UnikoCall = ({ onBack }) => {
       const dur = durationLabel(call.started_at, call.ended_at);
       const status = statusLabel(call);
       const dividerStyle = { alignSelf: 'center', textAlign: 'center', fontSize: 11, fontWeight: 700, color: T.textT, background: T.surface, border: `1px solid ${T.border}`, borderRadius: 20, padding: '4px 14px', margin: '16px auto 8px', width: 'fit-content' };
+      const noConsent = call.consent_given === false;
       return (
         <div key={call.id}>
           {divider && <div style={dividerStyle}>{formatDayLabel(call.started_at)}</div>}
           <div style={{ display: 'flex', justifyContent: 'flex-start', width: '100%', marginTop: 8 }}>
             <div style={{ display: 'flex', flexDirection: 'column', maxWidth: '78%', alignItems: 'flex-start' }}>
               <div style={{ padding: '10px 14px', borderRadius: 16, fontSize: 13.5, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-                background: T.surface, color: T.text, border: `1px solid ${T.border}`, borderBottomLeftRadius: 4 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, fontWeight: 700, color: T.gold, marginBottom: 6 }}>
+                background: noConsent ? (T.dangerGl || 'rgba(224,83,61,0.08)') : T.surface, color: T.text,
+                border: `1px solid ${noConsent ? T.danger : T.border}`, borderBottomLeftRadius: 4 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, fontWeight: 700, color: T.gold, marginBottom: 6, flexWrap: 'wrap' }}>
                   <IcoPhone /> Chamada{dur ? ` · ${dur}` : ''}
+                  <span style={{ color: T.textT, fontWeight: 600 }}>· Protocolo #{call.protocol}</span>
                 </div>
-                {call.audio_url && (
-                  <audio controls preload="none" src={call.audio_url} style={{ width: '100%', height: 32, marginBottom: 8 }} />
+                {noConsent ? (
+                  <>
+                    <div style={{ color: T.danger, fontWeight: 800, fontSize: 12.5, marginBottom: 4 }}>❌ Aviso prévio de ligação não dito</div>
+                    <span style={{ color: T.danger }}>Por questões de segurança e proteção de dados, como não foi feito o aviso prévio, não houve o registro da ligação.</span>
+                  </>
+                ) : (
+                  <>
+                    {call.consent_given === true && (
+                      <div style={{ color: T.green || '#3ba55c', fontWeight: 800, fontSize: 12.5, marginBottom: 6 }}>✅ Aviso prévio de ligação dito</div>
+                    )}
+                    {call.audio_url && (
+                      <audio controls preload="none" src={call.audio_url} style={{ width: '100%', height: 32, marginBottom: 8 }} />
+                    )}
+                    {status
+                      ? <span style={{ color: call.status === 'error' ? T.danger : T.textT, fontStyle: 'italic' }}>{status}</span>
+                      : (call.transcript || <span style={{ color: T.textT, fontStyle: 'italic' }}>(sem fala reconhecida)</span>)}
+                  </>
                 )}
-                {status
-                  ? <span style={{ color: call.status === 'error' ? T.danger : T.textT, fontStyle: 'italic' }}>{status}</span>
-                  : (call.transcript || <span style={{ color: T.textT, fontStyle: 'italic' }}>(sem fala reconhecida)</span>)}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '3px 4px 0' }}>
                 <span style={{ fontSize: 10.5, color: T.textT }}>{formatTime(call.started_at)}</span>
