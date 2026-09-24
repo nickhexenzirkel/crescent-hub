@@ -10,7 +10,7 @@
 // gating em App.jsx/ModuleSelector.jsx.
 import { useState, useEffect, useRef } from 'react';
 import { T } from '../../contexts/theme';
-import { getAuthUser } from '../../contexts/user';
+import { getAuthUser, SERVER_URL } from '../../contexts/user';
 import { supabase } from './securitySupabase';
 import { useIsMobile } from '../../hooks/useIsMobile';
 
@@ -53,6 +53,10 @@ const IcoSort = () => (<svg width="13" height="13" viewBox="0 0 24 24" fill="non
 const IcoTag = () => (<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.6 12.3L12.7 20.2a2 2 0 01-2.8 0l-6-6a2 2 0 010-2.8l7.9-7.9A2 2 0 0113.3 3H19a2 2 0 012 2v5.7a2 2 0 01-.4 1.6z" /><circle cx="15.5" cy="8.5" r="1.2" fill="currentColor" stroke="none" /></svg>);
 const IcoAudit = () => (<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 3h6a2 2 0 012 2v1h1a1 1 0 011 1v13a1 1 0 01-1 1H6a1 1 0 01-1-1V7a1 1 0 011-1h1V5a2 2 0 012-2z" /><path d="M9 3a2 2 0 002 2h2a2 2 0 002-2" /><line x1="8" y1="12" x2="16" y2="12" /><line x1="8" y1="16" x2="13" y2="16" /></svg>);
 const IcoRefresh = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10" /><path d="M20.5 15a9 9 0 11-2.1-9.4L23 10" /></svg>);
+const IcoShieldDown = () => (<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="M12 8v6M9 11l3 3 3-3" /></svg>);
+const IcoUpload = () => (<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>);
+const IcoHistory = () => (<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" /></svg>);
+const IcoDownload = () => (<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>);
 
 const TAG_COLORS = ['#d4a017', '#e0533d', '#3ba55c', '#4a90d9', '#9b59b6', '#e8935a', '#5bb8a8', '#c65da0'];
 
@@ -124,10 +128,100 @@ const UnikoSecurity = ({ onBack }) => {
   const toastTimer = useRef(null);
   const chatScrollRef = useRef(null);
 
+  // ── Backup criptografado (.ukbak) — gerar (tudo ou 1 contato), importar/ler
+  // e histórico dos automáticos mensais. Ver unikoSecurityBackup.js no servidor.
+  const [backupBusy, setBackupBusy] = useState(null); // null | 'Gerando backup completo…' | 'Gerando backup da conversa…'
+  const [importBusy, setImportBusy] = useState(false);
+  const [importedBackup, setImportedBackup] = useState(null); // { data, viewingContactId }
+  const [autoBackupsOpen, setAutoBackupsOpen] = useState(false);
+  const [autoBackups, setAutoBackups] = useState([]);
+  const [autoBackupsLoading, setAutoBackupsLoading] = useState(false);
+  const importFileRef = useRef(null);
+
   const flash = (msg) => {
     setToast(msg);
     clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToast(''), 2800);
+  };
+
+  const authHeaders = () => ({ Authorization: `Bearer ${localStorage.getItem('ch_token') || ''}` });
+
+  const downloadBlobResponse = async (res, filename) => {
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const generateBackup = async (scope, contactId, label) => {
+    setBackupBusy(scope === 'all' ? 'Gerando backup completo…' : 'Gerando backup da conversa…');
+    try {
+      const startRes = await fetch(`${SERVER_URL}/api/security/backup/start`, {
+        method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scope, contactId }),
+      });
+      const startData = await startRes.json();
+      if (!startRes.ok) throw new Error(startData.error || 'falha ao iniciar');
+      const { jobId } = startData;
+
+      let status = 'running';
+      while (status === 'running') {
+        await new Promise(r => setTimeout(r, 1500));
+        const stRes = await fetch(`${SERVER_URL}/api/security/backup/status/${jobId}`, { headers: authHeaders() });
+        const st = await stRes.json();
+        status = st.status;
+        if (status === 'error') throw new Error(st.error || 'falha ao gerar');
+      }
+      const dlRes = await fetch(`${SERVER_URL}/api/security/backup/download/${jobId}`, { headers: authHeaders() });
+      if (!dlRes.ok) throw new Error('falha ao baixar o backup pronto');
+      await downloadBlobResponse(dlRes, `uniko-security-backup-${label}-${new Date().toISOString().slice(0, 10)}.ukbak`);
+      flash('Backup baixado — arquivo só abre aqui no Uniko Security.');
+    } catch (e) {
+      flash('Erro no backup: ' + e.message);
+    } finally {
+      setBackupBusy(null);
+    }
+  };
+
+  const handleImportBackupFile = async (file) => {
+    if (!file) return;
+    setImportBusy(true);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const res = await fetch(`${SERVER_URL}/api/security/backup/decrypt`, { method: 'POST', headers: authHeaders(), body: form });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'falha ao ler o backup');
+      setImportedBackup({ data, viewingContactId: data.contacts?.[0]?.id ?? null });
+      setMoreMenuOpen(false);
+    } catch (e) {
+      flash('Erro ao importar: ' + e.message);
+    } finally {
+      setImportBusy(false);
+      if (importFileRef.current) importFileRef.current.value = '';
+    }
+  };
+
+  const openAutoBackups = async () => {
+    setMoreMenuOpen(false);
+    setAutoBackupsOpen(true);
+    setAutoBackupsLoading(true);
+    try {
+      const res = await fetch(`${SERVER_URL}/api/security/backup/auto/list`, { headers: authHeaders() });
+      const data = await res.json();
+      setAutoBackups(res.ok ? data : []);
+    } catch { setAutoBackups([]); }
+    setAutoBackupsLoading(false);
+  };
+
+  const downloadAutoBackup = async (row) => {
+    try {
+      const res = await fetch(`${SERVER_URL}/api/security/backup/auto/${row.id}/download`, { headers: authHeaders() });
+      if (!res.ok) throw new Error((await res.json()).error || 'falha ao baixar');
+      await downloadBlobResponse(res, row.path);
+    } catch (e) { flash('Erro: ' + e.message); }
   };
 
   const loadContacts = async () => {
@@ -560,6 +654,7 @@ const UnikoSecurity = ({ onBack }) => {
                   </div>
                   <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
                     <button onClick={() => setChatSearchOpen(v => !v)} style={btnStyle('secondary')}><IcoSearch /> Buscar</button>
+                    <button title="Baixar backup desta conversa" onClick={() => generateBackup('contact', selectedContact.id, selectedContact.name.replace(/[^a-z0-9]+/gi, '-'))} style={btnStyle('secondary')}><IcoShieldDown /></button>
                     <button onClick={openContactModal} style={btnStyle('secondary')}><IcoEdit /> Editar</button>
                     <button onClick={() => deleteContact(selectedContact)} style={btnStyle('danger')}><IcoTrash /></button>
                   </div>
@@ -710,6 +805,9 @@ const UnikoSecurity = ({ onBack }) => {
               {[
                 { icon: <IcoSelect />, title: 'Selecionar contatos', desc: 'Marque vários contatos pra excluir de uma vez', onClick: () => { setMoreMenuOpen(false); toggleSelectionMode(); } },
                 { icon: <IcoAudit />, title: 'Registro de auditoria', desc: 'Quem viu, editou ou excluiu cada conversa', onClick: () => { setMoreMenuOpen(false); openAuditLog(); } },
+                { icon: <IcoShieldDown />, title: 'Backup completo', desc: 'Baixa todas as conversas (texto + mídia) num arquivo criptografado', onClick: () => { setMoreMenuOpen(false); generateBackup('all', null, 'completo'); } },
+                { icon: <IcoUpload />, title: 'Importar backup', desc: 'Abre um .ukbak baixado antes — só o Uniko Security sabe ler', onClick: () => importFileRef.current?.click() },
+                { icon: <IcoHistory />, title: 'Backups automáticos', desc: 'Histórico dos backups mensais gerados sozinhos (últimos 12)', onClick: openAutoBackups },
               ].map(card => (
                 <button key={card.title} onClick={card.onClick}
                   style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '16px 16px', borderRadius: 12, cursor: 'pointer', textAlign: 'left',
@@ -774,6 +872,113 @@ const UnikoSecurity = ({ onBack }) => {
               })()}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Input escondido — "Importar backup" no menu "Mais opções" só clica nele. */}
+      <input ref={importFileRef} type="file" accept=".ukbak" style={{ display: 'none' }}
+        onChange={e => handleImportBackupFile(e.target.files?.[0])} />
+
+      {/* Tela cheia: histórico dos backups automáticos mensais */}
+      {autoBackupsOpen && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 600, background: T.page, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ height: 56, flexShrink: 0, background: T.topbarBg || (T.dark ? `${T.surface}ee` : 'rgba(245,250,255,0.75)'), borderBottom: `1px solid ${T.border}`,
+            display: 'flex', alignItems: 'center', padding: '0 20px', gap: 12 }}>
+            <button onClick={() => setAutoBackupsOpen(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: T.textT, display: 'flex' }}><IcoClose /></button>
+            <div style={{ fontSize: 15, fontWeight: 700, color: T.text }}>Backups automáticos</div>
+          </div>
+          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', justifyContent: 'center', padding: '28px 20px' }}>
+            <div style={{ width: '100%', maxWidth: 640 }}>
+              {autoBackupsLoading ? (
+                <div style={{ padding: '24px 0', textAlign: 'center', color: T.textT, fontSize: 13 }}>Carregando…</div>
+              ) : autoBackups.length === 0 ? (
+                <div style={{ padding: '24px 0', textAlign: 'center', color: T.textT, fontSize: 13 }}>Nenhum backup automático gerado ainda — o primeiro roda no dia 1 do próximo mês, às 3h.</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {autoBackups.map(b => (
+                    <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderRadius: 10, border: `1px solid ${T.border}`, background: T.surface }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13.5, fontWeight: 700, color: T.text }}>{b.path}</div>
+                        <div style={{ fontSize: 11.5, color: T.textT, marginTop: 2 }}>{formatDateTime(b.created_at)} · {(b.size_bytes / 1024 / 1024).toFixed(1)} MB</div>
+                      </div>
+                      <button onClick={() => downloadAutoBackup(b)} style={btnStyle('secondary')}><IcoDownload /> Baixar</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tela cheia: backup importado (.ukbak decifrado) — leitura, mesmo espírito do "ARQUIVO DE CONVERSA · SÓ LEITURA" */}
+      {importedBackup && (() => {
+        const ib = importedBackup.data;
+        const contact = ib.contacts.find(c => c.id === importedBackup.viewingContactId);
+        let lastDay = null;
+        return (
+          <div style={{ position: 'fixed', inset: 0, zIndex: 700, background: T.page, display: 'flex', flexDirection: 'column' }}>
+            <div style={{ height: 56, flexShrink: 0, background: T.topbarBg || (T.dark ? `${T.surface}ee` : 'rgba(245,250,255,0.75)'), borderBottom: `1px solid ${T.border}`,
+              display: 'flex', alignItems: 'center', padding: '0 20px', gap: 12 }}>
+              <button onClick={() => setImportedBackup(null)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: T.textT, display: 'flex' }}><IcoClose /></button>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 15, fontWeight: 700, color: T.text }}>Backup importado</div>
+                <div style={{ fontSize: 11, color: T.textT }}>Gerado em {formatDateTime(ib.generatedAt)} · {ib.scope === 'all' ? 'todas as conversas' : '1 conversa'}</div>
+              </div>
+            </div>
+            <div style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden' }}>
+              <div style={{ width: 280, flexShrink: 0, background: T.surface, borderRight: `1px solid ${T.border}`, overflowY: 'auto', padding: '10px' }}>
+                {ib.contacts.map(c => (
+                  <div key={c.id} onClick={() => setImportedBackup(b => ({ ...b, viewingContactId: c.id }))}
+                    style={{ padding: '10px 12px', borderRadius: 10, cursor: 'pointer', marginBottom: 2, background: c.id === importedBackup.viewingContactId ? (T.goldGl || T.surfaceSub) : 'transparent' }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 600, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</div>
+                    <div style={{ fontSize: 11.5, color: T.textT, marginTop: 2 }}>{c.messages.length} mensage{c.messages.length === 1 ? 'm' : 'ns'}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ flex: 1, minWidth: 0, overflowY: 'auto', padding: isMobile ? '16px' : '20px 28px', display: 'flex', flexDirection: 'column', gap: 3 }}>
+                {!contact ? (
+                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.textT, fontSize: 13.5 }}>Selecione um contato.</div>
+                ) : contact.messages.length === 0 ? (
+                  <div style={{ margin: '40px 24px', padding: 28, textAlign: 'center', color: T.textT, fontSize: 13, background: T.surface, border: `1px dashed ${T.border}`, borderRadius: 16 }}>Nenhuma mensagem.</div>
+                ) : contact.messages.map((m, i) => {
+                  const key = dayKey(m.sentAt);
+                  const divider = key !== lastDay;
+                  lastDay = key;
+                  const fromMe = m.direction === 'out';
+                  return (
+                    <div key={i}>
+                      {divider && <div style={dividerStyle}>{formatDayLabel(m.sentAt)}</div>}
+                      <div style={{ display: 'flex', justifyContent: fromMe ? 'flex-end' : 'flex-start', width: '100%', marginTop: 8 }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', maxWidth: '68%', alignItems: fromMe ? 'flex-end' : 'flex-start' }}>
+                          <div style={{ padding: m.msgType === 'image' && m.mediaBase64 ? 4 : '8px 12px', borderRadius: 16, fontSize: 13.5, lineHeight: 1.45, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                            background: fromMe ? (T.green || T.gold) : T.surface, color: fromMe ? '#fff' : T.text,
+                            border: fromMe ? 'none' : `1px solid ${T.border}`,
+                            borderBottomRightRadius: fromMe ? 4 : 16, borderBottomLeftRadius: fromMe ? 16 : 4 }}>
+                            {m.msgType === 'image' && m.mediaBase64 ? (
+                              <>
+                                <img src={`data:${m.mediaMime || 'image/jpeg'};base64,${m.mediaBase64}`} alt="" style={{ display: 'block', maxWidth: 280, maxHeight: 320, borderRadius: 12 }} />
+                                {m.text && m.text !== '[imagem]' && <div style={{ padding: '6px 6px 2px' }}>{m.text}</div>}
+                              </>
+                            ) : m.msgType === 'audio' && m.mediaBase64 ? (
+                              <audio controls src={`data:${m.mediaMime || 'audio/ogg'};base64,${m.mediaBase64}`} style={{ maxWidth: 260 }} />
+                            ) : m.text}
+                          </div>
+                          <div style={{ fontSize: 10.5, color: T.textT, margin: '3px 4px 0' }}>{formatTime(m.sentAt)}</div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {(backupBusy || importBusy) && (
+        <div style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', zIndex: 9999, background: T.gold, color: '#fff', padding: '12px 22px', borderRadius: 12, fontSize: 13.5, fontWeight: 700, boxShadow: '0 8px 30px rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', gap: 8 }}>
+          {backupBusy || 'Importando backup…'}
         </div>
       )}
 
