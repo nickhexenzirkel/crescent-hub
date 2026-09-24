@@ -345,10 +345,22 @@ const UnikoSecurity = ({ onBack }) => {
     if (!silent) setLoadingChat(false);
   };
 
+  // Só desce sozinho quando o usuário já está perto do final — senão o
+  // poll de fundo (a cada CHAT_POLL_MS) arrancava a rolagem de volta pro
+  // fim toda vez que chegava mensagem nova, mesmo com a pessoa lendo
+  // mensagens antigas lá em cima (bug relatado 24/set/2026).
+  const nearBottomRef = useRef(true);
+  const handleChatScroll = () => {
+    const el = chatScrollRef.current;
+    if (!el) return;
+    nearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+  };
+
   const selectContact = (id) => {
     setSelectedContactId(id);
     setChatSearchOpen(false);
     setChatSearchTerm('');
+    nearBottomRef.current = true; // toda conversa nova abre já no final
     loadChatMessages(id);
     logSecurityAction('view', { contactId: id, contactName: contacts.find(c => c.id === id)?.name || null });
   };
@@ -362,10 +374,11 @@ const UnikoSecurity = ({ onBack }) => {
   }, [selectedContactId]);
 
   // Abre a conversa já na mensagem mais recente, igual ao WhatsApp de
-  // verdade, em vez de começar do topo.
+  // verdade, em vez de começar do topo — mas só refaz isso sozinho se o
+  // usuário já estava perto do final (ver nearBottomRef acima).
   useEffect(() => {
     const el = chatScrollRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
+    if (el && nearBottomRef.current) el.scrollTop = el.scrollHeight;
   }, [currentChatMessages]);
 
   const openMessageResult = (contactId) => {
@@ -677,7 +690,7 @@ const UnikoSecurity = ({ onBack }) => {
                   </div>
                 )}
 
-                <div ref={chatScrollRef} style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: isMobile ? '16px' : '20px 28px', display: 'flex', flexDirection: 'column', gap: 3 }}>
+                <div ref={chatScrollRef} onScroll={handleChatScroll} style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: isMobile ? '16px' : '20px 28px', display: 'flex', flexDirection: 'column', gap: 3 }}>
                   {renderChat()}
                 </div>
 
