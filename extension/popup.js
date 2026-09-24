@@ -3,6 +3,7 @@ const statusText = document.getElementById('statusText');
 const micBtn = document.getElementById('micBtn');
 const micOk = document.getElementById('micOk');
 const toggleBtn = document.getElementById('toggleBtn');
+const recordingNotice = document.getElementById('recordingNotice');
 
 // Mostra "Microfone autorizado, ativo" em vez do botão quando a permissão já
 // foi concedida antes (ver permissoes.html) — sem isso o botão "Autorizar
@@ -30,6 +31,7 @@ function render(state, msg) {
     msg || (recording ? 'Gravando chamada…' : aguardando ? 'Chamada detectada — clique pra gravar' : 'Sem gravação ativa');
   toggleBtn.textContent = recording ? 'Parar gravação' : 'Iniciar gravação manual';
   toggleBtn.className = recording ? 'danger' : 'primary';
+  recordingNotice.className = 'recordingNotice' + (recording ? ' show' : '');
 }
 
 chrome.runtime.sendMessage({ type: 'UNIKO_CALL_GET_STATE' }).then((res) => render(res?.state || 'idle')).catch(() => render('idle'));

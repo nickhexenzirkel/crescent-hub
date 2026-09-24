@@ -35,10 +35,8 @@
   .header img {
     width: 38px;
     height: 38px;
-    border-radius: 10px;
     flex-shrink: 0;
-    background: #0d1410;
-    box-shadow: 0 2px 8px rgba(0,0,0,.18);
+    object-fit: contain;
   }
   .brand { min-width: 0; }
   .brand .title {
@@ -117,6 +115,20 @@
     margin-bottom: 8px;
     border: 1px solid rgba(34,197,94,.25);
   }
+  .recordingNotice {
+    display: none;
+    gap: 8px;
+    padding: 10px 11px;
+    border-radius: 11px;
+    background: rgba(212,160,23,.12);
+    color: #8a6410;
+    font-size: 11.5px;
+    font-weight: 600;
+    line-height: 1.45;
+    margin-bottom: 8px;
+    border: 1px solid rgba(212,160,23,.3);
+  }
+  .recordingNotice.show { display: flex; }
 </style>
 </head>
 <body>
@@ -129,6 +141,7 @@
   </div>
   <div class="status"><span id="dot" class="dot"></span><span id="statusText">Verificando…</span></div>
   <div id="micOk" class="micOk">🎤 Microfone autorizado, ativo</div>
+  <div id="recordingNotice" class="recordingNotice">⚠️ Fique nesta aba do WhatsApp Web até falar o aviso prévio ("Por questões de segurança, esta ligação está sendo gravada"). Trocar de aba antes disso pode atrapalhar a captura.</div>
   <button id="micBtn" class="secondary">Autorizar microfone</button>
   <button id="toggleBtn" class="primary">Iniciar gravação manual</button>
   <p class="warn">Avise sempre a pessoa do outro lado que a ligação está sendo gravada, no início da chamada. O Chrome exige um clique pra autorizar a captura — quando uma chamada é detectada, este ícone avisa (bolinha amarela); clique em "Iniciar gravação manual" pra começar de verdade.</p>
