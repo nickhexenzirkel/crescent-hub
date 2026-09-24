@@ -67,7 +67,15 @@ function stopCapture() {
 
 async function uploadRecording() {
   console.log('[uniko-call] uploadRecording() chamado — chunks acumulados:', chunks.length);
-  if (!chunks.length) { console.warn('[uniko-call] NENHUM chunk gravado — nada pra subir (recorder rodou sem capturar áudio?).'); return; }
+  if (!chunks.length) {
+    console.warn('[uniko-call] NENHUM chunk gravado — nada pra subir (recorder rodou sem capturar áudio?).');
+    // Mesmo sem áudio, PRECISA avisar o background — sem isso o estado
+    // ficava preso em "recording" pra sempre (achado ao vivo 24/set/2026),
+    // travando toda tentativa de gravar de novo com "Cannot capture a tab
+    // with an active stream" (o offscreen document nunca fechava).
+    chrome.runtime.sendMessage({ type: 'UNIKO_CALL_STATE', state: 'upload_error', error: 'nenhum áudio capturado' }).catch(() => {});
+    return;
+  }
   const blob = new Blob(chunks, { type: 'audio/webm' });
   chunks = [];
   console.log('[uniko-call] enviando blob de', blob.size, 'bytes pro servidor...');

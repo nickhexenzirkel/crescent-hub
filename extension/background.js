@@ -738,12 +738,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     sendResponse({ state: unikoCallState });
   }
 
-  // Uniko Call — offscreen document avisa quando termina de subir a gravação
+  // Uniko Call — offscreen document avisa quando termina de subir a gravação.
+  // Fecha o offscreen document aqui (não em stopCapture — isso rodaria ANTES
+  // do upload terminar) — bug achado ao vivo 24/set/2026: sem fechar, o
+  // tabStream de uma gravação anterior às vezes ficava preso mesmo depois de
+  // "Parar gravação", e a PRÓXIMA tentativa de gravar (mesma aba) falhava
+  // com "Cannot capture a tab with an active stream". Fechar e recriar do
+  // zero a cada chamada garante que nunca sobra captura pendurada.
   if (message.type === 'UNIKO_CALL_STATE' && message.state !== 'recording') {
     setUnikoCallState('idle');
     if (message.state === 'upload_error' || message.state === 'capture_error') {
       console.error('[uniko-call] problema na gravação:', message.state, message.error || '');
     }
+    chrome.offscreen.closeDocument?.().catch(() => {});
   }
 
   // Auto-envio silencioso ao carregar a página (sem logs na aba)
