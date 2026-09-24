@@ -71,12 +71,36 @@ const AudioPlayer = ({ src }) => {
   const [playing, setPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
+  const forcingDurationRef = useRef(false);
 
   useEffect(() => {
+    forcingDurationRef.current = false;
     const el = audioRef.current;
     if (!el) return;
     const onTime = () => setCurrentTime(el.currentTime);
-    const onLoaded = () => setDuration(Number.isFinite(el.duration) ? el.duration : 0);
+    // Bug clássico do Chrome com áudio gravado via MediaRecorder: mesmo já
+    // remuxado no servidor, às vezes o navegador só sabe dizer duration =
+    // Infinity até você buscar (seek) pro fim pelo menos uma vez — sem isso
+    // a duração fica presa em 0:00 pra sempre e a barra nunca se move (pct
+    // é sempre 0 porque duration é 0). Truque padrão: força um seek bem
+    // longe, escuta o timeupdate que isso dispara (aí sim duration já vem
+    // certo), aplica e volta pro início. `forcingDurationRef` evita entrar
+    // nesse processo de novo enquanto ele já está rolando (o próprio seek
+    // dispara um durationchange, que chamaria onLoaded de novo).
+    const onLoaded = () => {
+      const d = el.duration;
+      if (Number.isFinite(d) && d > 0) { setDuration(d); return; }
+      if (forcingDurationRef.current) return;
+      forcingDurationRef.current = true;
+      const forceDuration = () => {
+        el.removeEventListener('timeupdate', forceDuration);
+        setDuration(Number.isFinite(el.duration) ? el.duration : 0);
+        el.currentTime = 0;
+        forcingDurationRef.current = false;
+      };
+      el.addEventListener('timeupdate', forceDuration);
+      el.currentTime = 1e101;
+    };
     const onEnd = () => { setPlaying(false); setCurrentTime(0); };
     el.addEventListener('timeupdate', onTime);
     el.addEventListener('loadedmetadata', onLoaded);
