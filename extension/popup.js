@@ -63,12 +63,15 @@ toggleBtn.addEventListener('click', async () => {
       return;
     }
     const streamId = await chrome.tabCapture.getMediaStreamId();
+    console.log('[uniko-call] popup: streamId obtido:', streamId);
     let contactName = null;
     try {
       const r = await chrome.tabs.sendMessage(tab.id, { type: 'UNIKO_CALL_QUERY_CONTACT' });
       contactName = r?.contactName || null;
     } catch {}
+    console.log('[uniko-call] popup: mandando UNIKO_CALL_START_WITH_STREAM pro background...');
     await chrome.runtime.sendMessage({ type: 'UNIKO_CALL_START_WITH_STREAM', streamId, contactName });
+    console.log('[uniko-call] popup: mensagem enviada, background confirmou recebimento.');
     render('recording');
   } catch (e) {
     render('idle', `Falhou: ${e.message}`);

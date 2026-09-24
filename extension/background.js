@@ -621,9 +621,11 @@ async function ensureOffscreenDocument() {
 // streamId já vem PRONTO (obtido no clique, dentro de popup.js) — aqui só
 // prepara o offscreen document e repassa pra gravação de verdade começar.
 async function startUnikoCallRecordingWithStream(streamId, contactName) {
-  if (unikoCallState === 'recording') return;
+  console.log('[uniko-call] background: startUnikoCallRecordingWithStream — streamId:', streamId, 'state atual:', unikoCallState);
+  if (unikoCallState === 'recording') { console.log('[uniko-call] background: já estava "recording" — ignorando.'); return; }
   try {
     await ensureOffscreenDocument();
+    console.log('[uniko-call] background: offscreen document garantido, mandando UNIKO_CALL_START...');
     chrome.runtime.sendMessage({ type: 'UNIKO_CALL_START', streamId, contactName });
     setUnikoCallState('recording');
   } catch (e) {
@@ -712,9 +714,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // Uniko Call — streamId já obtido no clique, dentro do popup (única forma
   // que o Chrome aceita) — aqui só prepara o offscreen document e repassa.
   if (message.type === 'UNIKO_CALL_START_WITH_STREAM') {
+    console.log('[uniko-call] background recebeu UNIKO_CALL_START_WITH_STREAM do popup.');
     startUnikoCallRecordingWithStream(message.streamId, message.contactName);
   }
-  if (message.type === 'UNIKO_CALL_MANUAL_STOP') stopUnikoCallRecording();
+  if (message.type === 'UNIKO_CALL_MANUAL_STOP') { console.log('[uniko-call] background recebeu UNIKO_CALL_MANUAL_STOP.'); stopUnikoCallRecording(); }
 
   // Uniko Call — popup pergunta o estado atual pra pintar o botão certo
   if (message.type === 'UNIKO_CALL_GET_STATE') {
