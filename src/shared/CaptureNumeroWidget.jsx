@@ -384,6 +384,14 @@ const CaptureNumeroWidget = ({ cfg, inPortal = false }) => {
                   {fmtWhen(myWin.at)}
                 </span>
               </div>
+              {/* Quem já pegou tem a MESMA curiosidade de quem não pegou: quantas vagas
+                  tinham e quem mais conseguiu — antes só aparecia no painel "não fui eu". */}
+              <div style={{ fontSize: 11, fontWeight: 700, color: th.ink, marginTop: 7 }}>
+                {winners.length} de {maxWinners} {maxWinners === 1 ? 'vaga usada' : 'vagas usadas'}
+              </div>
+              <div style={{ fontSize: 11, color: th.ink, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                Capturaram: {winners.map(w => w.player).join(', ')}
+              </div>
             </div>
           </div>
         </div>

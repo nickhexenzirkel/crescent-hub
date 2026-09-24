@@ -473,6 +473,14 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 800, color: '#fff', background: 'rgba(39,198,222,.18)', border: '1px solid rgba(39,198,222,.5)', borderRadius: 999, padding: '2px 9px' }}><img src="/PrismaComum.png" alt="" onError={e=>{e.target.style.display='none';}} style={{ width: 14, height: 14 }}/>+{myWin.comum || 0}</span>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 800, color: '#fff', background: 'rgba(155,107,255,.2)', border: '1px solid rgba(155,107,255,.55)', borderRadius: 999, padding: '2px 9px' }}><img src="/PrismaPremium.png" alt="" onError={e=>{e.target.style.display='none';}} style={{ width: 14, height: 14 }}/>+{myWin.premium || 0}</span>
               </div>
+              {/* Quem já pegou tem a MESMA curiosidade de quem não pegou: quantas vagas
+                  tinham e quem mais conseguiu — antes só aparecia no painel "não fui eu". */}
+              <div style={{ fontSize: 11, fontWeight: 700, color: mth.ink, marginTop: 7 }}>
+                {winners.length} de {maxWinners} {maxWinners === 1 ? 'vaga usada' : 'vagas usadas'}
+              </div>
+              <div style={{ fontSize: 11, color: mth.ink, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                Capturaram: {winners.map(w => w.player).join(', ')}
+              </div>
             </div>
           </div>
         </div>
