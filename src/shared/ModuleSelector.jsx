@@ -392,8 +392,9 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto, cargoModules, 
   const isAdmin  = authUser?.role === 'admin';
   const isModerador = authUser?.role === 'moderador';
   // Cards com adminOnly (Dashboard RH, Ponto Eletrônico, Uniko Safer) liberam
-  // pra moderador também. Cards com strictAdmin (Uniko Call, Comercial, Portal
-  // dos Credenciados) NÃO liberam pra moderador — só admin de verdade ou cargo.
+  // pra moderador também. Cards com strictAdmin (Uniko Call, Prestações de
+  // Contas, Portal dos Credenciados) NÃO liberam pra moderador — só admin de
+  // verdade ou cargo.
   const podeAdminOnly = isAdmin || isModerador;
 
   const IcoColab = (
@@ -492,9 +493,9 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto, cargoModules, 
       <path d="M4 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L14 13l5 2v4c0 1-1 2-2 2-8 0-15-7-15-15 0-1 1-2 2-2z"/>
     </svg>
   );
-  const IcoComercial = (
+  const IcoPrestacaoContas = (
     <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="3" y1="12" x2="21" y2="12"/>
+      <path d="M6 2h9l3 3v17a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z"/><path d="M9 12h6M9 16h6"/><circle cx="9.5" cy="8" r="1.2"/>
     </svg>
   );
   const allMods = [
@@ -516,7 +517,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto, cargoModules, 
     {id:'7-beneficios',     label:'Portal dos Credenciados', sub:'Plataforma 7 Benefícios',        icon:IcoBeneficios,  color:T.gold, bg:T.goldGl, tag:'Ferramenta', adminOnly:true, strictAdmin:true},
     // Só admin vê (não moderador) — chamadas gravadas do WhatsApp Web, dado sensível.
     {id:'uniko-call',       label:'Uniko Call',            sub:'Chamadas gravadas e transcritas',  icon:IcoCall,        color:T.gold, bg:T.goldGl, tag:'Admin',    adminOnly:true, strictAdmin:true},
-    {id:'comercial',        label:'Comercial',             sub:'Portal restrito pro time comercial', icon:IcoComercial,  color:T.gold, bg:T.goldGl, tag:'Ferramenta', adminOnly:true, strictAdmin:true},
+    {id:'prestacao-contas', label:'Prestações de Contas',  sub:'Em breve',                          icon:IcoPrestacaoContas, color:T.gold, bg:T.goldGl, tag:'Ferramenta', adminOnly:true, strictAdmin:true},
   ];
   /* Os atalhos viram "módulos" de mentira: daí em diante tudo que a tela já
      sabe fazer (ordenar, redimensionar, colorir) vale pra eles de graça. O que
@@ -552,7 +553,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto, cargoModules, 
   // Computador: 1ª vez (sem ordem salva) usa esta sequência. Depois que a
   // pessoa reorganiza, lista do celular e grade do computador seguem a MESMA
   // ordem escolhida por ela.
-  const ORDEM_PADRAO = ['colaborador','mercado-estelar','alexa','faturamento','dashboard','conexao-setorial','ponto','uniko-fit','info-adicional','uniko-safer','uniko-security','7-beneficios','uniko-call','comercial'];
+  const ORDEM_PADRAO = ['colaborador','mercado-estelar','alexa','faturamento','dashboard','conexao-setorial','ponto','uniko-fit','info-adicional','uniko-safer','uniko-security','7-beneficios','uniko-call','prestacao-contas'];
   const modsTela = order.length ? mods : fixarPrincipal(applyOrder(filteredMods, ORDEM_PADRAO));
   /* Reordenar no celular é por SETAS, não arrastando. Não é preguiça: o
      drag-and-drop HTML5 (o mesmo que a grade usa no computador) simplesmente não

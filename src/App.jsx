@@ -21,7 +21,7 @@ import UnikoSafer from './modules/uniko-safer';
 import UnikoSecurity from './modules/uniko-security';
 import UnikoCall from './modules/uniko-call';
 import Beneficios7 from './modules/beneficios-7';
-import Comercial from './modules/comercial';
+import EmBreveModulo from './shared/EmBreveModulo';
 import { notifyDesktop, ensureNotifyPermission } from './utils/desktopNotify';
 import { useIsMobile } from './hooks/useIsMobile';
 import UnikoAssistant from './shared/UnikoAssistant';
@@ -36,6 +36,13 @@ import PerfHud from './shared/diagnosticoPerf';
 import { loadCargoModulesForEmployeeId } from './shared/cargoPermissions';
 import { abaDaUrl } from './modules/faturamento/rotaFerramenta';
 
+// Mesmo ícone do card "Prestações de Contas" em ModuleSelector.jsx — usado
+// na vitrine "em breve" desse módulo.
+const IcoPrestacaoContas = (
+  <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M6 2h9l3 3v17a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z"/><path d="M9 12h6M9 16h6"/><circle cx="9.5" cy="8" r="1.2"/>
+  </svg>
+);
 
 export default function CrescentHub() {
   const [screen, ss]       = useState('landing');
@@ -56,12 +63,27 @@ export default function CrescentHub() {
   // padrão (sem adminOnly) também passam a exigir estar em cargoModules.
   const [cargoModules, setCargoModules] = useState(() => new Set());
   const [cargoRestricted, setCargoRestricted] = useState(false);
+  // cargoTabRestrictions: recorte de ABA dentro de um módulo (ver
+  // supabase_uniko_cargos_tab_restrict.sql) — ex: cargo "Comercial" só vendo
+  // certas abas do Portal do Colaborador/Oficina Estelar. Nunca afeta
+  // admin/moderador. { moduleId: string[] }
+  const [cargoTabRestrictions, setCargoTabRestrictions] = useState({});
   useEffect(() => {
-    if (!authUser?.id) { setCargoModules(new Set()); setCargoRestricted(false); return; }
+    if (!authUser?.id) { setCargoModules(new Set()); setCargoRestricted(false); setCargoTabRestrictions({}); return; }
     let ativo = true;
-    loadCargoModulesForEmployeeId(authUser.id).then(({ moduleIds, restricted }) => { if (ativo) { setCargoModules(moduleIds); setCargoRestricted(restricted); } });
+    loadCargoModulesForEmployeeId(authUser.id).then(({ moduleIds, restricted, tabRestrictions }) => {
+      if (!ativo) return;
+      setCargoModules(moduleIds);
+      setCargoRestricted(restricted);
+      const plain = {};
+      Object.entries(tabRestrictions || {}).forEach(([moduleId, set]) => { plain[moduleId] = Array.from(set); });
+      setCargoTabRestrictions(plain);
+    });
     return () => { ativo = false; };
   }, [authUser]);
+  // Só se aplica pra quem NÃO é admin/moderador — cargo é aditivo, nunca tira
+  // acesso de quem já vê tudo por padrão.
+  const isPlainColaborador = authUser?.role !== 'admin' && authUser?.role !== 'moderador';
   const [portalInitialTab, setPortalInitialTab] = useState(null); // aba com que o Portal abre (ex: "dados" ao clicar em "Editar perfil")
   const isMobile = useIsMobile();
   // 7 Benefícios embute um site de terceiro num <iframe>: desmontar o
@@ -350,7 +372,7 @@ export default function CrescentHub() {
     if (adminOnly.includes(id) && !podeAdminOnly && !cargoModules.has(id)) return;
     // Só admin de verdade, nem moderador (cargo ainda libera) — vitrines "em
     // breve" e Portal dos Credenciados (7 Benefícios, dado de terceiro).
-    const strictAdminOnly = ['uniko-call','comercial','7-beneficios','uniko-security'];
+    const strictAdminOnly = ['uniko-call','prestacao-contas','7-beneficios','uniko-security'];
     if (strictAdminOnly.includes(id) && authUser?.role !== 'admin' && !cargoModules.has(id)) return;
     // Modo restrito (cargo com restrict_only): quem tem cargo assim só vê os
     // módulos marcados nele — inclusive os que normalmente são abertos por
@@ -664,11 +686,11 @@ export default function CrescentHub() {
           {screen==='landing'     && <LandingPage    onStart={()=>navPush('login')}/>}
           {screen==='login'       && <LoginScreen    onLogin={handleLogin}/>}
           {screen==='modules'     && <ModuleSelector onSelect={handleModuleSelect} authUser={authUser} onLogout={handleLogout} userPhoto={userPhoto} cargoModules={cargoModules} cargoRestricted={cargoRestricted}/>}
-          {screen==='colaborador' && <Portal         onBack={handleGoBack} onGoAlexa={()=>navPush('alexa')} userPhoto={userPhoto} onPhotoChange={p=>setUserPhoto(p)} initialTab={portalInitialTab}/>}
+          {screen==='colaborador' && <Portal         onBack={handleGoBack} onGoAlexa={()=>navPush('alexa')} userPhoto={userPhoto} onPhotoChange={p=>setUserPhoto(p)} initialTab={portalInitialTab} restrictedTabs={isPlainColaborador ? cargoTabRestrictions['colaborador'] : undefined}/>}
           {screen==='ponto'       && (authUser?.role==='admin'||authUser?.role==='moderador'||cargoModules.has('ponto')) && <PontoEletronico onBack={handleGoBack} isAdmin={true}/>}
           {screen==='dashboard'   && (authUser?.role==='admin'||authUser?.role==='moderador'||cargoModules.has('dashboard')) && <DashboardRH onBack={handleGoBack} adminName={authUser.name} role={authUser.role}/>}
           {screen==='alexa'       && <CentralAlexa        onBack={handleGoBack} userPhoto={userPhoto} initialTab={portalInitialTab}/>}
-          {screen==='faturamento' && <FaturamentoPortal onBack={handleGoBack} authUser={authUser} initialTab={portalInitialTab}/>}
+          {screen==='faturamento' && <FaturamentoPortal onBack={handleGoBack} authUser={authUser} initialTab={portalInitialTab} restrictedTabs={isPlainColaborador ? cargoTabRestrictions['faturamento'] : undefined}/>}
           {screen==='conexao-setorial' && <ConexaoSetorial onBack={handleGoBack} authUser={authUser} initialTab={portalInitialTab}/>}
           {screen==='info-adicional' && <InfoAdicional onBack={handleGoBack}/>}
           {screen==='uniko-safer' && (authUser?.role==='admin'||authUser?.role==='moderador'||cargoModules.has('uniko-safer')) && <UnikoSafer onBack={handleGoBack}/>}
@@ -677,7 +699,7 @@ export default function CrescentHub() {
           {screen==='mercado-estelar' && <MercadoEstelar onBack={handleGoBack} authUser={authUser} userPhoto={userPhoto} initialTab={portalInitialTab}/>}
           {screen==='uniko-fit' && <UnikoFit onBack={handleGoBack} authUser={authUser} userPhoto={userPhoto}/>}
           {screen==='uniko-call' && (authUser?.role==='admin'||cargoModules.has('uniko-call')) && <UnikoCall onBack={handleGoBack}/>}
-          {screen==='comercial' && (authUser?.role==='admin'||cargoModules.has('comercial')) && <Comercial onBack={handleGoBack} userPhoto={userPhoto} onPhotoChange={p=>setUserPhoto(p)}/>}
+          {screen==='prestacao-contas' && (authUser?.role==='admin'||cargoModules.has('prestacao-contas')) && <EmBreveModulo onBack={handleGoBack} title="Prestações de Contas" subtitle="Esse módulo ainda está em desenvolvimento." icon={IcoPrestacaoContas}/>}
         </div>
 
         {/* ── Aviso Urgente — tela cheia ── */}

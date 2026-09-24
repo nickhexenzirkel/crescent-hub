@@ -13,16 +13,27 @@ import { refletirAbaNaUrl } from './rotaFerramenta';
 const GATED_TABS = new Set(['xml', 'carta', 'assinatura']);
 const ADMIN_TABS = new Set(['historico-assinatura']);
 
-const FaturamentoPortal = ({ onBack, authUser, initialTab }) => {
+// `restrictedTabs`: cargo em "modo restrito" (Dashboard RH → Gerenciar
+// Permissões) recortando quais abas da Oficina Estelar um cargo específico
+// enxerga — ex: cargo "Comercial" só vendo Editor/Organizar/Mesclar PDF.
+// undefined/[] = sem restrição, comportamento de sempre.
+const FaturamentoPortal = ({ onBack, authUser, initialTab, restrictedTabs }) => {
   const isMobile = useIsMobile();
   const isAdmin = authUser?.role === 'admin';
+  // "Início" não entra numa restrição de cargo — pra quem é restrito, a
+  // home vira a 1ª aba liberada.
+  const homeTab = restrictedTabs?.length ? restrictedTabs[0] : 'inicio';
+  const allowedTab = (id) => {
+    if (restrictedTabs?.length && !restrictedTabs.includes(id)) return false;
+    if (GATED_TABS.has(id)) return canSeeTab(id, authUser, isAdmin);
+    if (ADMIN_TABS.has(id) && !isAdmin) return false;
+    return true;
+  };
   /* initialTab: atalho do seletor de módulos. Passa pelas mesmas travas do
      safeSetTab — um atalho guardado não abre aba que a pessoa não pode ver. */
   const [tab, setTab] = useState(() => {
     const t = initialTab;
-    if (!t || !NAV.some(n => n.id === t)) return 'inicio';
-    if (GATED_TABS.has(t)) return canSeeTab(t, authUser, isAdmin) ? t : 'inicio';
-    if (ADMIN_TABS.has(t) && !isAdmin) return 'inicio';
+    if (!t || !NAV.some(n => n.id === t) || !allowedTab(t)) return homeTab;
     return t;
   });
 
@@ -43,16 +54,15 @@ const FaturamentoPortal = ({ onBack, authUser, initialTab }) => {
   const sair = onBack;
 
   const safeSetTab = (id) => {
-    if (GATED_TABS.has(id)) { if (!canSeeTab(id, authUser, isAdmin)) return; }
-    else if (ADMIN_TABS.has(id) && !isAdmin) return;
+    if (!allowedTab(id)) return;
     setTab(id);
   };
 
-  const renderTab = () => {
-    if (GATED_TABS.has(tab) && !canSeeTab(tab, authUser, isAdmin)) return <TabInicio setTab={safeSetTab} isAdmin={isAdmin} authUser={authUser}/>;
-    if (ADMIN_TABS.has(tab) && !isAdmin) return <TabInicio setTab={safeSetTab} isAdmin={isAdmin} authUser={authUser}/>;
-    switch (tab) {
-      case 'inicio':  return <TabInicio setTab={safeSetTab} isAdmin={isAdmin} authUser={authUser}/>;
+  /* Extraído do switch pra poder ser reusado tanto na renderização normal
+     quanto no fallback (aba bloqueada cai na homeTab, que pra cargo restrito
+     não é sempre 'inicio' — ver homeTab acima). */
+  const componentFor = (id) => {
+    switch (id) {
       case 'xml':     return <TabLeitorXML/>;
       case 'assinatura': return <TabAssinatura/>;
       case 'historico-assinatura': return <TabHistoricoAssinatura/>;
@@ -60,23 +70,29 @@ const FaturamentoPortal = ({ onBack, authUser, initialTab }) => {
       case 'pdf-organizar': return <TabPdfOrganizar/>;
       case 'pdf-mesclar':   return <TabPdfMesclar/>;
       case 'carta':       return <TabCartaCorrecao/>;
+      case 'inicio':
       default:            return <TabInicio setTab={safeSetTab} isAdmin={isAdmin} authUser={authUser}/>;
     }
   };
 
-  const hasTopBar = tab !== 'inicio';
-  const padded    = tab !== 'inicio';
+  const renderTab = () => {
+    if (!allowedTab(tab)) return componentFor(homeTab);
+    return componentFor(tab);
+  };
+
+  const hasTopBar = tab !== homeTab;
+  const padded    = tab !== homeTab;
 
   return (
     <div style={{display:'flex',minHeight:'100vh',background:T.page,fontFamily:'var(--font-body)'}}>
-      <Sidebar tab={tab} setTab={safeSetTab} onBack={sair} isAdmin={isAdmin} authUser={authUser}/>
+      <Sidebar tab={tab} setTab={safeSetTab} onBack={sair} isAdmin={isAdmin} authUser={authUser} only={restrictedTabs}/>
       <div style={{
         flex:1,
         marginLeft: isMobile ? 0 : 252,
         display:'flex',flexDirection:'column',
         minHeight:'100vh',
       }}>
-        <TopBar tab={tab} onBack={() => safeSetTab('inicio')}/>
+        <TopBar tab={tab} homeTab={homeTab} onBack={() => safeSetTab(homeTab)}/>
         <div style={{
           flex:1,
           overflowY:'auto',

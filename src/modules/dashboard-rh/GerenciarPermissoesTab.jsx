@@ -10,10 +10,10 @@ import { useState, useEffect } from 'react';
 import { T } from '../../contexts/theme';
 import { SERVER_URL } from '../../contexts/user';
 import { Card, Btn } from '../../shared/components';
-import { MODULES_CATALOG } from '../../shared/modulesCatalog';
+import { MODULES_CATALOG, MODULE_TABS_CATALOG } from '../../shared/modulesCatalog';
 import {
   loadCargos, loadCargoMembros, createCargo, renameCargo,
-  updateCargoModules, updateCargoRestrict, deleteCargo, addMembro, removeMembro,
+  updateCargoModules, updateCargoRestrict, updateCargoTabRestrictions, deleteCargo, addMembro, removeMembro,
 } from '../../shared/cargoPermissions';
 
 const authHeader = () => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('ch_token') || ''}` });
@@ -87,6 +87,24 @@ const GerenciarPermissoesTab = ({ cardBg }) => {
     } catch (err) {
       flash('Erro: ' + err.message);
       setCargos(prev => prev.map(c => c.id === cargo.id ? { ...c, module_ids: atual } : c)); // desfaz
+    }
+  };
+
+  // Restrição de aba: por módulo (colaborador/faturamento), quais abas esse
+  // cargo libera. Ausente/vazio = módulo inteiro liberado (comportamento de
+  // sempre). Desmarcar a última aba de um módulo remove a chave por completo.
+  const toggleTab = async (cargo, moduleId, tabId) => {
+    const atualObj = cargo.tab_restrictions || {};
+    const atualTabs = atualObj[moduleId] || [];
+    const novaLista = atualTabs.includes(tabId) ? atualTabs.filter(t => t !== tabId) : [...atualTabs, tabId];
+    const novoObj = { ...atualObj };
+    if (novaLista.length) novoObj[moduleId] = novaLista; else delete novoObj[moduleId];
+    setCargos(prev => prev.map(c => c.id === cargo.id ? { ...c, tab_restrictions: novoObj } : c)); // otimista
+    try {
+      await updateCargoTabRestrictions(cargo.id, novoObj);
+    } catch (err) {
+      flash('Erro: ' + err.message);
+      setCargos(prev => prev.map(c => c.id === cargo.id ? { ...c, tab_restrictions: atualObj } : c)); // desfaz
     }
   };
 
@@ -234,6 +252,41 @@ const GerenciarPermissoesTab = ({ cardBg }) => {
                     })}
                   </div>
                 </div>
+
+                {/* Recorte de abas — só aparece pros módulos com navegação
+                    interna por aba (Portal do Colaborador, Oficina Estelar) e
+                    só depois de marcar o módulo acima. Sem nenhuma aba
+                    marcada aqui, o módulo abre inteiro normalmente. */}
+                {Object.entries(MODULE_TABS_CATALOG)
+                  .filter(([moduleId]) => (cargo.module_ids || []).includes(moduleId))
+                  .map(([moduleId, tabs]) => {
+                    const modLabel = MODULES_CATALOG.find(m => m.id === moduleId)?.label || moduleId;
+                    const tabsAtivas = (cargo.tab_restrictions || {})[moduleId] || [];
+                    return (
+                      <div key={moduleId}>
+                        <div style={{ fontSize: 12.5, fontWeight: 700, color: T.text, marginBottom: 4 }}>Abas liberadas em "{modLabel}"</div>
+                        <div style={{ fontSize: 11.5, color: T.textT, marginBottom: 8, lineHeight: 1.5 }}>
+                          Sem nenhuma marcada, esse cargo vê o módulo inteiro. Marcando pelo menos uma, quem só tem esse cargo passa a ver SÓ as abas marcadas (a 1ª marcada vira a tela inicial do módulo).
+                        </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
+                          {tabs.map(t => {
+                            const ativo = tabsAtivas.includes(t.id);
+                            return (
+                              <button key={t.id} onClick={() => toggleTab(cargo, moduleId, t.id)}
+                                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 999, cursor: 'pointer',
+                                  border: `1.5px solid ${ativo ? T.gold : T.border}`, background: ativo ? T.goldGl : 'transparent',
+                                  color: ativo ? T.gold : T.textS, fontSize: 12.5, fontWeight: 600, fontFamily: 'var(--font-body)' }}>
+                                {ativo && (
+                                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                                )}
+                                {t.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
 
                 {/* Pessoas no cargo */}
                 <div>

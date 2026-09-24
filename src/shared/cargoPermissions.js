@@ -18,27 +18,41 @@ const TABLE_CARGOS = 'uniko_cargos';
 const TABLE_MEMBROS = 'uniko_cargo_membros';
 
 // Módulos liberados pro funcionário informado (união de todos os cargos
-// dele) + se algum desses cargos é "restrito" (ver supabase_uniko_cargos_restrito.sql):
+// dele) + se algum desses cargos é "restrito" (ver supabase_uniko_cargos_restrito.sql)
+// + restrição de ABA dentro de módulo (ver supabase_uniko_cargos_tab_restrict.sql):
 // nesse caso, quem chama (App.jsx) esconde até os módulos abertos por
-// padrão que não estiverem nessa união — não só os sensíveis de sempre.
+// padrão que não estiverem nessa união — não só os sensíveis de sempre —
+// e recorta a navegação interna de módulos como Portal do Colaborador/
+// Oficina Estelar pras abas liberadas (união entre os cargos do funcionário).
 export async function loadCargoModulesForEmployeeId(employeeId) {
-  if (!employeeId) return { moduleIds: new Set(), restricted: false };
+  if (!employeeId) return { moduleIds: new Set(), restricted: false, tabRestrictions: {} };
   const { data, error } = await supabase
     .from(TABLE_MEMBROS)
-    .select('uniko_cargos(module_ids, restrict_only)')
+    .select('uniko_cargos(module_ids, restrict_only, tab_restrictions)')
     .eq('employee_id', employeeId);
-  if (error || !data) return { moduleIds: new Set(), restricted: false };
+  if (error || !data) return { moduleIds: new Set(), restricted: false, tabRestrictions: {} };
   const moduleIds = new Set();
   let restricted = false;
+  const tabRestrictions = {};
   data.forEach(row => {
     (row.uniko_cargos?.module_ids || []).forEach(id => moduleIds.add(id));
     if (row.uniko_cargos?.restrict_only) restricted = true;
+    Object.entries(row.uniko_cargos?.tab_restrictions || {}).forEach(([moduleId, tabIds]) => {
+      if (!Array.isArray(tabIds) || !tabIds.length) return;
+      const set = tabRestrictions[moduleId] || (tabRestrictions[moduleId] = new Set());
+      tabIds.forEach(id => set.add(id));
+    });
   });
-  return { moduleIds, restricted };
+  return { moduleIds, restricted, tabRestrictions };
 }
 
 export async function updateCargoRestrict(cargoId, restrictOnly) {
   const { error } = await supabase.from(TABLE_CARGOS).update({ restrict_only: restrictOnly, updated_at: new Date().toISOString() }).eq('id', cargoId);
+  if (error) throw new Error(error.message);
+}
+
+export async function updateCargoTabRestrictions(cargoId, tabRestrictions) {
+  const { error } = await supabase.from(TABLE_CARGOS).update({ tab_restrictions: tabRestrictions, updated_at: new Date().toISOString() }).eq('id', cargoId);
   if (error) throw new Error(error.message);
 }
 

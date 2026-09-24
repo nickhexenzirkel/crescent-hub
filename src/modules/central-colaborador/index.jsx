@@ -54,7 +54,11 @@ const ehCelularDeitado = () => {
   try { return window.matchMedia('(pointer:coarse)').matches && window.innerHeight < 520; } catch { return false; }
 };
 
-const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange, initialTab}) => {
+// `restrictedTabs`: cargo em "modo restrito" (Dashboard RH → Gerenciar
+// Permissões) recortando quais abas do Portal um cargo específico enxerga
+// — ex: cargo "Comercial" só vendo Seus Dados/Financeiro/Meus Lembretes/
+// Eventos/Feedback. undefined/[] = sem restrição, comportamento de sempre.
+const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange, initialTab, restrictedTabs}) => {
   const isMobile = useIsMobile();
   const [celularDeitado, setCelularDeitado] = useState(ehCelularDeitado);
   useEffect(() => {
@@ -62,7 +66,20 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange, initialTab}) => {
     window.addEventListener('resize', f); window.addEventListener('orientationchange', f);
     return () => { window.removeEventListener('resize', f); window.removeEventListener('orientationchange', f); };
   }, []);
-  const [tab,st]=useState(initialTab || 'inicio');
+  // "Início" não entra numa restrição de cargo (não tem como marcar ela na
+  // tela de permissões) — pra quem é restrito, a home vira a 1ª aba liberada.
+  const homeTab = restrictedTabs?.length ? restrictedTabs[0] : 'inicio';
+  const [tab,st]=useState(() => {
+    if (restrictedTabs?.length && (!initialTab || !restrictedTabs.includes(initialTab))) return homeTab;
+    return initialTab || 'inicio';
+  });
+  // Rede de segurança: QUALQUER navegação (sidebar, menu mobile, convite de
+  // jogo, ping da roleta, atalho salvo, "Sair do jogo"...) que leve pra uma
+  // aba fora da lista liberada volta sozinha pra homeTab — centraliza a
+  // trava aqui em vez de caçar cada `st('inicio')` espalhado pelo arquivo.
+  useEffect(() => {
+    if (restrictedTabs?.length && !restrictedTabs.includes(tab)) st(homeTab);
+  }, [tab, restrictedTabs, homeTab]);
   // Uniko Wave só MONTA na primeira vez que a aba é aberta (senão todo mundo que
   // abre o Portal carregaria o iframe do jogo à toa) — mas depois disso NUNCA
   // desmonta de novo, só fica escondido (ver <TabUnikoWave active=.../> abaixo).
@@ -265,7 +282,7 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange, initialTab}) => {
   return(
     <>
     <div key={activeTheme} style={{display:'flex',minHeight:zoomOut?'calc(100vh / 0.8)':'100vh',background:T.page,fontFamily:'var(--font-body)',zoom:zoomOut?0.8:undefined}}>
-      {!(tab==='unikowave' && celularDeitado) && <Sidebar tab={tab} setTab={st} onBack={onBack} activeTheme={activeTheme} onTheme={handleTheme} onOpenSettings={()=>setShowSettings(true)} userPhoto={userPhoto} profileComplete={profileComplete} collapsed={tab==='unikowave'||tab==='unikocamera'} desligado={desligado.off}/>}
+      {!(tab==='unikowave' && celularDeitado) && <Sidebar tab={tab} setTab={st} onBack={onBack} activeTheme={activeTheme} onTheme={handleTheme} onOpenSettings={()=>setShowSettings(true)} userPhoto={userPhoto} profileComplete={profileComplete} collapsed={tab==='unikowave'||tab==='unikocamera'} desligado={desligado.off} only={restrictedTabs}/>}
       <div className="portal-conteudo" style={{marginLeft:isMobile?0:(tab==='unikocamera'?76:(tab==='unikowave'?(celularDeitado?0:76):280)),flex:1,display:'flex',flexDirection:'column',minHeight:zoomOut?'calc(100vh / 0.8)':'100vh',
         // minWidth:0 é o que de fato faz a página respeitar a tela: sem isso,
         // um item flex ('flex:1') tem largura mínima automática = a largura
@@ -277,7 +294,7 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange, initialTab}) => {
         // continuava mesmo depois do fix no card da missão.
         minWidth:0,overflowX:'hidden',
         transition:'margin-left .22s ease'}}>
-        {tab!=='unikowave' && <TopBar tab={tab} onBack={()=>st('inicio')}/>}
+        {tab!=='unikowave' && <TopBar tab={tab} onBack={()=>st(homeTab)}/>}
         {/* `flex:'1 1 auto'` no Uniko Paint — medido no navegador, não é firula:
             `flex:1` embute `flex-basis:0%`, e porcentagem só resolve contra pai de
             altura DEFINIDA. O pai aqui tem `minHeight:'100vh'` (mínima, não
@@ -333,7 +350,7 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange, initialTab}) => {
         <div className="portal-mobilenav" style={{position:'fixed',bottom:0,left:0,right:0,zIndex:300,
           background:T.surface,borderTop:`1px solid ${T.border}`,
           display:'flex',height:60,fontFamily:'var(--font-body)'}}>
-          {MOBILE_NAV.map(n=>{
+          {(restrictedTabs?.length ? MOBILE_NAV.filter(n=>n.id==='__menu'||restrictedTabs.includes(n.id)) : MOBILE_NAV).map(n=>{
             const active = n.id!=='__menu' && tab===n.id;
             return(
               <button key={n.id}
@@ -363,7 +380,7 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange, initialTab}) => {
             <div style={{width:36,height:4,borderRadius:99,background:T.border,margin:'0 auto 16px'}}/>
             <div style={{fontSize:11,color:T.textD,letterSpacing:'.09em',textTransform:'uppercase',
               padding:'0 4px 10px',fontWeight:600}}>Navegação</div>
-            {NAV_FOR(getAuthUser()?.role==='admin', desligado.off).map(n=>{
+            {NAV_FOR(getAuthUser()?.role==='admin', desligado.off).filter(n=>!restrictedTabs?.length||restrictedTabs.includes(n.id)).map(n=>{
               const locked = n.id==='uniko' && !profileComplete;
               return(
                 <div key={n.id}

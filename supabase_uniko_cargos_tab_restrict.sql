@@ -1,0 +1,23 @@
+-- ════════════════════════════════════════════════════════════════════════
+--  Cargos (Dashboard RH → Gerenciar Permissões) — restrição POR ABA dentro
+--  de um módulo, além da restrição de módulo inteiro que já existia
+--  (ver supabase_uniko_cargos_restrito.sql).
+--
+--  Caso concreto (24/set/2026): cargo "Comercial" não é mais um módulo
+--  próprio — em vez disso, enxerga o Portal do Colaborador de verdade, só
+--  que recortado pras abas Seus Dados/Financeiro/Meus Lembretes/Eventos/
+--  Feedback, e a Oficina Estelar recortada pra Editor/Organizar/Mesclar PDF.
+--
+--  `tab_restrictions`: jsonb por cargo, mapeando moduleId → array de ids de
+--  aba liberados. Módulo ausente do mapa (ou array vazio) = sem restrição
+--  de aba nesse módulo (comportamento de sempre, só a restrição de módulo
+--  do restrict_only se aplica). Nunca afeta admin/moderador — eles
+--  continuam vendo tudo, sempre. Formato de exemplo:
+--    { "colaborador": ["dados","financeiro","lembretes","eventos","feedback"],
+--      "faturamento": ["pdf-editor","pdf-organizar","pdf-mesclar"] }
+--
+--  Rode no projeto Supabase principal do Uniko (não é o do Safer/Security).
+--  É idempotente.
+-- ════════════════════════════════════════════════════════════════════════
+
+alter table public.uniko_cargos add column if not exists tab_restrictions jsonb not null default '{}'::jsonb;

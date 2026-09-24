@@ -73,11 +73,16 @@ const NAV = [
   },
 ];
 
-const Sidebar = ({ tab, setTab, onBack, isAdmin, authUser }) => {
+// `only` (ids a mostrar) — usado pelo cargo em "modo restrito" (Dashboard RH
+// → Gerenciar Permissões) pra recortar quais abas da Oficina Estelar um
+// cargo específico enxerga (ex: cargo "Comercial" só vendo Editor/Organizar/
+// Mesclar PDF). Sem esse prop, comportamento 100% igual a antes.
+const Sidebar = ({ tab, setTab, onBack, isAdmin, authUser, only }) => {
   const isMobile = useIsMobile();
   const [hov, sh] = useState(null);
   if (isMobile) return null;
-  const visibleNav = NAV.filter(n => n.tabGate ? canSeeTab(n.id, authUser, isAdmin) : (!n.adminOnly || isAdmin));
+  const visibleNav = NAV.filter(n => n.tabGate ? canSeeTab(n.id, authUser, isAdmin) : (!n.adminOnly || isAdmin))
+    .filter(n => !only?.length || only.includes(n.id));
 
   return (
     <div style={{
@@ -157,10 +162,12 @@ const Sidebar = ({ tab, setTab, onBack, isAdmin, authUser }) => {
   );
 };
 
-const TopBar = ({ tab, onBack }) => {
+// homeTab: pra cargo restrito, a "aba raiz" (sem Voltar) não é sempre
+// 'inicio' — vira a 1ª aba liberada. Default mantém o comportamento de sempre.
+const TopBar = ({ tab, onBack, homeTab = 'inicio' }) => {
   const isMobile = useIsMobile();
   const nm = { inicio:'Início', xml:'Controle de Notas', assinatura:'Assinatura Automática', 'historico-assinatura':'Histórico de Assinatura', 'pdf-editor':'Editor de PDF', 'pdf-organizar':'Organizar PDF', 'pdf-mesclar':'Mesclar PDF', carta:'Carta de Correção' };
-  if (tab === 'inicio') return null;
+  if (tab === homeTab) return null;
   return (
     <div style={{
       height:52,display:'flex',alignItems:'center',
