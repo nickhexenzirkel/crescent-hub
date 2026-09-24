@@ -63,9 +63,17 @@ const TAG_COLORS = ['#d4a017', '#e0533d', '#3ba55c', '#4a90d9', '#9b59b6', '#e89
 // Um setor = um número/conexão Dualhook diferente (ver UNIKO_SECURITY_SECTORS
 // em whatsappCloudApi.js). Acrescente aqui quando conectar um setor novo —
 // precisa bater com o `category` configurado no servidor.
+// Contratual e Suporte Operacional: setores planejados, ainda sem número
+// conectado (24/set/2026) — a aba já fica pronta aqui, sem contato nenhum
+// até o admin adicionar o item correspondente em UNIKO_SECURITY_SECTORS
+// (.env da VPS, ver whatsappCloudApi.js) com o WABA ID/Phone Number ID reais
+// depois de conectar pelo Dualhook. Os `id` abaixo têm que bater
+// EXATAMENTE com o "category" usado lá.
 const CATEGORIES = [
   { id: 'faturamento', label: 'Faturamento' },
   { id: 'financeiro', label: 'Financeiro' },
+  { id: 'contratual', label: 'Contratual' },
+  { id: 'suporte_operacional', label: 'Suporte Operacional' },
 ];
 
 const AUDIT_ACTIONS = [
@@ -617,12 +625,12 @@ const UnikoSecurity = ({ onBack }) => {
               </div>
             </div>
 
-            <div style={{ padding: '0 16px 10px', display: 'flex', gap: 6 }}>
+            <div style={{ padding: '0 16px 10px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
               {CATEGORIES.map(cat => {
                 const sel = activeCategory === cat.id;
                 return (
                   <button key={cat.id} onClick={() => switchCategory(cat.id)}
-                    style={{ flex: 1, padding: '8px 10px', borderRadius: 10, cursor: 'pointer', fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-body)',
+                    style={{ padding: '7px 8px', borderRadius: 10, cursor: 'pointer', fontSize: 11.5, fontWeight: 700, fontFamily: 'var(--font-body)', lineHeight: 1.25,
                       border: `1.5px solid ${sel ? T.gold : T.border}`, background: sel ? T.goldGl : 'transparent', color: sel ? T.gold : T.textS }}>
                     {cat.label}
                   </button>
