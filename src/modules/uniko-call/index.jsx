@@ -27,6 +27,82 @@ const IcoSearch = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="n
 const IcoTrash = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" /><path d="M10 11v6M14 11v6" /><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2" /></svg>);
 const IcoEdit = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" /></svg>);
 const IcoPhone = () => (<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.902.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.908.339 1.85.573 2.81.7A2 2 0 0122 16.92z" /></svg>);
+const IcoPlay = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>);
+const IcoPause = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1" /><rect x="14" y="5" width="4" height="14" rx="1" /></svg>);
+
+// Player customizado — o <audio controls> nativo tinha um bug visual real
+// (barra preenchida pulando pro final em vez de acompanhar o segundo atual,
+// achado ao vivo 24/set/2026) além de ficar feio/inconsistente entre
+// navegadores. Aqui o <audio> fica escondido só como "motor" e a barra é
+// desenhada e calculada por nós a partir de currentTime/duration — sem
+// depender de como cada navegador renderiza o controle nativo.
+const fmtDuration = (s) => {
+  if (!Number.isFinite(s) || s < 0) return '0:00';
+  const m = Math.floor(s / 60), sec = Math.floor(s % 60);
+  return `${m}:${String(sec).padStart(2, '0')}`;
+};
+
+const AudioPlayer = ({ src }) => {
+  const audioRef = useRef(null);
+  const [playing, setPlaying] = useState(false);
+  const [duration, setDuration] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
+
+  useEffect(() => {
+    const el = audioRef.current;
+    if (!el) return;
+    const onTime = () => setCurrentTime(el.currentTime);
+    const onLoaded = () => setDuration(Number.isFinite(el.duration) ? el.duration : 0);
+    const onEnd = () => { setPlaying(false); setCurrentTime(0); };
+    el.addEventListener('timeupdate', onTime);
+    el.addEventListener('loadedmetadata', onLoaded);
+    el.addEventListener('durationchange', onLoaded);
+    el.addEventListener('ended', onEnd);
+    return () => {
+      el.removeEventListener('timeupdate', onTime);
+      el.removeEventListener('loadedmetadata', onLoaded);
+      el.removeEventListener('durationchange', onLoaded);
+      el.removeEventListener('ended', onEnd);
+    };
+  }, []);
+
+  const togglePlay = () => {
+    const el = audioRef.current;
+    if (!el) return;
+    if (playing) { el.pause(); setPlaying(false); }
+    else { el.play(); setPlaying(true); }
+  };
+
+  const seek = (e) => {
+    const el = audioRef.current;
+    if (!el || !duration) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const pct = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+    el.currentTime = pct * duration;
+    setCurrentTime(el.currentTime);
+  };
+
+  const pct = duration ? Math.min(100, (currentTime / duration) * 100) : 0;
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px 8px 8px', borderRadius: 30, background: T.surfaceSub || 'rgba(0,0,0,0.05)', border: `1px solid ${T.border}`, width: '100%', boxSizing: 'border-box', marginBottom: 8 }}>
+      <audio ref={audioRef} src={src} preload="metadata" style={{ display: 'none' }} />
+      <button onClick={togglePlay} style={{ width: 32, height: 32, borderRadius: '50%', border: 'none', background: T.gold, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, paddingLeft: playing ? 0 : 2 }}>
+        {playing ? <IcoPause /> : <IcoPlay />}
+      </button>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div onClick={seek} style={{ height: 6, borderRadius: 3, background: T.border, cursor: 'pointer', position: 'relative' }}>
+          <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${pct}%`, borderRadius: 3, background: T.gold, transition: 'width .1s linear' }} />
+          <div style={{ position: 'absolute', top: '50%', left: `${pct}%`, transform: 'translate(-50%,-50%)', width: 11, height: 11, borderRadius: '50%', background: T.gold, boxShadow: '0 1px 3px rgba(0,0,0,.4)' }} />
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, fontSize: 10.5, color: T.textT, fontVariantNumeric: 'tabular-nums' }}>
+          <span>{fmtDuration(currentTime)}</span>
+          <span>{fmtDuration(duration)}</span>
+        </div>
+      </div>
+    </div>
+  );
+};
 const IcoRefresh = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10" /><path d="M20.5 15a9 9 0 11-2.1-9.4L23 10" /></svg>);
 
 const btnStyle = (variant) => {
@@ -158,7 +234,7 @@ const UnikoCall = ({ onBack }) => {
                       <div style={{ color: T.green || '#3ba55c', fontWeight: 800, fontSize: 12.5, marginBottom: 6 }}>✅ Aviso prévio de ligação dito</div>
                     )}
                     {call.audio_url && (
-                      <audio controls preload="none" src={call.audio_url} style={{ width: '100%', height: 32, marginBottom: 8 }} />
+                      <AudioPlayer src={call.audio_url} />
                     )}
                     {status
                       ? <span style={{ color: call.status === 'error' ? T.danger : T.textT, fontStyle: 'italic' }}>{status}</span>
