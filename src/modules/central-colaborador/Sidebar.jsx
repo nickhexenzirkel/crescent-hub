@@ -67,11 +67,19 @@ const LockIcon = () => (
   </svg>
 );
 
-const Sidebar = ({tab,setTab,onBack,activeTheme,onTheme,onOpenSettings,userPhoto,profileComplete,collapsed,desligado}) => {
+// `only` (ids a mostrar) e `extraNav` (itens extras, fora do NAV mestre) —
+// usados pelo módulo Comercial, que reaproveita esse Sidebar mas só com um
+// recorte das abas (Seus Dados/Financeiro/Eventos/Feedback + Portal dos
+// Credenciados/Prestação de Contas, que não existem no Portal do
+// Colaborador normal). Sem esses props, comportamento 100% igual a antes.
+const Sidebar = ({tab,setTab,onBack,activeTheme,onTheme,onOpenSettings,userPhoto,profileComplete,collapsed,desligado,only,extraNav,brandLabel}) => {
   useNomesExibicao();
   const isMobile = useIsMobile();
   const [hov,sh]=useState(null);
-  const nav = NAV_FOR(getAuthUser()?.role === 'admin', desligado);
+  let nav = NAV_FOR(getAuthUser()?.role === 'admin', desligado);
+  if (extraNav?.length) nav = [...nav, ...extraNav];
+  if (only?.length) nav = nav.filter(n => only.includes(n.id));
+  const restricted = !!(only || extraNav);
   if (isMobile) return null;
   return(
     /* `portal-sidebar` (ago/2026): classe só pra outros módulos poderem
@@ -113,7 +121,7 @@ const Sidebar = ({tab,setTab,onBack,activeTheme,onTheme,onOpenSettings,userPhoto
             </div>
           ) : (
             <div style={{width:'100%',maxWidth:238}}>
-              <UnikoBrandArt legenda="Portal do Colaborador"/>
+              <UnikoBrandArt legenda={brandLabel || 'Portal do Colaborador'}/>
             </div>
           )}
         </div>
@@ -130,7 +138,7 @@ const Sidebar = ({tab,setTab,onBack,activeTheme,onTheme,onOpenSettings,userPhoto
         {nav.map((n,idx)=>{
           const a=tab===n.id;
           const locked = n.id==='uniko' && !profileComplete;
-          const showDivider = idx===6 || idx===10; /* dividers between logical groups */
+          const showDivider = !restricted && (idx===6 || idx===10); /* dividers between logical groups — não fazem sentido numa lista já recortada */
           return(
             <div key={n.id}>
               {showDivider && <StarDivider my={3} dim/>}
@@ -213,7 +221,7 @@ const Sidebar = ({tab,setTab,onBack,activeTheme,onTheme,onOpenSettings,userPhoto
 };
 
 /* ── TOP BAR ── */
-const TopBar = ({tab,onBack}) => {
+const TopBar = ({tab,onBack,rootLabel,extraLabels}) => {
   const isMobile = useIsMobile();
   const nm={inicio:'Início',financeiro:'Financeiro',dados:'Seus Dados',horas:'Banco de Horas',
     ponto:'Ponto Eletrônico',
@@ -221,7 +229,8 @@ const TopBar = ({tab,onBack}) => {
     conquistas:'Conquistas',comunicados:'Comunicados',simulador:'Simulação',
     uniko:'Coleção de Unikos',roleta:'Roleta da Sorte',colegas:'Colegas',unikowave:'Uniko Wave',unikopaint:'Uniko Paint',
     unikocamera:'Uniko Camera',
-    quizmm:'Quiz do M&M',unikostop:'Uniko Stop!',unikofaster:'Uniko Speed',unikosuspect:'Uniko Detetive'};
+    quizmm:'Quiz do M&M',unikostop:'Uniko Stop!',unikofaster:'Uniko Speed',unikosuspect:'Uniko Detetive',
+    ...extraLabels};
   const [notifOpen,setNO]=useState(false);
   const [notifs,setNotifs]=useState([]);
   const unread=notifs.filter(n=>!n.read).length;
@@ -254,7 +263,7 @@ const TopBar = ({tab,onBack}) => {
           padding:'4px 9px',borderRadius:7,transition:'background .14s'}}>← Voltar</button>
       <div style={{width:1,height:16,background:T.divider}}/>
       <div style={{fontSize:14,color:T.textT,flex:1}}>
-        Portal do Colaborador<span style={{color:T.textD,margin:'0 5px'}}>›</span>
+        {rootLabel || 'Portal do Colaborador'}<span style={{color:T.textD,margin:'0 5px'}}>›</span>
         <strong style={{color:T.text,fontWeight:500}}>{nm[tab]||tab}</strong>
       </div>
       <div style={{position:'relative'}}>

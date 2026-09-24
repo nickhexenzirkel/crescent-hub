@@ -17,5 +17,5 @@ export const MODULES_CATALOG = [
   { id: 'uniko-security', label: 'Uniko Security' },
   { id: '7-beneficios', label: 'Portal dos Credenciados' },
   { id: 'uniko-call', label: 'Uniko Call' },
-  { id: 'comercial', label: 'Comercial (em breve)' },
+  { id: 'comercial', label: 'Comercial' },
 ];

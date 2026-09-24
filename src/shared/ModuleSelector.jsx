@@ -513,7 +513,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto, cargoModules})
     {id:'7-beneficios',     label:'Portal dos Credenciados', sub:'Plataforma 7 Benefícios',        icon:IcoBeneficios,  color:T.gold, bg:T.goldGl, tag:'Ferramenta', adminOnly:true, strictAdmin:true},
     // Só admin vê (não moderador) — chamadas gravadas do WhatsApp Web, dado sensível.
     {id:'uniko-call',       label:'Uniko Call',            sub:'Chamadas gravadas e transcritas',  icon:IcoCall,        color:T.gold, bg:T.goldGl, tag:'Admin',    adminOnly:true, strictAdmin:true},
-    {id:'comercial',        label:'Comercial',             sub:'Em breve',                         icon:IcoComercial,   color:T.gold, bg:T.goldGl, tag:'Em breve', adminOnly:true, strictAdmin:true},
+    {id:'comercial',        label:'Comercial',             sub:'Portal restrito pro time comercial', icon:IcoComercial,  color:T.gold, bg:T.goldGl, tag:'Ferramenta', adminOnly:true, strictAdmin:true},
   ];
   /* Os atalhos viram "módulos" de mentira: daí em diante tudo que a tela já
      sabe fazer (ordenar, redimensionar, colorir) vale pra eles de graça. O que

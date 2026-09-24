@@ -17,11 +17,11 @@ import ConexaoSetorial from './modules/conexao-setorial';
 import MercadoEstelar from './modules/mercado-estelar';
 import UnikoFit from './modules/uniko-fit';
 import InfoAdicional from './modules/info-adicional';
-import EmBreveModulo from './shared/EmBreveModulo';
 import UnikoSafer from './modules/uniko-safer';
 import UnikoSecurity from './modules/uniko-security';
 import UnikoCall from './modules/uniko-call';
 import Beneficios7 from './modules/beneficios-7';
+import Comercial from './modules/comercial';
 import { notifyDesktop, ensureNotifyPermission } from './utils/desktopNotify';
 import { useIsMobile } from './hooks/useIsMobile';
 import UnikoAssistant from './shared/UnikoAssistant';
@@ -36,14 +36,6 @@ import PerfHud from './shared/diagnosticoPerf';
 import { loadCargoModulesForEmployeeId } from './shared/cargoPermissions';
 import { abaDaUrl } from './modules/faturamento/rotaFerramenta';
 
-// Ícone da vitrine "em breve" (Comercial) — mesmo estilo dos ícones de
-// módulo do ModuleSelector. (Uniko Safer e Uniko Call saíram daqui: cada um
-// ganhou módulo de verdade, ver imports acima.)
-const IcoEmBreveComercial = (
-  <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="3" y1="12" x2="21" y2="12"/>
-  </svg>
-);
 
 export default function CrescentHub() {
   const [screen, ss]       = useState('landing');
@@ -676,7 +668,7 @@ export default function CrescentHub() {
           {screen==='mercado-estelar' && <MercadoEstelar onBack={handleGoBack} authUser={authUser} userPhoto={userPhoto} initialTab={portalInitialTab}/>}
           {screen==='uniko-fit' && <UnikoFit onBack={handleGoBack} authUser={authUser} userPhoto={userPhoto}/>}
           {screen==='uniko-call' && (authUser?.role==='admin'||cargoModules.has('uniko-call')) && <UnikoCall onBack={handleGoBack}/>}
-          {screen==='comercial' && (authUser?.role==='admin'||cargoModules.has('comercial')) && <EmBreveModulo onBack={handleGoBack} title="Comercial" icon={IcoEmBreveComercial}/>}
+          {screen==='comercial' && (authUser?.role==='admin'||cargoModules.has('comercial')) && <Comercial onBack={handleGoBack} userPhoto={userPhoto} onPhotoChange={p=>setUserPhoto(p)}/>}
         </div>
 
         {/* ── Aviso Urgente — tela cheia ── */}
