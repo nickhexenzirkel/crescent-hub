@@ -18,3 +18,8 @@ create table if not exists public.uniko_security_known_names (
   updated_at timestamptz not null default now(),
   primary key (wa_id, category)
 );
+
+-- RLS ligada, SEM nenhuma policy (mesmo padrão do uniko_security_webhook_raw)
+-- — só a service_role do backend lê/escreve (processAppStateSync/upsertContact
+-- em whatsappCloudApi.js); o cliente (front-end) nunca consulta essa tabela.
+alter table public.uniko_security_known_names enable row level security;
