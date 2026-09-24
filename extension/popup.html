@@ -3,27 +3,132 @@
 <head>
 <meta charset="utf-8">
 <style>
-  body { width: 260px; font-family: -apple-system, Segoe UI, Arial, sans-serif; padding: 14px; margin: 0; color: #222; }
-  h1 { font-size: 14px; margin: 0 0 4px; }
-  .sub { font-size: 11.5px; color: #777; margin: 0 0 12px; }
-  .status { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 8px; background: #f2f2f2; font-size: 12.5px; font-weight: 600; margin-bottom: 10px; }
-  .dot { width: 9px; height: 9px; border-radius: 50%; background: #999; flex-shrink: 0; }
-  .dot.recording { background: #e0533d; animation: pulse 1.2s infinite; }
-  .dot.aguardando { background: #d4a017; animation: pulse 1.2s infinite; }
+  :root {
+    --green: #22c55e;
+    --green-dk: #16a34a;
+    --green-gl: rgba(34, 197, 94, 0.14);
+    --ink: #10151a;
+    --ink-sub: #6b7480;
+    --line: #e7eaee;
+    --danger: #e0533d;
+    --amber: #d4a017;
+  }
+  * { box-sizing: border-box; }
+  body {
+    width: 280px;
+    font-family: -apple-system, "Segoe UI", Arial, sans-serif;
+    padding: 16px;
+    margin: 0;
+    color: var(--ink);
+    background: #fff;
+  }
+  .header {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    padding: 11px 12px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, var(--green-gl), rgba(34,197,94,0.03));
+    border: 1px solid rgba(34,197,94,0.18);
+    margin-bottom: 14px;
+  }
+  .header img {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    flex-shrink: 0;
+    background: #0d1410;
+    box-shadow: 0 2px 8px rgba(0,0,0,.18);
+  }
+  .brand { min-width: 0; }
+  .brand .title {
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: .01em;
+    color: var(--ink);
+    line-height: 1.15;
+  }
+  .brand .subtitle {
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--green-dk);
+    margin-top: 2px;
+  }
+  .status {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 10px 12px;
+    border-radius: 11px;
+    background: #f7f8fa;
+    border: 1px solid var(--line);
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--ink);
+    margin-bottom: 10px;
+  }
+  .dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #b7bec7;
+    flex-shrink: 0;
+    box-shadow: 0 0 0 3px rgba(0,0,0,.04);
+  }
+  .dot.recording { background: var(--danger); box-shadow: 0 0 0 3px rgba(224,83,61,.15); animation: pulse 1.2s infinite; }
+  .dot.aguardando { background: var(--amber); box-shadow: 0 0 0 3px rgba(212,160,23,.15); animation: pulse 1.2s infinite; }
   @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
-  button { width: 100%; padding: 9px; border-radius: 8px; border: none; font-size: 12.5px; font-weight: 700; cursor: pointer; margin-bottom: 8px; font-family: inherit; }
-  .primary { background: #d4a017; color: #fff; }
-  .danger { background: #e0533d; color: #fff; }
-  .secondary { background: #eee; color: #333; }
-  .warn { font-size: 10.5px; color: #999; line-height: 1.4; margin-top: 8px; }
-  .micOk { display: none; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 8px; background: #e6f4ea; color: #2a8f4f; font-size: 12.5px; font-weight: 700; margin-bottom: 8px; }
+  button {
+    width: 100%;
+    padding: 10px;
+    border-radius: 11px;
+    border: none;
+    font-size: 12.5px;
+    font-weight: 700;
+    cursor: pointer;
+    margin-bottom: 8px;
+    font-family: inherit;
+    transition: transform .08s ease, opacity .12s ease;
+  }
+  button:active { transform: scale(.98); }
+  .primary { background: linear-gradient(135deg, var(--green), var(--green-dk)); color: #fff; box-shadow: 0 3px 10px rgba(34,197,94,.28); }
+  .danger { background: var(--danger); color: #fff; box-shadow: 0 3px 10px rgba(224,83,61,.25); }
+  .secondary { background: #f1f2f4; color: #333; }
+  .warn {
+    font-size: 10.5px;
+    color: var(--ink-sub);
+    line-height: 1.5;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--line);
+  }
+  .micOk {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 11px;
+    border-radius: 11px;
+    background: var(--green-gl);
+    color: var(--green-dk);
+    font-size: 12px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    border: 1px solid rgba(34,197,94,.25);
+  }
 </style>
 </head>
 <body>
-  <h1>Uniko Call</h1>
-  <p class="sub">Gravação de chamadas do WhatsApp Web</p>
+  <div class="header">
+    <img src="icon.png" alt="Uniko Call">
+    <div class="brand">
+      <div class="title">UNIKO CALL</div>
+      <div class="subtitle">Extensão</div>
+    </div>
+  </div>
   <div class="status"><span id="dot" class="dot"></span><span id="statusText">Verificando…</span></div>
-  <div id="micOk" class="micOk">🎤 Microfone autorizado, ativo ✅</div>
+  <div id="micOk" class="micOk">🎤 Microfone autorizado, ativo</div>
   <button id="micBtn" class="secondary">Autorizar microfone</button>
   <button id="toggleBtn" class="primary">Iniciar gravação manual</button>
   <p class="warn">Avise sempre a pessoa do outro lado que a ligação está sendo gravada, no início da chamada. O Chrome exige um clique pra autorizar a captura — quando uma chamada é detectada, este ícone avisa (bolinha amarela); clique em "Iniciar gravação manual" pra começar de verdade.</p>

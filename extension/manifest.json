@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Uniko Cat-Bot",
+  "name": "Uniko Call - Extensão",
   "version": "1.2.2",
   "description": "Automação de downloads do módulo Faturamento do Uniko HUB + notificações desktop do Portal do Colaborador + gravação de chamadas do WhatsApp Web (Uniko Call)",
   "icons": {
@@ -53,7 +53,7 @@
     }
   ],
   "action": {
-    "default_title": "Uniko Cat-Bot",
+    "default_title": "Uniko Call - Extensão",
     "default_popup": "popup.html",
     "default_icon": {
       "16": "icon.png",
