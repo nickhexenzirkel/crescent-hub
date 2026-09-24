@@ -130,8 +130,8 @@ const UnikoSecurity = ({ onBack }) => {
 
   // ── Backup criptografado (.ukbak) — gerar (tudo ou 1 contato), importar/ler
   // e histórico dos automáticos mensais. Ver unikoSecurityBackup.js no servidor.
-  const [backupBusy, setBackupBusy] = useState(null); // null | 'Gerando backup completo…' | 'Gerando backup da conversa…'
-  const [importBusy, setImportBusy] = useState(false);
+  // progressModal: { title, pct (0-100 ou null p/ indeterminado), sublabel }
+  const [progressModal, setProgressModal] = useState(null);
   const [importedBackup, setImportedBackup] = useState(null); // { data, viewingContactId }
   const [autoBackupsOpen, setAutoBackupsOpen] = useState(false);
   const [autoBackups, setAutoBackups] = useState([]);
@@ -146,8 +146,7 @@ const UnikoSecurity = ({ onBack }) => {
 
   const authHeaders = () => ({ Authorization: `Bearer ${localStorage.getItem('ch_token') || ''}` });
 
-  const downloadBlobResponse = async (res, filename) => {
-    const blob = await res.blob();
+  const downloadBlobDirect = (blob, filename) => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url; a.download = filename;
@@ -155,8 +154,28 @@ const UnikoSecurity = ({ onBack }) => {
     URL.revokeObjectURL(url);
   };
 
+  const fmtMB = (bytes) => `${(bytes / 1e6).toFixed(1)}MB`;
+
+  // Lê a resposta em pedaços (em vez de só res.blob()) pra dar pra mostrar
+  // progresso de download de verdade — usa Content-Length quando o servidor
+  // manda; sem ele, mostra só os MB baixados (barra indeterminada).
+  const readResponseWithProgress = async (res, onProgress) => {
+    const total = Number(res.headers.get('content-length')) || 0;
+    const reader = res.body.getReader();
+    const chunks = [];
+    let received = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+      received += value.length;
+      onProgress(received, total);
+    }
+    return new Blob(chunks);
+  };
+
   const generateBackup = async (scope, contactId, label) => {
-    setBackupBusy(scope === 'all' ? 'Gerando backup completo…' : 'Gerando backup da conversa…');
+    setProgressModal({ title: scope === 'all' ? 'Gerando backup completo…' : 'Gerando backup da conversa…', pct: null, sublabel: 'Preparando…' });
     try {
       const startRes = await fetch(`${SERVER_URL}/api/security/backup/start`, {
         method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' },
@@ -168,38 +187,74 @@ const UnikoSecurity = ({ onBack }) => {
 
       let status = 'running';
       while (status === 'running') {
-        await new Promise(r => setTimeout(r, 1500));
+        await new Promise(r => setTimeout(r, 1000));
         const stRes = await fetch(`${SERVER_URL}/api/security/backup/status/${jobId}`, { headers: authHeaders() });
         const st = await stRes.json();
         status = st.status;
         if (status === 'error') throw new Error(st.error || 'falha ao gerar');
+        const p = st.progress;
+        setProgressModal({
+          title: scope === 'all' ? 'Gerando backup completo…' : 'Gerando backup da conversa…',
+          pct: p?.total ? (p.done / p.total) * 100 : null,
+          sublabel: p?.total ? `${p.done} de ${p.total} contato${p.total === 1 ? '' : 's'} processado${p.total === 1 ? '' : 's'}` : 'Preparando…',
+        });
       }
+
+      setProgressModal({ title: 'Baixando arquivo…', pct: 0, sublabel: '' });
       const dlRes = await fetch(`${SERVER_URL}/api/security/backup/download/${jobId}`, { headers: authHeaders() });
       if (!dlRes.ok) throw new Error('falha ao baixar o backup pronto');
-      await downloadBlobResponse(dlRes, `uniko-security-backup-${label}-${new Date().toISOString().slice(0, 10)}.ukbak`);
+      const blob = await readResponseWithProgress(dlRes, (received, total) => {
+        setProgressModal({ title: 'Baixando arquivo…', pct: total ? (received / total) * 100 : null, sublabel: total ? `${fmtMB(received)} de ${fmtMB(total)}` : fmtMB(received) });
+      });
+      downloadBlobDirect(blob, `uniko-security-backup-${label}-${new Date().toISOString().slice(0, 10)}.ukbak`);
       flash('Backup baixado — arquivo só abre aqui no Uniko Security.');
     } catch (e) {
       flash('Erro no backup: ' + e.message);
     } finally {
-      setBackupBusy(null);
+      setProgressModal(null);
     }
   };
 
+  // Upload com progresso de verdade precisa de XMLHttpRequest — fetch não
+  // expõe evento de progresso de ENVIO (só de download), e um backup
+  // completo com mídia pode ser grande o bastante pra isso importar de
+  // verdade (achado ao vivo 24/set/2026).
+  const uploadWithProgress = (url, form, onProgress) => new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', url);
+    xhr.setRequestHeader('Authorization', `Bearer ${localStorage.getItem('ch_token') || ''}`);
+    xhr.upload.onprogress = (e) => onProgress({ phase: 'upload', loaded: e.loaded, total: e.lengthComputable ? e.total : 0 });
+    xhr.onprogress = (e) => onProgress({ phase: 'download', loaded: e.loaded, total: e.lengthComputable ? e.total : 0 });
+    xhr.onload = () => {
+      let data;
+      try { data = JSON.parse(xhr.responseText); } catch { return reject(new Error('Resposta inválida do servidor')); }
+      if (xhr.status >= 200 && xhr.status < 300) resolve(data);
+      else reject(new Error(data.error || `HTTP ${xhr.status}`));
+    };
+    xhr.onerror = () => reject(new Error('Falha de rede'));
+    xhr.send(form);
+  });
+
   const handleImportBackupFile = async (file) => {
     if (!file) return;
-    setImportBusy(true);
+    setProgressModal({ title: 'Enviando arquivo…', pct: 0, sublabel: fmtMB(file.size) });
     try {
       const form = new FormData();
       form.append('file', file);
-      const res = await fetch(`${SERVER_URL}/api/security/backup/decrypt`, { method: 'POST', headers: authHeaders(), body: form });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'falha ao ler o backup');
+      const data = await uploadWithProgress(`${SERVER_URL}/api/security/backup/decrypt`, form, ({ phase, loaded, total }) => {
+        if (phase === 'upload') {
+          const done = total > 0 && loaded >= total;
+          setProgressModal({ title: done ? 'Decifrando…' : 'Enviando arquivo…', pct: done ? null : (total ? (loaded / total) * 100 : null), sublabel: total ? `${fmtMB(loaded)} de ${fmtMB(total)}` : '' });
+        } else {
+          setProgressModal({ title: 'Recebendo resultado…', pct: total ? (loaded / total) * 100 : null, sublabel: total ? `${fmtMB(loaded)} de ${fmtMB(total)}` : fmtMB(loaded) });
+        }
+      });
       setImportedBackup({ data, viewingContactId: data.contacts?.[0]?.id ?? null });
       setMoreMenuOpen(false);
     } catch (e) {
       flash('Erro ao importar: ' + e.message);
     } finally {
-      setImportBusy(false);
+      setProgressModal(null);
       if (importFileRef.current) importFileRef.current.value = '';
     }
   };
@@ -217,11 +272,15 @@ const UnikoSecurity = ({ onBack }) => {
   };
 
   const downloadAutoBackup = async (row) => {
+    setProgressModal({ title: 'Baixando arquivo…', pct: 0, sublabel: '' });
     try {
       const res = await fetch(`${SERVER_URL}/api/security/backup/auto/${row.id}/download`, { headers: authHeaders() });
       if (!res.ok) throw new Error((await res.json()).error || 'falha ao baixar');
-      await downloadBlobResponse(res, row.path);
-    } catch (e) { flash('Erro: ' + e.message); }
+      const blob = await readResponseWithProgress(res, (received, total) => {
+        setProgressModal({ title: 'Baixando arquivo…', pct: total ? (received / total) * 100 : null, sublabel: total ? `${fmtMB(received)} de ${fmtMB(total)}` : fmtMB(received) });
+      });
+      downloadBlobDirect(blob, row.path);
+    } catch (e) { flash('Erro: ' + e.message); } finally { setProgressModal(null); }
   };
 
   const loadContacts = async () => {
@@ -997,9 +1056,25 @@ const UnikoSecurity = ({ onBack }) => {
         );
       })()}
 
-      {(backupBusy || importBusy) && (
-        <div style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', zIndex: 9999, background: T.gold, color: '#fff', padding: '12px 22px', borderRadius: 12, fontSize: 13.5, fontWeight: 700, boxShadow: '0 8px 30px rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', gap: 8 }}>
-          {backupBusy || 'Importando backup…'}
+      {progressModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 16 }}>
+          <div style={{ background: T.surface, borderRadius: 18, padding: '26px 26px 22px', width: 340, maxWidth: '100%', boxShadow: T.shL, textAlign: 'center' }}>
+            <style>{`
+              @keyframes progressIndeterminate { 0%{transform:translateX(-100%)} 100%{transform:translateX(250%)} }
+            `}</style>
+            <div style={{ fontSize: 15, fontWeight: 800, color: T.text, marginBottom: 4 }}>{progressModal.title}</div>
+            <div style={{ fontSize: 12, color: T.textT, marginBottom: 16, minHeight: 16 }}>{progressModal.sublabel}</div>
+            <div style={{ height: 8, borderRadius: 6, background: T.surfaceSub || 'rgba(0,0,0,0.06)', overflow: 'hidden', position: 'relative' }}>
+              {progressModal.pct == null ? (
+                <div style={{ position: 'absolute', top: 0, bottom: 0, width: '40%', borderRadius: 6, background: T.gold, animation: 'progressIndeterminate 1.1s ease-in-out infinite' }} />
+              ) : (
+                <div style={{ height: '100%', borderRadius: 6, background: T.gold, width: `${Math.min(100, Math.max(2, progressModal.pct))}%`, transition: 'width .2s ease' }} />
+              )}
+            </div>
+            {progressModal.pct != null && (
+              <div style={{ fontSize: 11, fontWeight: 700, color: T.gold, marginTop: 8 }}>{Math.round(progressModal.pct)}%</div>
+            )}
+          </div>
         </div>
       )}
 
