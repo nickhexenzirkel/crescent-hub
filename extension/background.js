@@ -695,7 +695,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // não tem clique nenhum associado, não dá pra iniciar a captura sozinha —
   // só avisa (ver comentário no bloco de definição das funções acima).
   if (message.type === 'UNIKO_CALL_DETECTED_START') avisarChamadaDetectada();
-  if (message.type === 'UNIKO_CALL_DETECTED_STOP') limparAvisoChamada();
+  // BUG corrigido (24/set/2026): isso só limpava o aviso de "chamada
+  // detectada" — quando a gravação tinha sido iniciada MANUALMENTE (clique
+  // em "Iniciar gravação manual"), desligar a chamada de verdade não parava
+  // nada sozinho. A gravação ficava rodando pra sempre em segundo plano
+  // (badge preso em "gravando") até alguém voltar no popup e clicar em
+  // "Parar gravação" de propósito — sem isso, uploadRecording() nunca roda e
+  // nada chega no servidor (nem erro nenhum, porque nada foi tentado).
+  // Agora a detecção real de "chamada acabou" também para a gravação
+  // manual, se houver uma em andamento.
+  if (message.type === 'UNIKO_CALL_DETECTED_STOP') {
+    limparAvisoChamada();
+    if (unikoCallState === 'recording') stopUnikoCallRecording();
+  }
 
   // Uniko Call — streamId já obtido no clique, dentro do popup (única forma
   // que o Chrome aceita) — aqui só prepara o offscreen document e repassa.
