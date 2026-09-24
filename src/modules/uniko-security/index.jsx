@@ -328,12 +328,20 @@ const UnikoSecurity = ({ onBack }) => {
     } catch {}
   };
 
+  // Busca as ÚLTIMAS mensagens (ordem decrescente + limite), depois inverte
+  // pra ordem cronológica. Achado ao vivo (24/set/2026, contato com 1615
+  // mensagens): pedir em ordem CRESCENTE sem limite deixava o corte de
+  // linhas do Supabase cair nas mais ANTIGAS sobrarem e as mais NOVAS (as
+  // de hoje) ficarem de fora — a conversa parecia "travada", nunca mostrando
+  // mensagem nova nenhuma, mesmo já salva certinha no banco.
+  const CHAT_MESSAGES_LIMIT = 500;
   const loadChatMessages = async (contactId, { silent = false } = {}) => {
     if (!silent) setLoadingChat(true);
     const { data, error } = await supabase.from('uniko_security_messages')
-      .select('sent_at, direction, text, msg_type, media_url').eq('contact_id', contactId).order('sent_at');
+      .select('sent_at, direction, text, msg_type, media_url').eq('contact_id', contactId)
+      .order('sent_at', { ascending: false }).limit(CHAT_MESSAGES_LIMIT);
     if (error) { if (!silent) { flash('Erro ao carregar mensagens: ' + error.message); setLoadingChat(false); } return; }
-    setCurrentChatMessages((data || []).map(r => ({ timestamp: r.sent_at, direction: r.direction, text: r.text, msgType: r.msg_type, mediaUrl: r.media_url })));
+    setCurrentChatMessages((data || []).reverse().map(r => ({ timestamp: r.sent_at, direction: r.direction, text: r.text, msgType: r.msg_type, mediaUrl: r.media_url })));
     if (!silent) setLoadingChat(false);
   };
 
