@@ -685,7 +685,7 @@ export default function CrescentHub() {
         <div style={{position:'relative',zIndex:1,minHeight:'100vh'}}>
           {screen==='landing'     && <LandingPage    onStart={()=>navPush('login')}/>}
           {screen==='login'       && <LoginScreen    onLogin={handleLogin}/>}
-          {screen==='modules'     && <ModuleSelector onSelect={handleModuleSelect} authUser={authUser} onLogout={handleLogout} userPhoto={userPhoto} cargoModules={cargoModules} cargoRestricted={cargoRestricted}/>}
+          {screen==='modules'     && <ModuleSelector onSelect={handleModuleSelect} authUser={authUser} onLogout={handleLogout} userPhoto={userPhoto} cargoModules={cargoModules} cargoRestricted={cargoRestricted} cargoTabRestrictions={cargoTabRestrictions}/>}
           {screen==='colaborador' && <Portal         onBack={handleGoBack} onGoAlexa={()=>navPush('alexa')} userPhoto={userPhoto} onPhotoChange={p=>setUserPhoto(p)} initialTab={portalInitialTab} restrictedTabs={isPlainColaborador ? cargoTabRestrictions['colaborador'] : undefined}/>}
           {screen==='ponto'       && (authUser?.role==='admin'||authUser?.role==='moderador'||cargoModules.has('ponto')) && <PontoEletronico onBack={handleGoBack} isAdmin={true}/>}
           {screen==='dashboard'   && (authUser?.role==='admin'||authUser?.role==='moderador'||cargoModules.has('dashboard')) && <DashboardRH onBack={handleGoBack} adminName={authUser.name} role={authUser.role}/>}

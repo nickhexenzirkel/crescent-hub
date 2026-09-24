@@ -1292,7 +1292,12 @@ const DataHoje = () => {
    automática — que, diferente de justify-content:center, vira zero quando o
    conteúdo não cabe, em vez de cortar o topo. Numa tela grande o conjunto
    fica no meio; num notebook baixo ele encosta no cabeçalho e rola. */
-const MenuLayoutNovo = ({ mods, onSelect, getModuleColor, authUser, userPhoto, acoes, modo, tamanhos = {}, onTamanhos, sobreposicao }) => {
+// `widgetsOcultos`: { chaveDoWidget: bool } — recorte de cargo (Dashboard RH
+// → Gerenciar Permissões) pra widgets fixos que atalham direto pra uma aba
+// específica (Checkin → Prisma Store, Banco de Horas/Ponto/Comunicados →
+// Portal). Sem isso esses botões furavam a restrição de aba/módulo do cargo
+// (não passam pela lista de módulos nem de atalhos). {} = nenhum escondido.
+const MenuLayoutNovo = ({ mods, onSelect, getModuleColor, authUser, userPhoto, acoes, modo, tamanhos = {}, onTamanhos, sobreposicao, widgetsOcultos = {} }) => {
   const editando = !!modo.sizeMode;
   const tamWidget = (id) => tamanhos[chaveWidget(id)] || WIDGETS[id].padrao;
   const tamModulo = (m) => tamanhos[m.id] || tamModuloPadrao(m);
@@ -1396,10 +1401,10 @@ const MenuLayoutNovo = ({ mods, onSelect, getModuleColor, authUser, userPhoto, a
             gap:VAO_W, gridAutoFlow:'row dense' }}>
             <WidgetPerfil {...widget('perfil', 0)} authUser={authUser} userPhoto={userPhoto} acoes={acoes}/>
             <WidgetCaixa {...widget('caixa', 1)} authUser={authUser} onSelect={onSelect}/>
-            <WidgetCheckin {...widget('checkin', 2)} authUser={authUser} onAbrir={abrir('mercado-estelar', 'checkin')}/>
-            <WidgetHoras {...widget('horas', 3)} ponto={ponto} onAbrir={abrir('colaborador', 'horas')}/>
-            <WidgetPonto {...widget('ponto', 4)} ponto={ponto} onAbrir={abrir('colaborador', 'ponto')}/>
-            <WidgetAvisos {...widget('avisos', 5)} onAbrir={abrir('colaborador', 'comunicados')}/>
+            {!widgetsOcultos.checkin && <WidgetCheckin {...widget('checkin', 2)} authUser={authUser} onAbrir={abrir('mercado-estelar', 'checkin')}/>}
+            {!widgetsOcultos.horas && <WidgetHoras {...widget('horas', 3)} ponto={ponto} onAbrir={abrir('colaborador', 'horas')}/>}
+            {!widgetsOcultos.ponto && <WidgetPonto {...widget('ponto', 4)} ponto={ponto} onAbrir={abrir('colaborador', 'ponto')}/>}
+            {!widgetsOcultos.avisos && <WidgetAvisos {...widget('avisos', 5)} onAbrir={abrir('colaborador', 'comunicados')}/>}
             <WidgetNovidades {...widget('novidades', 6)} onSelect={onSelect} acoes={acoes}/>
           </div>
         </div>

@@ -240,7 +240,7 @@ const SHOOT_POS = [
   {x:'74%', y:'78%', delay:'-3.1s'},
 ];
 
-const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto, cargoModules, cargoRestricted}) => {
+const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto, cargoModules, cargoRestricted, cargoTabRestrictions}) => {
   // Cargos (Dashboard RH → Gerenciar Permissões) liberam módulo por módulo
   // pra quem não é admin/moderador — camada ADICIONAL, só soma acesso, nunca
   // tira o que admin/moderador já tinham. `cargoRestricted` é a exceção: um
@@ -396,6 +396,20 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto, cargoModules, 
   // Contas, Portal dos Credenciados) NÃO liberam pra moderador — só admin de
   // verdade ou cargo.
   const podeAdminOnly = isAdmin || isModerador;
+  // Mesma checagem que os módulos usam (moduloPermitido) + recorte de aba
+  // (abaPermitida, ver supabase_uniko_cargos_tab_restrict.sql) — usada pelos
+  // WIDGETS fixos da tela (Checkin, Banco de Horas, Ponto, Comunicados), que
+  // não passam pela lista de módulos/atalhos e por isso furavam a restrição
+  // de cargo (ex: cargo Comercial via widget "Banco de Horas" mesmo sem essa
+  // aba marcada). Nunca afeta admin/moderador.
+  const isPlainColaborador = !isAdmin && !isModerador;
+  const moduloPermitido = (moduloId) => !isPlainColaborador || !cargoRestricted || temCargoPara(moduloId);
+  const abaPermitida = (moduloId, abaId) => {
+    if (!moduloPermitido(moduloId)) return false;
+    if (!isPlainColaborador) return true;
+    const lista = cargoTabRestrictions?.[moduloId];
+    return !lista?.length || lista.includes(abaId);
+  };
 
   const IcoColab = (
     <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -523,7 +537,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto, cargoModules, 
      sabe fazer (ordenar, redimensionar, colorir) vale pra eles de graça. O que
      muda é só o clique, que leva pro módulo já na aba certa. */
   const salasConexao = useSalasConexao();
-  const catalogo = catalogoAtalhos(authUser, salasConexao);
+  const catalogo = catalogoAtalhos(authUser, salasConexao, isPlainColaborador ? cargoTabRestrictions : {});
   const atalhoMods = atalhos
     .map(chave => ({ chave, a: resolverAtalho(chave, catalogo) }))
     .filter(x => x.a)
@@ -1006,6 +1020,12 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto, cargoModules, 
           cores escolhidas pela pessoa); o MenuLayoutNovo só desenha. */}
       <MenuLayoutNovo mods={modsTela} onSelect={onSelect} getModuleColor={getModuleColor}
         authUser={authUser} userPhoto={userPhoto}
+        widgetsOcultos={{
+          checkin: !abaPermitida('mercado-estelar', 'checkin'),
+          horas: !abaPermitida('colaborador', 'horas'),
+          ponto: !abaPermitida('colaborador', 'ponto'),
+          avisos: !abaPermitida('colaborador', 'comunicados'),
+        }}
         acoes={acoesCard}
         tamanhos={tamNovo} onTamanhos={mudarTamNovo}
         modo={{ reorderMode, colorMode, sizeMode, dragModId, coloringId, setDragModId,

@@ -56,16 +56,27 @@ export const useSalasConexao = () => {
   return salas;
 };
 
-export const catalogoAtalhos = (authUser, salas = []) => {
+// `tabRestrictions`: recorte de aba por cargo (Dashboard RH → Gerenciar
+// Permissões, ver supabase_uniko_cargos_tab_restrict.sql) — { moduleId:
+// string[] }. Módulo ausente/vazio = sem recorte (comportamento de sempre).
+// Sem isso, um atalho salvo (ou escolhido de novo) pra uma aba fora da
+// restrição do cargo (ex: Uniko Paint pro cargo Comercial) continuava
+// aparecendo na tela de módulos mesmo o Portal em si travando a aba.
+export const catalogoAtalhos = (authUser, salas = [], tabRestrictions = {}) => {
   const isAdmin = authUser?.role === 'admin';
+  const permitido = (moduloId, abaId) => {
+    const lista = tabRestrictions[moduloId];
+    return !lista?.length || lista.includes(abaId);
+  };
   return [
     { modulo:'colaborador', nome:'Portal do Colaborador',
-      abas: NAV_PORTAL.filter(n => !n.adminOnly || isAdmin) },
+      abas: NAV_PORTAL.filter(n => (!n.adminOnly || isAdmin) && permitido('colaborador', n.id)) },
     { modulo:'mercado-estelar', nome:'Prisma Store', abas: ABAS_PRISMA },
     { modulo:'alexa', nome:'Central Alexa', abas: ABAS_ALEXA.filter(t => !t.adminOnly || isAdmin) },
     { modulo:'faturamento', nome:'Oficina Estelar',
       abas: NAV_OFICINA.filter(n => n.id !== 'inicio'
-        && (n.tabGate ? canSeeTab(n.id, authUser, isAdmin) : (!n.adminOnly || isAdmin))) },
+        && (n.tabGate ? canSeeTab(n.id, authUser, isAdmin) : (!n.adminOnly || isAdmin))
+        && permitido('faturamento', n.id)) },
     { modulo:'conexao-setorial', nome:'Trello',
       abas: salas.map(s => ({ id:s.id, label:s.name || 'Sala', icon:IcoSala, cor: /^#[0-9a-f]{6}$/i.test(s.color || '') ? s.color : null })) },
   ].filter(g => g.abas.length).map(g => ({
