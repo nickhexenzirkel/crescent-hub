@@ -635,7 +635,7 @@ async function ensureOffscreenDocument() {
 // streamId já vem PRONTO (obtido no clique, dentro de popup.js) — aqui só
 // prepara o offscreen document e repassa pra gravação de verdade começar.
 async function startUnikoCallRecordingWithStream(streamId, contactName) {
-  console.log('[uniko-call] background: startUnikoCallRecordingWithStream — streamId:', streamId, 'state atual:', unikoCallState);
+  console.log('[uniko-call] background: startUnikoCallRecordingWithStream — streamId:', streamId, 'contactName:', JSON.stringify(contactName), 'state atual:', unikoCallState);
   if (unikoCallState === 'recording') { console.log('[uniko-call] background: já estava "recording" — ignorando.'); return; }
   try {
     await ensureOffscreenDocument();

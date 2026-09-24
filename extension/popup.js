@@ -68,8 +68,11 @@ toggleBtn.addEventListener('click', async () => {
     try {
       const r = await chrome.tabs.sendMessage(tab.id, { type: 'UNIKO_CALL_QUERY_CONTACT' });
       contactName = r?.contactName || null;
-    } catch {}
-    console.log('[uniko-call] popup: mandando UNIKO_CALL_START_WITH_STREAM pro background...');
+      console.log('[uniko-call] popup: contactName recebido do content script:', JSON.stringify(contactName));
+    } catch (e) {
+      console.error('[uniko-call] popup: falha ao perguntar o contactName pro content script:', e.message);
+    }
+    console.log('[uniko-call] popup: mandando UNIKO_CALL_START_WITH_STREAM pro background... contactName=', JSON.stringify(contactName));
     await chrome.runtime.sendMessage({ type: 'UNIKO_CALL_START_WITH_STREAM', streamId, contactName });
     console.log('[uniko-call] popup: mensagem enviada, background confirmou recebimento.');
     render('recording');
