@@ -65,17 +65,23 @@ toggleBtn.addEventListener('click', async () => {
     const streamId = await chrome.tabCapture.getMediaStreamId();
     console.log('[uniko-call] popup: streamId obtido:', streamId);
     let contactName = null;
+    let contentScriptStale = false;
     try {
       const r = await chrome.tabs.sendMessage(tab.id, { type: 'UNIKO_CALL_QUERY_CONTACT' });
       contactName = r?.contactName || null;
       console.log('[uniko-call] popup: contactName recebido do content script:', JSON.stringify(contactName));
     } catch (e) {
       console.error('[uniko-call] popup: falha ao perguntar o contactName pro content script:', e.message);
+      // "Receiving end does not exist" = a extensão foi recarregada e essa
+      // aba ficou "órfã" (content script antigo, sem conexão) — só um F5
+      // NESSA aba resolve. Isso NÃO impede a gravação em si (áudio não
+      // depende do content script), só o nome do contato vem em branco.
+      if (/Receiving end does not exist/i.test(e.message || '')) contentScriptStale = true;
     }
     console.log('[uniko-call] popup: mandando UNIKO_CALL_START_WITH_STREAM pro background... contactName=', JSON.stringify(contactName));
     await chrome.runtime.sendMessage({ type: 'UNIKO_CALL_START_WITH_STREAM', streamId, contactName });
     console.log('[uniko-call] popup: mensagem enviada, background confirmou recebimento.');
-    render('recording');
+    render('recording', contentScriptStale ? 'Gravando (sem nome — dá um F5 na aba do WhatsApp)' : null);
   } catch (e) {
     render('idle', `Falhou: ${e.message}`);
   }
