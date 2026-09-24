@@ -136,6 +136,7 @@ const UnikoSecurity = ({ onBack }) => {
   const [autoBackupsOpen, setAutoBackupsOpen] = useState(false);
   const [autoBackups, setAutoBackups] = useState([]);
   const [autoBackupsLoading, setAutoBackupsLoading] = useState(false);
+  const [backupPickerOpen, setBackupPickerOpen] = useState(false);
   const importFileRef = useRef(null);
 
   const flash = (msg) => {
@@ -174,12 +175,15 @@ const UnikoSecurity = ({ onBack }) => {
     return new Blob(chunks);
   };
 
-  const generateBackup = async (scope, contactId, label) => {
-    setProgressModal({ title: scope === 'all' ? 'Gerando backup completo…' : 'Gerando backup da conversa…', pct: null, sublabel: 'Preparando…' });
+  const generateBackup = async (scope, contactId, label, category) => {
+    const titulo = scope === 'all' ? 'Gerando backup completo (todos os setores)…'
+      : scope === 'category' ? `Gerando backup completo (${label})…`
+      : 'Gerando backup da conversa…';
+    setProgressModal({ title: titulo, pct: null, sublabel: 'Preparando…' });
     try {
       const startRes = await fetch(`${SERVER_URL}/api/security/backup/start`, {
         method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ scope, contactId }),
+        body: JSON.stringify({ scope, contactId, category }),
       });
       const startData = await startRes.json();
       if (!startRes.ok) throw new Error(startData.error || 'falha ao iniciar');
@@ -194,7 +198,7 @@ const UnikoSecurity = ({ onBack }) => {
         if (status === 'error') throw new Error(st.error || 'falha ao gerar');
         const p = st.progress;
         setProgressModal({
-          title: scope === 'all' ? 'Gerando backup completo…' : 'Gerando backup da conversa…',
+          title: titulo,
           pct: p?.total ? (p.done / p.total) * 100 : null,
           sublabel: p?.total ? `${p.done} de ${p.total} contato${p.total === 1 ? '' : 's'} processado${p.total === 1 ? '' : 's'}` : 'Preparando…',
         });
@@ -885,7 +889,7 @@ const UnikoSecurity = ({ onBack }) => {
               {[
                 { icon: <IcoSelect />, title: 'Selecionar contatos', desc: 'Marque vários contatos pra excluir de uma vez', onClick: () => { setMoreMenuOpen(false); toggleSelectionMode(); } },
                 { icon: <IcoAudit />, title: 'Registro de auditoria', desc: 'Quem viu, editou ou excluiu cada conversa', onClick: () => { setMoreMenuOpen(false); openAuditLog(); } },
-                { icon: <IcoShieldDown />, title: 'Backup completo', desc: 'Baixa todas as conversas (texto + mídia) num arquivo criptografado', onClick: () => { setMoreMenuOpen(false); generateBackup('all', null, 'completo'); } },
+                { icon: <IcoShieldDown />, title: 'Backup completo', desc: 'Baixa as conversas (texto + mídia) num arquivo criptografado — todos os setores ou só um', onClick: () => { setMoreMenuOpen(false); setBackupPickerOpen(true); } },
                 { icon: <IcoUpload />, title: 'Importar backup', desc: 'Abre um .ukbak baixado antes — só o Uniko Security sabe ler', onClick: () => importFileRef.current?.click() },
                 { icon: <IcoHistory />, title: 'Backups automáticos', desc: 'Histórico dos backups mensais gerados sozinhos (últimos 12)', onClick: openAutoBackups },
               ].map(card => (
@@ -959,6 +963,41 @@ const UnikoSecurity = ({ onBack }) => {
       <input ref={importFileRef} type="file" accept=".ukbak" style={{ display: 'none' }}
         onChange={e => handleImportBackupFile(e.target.files?.[0])} />
 
+      {/* Modal: escolher todos os setores ou só um, pro backup completo */}
+      {backupPickerOpen && (
+        <div onClick={() => setBackupPickerOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 500, padding: 16 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: T.surface, borderRadius: 16, padding: 24, width: 360, maxWidth: '100%', boxShadow: T.shL }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: T.text }}>Backup completo</div>
+              <button onClick={() => setBackupPickerOpen(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: T.textT }}><IcoClose /></button>
+            </div>
+            <div style={{ fontSize: 12.5, color: T.textT, marginBottom: 16 }}>De qual setor? Ou de todos juntos.</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <button onClick={() => { setBackupPickerOpen(false); generateBackup('all', null, 'todos-os-setores'); }}
+                style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 12, cursor: 'pointer', textAlign: 'left',
+                  border: `1.5px solid ${T.gold}`, background: T.goldGl, fontFamily: 'var(--font-body)' }}>
+                <div style={{ width: 36, height: 36, borderRadius: 10, background: T.gold, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><IcoShieldDown /></div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 700, color: T.text }}>Todos os setores</div>
+                  <div style={{ fontSize: 11.5, color: T.textT, marginTop: 1 }}>Faturamento + Financeiro juntos, num arquivo só</div>
+                </div>
+              </button>
+              {CATEGORIES.map(cat => (
+                <button key={cat.id} onClick={() => { setBackupPickerOpen(false); generateBackup('category', null, cat.label, cat.id); }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 12, cursor: 'pointer', textAlign: 'left',
+                    border: `1.5px solid ${T.border}`, background: T.page, fontFamily: 'var(--font-body)' }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 10, background: T.surfaceSub || 'rgba(0,0,0,0.06)', color: T.textT, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><IcoShieldDown /></div>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 700, color: T.text }}>Só {cat.label}</div>
+                    <div style={{ fontSize: 11.5, color: T.textT, marginTop: 1 }}>Um arquivo com só as conversas desse setor</div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Tela cheia: histórico dos backups automáticos mensais */}
       {autoBackupsOpen && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 600, background: T.page, display: 'flex', flexDirection: 'column' }}>
@@ -1003,7 +1042,13 @@ const UnikoSecurity = ({ onBack }) => {
               <button onClick={() => setImportedBackup(null)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: T.textT, display: 'flex' }}><IcoClose /></button>
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontSize: 15, fontWeight: 700, color: T.text }}>Backup importado</div>
-                <div style={{ fontSize: 11, color: T.textT }}>Gerado em {formatDateTime(ib.generatedAt)} · {ib.scope === 'all' ? 'todas as conversas' : '1 conversa'}</div>
+                <div style={{ fontSize: 11, color: T.textT }}>
+                  Gerado em {formatDateTime(ib.generatedAt)} · {
+                    ib.scope === 'all' ? 'todos os setores'
+                    : ib.scope === 'category' ? `só ${CATEGORIES.find(c => c.id === ib.category)?.label || ib.category}`
+                    : '1 conversa'
+                  }
+                </div>
               </div>
             </div>
             <div style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden' }}>
