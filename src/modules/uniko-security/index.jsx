@@ -237,9 +237,9 @@ const UnikoSecurity = ({ onBack }) => {
   const loadChatMessages = async (contactId, { silent = false } = {}) => {
     if (!silent) setLoadingChat(true);
     const { data, error } = await supabase.from('uniko_security_messages')
-      .select('sent_at, direction, text').eq('contact_id', contactId).order('sent_at');
+      .select('sent_at, direction, text, msg_type, media_url').eq('contact_id', contactId).order('sent_at');
     if (error) { if (!silent) { flash('Erro ao carregar mensagens: ' + error.message); setLoadingChat(false); } return; }
-    setCurrentChatMessages((data || []).map(r => ({ timestamp: r.sent_at, direction: r.direction, text: r.text })));
+    setCurrentChatMessages((data || []).map(r => ({ timestamp: r.sent_at, direction: r.direction, text: r.text, msgType: r.msg_type, mediaUrl: r.media_url })));
     if (!silent) setLoadingChat(false);
   };
 
@@ -384,11 +384,21 @@ const UnikoSecurity = ({ onBack }) => {
           {divider && <div style={dividerStyle}>{formatDayLabel(m.timestamp)}</div>}
           <div style={{ display: 'flex', justifyContent: fromMe ? 'flex-end' : 'flex-start', width: '100%', marginTop: 8 }}>
             <div style={{ display: 'flex', flexDirection: 'column', maxWidth: '68%', alignItems: fromMe ? 'flex-end' : 'flex-start' }}>
-              <div style={{ padding: '8px 12px', borderRadius: 16, fontSize: 13.5, lineHeight: 1.45, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+              <div style={{ padding: m.msgType === 'image' && m.mediaUrl ? 4 : '8px 12px', borderRadius: 16, fontSize: 13.5, lineHeight: 1.45, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
                 background: fromMe ? (T.green || T.gold) : T.surface, color: fromMe ? '#fff' : T.text,
                 border: fromMe ? 'none' : `1px solid ${T.border}`,
                 borderBottomRightRadius: fromMe ? 4 : 16, borderBottomLeftRadius: fromMe ? 16 : 4 }}>
-                {m.text}
+                {m.msgType === 'image' && m.mediaUrl ? (
+                  <>
+                    <img src={m.mediaUrl} alt="" style={{ display: 'block', maxWidth: 280, maxHeight: 320, borderRadius: 12, cursor: 'pointer' }}
+                      onClick={() => window.open(m.mediaUrl, '_blank', 'noopener')} />
+                    {m.text && m.text !== '[imagem]' && <div style={{ padding: '6px 6px 2px' }}>{m.text}</div>}
+                  </>
+                ) : m.msgType === 'audio' && m.mediaUrl ? (
+                  <audio controls src={m.mediaUrl} style={{ maxWidth: 260 }} />
+                ) : (
+                  m.text
+                )}
               </div>
               <div style={{ fontSize: 10.5, color: T.textT, margin: '3px 4px 0' }}>{formatTime(m.timestamp)}</div>
             </div>
