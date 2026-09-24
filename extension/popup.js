@@ -1,7 +1,26 @@
 const dot = document.getElementById('dot');
 const statusText = document.getElementById('statusText');
 const micBtn = document.getElementById('micBtn');
+const micOk = document.getElementById('micOk');
 const toggleBtn = document.getElementById('toggleBtn');
+
+// Mostra "Microfone autorizado, ativo" em vez do botão quando a permissão já
+// foi concedida antes (ver permissoes.html) — sem isso o botão "Autorizar
+// microfone" fica lá pra sempre, sem nenhum jeito de saber se já tinha sido
+// autorizado ou não (dava a impressão de que nunca funcionou).
+async function refreshMicStatus() {
+  try {
+    const status = await navigator.permissions.query({ name: 'microphone' });
+    const granted = status.state === 'granted';
+    micOk.style.display = granted ? 'flex' : 'none';
+    micBtn.style.display = granted ? 'none' : 'block';
+    status.onchange = refreshMicStatus;
+  } catch {
+    // Permissions API sem suporte a 'microphone' nesse Chrome — mantém o
+    // botão sempre visível (comportamento de antes), sem quebrar a tela.
+  }
+}
+refreshMicStatus();
 
 function render(state, msg) {
   const recording = state === 'recording';

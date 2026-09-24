@@ -16,12 +16,14 @@
   .danger { background: #e0533d; color: #fff; }
   .secondary { background: #eee; color: #333; }
   .warn { font-size: 10.5px; color: #999; line-height: 1.4; margin-top: 8px; }
+  .micOk { display: none; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 8px; background: #e6f4ea; color: #2a8f4f; font-size: 12.5px; font-weight: 700; margin-bottom: 8px; }
 </style>
 </head>
 <body>
   <h1>Uniko Call</h1>
   <p class="sub">Gravação de chamadas do WhatsApp Web</p>
   <div class="status"><span id="dot" class="dot"></span><span id="statusText">Verificando…</span></div>
+  <div id="micOk" class="micOk">🎤 Microfone autorizado, ativo ✅</div>
   <button id="micBtn" class="secondary">Autorizar microfone</button>
   <button id="toggleBtn" class="primary">Iniciar gravação manual</button>
   <p class="warn">Avise sempre a pessoa do outro lado que a ligação está sendo gravada, no início da chamada. O Chrome exige um clique pra autorizar a captura — quando uma chamada é detectada, este ícone avisa (bolinha amarela); clique em "Iniciar gravação manual" pra começar de verdade.</p>
