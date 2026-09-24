@@ -64,19 +64,31 @@ toggleBtn.addEventListener('click', async () => {
     }
     const streamId = await chrome.tabCapture.getMediaStreamId();
     console.log('[uniko-call] popup: streamId obtido:', streamId);
+    // Pergunta o nome pra TODAS as abas do WhatsApp Web abertas, não só a
+    // "aba ativa" — achado ao vivo 24/set/2026: mesmo com a ligação em
+    // andamento na aba certa, a "aba ativa" na hora do clique às vezes é
+    // outra coisa (ex.: o Picture-in-Picture do WhatsApp cria uma janela
+    // própria quando a chamada some da aba principal — o usuário relatou
+    // exatamente isso). tabCapture continua pegando o áudio da aba ativa
+    // normalmente (é assim que o Chrome exige); só a PERGUNTA do nome vira
+    // uma varredura, ficando com a primeira aba que responder de verdade.
     let contactName = null;
     let contentScriptStale = false;
     try {
-      const r = await chrome.tabs.sendMessage(tab.id, { type: 'UNIKO_CALL_QUERY_CONTACT' });
-      contactName = r?.contactName || null;
-      console.log('[uniko-call] popup: contactName recebido do content script:', JSON.stringify(contactName));
+      const waTabs = await chrome.tabs.query({ url: 'https://web.whatsapp.com/*' });
+      console.log('[uniko-call] popup: abas do WhatsApp Web encontradas:', waTabs.map(t => t.id));
+      for (const t of waTabs) {
+        try {
+          const r = await chrome.tabs.sendMessage(t.id, { type: 'UNIKO_CALL_QUERY_CONTACT' });
+          console.log(`[uniko-call] popup: aba ${t.id} respondeu contactName:`, JSON.stringify(r?.contactName));
+          if (r?.contactName) { contactName = r.contactName; break; }
+        } catch (e) {
+          console.warn(`[uniko-call] popup: aba ${t.id} não respondeu:`, e.message);
+        }
+      }
+      if (!contactName && waTabs.length) contentScriptStale = true;
     } catch (e) {
-      console.error('[uniko-call] popup: falha ao perguntar o contactName pro content script:', e.message);
-      // "Receiving end does not exist" = a extensão foi recarregada e essa
-      // aba ficou "órfã" (content script antigo, sem conexão) — só um F5
-      // NESSA aba resolve. Isso NÃO impede a gravação em si (áudio não
-      // depende do content script), só o nome do contato vem em branco.
-      if (/Receiving end does not exist/i.test(e.message || '')) contentScriptStale = true;
+      console.error('[uniko-call] popup: falha ao varrer abas do WhatsApp Web:', e.message);
     }
     console.log('[uniko-call] popup: mandando UNIKO_CALL_START_WITH_STREAM pro background... contactName=', JSON.stringify(contactName));
     await chrome.runtime.sendMessage({ type: 'UNIKO_CALL_START_WITH_STREAM', streamId, contactName });
