@@ -608,14 +608,28 @@ function setUnikoCallState(state) {
   chrome.action.setBadgeBackgroundColor({ color: cor }).catch(() => {});
 }
 
+// Achado ao vivo (24/set/2026): confiar em hasDocument() pra decidir se
+// pula o createDocument() é arriscado — se hasDocument() disser "já existe"
+// errado (visto depois de recarregar a extensão), createDocument() nunca
+// roda, NENHUM erro aparece (só um early return) e a gravação nunca chega a
+// acontecer, em silêncio total. Agora tenta criar SEMPRE e só ignora o erro
+// se ele disser explicitamente que já existe um documento — mais confiável
+// que confiar na checagem prévia.
 async function ensureOffscreenDocument() {
-  const has = await chrome.offscreen.hasDocument?.();
-  if (has) return;
-  await chrome.offscreen.createDocument({
-    url: 'offscreen.html',
-    reasons: ['USER_MEDIA'],
-    justification: 'Gravar áudio de chamada do WhatsApp Web (com aviso ao usuário) pro Uniko Call',
-  });
+  try {
+    await chrome.offscreen.createDocument({
+      url: 'offscreen.html',
+      reasons: ['USER_MEDIA'],
+      justification: 'Gravar áudio de chamada do WhatsApp Web (com aviso ao usuário) pro Uniko Call',
+    });
+    console.log('[uniko-call] offscreen document criado agora.');
+  } catch (e) {
+    if (/single offscreen|already exists|only one/i.test(e.message || '')) {
+      console.log('[uniko-call] offscreen document já existia — reaproveitando:', e.message);
+      return;
+    }
+    throw e;
+  }
 }
 
 // streamId já vem PRONTO (obtido no clique, dentro de popup.js) — aqui só
