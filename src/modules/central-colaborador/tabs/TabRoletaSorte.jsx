@@ -17,6 +17,9 @@ import {
 import { fetchAllCaptures } from '../../../shared/captureNumero';
 import roletaFundo from '../../../assets/roleta-fundo.webp';
 
+const ROLETA_MUSICA_SRC = '/roleta-sorte-musica.mp3'; // public/
+const ROLETA_MUSICA_VOL = 0.7;
+
 const segColor = (i, n) => {
   const hue = Math.round((i * 360) / Math.max(n, 1));
   const light = i % 2 === 0 ? 55 : 45;
@@ -315,6 +318,56 @@ const TabRoletaSorte = () => {
     };
     tick();
     return () => cancelAnimationFrame(rafRef.current);
+  }, [spin?.id, spin?.startedAt]);
+
+  // ── Música do giro — toca enquanto a roleta gira, em TODOS os computadores.
+  // Mesma ideia da animação: o ponto da música vem do relógio sincronizado
+  // (agora − startedAt), então quem entra no meio do giro ouve do ponto certo e
+  // quem abre a aba depois do giro acabado não ouve nada. Some com fade no fim.
+  // Navegador pode bloquear o play sem clique prévio na página (quem só está
+  // assistindo): nesse caso tenta de novo no 1º clique enquanto o giro durar.
+  useEffect(() => {
+    if (!spin) return;
+    const t0 = Date.parse(spin.startedAt);
+    const dur = spin.durationMs || ROLETA_DURATION_MS;
+    if (Number.isNaN(t0) || nowMs() - t0 >= dur) return; // giro já acabou
+    const FADE_MS = 700;
+    const audio = new Audio(ROLETA_MUSICA_SRC);
+    audio.preload = 'auto';
+    audio.volume = ROLETA_MUSICA_VOL;
+    let alive = true;
+    let fadeIv = null;
+    const start = () => {
+      if (!alive) return;
+      const elapsed = (nowMs() - t0) / 1000;
+      if (elapsed * 1000 >= dur) return;
+      try { audio.currentTime = Math.max(0, elapsed); } catch {}
+      audio.play().catch(() => {
+        // autoplay bloqueado — tenta no próximo clique, se ainda estiver girando
+        const retry = () => { window.removeEventListener('pointerdown', retry); start(); };
+        window.addEventListener('pointerdown', retry, { once: true });
+      });
+    };
+    start();
+    const stop = () => {
+      if (fadeIv) return;
+      const from = audio.volume;
+      const steps = Math.max(1, Math.round(FADE_MS / 50));
+      let i = 0;
+      fadeIv = setInterval(() => {
+        i++;
+        audio.volume = Math.max(0, from * (1 - i / steps));
+        if (i >= steps) { clearInterval(fadeIv); audio.pause(); }
+      }, 50);
+    };
+    const endIn = Math.max(0, t0 + dur - nowMs() - FADE_MS);
+    const endTimer = setTimeout(stop, endIn);
+    return () => {
+      alive = false;
+      clearTimeout(endTimer);
+      if (fadeIv) clearInterval(fadeIv);
+      audio.pause();
+    };
   }, [spin?.id, spin?.startedAt]);
 
   useEffect(() => {
