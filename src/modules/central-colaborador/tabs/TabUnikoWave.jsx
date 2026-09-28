@@ -6,7 +6,7 @@ import { addGamePlaytime } from '../../../shared/gamePlaytime';
 // Chaves do save do jogo que ficam atreladas à CONTA do usuário (não ao
 // navegador). Personagens/mascotes, carteira (GW/GC), personagem escolhido,
 // perfil e pity do gacha. Ver supabase_uniko_wave_saves.sql.
-const SAVE_KEYS = ['dw_wallet', 'dw_unlocked', 'dw_char', 'dw_profile', 'dw_wish_pity'];
+const SAVE_KEYS = ['dw_wallet', 'dw_unlocked', 'dw_char', 'dw_profile', 'dw_wish_pity', 'dw_constellations'];
 // Marca de quem é o save atualmente no localStorage (isola contas no mesmo PC).
 const OWNER_KEY = 'dw_cloud_owner';
 

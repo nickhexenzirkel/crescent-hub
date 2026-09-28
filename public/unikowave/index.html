@@ -9115,7 +9115,7 @@ function closeCharSelect(){
 // perfil e pity ficam atrelados ao usuário e acompanham qualquer dispositivo.
 // A hidratação (carregar da nuvem) é feita pelo React ANTES de criar o iframe,
 // escrevendo direto no localStorage (mesma origem). Aqui só ENVIAMOS mudanças.
-const CLOUD_SAVE_KEYS = ['dw_wallet','dw_unlocked','dw_char','dw_profile','dw_wish_pity'];
+const CLOUD_SAVE_KEYS = ['dw_wallet','dw_unlocked','dw_char','dw_profile','dw_wish_pity','dw_constellations'];
 let _cloudSaveTimer = null;
 function cloudSaveNow(){
   try{
@@ -9163,6 +9163,34 @@ function saveUnlocked(arr){
   catch(e){ console.warn('[uniko-wave] personagens não gravaram localmente:', e && e.name); }
   cloudSave();
 }
+
+// ─── CONSTELAÇÕES ───
+// Cada vez que o gacha (Audição) devolve um personagem que o jogador JÁ tem, ele ganha
+// 1 constelação naquele personagem (máx. CONST_MAX). Cada constelação aumenta a duração
+// da habilidade especial (WG_ABILITY.durPerConst). Guardado em `dw_constellations`
+// ({ [idDoPersonagem]: nível 0..5 }) e sincronizado na conta como o resto do save.
+const CONST_KEY = 'dw_constellations';
+const CONST_MAX = 5;
+function loadConst(){
+  try {
+    const o = JSON.parse(localStorage.getItem(CONST_KEY));
+    if(o && typeof o==='object' && !Array.isArray(o)) return o;
+  } catch(e){}
+  return {};
+}
+function getConst(id){
+  const n = parseInt(loadConst()[id],10);
+  return isNaN(n) ? 0 : Math.max(0, Math.min(CONST_MAX, n));
+}
+function setConst(id, n){
+  const o = loadConst();
+  o[id] = Math.max(0, Math.min(CONST_MAX, n));
+  try { localStorage.setItem(CONST_KEY, JSON.stringify(o)); }
+  catch(e){ console.warn('[uniko-wave] constelações não gravaram localmente:', e && e.name); }
+  cloudSave();
+}
+// Ponto de estrelas: ★★☆☆☆
+function constStars(n){ return '★'.repeat(n) + '☆'.repeat(CONST_MAX-n); }
 
 function isUnlocked(id){
   if(TEMP_UNLOCK_ALL) return true; // ⚠️ TEMPORÁRIO: todos liberados (ver TEMP_UNLOCK_ALL)
@@ -9311,8 +9339,14 @@ function renderCharSpotlight(){
   const ab = abilityForCharId(id);
   const abEl=document.getElementById('cspotAbility');
   if(ab){
-    const efeito = ab.kind==='shield' ? `${ab.dur}s imune a erro` : `${ab.dur}s de ataque automático`;
-    abEl.innerHTML = `<span class="cspot-ability-icon">${ab.icon||'✨'}</span><div><div class="cspot-ability-name">${ab.name.toUpperCase()}</div><div class="cspot-ability-desc">${efeito} · recarrega em ${WG_ABILITY_COOLDOWN}s (Guerra Estelar)</div></div>`;
+    const cLv = getConst(id);
+    const dSecs = fmtSecs(wgAbilityDurFor(ab, id));
+    const efeito = ab.kind==='shield' ? `${dSecs}s imune a erro` : `${dSecs}s de ataque automático`;
+    // Constelações (só faz sentido pra quem vem do gacha — a Linnea é sempre liberada).
+    const constRow = (unlocked && !ch.alwaysUnlocked)
+      ? `<div class="cspot-ability-desc" style="color:#ffd34d;margin-top:3px" title="Cada duplicata no gacha sobe 1 constelação (máx. ${CONST_MAX}): +${ab.durPerConst||0}s de habilidade">✦ ${constStars(cLv)} Constelação ${cLv}/${CONST_MAX}${cLv<CONST_MAX?` · +${fmtSecs(ab.durPerConst||0)}s a cada duplicata`:' · MÁXIMA'}</div>`
+      : '';
+    abEl.innerHTML = `<span class="cspot-ability-icon">${ab.icon||'✨'}</span><div><div class="cspot-ability-name">${ab.name.toUpperCase()}</div><div class="cspot-ability-desc">${efeito} · recarrega em ${WG_ABILITY_COOLDOWN}s (Guerra Estelar)</div>${constRow}</div>`;
   } else {
     abEl.innerHTML = `<div class="cspot-no-ability">Sem habilidade especial na Guerra Estelar</div>`;
   }
@@ -9446,13 +9480,20 @@ function rollOnce(){
   const n = loadPity()+1;             // nº deste desejo desde a última vitória
   const win = Math.random() < wishProb(n);
   if(win) savePity(0); else savePity(n);
-  let dup=false;
+  let dup=false, constLevel=0, constUp=false;
   if(win){
     const granted = grantChar(wishBanner);
     if(granted){ selectChar(wishBanner); }
-    else { dup=true; earnGW(50); }    // duplicata → devolve 50 GW
+    else {
+      dup=true; earnGW(50);    // duplicata → devolve 50 GW
+      // …e sobe 1 constelação (até CONST_MAX): habilidade dura mais.
+      const before = getConst(wishBanner);
+      constLevel = Math.min(CONST_MAX, before+1);
+      constUp = before < CONST_MAX;
+      if(constUp) setConst(wishBanner, constLevel);
+    }
   }
-  return {win, ch:CHARACTERS[wishBanner], dup};
+  return {win, ch:CHARACTERS[wishBanner], dup, constLevel, constUp};
 }
 function doWish(){
   if(_wishAnimating) return;
@@ -9464,7 +9505,7 @@ function doWish(){
   earnGW(-WISH_COST);                 // cobra 100 GW
   const r = rollOnce();
   renderWishPanel();
-  playWishAnimation({multi:false, win:r.win, ch:r.ch, dup:r.dup});
+  playWishAnimation({multi:false, win:r.win, ch:r.ch, dup:r.dup, constLevel:r.constLevel, constUp:r.constUp});
 }
 function doWish10(){
   if(_wishAnimating) return;
@@ -9587,7 +9628,12 @@ function showWishReveal(){
     }
     title.textContent = anyWin ? `🎉 ${p.wins}/10 GANHOS!` : '10 DESEJOS';
     title.style.color = anyWin ? '#ffd700' : '#9aa6c0';
-    sub.textContent = anyWin ? `${p.ch.name} conquistado!` : 'Nenhum personagem dessa vez... 🌠';
+    // Constelações ganhas nos 10 desejos (duplicatas até o máximo) — mostra o nível final.
+    const constGain = (p.results||[]).filter(r=>r.constUp).length;
+    const finalConst = getConst(p.ch.id);
+    sub.textContent = anyWin
+      ? (constGain>0 ? `${p.ch.name} conquistado! ✦ +${constGain} constelação(ões) — agora ${constStars(finalConst)} (${finalConst}/${CONST_MAX})` : `${p.ch.name} conquistado!`)
+      : 'Nenhum personagem dessa vez... 🌠';
     if(rarity && anyWin){ rarity.textContent = p.ch.tag||''; rarity.className = 'wish-reveal-rarity '+(p.ch.tagClass||'default'); rarity.style.display='inline-block'; }
     if(anyWin) spawnWishSparkles(sparkC); else if(sparkC) sparkC.innerHTML='';
     playSfx(anyWin?'win':'lose');
@@ -9601,7 +9647,15 @@ function showWishReveal(){
       title.textContent = '✦ '+p.ch.name.toUpperCase()+' ✦';
       title.style.color = '#ffd700';
       if(rarity){ rarity.textContent = p.ch.tag||''; rarity.className = 'wish-reveal-rarity '+(p.ch.tagClass||'default'); rarity.style.display='inline-block'; }
-      sub.textContent = p.dup ? 'Você já tinha — duplicata! +50 GW devolvidos 🌊' : 'Novo personagem conquistado! 🎉';
+      if(!p.dup){
+        sub.textContent = 'Novo personagem conquistado! 🎉';
+      } else if(p.constUp){
+        const ab = abilityForCharId(p.ch.id);
+        const bonus = ab && ab.durPerConst ? ` · habilidade +${ab.durPerConst}s` : '';
+        sub.textContent = `✦ CONSTELAÇÃO ${p.constLevel}/${CONST_MAX} ${constStars(p.constLevel)}${bonus} · +50 GW devolvidos 🌊`;
+      } else {
+        sub.textContent = `Constelação máxima (${CONST_MAX}/${CONST_MAX}) ${constStars(CONST_MAX)} · +50 GW devolvidos 🌊`;
+      }
       spawnWishSparkles(sparkC);
       playSfx('win');
     } else {
@@ -9732,9 +9786,22 @@ const WG = {
   beltH:0, fireTop:0, firePalette:null, fireH:null, fireCols:0, fireRows:0, fireCell:9, judge:null, embers:[], fireRecolorAt:30,
   // Habilidade especial por personagem (ver WG_ABILITY) — 1 uso por música, Espaço/botão ativa.
   abilityKind:null, abilityUntil:0, abilityReadyAt:0,
+  // Pulos da habilidade 'auto' (ver wgHop): tempo, altura (0..1) e se está subindo.
+  hopT:0, hopLift:0, hopRising:false,
 };
 const WG_TRAVEL = 1.7;    // segundos que o inimigo leva entrando pela direita
 const WG_AIR_HOLD = 0.40; // tempo que a Mizuki fica na linha do ar após apertar W
+// Habilidade 'auto' (Venebra/Ashen/Icy/Supernova): em vez de ficar parada flutuando, o
+// personagem PULA sem parar — sobe bem rápido (35% do ciclo, easeOut) e desce mais
+// devagar (65%). `WG_HOP_REACH` = quanto da distância chão→linha do ar cada pulo cobre
+// (1 = chega na linha do ar); ~0.95 é alto o bastante pra ver, sem exagero.
+const WG_HOP_PERIOD = 0.5, WG_HOP_RISE = 0.35, WG_HOP_REACH = 0.95;
+function wgHop(t){
+  const ph=(t%WG_HOP_PERIOD)/WG_HOP_PERIOD;
+  if(ph<WG_HOP_RISE){ const x=ph/WG_HOP_RISE; return {lift:1-Math.pow(1-x,3), rising:true}; }
+  const x=(ph-WG_HOP_RISE)/(1-WG_HOP_RISE);
+  return {lift:1-x*x, rising:false};
+}
 const C_GROUND = '#ff2e9a', C_AIR = '#28e0ff', C_HOLD = '#eef2fa';
 // Notas de SEGURAR: só branco, cinza, azul e rosa (nada de arco-íris).
 const HOLD_BLUE = '#4AA6FF', HOLD_PINK = '#FF6FB5', HOLD_GRAY = '#9AA3B2', HOLD_WHITE = '#FFFFFF';
@@ -9809,13 +9876,23 @@ function wgLine(key){ const c=WG_LINES[wgChar]||WG_LINES.mizuki; return (c[key]!
 // só registrando o personagem nos outros pontos (wgChar nunca vale 'supernova'
 // hoje, então esse trecho fica inerte até lá).
 const WG_ABILITY_COOLDOWN = 30;
+// `dur` = duração base (constelação 0); cada constelação (até CONST_MAX) soma `durPerConst`
+// segundos — ver wgAbilityDurFor(). Com 5 constelações a de ataque automático chega a 9s e
+// a Proteção Oceânica a 13,5s.
 const WG_ABILITY = {
-  venebra:   { name:'Frenesi Sangrento',  kind:'auto',   dur:10, sfx:'beam',   icon:'🩸', say:'🩸 FRENESI SANGRENTO! 🩸' },
-  oceania:   { name:'Proteção Oceânica',  kind:'shield', dur:15, sfx:'charge', icon:'🌊', say:'🌊 PROTEÇÃO OCEÂNICA! 🌊' },
-  ashen:     { name:'Lâmina Vulcânica',   kind:'auto',   dur:10, sfx:'beam',   icon:'🔥', say:'🔥 LÂMINA VULCÂNICA! 🔥' },
-  icydoll:   { name:'Ataque Luxuoso',     kind:'auto',   dur:10, sfx:'beam',   icon:'✨', say:'✨ ATAQUE LUXUOSO! ✨' },
-  supernova: { name:'Explosão Estelar',   kind:'auto',   dur:10, sfx:'beam',   icon:'💥', say:'💥 EXPLOSÃO ESTELAR! 💥' },
+  venebra:   { name:'Frenesi Sangrento',  kind:'auto',   dur:4, durPerConst:1,   sfx:'beam',   icon:'🩸', say:'🩸 FRENESI SANGRENTO! 🩸' },
+  oceania:   { name:'Proteção Oceânica',  kind:'shield', dur:6, durPerConst:1.5, sfx:'charge', icon:'🌊', say:'🌊 PROTEÇÃO OCEÂNICA! 🌊' },
+  ashen:     { name:'Lâmina Vulcânica',   kind:'auto',   dur:4, durPerConst:1,   sfx:'beam',   icon:'🔥', say:'🔥 LÂMINA VULCÂNICA! 🔥' },
+  icydoll:   { name:'Ataque Luxuoso',     kind:'auto',   dur:4, durPerConst:1,   sfx:'beam',   icon:'✨', say:'✨ ATAQUE LUXUOSO! ✨' },
+  supernova: { name:'Explosão Estelar',   kind:'auto',   dur:4, durPerConst:1,   sfx:'beam',   icon:'💥', say:'💥 EXPLOSÃO ESTELAR! 💥' },
 };
+// id do WG_CHAR_FRAMES → id do CHARACTERS (as duas chaves só diferem nos 2 fixos mais antigos).
+const WG_TO_CHAR_ID = { mizuki:'linnea', icydoll:'icy' };
+// Duração da habilidade `ab` pro personagem `charId` (id do CHARACTERS), já com as constelações.
+function wgAbilityDurFor(ab, charId){
+  return (ab.dur||0) + (ab.durPerConst||0) * getConst(charId);
+}
+const fmtSecs = (n) => String(Math.round(n*10)/10).replace('.',',');
 // Personagens FIXAS (venebra/oceania/ashen/icydoll) casam direto pelo id. Já
 // as da OFICINA (CUSTOM_WAVE_CHARS, injetadas em CHARACTERS com um id gerado —
 // ver injectCustomChars) não têm como bater com a chave 'supernova' pelo id;
@@ -9846,7 +9923,8 @@ function wgUpdateAbilityBtn(){
   const cooling=!active && wgAbilityOnCooldown();
   const activeLeft=Math.ceil(WG.abilityUntil-songTime());
   const coolLeft=Math.ceil(WG.abilityReadyAt-songTime());
-  btn.title=`${ab.name} (Espaço) — ${ab.kind==='shield'?`${ab.dur}s imune a erro`:`${ab.dur}s ataque automático`} · recarga ${WG_ABILITY_COOLDOWN}s`;
+  const abDur=fmtSecs(wgAbilityDurFor(ab, WG_TO_CHAR_ID[wgChar]||wgChar));
+  btn.title=`${ab.name} (Espaço) — ${ab.kind==='shield'?`${abDur}s imune a erro`:`${abDur}s ataque automático`} · recarga ${WG_ABILITY_COOLDOWN}s`;
   const lblEl=document.getElementById('wgAbilityLabel');
   // Texto sempre visível (nada de ícone sozinho) — muda conforme o estado.
   if(lblEl) lblEl.textContent = active ? `HABILIDADE ATIVA · ${activeLeft}s`
@@ -9862,7 +9940,7 @@ function wgActivateAbility(){
   if(WG.phase!=='play' || WG.attack) return;          // não durante finisher/evento/ataque do boss
   if(wgAbilityOnCooldown()) return;
   const ab=wgAbility(); if(!ab) return;
-  WG.abilityKind=ab.kind; WG.abilityUntil=songTime()+ab.dur; WG.abilityReadyAt=songTime()+WG_ABILITY_COOLDOWN;
+  WG.abilityKind=ab.kind; WG.abilityUntil=songTime()+wgAbilityDurFor(ab, WG_TO_CHAR_ID[wgChar]||wgChar); WG.abilityReadyAt=songTime()+WG_ABILITY_COOLDOWN;
   wgSfx(ab.sfx); wgSay('mizuki', ab.say, 2.8);
   // Sem isso, a fala periódica aleatória (a cada ~13-20s) podia disparar 1-2s depois
   // e apagar a fala de ativação antes de dar tempo de ler.
@@ -9871,7 +9949,7 @@ function wgActivateAbility(){
   const burstColor = mg ? mg.ring1Hi : '#ffd34d';
   rings.push({x:WG.charX+WG.charH*0.3,y:WG.floorFeet-WG.charH*0.5,r:8,maxR:CH*0.5,life:.7,decay:.1,color:burstColor,w:6,flash:true});
   spawnBurst(WG.charX+WG.charH*0.3,WG.floorFeet-WG.charH*0.5, mg?mg.hitBurstHi:burstColor, 34);
-  if(ab.kind==='auto'){ WG.airTimer=WG_AIR_HOLD; WG.airAnimT=0; } // já entra flutuando
+  if(ab.kind==='auto'){ WG.hopT=0; WG.airAnimT=0; } // já começa pulando
   wgUpdateAbilityBtn();
 }
 
@@ -10083,6 +10161,7 @@ function wgInit(){
   WG.judge=null; WG.fireH=null; WG.embers.length=0; WG.fireRecolorAt=30;
   WG.fireLevel=null; WG.firePhase=0; WG._fireLastT=null; // intensidade do fogo cresce com o combo
   WG.specialCount=0; WG.special=null; // evento do minion especial — até 3x (combo 50/100/150)
+  WG.hopT=0; WG.hopLift=0; WG.hopRising=false;
   WG.abilityKind=null; WG.abilityUntil=0; WG.abilityReadyAt=0; wgUpdateAbilityBtn(); // habilidade especial: recarrega a cada WG_ABILITY_COOLDOWN
   wgHoldSfxStop();
   // Fogo em ESTÁGIOS: a cada 15s troca de paleta (matizes da CAPA da música) e sobe um
@@ -10914,16 +10993,25 @@ function drawWargame(t){
   // ── Estado/animação da Mizuki ──
   if(WG.airTimer>0) WG.airTimer-=dt;
   if(WG.atkTimer>0) WG.atkTimer-=dt;
-  // Habilidade 'auto' ativa: mantém a pose de flutuar/atacar o tempo todo (sem isso
-  // o airTimer zeraria entre uma nota e outra e ela voltaria a correr no chão).
-  if(WG.abilityKind==='auto' && wgAbilityActive()) WG.airTimer=WG_AIR_HOLD;
+  // Habilidade 'auto' ativa: o personagem fica PULANDO sem parar (ver wgHop) — não some
+  // no chão entre uma nota e outra nem fica parado no ar. Segurando nota (hold) ou
+  // fora da fase normal (boss atacando, finisher, evento) vale o comportamento de sempre.
   // Botão ✨: a cada quadro atualiza a contagem (ativa e recarga) — ver wgUpdateAbilityBtn.
   wgUpdateAbilityBtn();
   WG.airAnimT+=dt;
   const airActive = WG.airTimer>0 || holdingAir;
-  const targetFeet = airActive ? WG.airFeet : WG.floorFeet;
-  WG.feetY += (targetFeet-WG.feetY)*Math.min(1,dt*22);
-  const onAir = Math.abs(WG.feetY-WG.airFeet) < Math.abs(WG.feetY-WG.floorFeet);
+  const hopping = WG.abilityKind==='auto' && wgAbilityActive() && WG.phase==='play' && !WG.attack && !holdingAir && !holdingGround;
+  let onAir;
+  if(hopping){
+    WG.hopT+=dt;
+    const hp=wgHop(WG.hopT); WG.hopLift=hp.lift; WG.hopRising=hp.rising;
+    WG.feetY = WG.floorFeet + (WG.airFeet-WG.floorFeet)*hp.lift*WG_HOP_REACH;
+    onAir = hp.lift>0.35;
+  } else {
+    const targetFeet = airActive ? WG.airFeet : WG.floorFeet;
+    WG.feetY += (targetFeet-WG.feetY)*Math.min(1,dt*22);
+    onAir = Math.abs(WG.feetY-WG.airFeet) < Math.abs(WG.feetY-WG.floorFeet);
+  }
   WG.runPhase += dt*10;
   if(WG.bossHitFx>0) WG.bossHitFx-=dt*3;
   if(WG.bossShake>0) WG.bossShake-=dt*36;
@@ -11153,6 +11241,7 @@ function drawWargame(t){
       if(wgMagic() && Math.random()<0.4) wgMagicBurst(WG.hitX, holdingAir?WG.airNoteY:WG.groundNoteY, 2); // magia ao segurar
     }
     else if(WG.atkTimer>0)       spr=WG_SPR.atk;                  // batida rápida (CHÃO) → ATAQUE
+    else if(hopping)             { if(WG.hopLift>0.06) spr=WG.hopRising?WG_SPR.jump:WG_SPR.airAtk; } // pulando: sobe na pose de pulo, desce atacando; no chão = corrida
     else if(airActive)           spr=WG.airAnimT<0.12?WG_SPR.jump:WG_SPR.airAtk; // batida no AR → pose própria (não usa o chute de chão)
     const bob=onAir?0:Math.abs(Math.sin(WG.runPhase))*5;
     const tremble=(holding || (WG.phase==='special' && wgMagic()))?Math.sin(animT*32)*5:0;  // segurando nota / DarkCatBot gigante → treme pra cima/baixo
