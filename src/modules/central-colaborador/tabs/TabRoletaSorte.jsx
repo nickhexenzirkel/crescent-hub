@@ -15,7 +15,7 @@ import {
   ROLETA_DURATION_MS, notifyRoletaPing,
 } from '../../../shared/roletaSorte';
 import { fetchAllCaptures } from '../../../shared/captureNumero';
-import roletaFundo from '../../../assets/roleta-fundo.png';
+import roletaFundo from '../../../assets/roleta-fundo.webp';
 
 const segColor = (i, n) => {
   const hue = Math.round((i * 360) / Math.max(n, 1));
@@ -231,7 +231,19 @@ const TabRoletaSorte = () => {
   const [team, setTeam] = useState(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
-  const flash = (m) => { setMsg(m); setTimeout(() => setMsg(''), 4000); };
+  const stageRef = useRef(null);
+  const [stageW, setStageW] = useState(880); // largura do palco da roleta (px)
+  useEffect(() => {
+    const el = stageRef.current;
+    if (!el) return;
+    const measure = () => setStageW(el.clientWidth || 880);
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const flash =(m) => { setMsg(m); setTimeout(() => setMsg(''), 4000); };
 
   // Admin — seletor de números da coleção dos colaboradores (Capture o Número).
   // Cada linha é um par (número, dono): o mesmo número pode ter mais de um dono, e
@@ -460,7 +472,12 @@ const TabRoletaSorte = () => {
     setNotifying(false);
   };
 
-  const wheelSize = isMobile ? 300 : 560;
+  // No desktop a roleta fica na parte ESQUERDA do palco e encolhe junto com ele, pra
+  // nunca cobrir o mascote do Uniko (canto inferior direito da arte de fundo). Ela
+  // ocupa no máximo ~58% da largura do palco; a arte é ancorada embaixo/à direita, então
+  // o mascote sempre ocupa os ~30% finais. No celular fica centralizada e a arte ganha
+  // uma faixa extra embaixo (paddingBottom) onde o mascote aparece sem ficar sob a roleta.
+  const wheelSize = isMobile ? 300 : Math.max(320, Math.min(560, Math.round(stageW * 0.58) - 22));
   const inpSt = { flex: 1, minWidth: 160, padding: '10px 14px', borderRadius: 11, border: `1.5px solid ${T.border}`,
     background: T.surfaceSub || 'rgba(0,0,0,.04)', fontSize: 13, color: T.text, fontFamily: 'var(--font-body)',
     outline: 'none', boxSizing: 'border-box' };
@@ -495,11 +512,15 @@ const TabRoletaSorte = () => {
       {/* Palco da roleta — arte de fundo espacial (de propósito fixa, não segue o
           tema claro/escuro do resto do Portal). O degradê escuro embaixo da imagem
           é só o fallback enquanto ela carrega. */}
-      <div style={{ position: 'relative', borderRadius: 24, padding: isMobile ? '32px 12px' : '48px 20px',
-        background: `url(${roletaFundo}) center bottom / cover no-repeat, radial-gradient(120% 90% at 50% 0%, #182849 0%, #0e1730 45%, #060a18 100%)`,
+      <div ref={stageRef} style={{ position: 'relative', borderRadius: 24,
+        padding: isMobile ? '32px 12px 200px' : '48px 20px',
+        background: `url(${roletaFundo}) right bottom / cover no-repeat, radial-gradient(120% 90% at 50% 0%, #182849 0%, #0e1730 45%, #060a18 100%)`,
         border: '1px solid rgba(255,255,255,.08)', boxShadow: '0 20px 60px rgba(0,0,0,.35)',
-        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 22, overflow: 'hidden' }}>
+        display: 'flex', flexDirection: 'column', alignItems: isMobile ? 'center' : 'flex-start', gap: 22, overflow: 'hidden' }}>
         <Starfield/>
+        {/* Coluna da roleta (+ textos de resultado): centralizada no celular, à esquerda no desktop */}
+        <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 22,
+          alignSelf: isMobile ? 'center' : 'flex-start', marginLeft: isMobile ? 0 : '1%' }}>
         {!loaded ? (
           <div style={{ position: 'relative', zIndex: 1, width: wheelSize, height: wheelSize, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <div style={{ width: 30, height: 30, borderRadius: '50%', border: `3px solid ${T.gold}`, borderTopColor: 'transparent', animation: 'spin .7s linear infinite' }}/>
@@ -509,8 +530,6 @@ const TabRoletaSorte = () => {
             <Wheel entries={entries} angle={angle} phase={phase} size={wheelSize} gold={T.gold}/>
           </div>
         )}
-
-        {showConfetti && <Confetti seed={spin?.id}/>}
 
         {loaded && entries.length === 0 && (
           <div style={{ position: 'relative', zIndex: 1, textAlign: 'center' }}>
@@ -534,6 +553,9 @@ const TabRoletaSorte = () => {
         {spinning && (
           <div style={{ position: 'relative', zIndex: 1, fontSize: 13, fontWeight: 700, color: '#fff', fontFamily: 'var(--font-body)' }}>Girando… 🎲</div>
         )}
+        </div>
+
+        {showConfetti && <Confetti seed={spin?.id}/>}
       </div>
 
       {/* Painel do admin */}
