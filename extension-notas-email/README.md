@@ -1,0 +1,40 @@
+# Uniko — Notas por e-mail (extensão do Chrome)
+
+Complementa o **Controle de Notas → Observações (Finanças + PDFs)** do Uniko.
+Para as notas cujo PDF **não veio nos ZIPs do OneDrive**, ela procura o PDF nos
+e-mails (Gmail) e devolve o arquivo para o Uniko ler.
+
+## Como instalar (uma vez)
+1. Abra `chrome://extensions` e ligue o **Modo do desenvolvedor** (canto superior direito).
+2. Clique em **Carregar sem compactação** e escolha esta pasta (`extension-notas-email`).
+3. Recarregue o Uniko (F5). Se aparecer erro de "Extensão não encontrada", confira se o
+   endereço do Uniko é um dos de `manifest.json → content_scripts[0].matches`.
+
+## Como usar
+1. No Uniko: Controle de Notas → **Observações (Finanças + PDFs)** → anexe a planilha e os ZIPs do OneDrive.
+2. Fique logado no Gmail das contas que serão pesquisadas (as duas que guardam as notas: adm7serv e faturamento).
+3. Em **Procurar as N que faltam nos e-mails**, informe o número de cada conta como aparece na URL
+   (`mail.google.com/mail/u/`**2**`/` → `2`). Ex.: `1,2`. Clique em **Procurar nos e-mails**.
+4. Abre-se uma janela do Gmail por conta. **Deixe-a visível** até terminar (o Chrome desacelera muito
+   janelas escondidas). A extensão fecha a janela sozinha.
+5. Os PDFs achados aparecem na tabela do Uniko; depois é só **Baixar Excel**.
+
+## Como funciona
+- Para cada número de nota busca `filename:<número>` no Gmail, abre as conversas encontradas,
+  expande as mensagens e baixa os PDFs cujo **nome** traz o número (`NF_51755_…`, `nfes_28698 - …`, `NF 4324`).
+- **Não interpreta o PDF.** O Uniko lê o corpo, confere o **número** e o **CNPJ do cliente** e só então aceita
+  (o mesmo número existe em municípios e anos diferentes — por isso a extensão entrega todos os candidatos).
+- O **assunto do e-mail** só é usado quando o corpo da nota não traz o período/categoria (ex.: notas de
+  Fortaleza de 2025); nesse caso o Uniko avisa "tirado do assunto do e-mail".
+
+## Segurança e privacidade
+- Usa a sessão do Gmail que **você já tem aberta**; nunca vê nem guarda senha.
+- Só aceita comandos vindos da própria página do Uniko (mesma origem) e **só números de nota**
+  (3 a 9 dígitos, no máximo 600 por vez) — não busca texto livre nos seus e-mails.
+- Entrega apenas anexos **PDF** cujo nome traz o número pedido. Nada é enviado a servidor: os PDFs vão
+  do Gmail para a sua aba do Uniko, dentro do navegador.
+
+## Limites conhecidos
+- Depende da página do Gmail (busca `filename:`, o botão "Expandir todos" e o atributo `download_url` dos
+  anexos). Se o Google mudar a página, a extensão pode precisar de ajuste.
+- Uma busca por vez. Se o Gmail pedir login ou verificação, a conta é pulada (aparece no andamento).

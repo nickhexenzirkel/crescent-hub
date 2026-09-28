@@ -4,7 +4,8 @@ import * as pdfjsLib from 'pdfjs-dist';
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { T } from '../../../contexts/theme';
 import { montarRelatorio } from '../observacoesNotas.js';
-import { lerArquivoPlanilha, lerArquivos } from '../observacoesNotasIO.js';
+import { lerArquivoPlanilha, lerArquivos, textoDoPdf } from '../observacoesNotasIO.js';
+import { buscarNoEmail, detectarExtensao } from '../extensaoNotasEmail.js';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
@@ -82,6 +83,11 @@ export const PainelObservacoesNotas = () => {
   const [avisos, setAvisos] = useState([]);
   const [filtro, setFiltro] = useState('todas');
   const [busca, setBusca] = useState('');
+  const [contasGmail, setContasGmail] = useState(() => {
+    try { return localStorage.getItem('uniko_notas_contas_gmail') || '1,2'; } catch { return '1,2'; }
+  });
+  const [email, setEmail] = useState(null); // { rodando, log:[], feitos, total, resumo }
+  const cancelarEmail = useRef(null);
   const cache = useRef(new Map()); // PDFs já lidos (chave = arquivo::caminho) — só mexe em eventos, nunca na renderização
 
   const ocupado = !!progresso;
@@ -131,6 +137,54 @@ export const PainelObservacoesNotas = () => {
       return String(l.numero).includes(q) || (l.cliente || '').toLowerCase().includes(q) || (l.observacao || '').toLowerCase().includes(q);
     });
   }, [relatorio, filtro, busca]);
+
+  // Procura no Gmail (pela extensão) as notas que ainda não têm observação.
+  const procurarNosEmails = async () => {
+    const faltantes = relatorio.linhas.filter((l) => l.situacao !== 'lida').map((l) => String(l.numero));
+    const contas = [...new Set(contasGmail.split(/[^0-9]+/).filter(Boolean).map(Number))];
+    if (!faltantes.length) return;
+    if (!contas.length || contas.some((c) => c > 9)) {
+      setErro('Informe os números das contas do Gmail (ex.: 1,2 — o número que aparece em mail.google.com/mail/u/2/).');
+      return;
+    }
+    try { localStorage.setItem('uniko_notas_contas_gmail', contasGmail); } catch { /* sem armazenamento */ }
+    setErro(null);
+    setEmail({ rodando: true, log: ['Procurando a extensão…'], feitos: 0, total: 0 });
+    const ext = await detectarExtensao();
+    if (!ext) {
+      setEmail(null);
+      setErro('Extensão "Uniko — Notas por e-mail" não encontrada. Instale a extensão (pasta extension-notas-email do projeto) no Chrome e recarregue esta página (F5).');
+      return;
+    }
+    let recebidos = 0;
+    const { promessa, cancelar } = buscarNoEmail({
+      numeros: faltantes,
+      contas,
+      onLog: (t) => setEmail((e) => e && { ...e, log: [...e.log.slice(-4), t] }),
+      onProgresso: (p) => setEmail((e) => e && { ...e, feitos: p.feitos, total: p.total, conta: p.conta }),
+      onArquivo: async (a) => {
+        const texto = await textoDoPdf(pdfjsLib, a.bytes);
+        recebidos++;
+        cache.current.set(`email::${a.conta}::${a.assunto}::${a.nome}`, {
+          nome: a.nome,
+          caminho: `E-mail ${a.email || 'conta ' + a.conta} › ${a.assunto} (${a.dataEmail}) › ${a.nome}`,
+          texto,
+          assunto: a.assunto,
+        });
+        setPdfs([...cache.current.values()]);
+      },
+    });
+    cancelarEmail.current = cancelar;
+    try {
+      const r = await promessa;
+      setEmail({ rodando: false, log: [], resumo: { ...r, recebidos } });
+    } catch (e) {
+      setEmail(null);
+      setErro(e?.message || 'Falha ao procurar nos e-mails.');
+    } finally {
+      cancelarEmail.current = null;
+    }
+  };
 
   const baixarExcel = () => {
     const dados = relatorio.linhas.map((l) => ({
@@ -225,9 +279,56 @@ export const PainelObservacoesNotas = () => {
             <Chip n={r.total} rotulo="notas na planilha" />
             <Chip n={r.lidas} rotulo="com observação (lidas do PDF)" cor={COR.lida} />
             <Chip n={r.semPdf} rotulo="sem PDF nos arquivos" cor={COR['sem-pdf']} />
+            {r.deAssunto > 0 && <Chip n={r.deAssunto} rotulo="com período/categoria tirados do assunto do e-mail" cor={COR['sem-pdf']} />}
             {r.outroCliente > 0 && <Chip n={r.outroCliente} rotulo="PDF de outro cliente" cor={COR['outro-cliente']} />}
             {r.semDados > 0 && <Chip n={r.semDados} rotulo="PDF sem categoria/período" cor={COR['sem-dados']} />}
           </div>
+
+          {faltam > 0 && (
+            <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 14, padding: '16px 18px', marginBottom: 16 }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: T.text, marginBottom: 4 }}>
+                Procurar as {faltam} que faltam nos e-mails
+              </div>
+              <div style={{ fontSize: 12, color: T.textT, marginBottom: 12, lineHeight: 1.5 }}>
+                Usa a extensão <strong>Uniko — Notas por e-mail</strong>: ela abre o Gmail das contas abaixo (que precisam estar logadas neste Chrome),
+                acha o PDF de cada nota, e o Uniko lê o corpo, conferindo número e CNPJ. Deixe a janela do Gmail que abrir visível até terminar.
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <label style={{ fontSize: 13, color: T.textS }}>
+                  Contas do Gmail (número da URL, ex.: 1,2)
+                  <input
+                    value={contasGmail} onChange={(e) => setContasGmail(e.target.value)} disabled={email?.rodando}
+                    style={{ marginLeft: 8, width: 90, padding: '7px 10px', background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, outline: 'none', fontSize: 13, color: T.text }}
+                  />
+                </label>
+                {email?.rodando ? (
+                  <button
+                    onClick={() => cancelarEmail.current?.()}
+                    style={{ padding: '8px 16px', borderRadius: 10, border: `1px solid ${T.border}`, background: 'transparent', color: T.textS, fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font-body)' }}>
+                    Cancelar busca
+                  </button>
+                ) : (
+                  <button
+                    onClick={procurarNosEmails} disabled={ocupado}
+                    style={{ padding: '8px 18px', borderRadius: 10, border: 'none', background: T.gold, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-body)' }}>
+                    Procurar nos e-mails
+                  </button>
+                )}
+              </div>
+              {email?.rodando && (
+                <div style={{ marginTop: 12, fontSize: 12, color: T.textS, lineHeight: 1.6 }}>
+                  {email.total > 0 && <div><strong>{email.feitos} de {email.total}</strong> nota(s) verificadas na conta /u/{email.conta}/</div>}
+                  {email.log.map((t, i) => <div key={i} style={{ color: T.textT }}>{t}</div>)}
+                </div>
+              )}
+              {email && !email.rodando && email.resumo && (
+                <div style={{ marginTop: 12, fontSize: 12, color: T.textS }}>
+                  {email.resumo.cancelado ? 'Busca cancelada. ' : 'Busca concluída. '}
+                  Foram recebidos {email.resumo.recebidos} PDF(s) dos e-mails; o resultado já está na tabela abaixo.
+                </div>
+              )}
+            </div>
+          )}
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
             <input
@@ -280,7 +381,7 @@ export const PainelObservacoesNotas = () => {
                       <td style={{ padding: '10px 14px', color: T.textS, maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={l.cliente}>{l.cliente}</td>
                       <td style={{ padding: '10px 14px', whiteSpace: 'nowrap' }} title={l.arquivo || l.detalhe}>
                         <span style={{ padding: '2px 8px', borderRadius: 99, fontSize: 11, fontWeight: 600, color: COR[l.situacao], background: `${COR[l.situacao]}1A` }}>
-                          {ROTULO[l.situacao]}
+                          {ROTULO[l.situacao]}{l.deAssunto ? ' · assunto do e-mail' : ''}
                         </span>
                       </td>
                     </tr>

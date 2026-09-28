@@ -1,0 +1,43 @@
+{
+  "manifest_version": 3,
+  "name": "Uniko — Notas por e-mail",
+  "version": "1.0.0",
+  "description": "Procura no Gmail (contas que você já deixou abertas no Chrome) os PDFs das notas fiscais que o Controle de Notas do Uniko não achou, e devolve os PDFs para o próprio Uniko ler.",
+  "icons": {
+    "16": "icon.png",
+    "48": "icon.png",
+    "128": "icon.png"
+  },
+  "permissions": ["tabs"],
+  "host_permissions": ["https://mail.google.com/*"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://crescent-hub.vercel.app/*",
+        "https://centraluniko.com.br/*",
+        "https://*.centraluniko.com.br/*",
+        "http://localhost:5173/*",
+        "http://localhost:4173/*"
+      ],
+      "js": ["bridge.js"]
+    },
+    {
+      "matches": ["https://mail.google.com/*"],
+      "js": ["gmail.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_title": "Uniko — Notas por e-mail",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icon.png",
+      "48": "icon.png",
+      "128": "icon.png"
+    }
+  }
+}

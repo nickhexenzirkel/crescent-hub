@@ -35,7 +35,11 @@ export const extrairCategoria = (textoNorm) => {
   if (/^MANUT/.test(palavra)) return 'MANUTENCAO';
   if (/^ABAST/.test(palavra)) return 'ABASTECIMENTO';
   const rotuloM = /MANUTENCAO ?: ?R\$/.test(textoNorm) || /SERVICOS? DE MANUT/.test(textoNorm);
-  const rotuloA = /ABASTECIMENTO ?: ?R\$/.test(textoNorm) || /SERVICOS? DE ABAST/.test(textoNorm);
+  // Modelo de Fortaleza (2025): "TOTAL DA FATURA DE CONSUMO DE COMBUSTIVEIS: R$ ..."
+  const rotuloA =
+    /ABASTECIMENTO ?: ?R\$/.test(textoNorm) ||
+    /SERVICOS? DE ABAST/.test(textoNorm) ||
+    /CONSUMO DE COMBUSTIVE/.test(textoNorm);
   if (rotuloM && !rotuloA) return 'MANUTENCAO';
   if (rotuloA && !rotuloM) return 'ABASTECIMENTO';
   return null;
@@ -61,6 +65,34 @@ export const extrairPeriodo = (textoNorm) => {
     ini: { d: u[1], m: u[2], a: u[3] },
     fim: { d: u[1], m: u[2], a: u[3] },
   };
+};
+
+/**
+ * Período no ASSUNTO do e-mail ("FAT - 01/09 A 15/09/25 (ABAST)",
+ * "FAT ABAST - 16/07/2026 a 31/07/2026 - CONSOLIDADO", "FAT - 24.10 A 31.10.2025").
+ * Só serve de reserva: o assunto nem sempre traz o período certo de CADA nota
+ * (em nov/2023 dizia 01/10 A 31/10 e as notas de abastecimento diziam 20/10 A 31/10).
+ */
+export const extrairPeriodoDoAssunto = (assuntoNorm) => {
+  const m = assuntoNorm.match(
+    /(\d{1,2})[/.](\d{1,2})(?:[/.](\d{2,4}))? ?A ?(\d{1,2})[/.](\d{1,2})[/.](\d{2,4})/,
+  );
+  if (!m) return null;
+  const p2 = (x) => String(x).padStart(2, '0');
+  const ano = (x) => (x.length === 2 ? `20${x}` : x);
+  return {
+    ini: { d: p2(m[1]), m: p2(m[2]), a: ano(m[3] || m[6]) },
+    fim: { d: p2(m[4]), m: p2(m[5]), a: ano(m[6]) },
+  };
+};
+
+/** Categoria no assunto. null se não aparece ou se aparecem as duas ("ABAST/MANUT"). */
+export const extrairCategoriaDoAssunto = (assuntoNorm) => {
+  const abast = /ABAST/.test(assuntoNorm);
+  const manut = /MANUT/.test(assuntoNorm);
+  if (abast && !manut) return 'ABASTECIMENTO';
+  if (manut && !abast) return 'MANUTENCAO';
+  return null;
 };
 
 /** "MANUTENCAO, FAT. 02/05 A 02/06/2026" (sem ano no início se for o mesmo ano). */
@@ -94,7 +126,7 @@ export const textoTemNumero = (textoNorm, numero) => {
  * o CNPJ do cliente e o número da nota.
  * Retorna { ok, motivo, categoria, periodo, observacao }.
  */
-export const lerNotaDoTexto = (texto, esperado) => {
+export const lerNotaDoTexto = (texto, esperado, assunto = '') => {
   const norm = normalizarTexto(texto);
   if (norm.length < 40)
     return { ok: false, motivo: 'PDF sem texto (imagem escaneada)' };
@@ -102,8 +134,12 @@ export const lerNotaDoTexto = (texto, esperado) => {
     return { ok: false, motivo: 'PDF de outro cliente (CNPJ não confere)' };
   if (esperado?.numero && !textoTemNumero(norm, esperado.numero))
     return { ok: false, motivo: 'PDF de outra nota (número não confere)' };
-  const categoria = extrairCategoria(norm);
-  const periodo = extrairPeriodo(norm);
+  const assNorm = assunto ? normalizarTexto(assunto) : '';
+  const catCorpo = extrairCategoria(norm);
+  const perCorpo = extrairPeriodo(norm);
+  // O corpo da nota manda; o assunto do e-mail só cobre o que o corpo não traz.
+  const categoria = catCorpo ?? (assNorm ? extrairCategoriaDoAssunto(assNorm) : null);
+  const periodo = perCorpo ?? (assNorm ? extrairPeriodoDoAssunto(assNorm) : null);
   if (!categoria)
     return { ok: false, motivo: 'Categoria não encontrada no corpo da nota' };
   if (!periodo)
@@ -113,6 +149,7 @@ export const lerNotaDoTexto = (texto, esperado) => {
     categoria,
     periodo,
     observacao: formatarObservacao(categoria, periodo),
+    deAssunto: { categoria: !catCorpo, periodo: !perCorpo },
   };
 };
 
@@ -194,14 +231,14 @@ export const indexarPdfsPorNumero = (arquivos) => {
 export const montarRelatorio = (notas, pdfs) => {
   const idx = indexarPdfsPorNumero(pdfs);
   const linhas = [];
-  const resumo = { total: notas.length, lidas: 0, semPdf: 0, outroCliente: 0, semDados: 0 };
+  const resumo = { total: notas.length, lidas: 0, semPdf: 0, outroCliente: 0, semDados: 0, deAssunto: 0 };
   for (const n of notas) {
     const cands = idx.get(String(n.numero).replace(/^0+/, '')) ?? [];
     let achou = null;
     let motivo = '';
     let tipo = 'sem-pdf';
     for (const c of cands) {
-      const r = lerNotaDoTexto(c.texto, { numero: n.numero, cnpj: n.cnpj });
+      const r = lerNotaDoTexto(c.texto, { numero: n.numero, cnpj: n.cnpj }, c.assunto);
       if (r.ok) {
         achou = { r, c };
         break;
@@ -211,12 +248,18 @@ export const montarRelatorio = (notas, pdfs) => {
     }
     if (achou) {
       resumo.lidas++;
+      const das = achou.r.deAssunto;
+      const usouAssunto = !!(das && (das.periodo || das.categoria));
+      if (usouAssunto) resumo.deAssunto++;
       linhas.push({
         ...n,
         observacao: achou.r.observacao,
         situacao: 'lida',
-        detalhe: 'Lida do PDF',
+        detalhe: usouAssunto
+          ? `Lida do PDF; ${[das.periodo && 'período', das.categoria && 'categoria'].filter(Boolean).join(' e ')} tirado(s) do assunto do e-mail`
+          : 'Lida do PDF',
         arquivo: achou.c.caminho,
+        deAssunto: usouAssunto,
       });
     } else {
       if (tipo === 'sem-pdf') resumo.semPdf++;
