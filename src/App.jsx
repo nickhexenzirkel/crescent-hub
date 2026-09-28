@@ -769,7 +769,8 @@ export default function CrescentHub() {
 
         {/* ── Assistente UNIKO — robô fixo no canto inferior esquerdo (voca os lembretes/avisos) ── */}
         {/* Some dentro do Uniko Fit e do Uniko Safer (pedido explícito — layout próprio, sem espaço pro robô). */}
-        {screen!=='uniko-fit' && screen!=='uniko-safer' && screen!=='uniko-security' && screen!=='uniko-call' && !(isMobile && screen==='alexa') && <UnikoAssistant authUser={authUser} notif={lembreteNotif} onDismissNotif={dismissNotif} inPortal={screen==='colaborador'} />}
+        {/* Também some no módulo 7 Benefícios: lá só o assistente virtual da própria 7 Benefícios deve aparecer (pedido explícito). */}
+        {screen!=='uniko-fit' && screen!=='uniko-safer' && screen!=='uniko-security' && screen!=='uniko-call' && screen!=='7-beneficios' && !(isMobile && screen==='alexa') && <UnikoAssistant authUser={authUser} notif={lembreteNotif} onDismissNotif={dismissNotif} inPortal={screen==='colaborador'} />}
 
         {/* ── Capture o Uniko — widget GLOBAL (aparece em qualquer tela, com som) ── */}
         {authUser && captureCfg && <CaptureUnikoWidget cfg={captureCfg} inPortal={screen==='colaborador'} />}
