@@ -3907,7 +3907,7 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
                   <div style={{fontSize:11,color:T.textD,fontWeight:600,textTransform:"uppercase",letterSpacing:".08em",marginBottom:10}}>{isAdmin ? 'Controles de Admin' : 'Controles do player'}</div>
                   <div style={{display:"flex",alignItems:"center",gap:8}}>
                     {isAdmin && <button onClick={handleToggleAutoplay}
-                      title={autoplayEnabled ? "Desativar autoplay — hoje ele puxa as mais tocadas da Máquina do Tempo" : "Ativar autoplay — toca as mais tocadas da Máquina do Tempo quando a fila esvazia"}
+                      title={autoplayEnabled ? "Desativar autoplay — hoje ele toca músicas das playlists da aba Playlist" : "Ativar autoplay — toca músicas das playlists da aba Playlist quando a fila esvazia"}
                       style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:7,height:38,borderRadius:9,
                         border:`1px solid ${autoplayEnabled ? T.gold+'66' : T.border}`,
                         background:autoplayEnabled ? T.goldGl : "transparent",
@@ -4027,8 +4027,8 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
                   {isAdmin && (
                   <button onClick={handleToggleAutoplay}
                     title={autoplayEnabled
-                      ? "Desativar autoplay (Admin) — hoje ele puxa as mais tocadas da Máquina do Tempo"
-                      : "Ativar autoplay (Admin) — toca as mais tocadas da Máquina do Tempo quando a fila esvazia"}
+                      ? "Desativar autoplay (Admin) — hoje ele toca músicas das playlists da aba Playlist"
+                      : "Ativar autoplay (Admin) — toca músicas das playlists da aba Playlist quando a fila esvazia"}
                     style={{width:36,height:36,borderRadius:9,
                       border:`1px solid ${autoplayEnabled ? T.gold+'66' : T.border}`,
                       background:autoplayEnabled ? T.goldGl : "transparent",
