@@ -34,6 +34,7 @@ const CentralLembretes = ({ onBack, authUser }) => {
   const [activeTab, setActiveTab] = useState('lembretes');
   const [notifPerm, setNotifPerm] = useState(notifyPermission());
   const [extStatus, setExtStatus] = useState('checking'); // checking | ok | missing | reload
+  const [notifTeste, setNotifTeste] = useState(null); // resultado do último "Testar no desktop" (ver testarNotificacao)
 
   /* ── Verifica se a extensão Uniko Cat-Bot está ativa no navegador ── */
   const verificarExtensao = async () => {
@@ -42,19 +43,31 @@ const CentralLembretes = ({ onBack, authUser }) => {
     setExtStatus(r === true ? 'ok' : r === 'reload' ? 'reload' : 'missing');
   };
 
-  /* ── Teste de notificação no desktop (pede permissão no clique) ── */
+  /* ── Teste de notificação no desktop (pede permissão no clique) ──
+     Mostra o resultado REAL na tela (não só dispara e reza): se nem a
+     extensão nem o navegador confirmaram, o problema está fora do que este
+     app controla (bloqueio do sistema operacional / do próprio navegador
+     pra este site) — sem essa pista, "não funciona no Opera" ficava sem
+     nenhum jeito de investigar mais. */
   const testarNotificacao = async () => {
+    setNotifTeste({ status: 'testando' });
     if (notifyPermission() === 'default') {
       const p = await ensureNotifyPermission();
       setNotifPerm(p);
     } else {
       setNotifPerm(notifyPermission());
     }
-    notifyDesktop({
+    const r = await notifyDesktop({
       id: 'test-' + Date.now(),
       type: 'lembrete',
       title: 'Teste de notificação',
       message: 'Funcionou! As notificações no desktop estão ativas. 🐱',
+    });
+    console.info('[Uniko] Teste de notificação desktop:', r);
+    setNotifTeste({
+      status: r.mostrada ? 'ok' : 'falhou',
+      via: r.via,
+      erro: r.erro,
     });
   };
 
@@ -201,12 +214,33 @@ const CentralLembretes = ({ onBack, authUser }) => {
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           Baixar extensão
         </a>
-        <button onClick={testarNotificacao}
-          title={notifPerm === 'denied' ? 'Notificações bloqueadas — libere no cadeado do navegador e nas configurações do Windows' : 'Enviar uma notificação de teste para o desktop'}
-          style={{ display:'flex', alignItems:'center', gap:7, padding:'10px 16px', borderRadius:12, border:`1px solid ${notifPerm==='denied'?'rgba(192,64,80,0.4)':T.border}`, cursor:'pointer', background:'transparent', color:notifPerm==='denied'?'#C04050':T.textS, fontWeight:600, fontSize:12.5, fontFamily:'var(--font-body)' }}>
-          <Ico d={<><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></>} size={13} stroke={notifPerm==='denied'?'#C04050':T.textS}/>
-          {notifPerm === 'denied' ? 'Notif. bloqueada' : notifPerm === 'granted' ? 'Testar no desktop' : 'Ativar notificações'}
-        </button>
+        <div style={{ position:'relative' }}>
+          <button onClick={testarNotificacao}
+            title={notifPerm === 'denied' ? 'Notificações bloqueadas — libere no cadeado do navegador e nas configurações do Windows' : 'Enviar uma notificação de teste para o desktop'}
+            style={{ display:'flex', alignItems:'center', gap:7, padding:'10px 16px', borderRadius:12, border:`1px solid ${notifPerm==='denied'?'rgba(192,64,80,0.4)':T.border}`, cursor:'pointer', background:'transparent', color:notifPerm==='denied'?'#C04050':T.textS, fontWeight:600, fontSize:12.5, fontFamily:'var(--font-body)' }}>
+            <Ico d={<><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></>} size={13} stroke={notifPerm==='denied'?'#C04050':T.textS}/>
+            {notifPerm === 'denied' ? 'Notif. bloqueada' : notifPerm === 'granted' ? 'Testar no desktop' : 'Ativar notificações'}
+          </button>
+          {/* Resultado REAL do teste (não só "disparei e espero que apareça") — sem
+              isso, "não funciona no Opera" não tinha como ser investigado mais. */}
+          {notifTeste && (
+            <div style={{
+              position:'absolute', top:'calc(100% + 6px)', right:0, zIndex:20, width:260,
+              padding:'10px 12px', borderRadius:10, fontSize:11.5, lineHeight:1.5, fontFamily:'var(--font-body)',
+              background: T.surface, boxShadow:T.sh,
+              border:`1px solid ${notifTeste.status==='ok' ? 'rgba(26,144,96,0.35)' : notifTeste.status==='falhou' ? 'rgba(192,64,80,0.35)' : T.border}`,
+              color: notifTeste.status==='ok' ? '#1A9060' : notifTeste.status==='falhou' ? '#C04050' : T.textS,
+            }}>
+              {notifTeste.status === 'testando' && 'Testando…'}
+              {notifTeste.status === 'ok' && `✔ Confirmado pelo(a) ${notifTeste.via === 'extensao' ? 'extensão' : 'navegador'}. Se não apareceu na tela, o problema é do sistema (Windows/Opera), não do site.`}
+              {notifTeste.status === 'falhou' && (
+                notifTeste.erro
+                  ? `✘ Não foi possível mostrar: ${notifTeste.erro}`
+                  : '✘ O navegador não confirmou a exibição em 4s (sem erro nenhum) — provável bloqueio nas notificações do sistema para este navegador (Configurações do Windows › Notificações, ou opera://settings/content/notifications).'
+              )}
+            </div>
+          )}
+        </div>
         <button onClick={activeTab === 'lembretes' ? openNewL : openNewN} style={{ display:'flex', alignItems:'center', gap:7, padding:'10px 20px', borderRadius:12, border:'none', cursor:'pointer', background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`, color:'white', fontWeight:700, fontSize:13, fontFamily:'var(--font-body)', boxShadow:`0 3px 12px ${T.gold}44` }}>
           <Ico d={<><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></>} size={12} stroke="white"/>
           {activeTab === 'lembretes' ? 'Novo Lembrete' : 'Nova Anotação'}
