@@ -14,6 +14,7 @@ import {
   restAngleOf, buildSpin, spinProgress, nowMs, ensureServerClock,
   ROLETA_DURATION_MS, notifyRoletaPing,
 } from '../../../shared/roletaSorte';
+import { fetchAllCaptures } from '../../../shared/captureNumero';
 
 const segColor = (i, n) => {
   const hue = Math.round((i * 360) / Math.max(n, 1));
@@ -231,6 +232,15 @@ const TabRoletaSorte = () => {
   const [msg, setMsg] = useState('');
   const flash = (m) => { setMsg(m); setTimeout(() => setMsg(''), 4000); };
 
+  // Admin — seletor de números da coleção dos colaboradores (Capture o Número).
+  // Cada linha é um par (número, dono): o mesmo número pode ter mais de um dono, e
+  // cada par vira um gomo "21 - Brenda Kesia".
+  const [numsOpen, setNumsOpen] = useState(false);
+  const [numsLoading, setNumsLoading] = useState(false);
+  const [numRows, setNumRows] = useState([]);          // [{ key, numero, player, label }]
+  const [numPicked, setNumPicked] = useState(() => new Set());
+  const [numFilter, setNumFilter] = useState('');
+
   // ── Carga inicial + tempo real ────────────────────────────────────────
   useEffect(() => {
     let alive = true;
@@ -331,6 +341,50 @@ const TabRoletaSorte = () => {
     } catch (e) { flash('❌ ' + (e.message || 'Erro ao buscar a equipe')); }
     setBusy(false);
   };
+  const loadNumRows = async () => {
+    setNumsLoading(true);
+    try {
+      const byNumero = await fetchAllCaptures();
+      const rows = [];
+      for (const [num, owners] of Object.entries(byNumero)) {
+        const seen = new Set();
+        for (const o of owners) {
+          if (seen.has(o.player)) continue;
+          seen.add(o.player);
+          rows.push({ key: `${num}|${o.player}`, numero: Number(num), player: o.player, label: `${num} - ${o.player}` });
+        }
+      }
+      rows.sort((a, b) => a.numero - b.numero || a.player.localeCompare(b.player, 'pt-BR'));
+      setNumRows(rows);
+    } catch (e) { flash('❌ ' + (e.message || 'Erro ao buscar os números')); }
+    setNumsLoading(false);
+  };
+  const toggleNums = () => {
+    const open = !numsOpen;
+    setNumsOpen(open);
+    if (open) loadNumRows();
+  };
+  const inWheel = useMemo(() => new Set(entries.map(e => e.label.toLowerCase())), [entries]);
+  const numVisible = useMemo(() => {
+    const q = numFilter.trim().toLowerCase();
+    return q ? numRows.filter(r => r.label.toLowerCase().includes(q)) : numRows;
+  }, [numRows, numFilter]);
+  // Só o que dá pra adicionar de fato (fora da roleta) entra na seleção em massa.
+  const numSelectable = numVisible.filter(r => !inWheel.has(r.label.toLowerCase()));
+  const numPickedCount = numRows.filter(r => numPicked.has(r.key) && !inWheel.has(r.label.toLowerCase())).length;
+  const toggleNumPick = (key) => setNumPicked(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
+  const pickAllNums = () => setNumPicked(prev => { const n = new Set(prev); numSelectable.forEach(r => n.add(r.key)); return n; });
+  const clearNumPicks = () => setNumPicked(new Set());
+  const addPickedNums = async () => {
+    const novos = numRows
+      .filter(r => numPicked.has(r.key) && !inWheel.has(r.label.toLowerCase()))
+      .map((r, i) => ({ id: `p_${Date.now().toString(36)}${i}${Math.random().toString(36).slice(2, 5)}`, label: r.label }));
+    if (!novos.length) { flash('ℹ️ Selecione ao menos um número que ainda não está na roleta'); return; }
+    await persist([...entries, ...novos]);
+    setNumPicked(new Set());
+    flash(`✅ ${novos.length} número(s) adicionado(s)`);
+  };
+
   const doSpin = async () => {
     if (entries.length < 2 || busy) return;
     if (spin && spinProgress(spin) < 1) { flash('⚠️ A roleta já está girando'); return; }
@@ -498,7 +552,77 @@ const TabRoletaSorte = () => {
                 background: 'transparent', color: T.textS, fontWeight: 700, fontSize: 12.5, fontFamily: 'var(--font-body)', opacity: busy ? .6 : 1 }}>
               + Todos os colegas
             </button>
+            <button onClick={toggleNums} disabled={busy}
+              style={{ padding: '10px 16px', borderRadius: 10, cursor: 'pointer', border: `1px solid ${numsOpen ? T.gold : T.border}`,
+                background: numsOpen ? `${T.gold}22` : 'transparent', color: numsOpen ? T.gold : T.textS, fontWeight: 700, fontSize: 12.5,
+                fontFamily: 'var(--font-body)', opacity: busy ? .6 : 1 }}>
+              🔢 Números dos colaboradores
+            </button>
           </div>
+
+          {numsOpen && (
+            <div style={{ border: `1px solid ${T.border}`, borderRadius: 12, padding: 14, background: T.surfaceSub || 'rgba(0,0,0,.03)',
+              display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ fontSize: 12, color: T.textS }}>
+                Números que cada colaborador tem na coleção do Capture o Número. Marque os que entram no sorteio — cada um vira um gomo
+                no formato <b>21 - Nome</b>.
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                <input value={numFilter} onChange={e => setNumFilter(e.target.value)} placeholder="Filtrar por número ou nome…" style={inpSt}/>
+                <button onClick={pickAllNums} disabled={!numSelectable.length}
+                  style={{ padding: '9px 14px', borderRadius: 10, cursor: 'pointer', border: `1px solid ${T.border}`, background: 'transparent',
+                    color: T.text, fontWeight: 700, fontSize: 12.5, fontFamily: 'var(--font-body)', opacity: numSelectable.length ? 1 : .5 }}>
+                  Selecionar todos{numFilter.trim() ? ' (filtrados)' : ''}
+                </button>
+                <button onClick={clearNumPicks} disabled={!numPicked.size}
+                  style={{ padding: '9px 14px', borderRadius: 10, cursor: 'pointer', border: `1px solid ${T.border}`, background: 'transparent',
+                    color: T.textS, fontWeight: 700, fontSize: 12.5, fontFamily: 'var(--font-body)', opacity: numPicked.size ? 1 : .5 }}>
+                  Limpar seleção
+                </button>
+                <button onClick={loadNumRows} disabled={numsLoading} title="Recarregar da coleção"
+                  style={{ padding: '9px 12px', borderRadius: 10, cursor: 'pointer', border: `1px solid ${T.border}`, background: 'transparent',
+                    color: T.textS, fontWeight: 700, fontSize: 12.5, fontFamily: 'var(--font-body)' }}>↻</button>
+              </div>
+
+              {numsLoading ? (
+                <div style={{ fontSize: 12.5, color: T.textT, padding: '8px 0' }}>Carregando números…</div>
+              ) : numVisible.length === 0 ? (
+                <div style={{ fontSize: 12.5, color: T.textT, padding: '8px 0' }}>
+                  {numRows.length ? 'Nada encontrado com esse filtro.' : 'Ninguém capturou nenhum número ainda.'}
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, maxHeight: 260, overflowY: 'auto', padding: 2 }}>
+                  {numVisible.map(r => {
+                    const already = inWheel.has(r.label.toLowerCase());
+                    const on = numPicked.has(r.key) && !already;
+                    return (
+                      <button key={r.key} onClick={() => !already && toggleNumPick(r.key)} disabled={already}
+                        title={already ? 'Já está na roleta' : (on ? 'Clique pra desmarcar' : 'Clique pra marcar')}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 999, fontSize: 12,
+                          fontWeight: 700, fontFamily: 'var(--font-body)', cursor: already ? 'default' : 'pointer',
+                          border: `1.5px solid ${on ? T.gold : T.border}`,
+                          background: on ? `${T.gold}33` : 'transparent',
+                          color: already ? T.textT : T.text, opacity: already ? .55 : 1 }}>
+                        <span style={{ width: 13, height: 13, borderRadius: 4, border: `1.5px solid ${on ? T.gold : T.textT}`, background: on ? T.gold : 'transparent',
+                          color: '#fff', fontSize: 10, lineHeight: '10px', textAlign: 'center' }}>{(on || already) ? '✓' : ''}</span>
+                        {r.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <button onClick={addPickedNums} disabled={busy || !numPickedCount}
+                  style={{ padding: '10px 18px', borderRadius: 10, border: 'none', cursor: 'pointer',
+                    background: `linear-gradient(135deg,${T.gold},${T.goldL || T.gold}cc)`, color: '#fff', fontWeight: 700,
+                    fontSize: 13, fontFamily: 'var(--font-body)', opacity: (busy || !numPickedCount) ? .6 : 1 }}>
+                  + Adicionar {numPickedCount ? `${numPickedCount} selecionado(s)` : 'selecionados'} à roleta
+                </button>
+                <span style={{ fontSize: 11.5, color: T.textT }}>{numRows.length} número(s) no total · os já adicionados aparecem esmaecidos</span>
+              </div>
+            </div>
+          )}
 
           {entries.length > 0 && (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
