@@ -2,6 +2,7 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { T } from '../../../contexts/theme';
 import { StellarHero } from '../StellarHero';
+import { PainelObservacoesNotas } from './PainelObservacoesNotas';
 
 /* ── GINFES NFS-e Parser ──────────────────────────────── */
 const GINFES_NS = 'http://www.ginfes.com.br/tipos_v03.xsd';
@@ -221,6 +222,7 @@ export const TabLeitorXML = () => {
   const [search,     setSearch]     = useState('');
   const [filterTipo, setFilterTipo] = useState('todos');
   const [municipios, setMunicipios] = useState(loadMuniCache);
+  const [modo,       setModo]       = useState('xml'); // 'xml' = leitor de XML · 'obs' = observações (Finanças + PDFs)
 
   // Resolve nomes de município (IBGE) para os códigos ainda não conhecidos
   useEffect(() => {
@@ -334,7 +336,20 @@ export const TabLeitorXML = () => {
         )}
       />
 
+      {/* Chave entre o leitor de XML (original) e as Observações de notas */}
+      <div style={{display:'flex',gap:8,marginBottom:22,flexWrap:'wrap'}}>
+        {[['xml','Leitor de XML (NFS-e)'],['obs','Observações (Finanças + PDFs)']].map(([k,rot]) => (
+          <button key={k} onClick={()=>setModo(k)}
+            style={{padding:'8px 16px',borderRadius:10,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'var(--font-body)',
+              border:`1px solid ${modo===k ? T.gold : T.border}`,
+              background: modo===k ? T.goldGl : 'transparent',
+              color: modo===k ? T.text : T.textS}}>
+            {rot}
+          </button>
+        ))}
+      </div>
 
+      {modo === 'obs' ? <PainelObservacoesNotas/> : (<>
       <div style={{marginBottom:24}}>
         <DropZone onFiles={processFiles}/>
       </div>
@@ -484,6 +499,7 @@ export const TabLeitorXML = () => {
           <div style={{fontSize:13,color:T.textD}}>Selecione os arquivos .xml acima para começar</div>
         </div>
       )}
+      </>)}
     </div>
   );
 };
