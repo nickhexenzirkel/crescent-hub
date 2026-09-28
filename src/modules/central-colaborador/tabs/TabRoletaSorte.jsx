@@ -15,6 +15,7 @@ import {
   ROLETA_DURATION_MS, notifyRoletaPing,
 } from '../../../shared/roletaSorte';
 import { fetchAllCaptures } from '../../../shared/captureNumero';
+import roletaFundo from '../../../assets/roleta-fundo.png';
 
 const segColor = (i, n) => {
   const hue = Math.round((i * 360) / Math.max(n, 1));
@@ -491,10 +492,11 @@ const TabRoletaSorte = () => {
 
       <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 20, alignItems: 'flex-start' }}>
       <div style={{ flex: '1 1 auto', minWidth: 0, width: '100%' }}>
-      {/* Palco da roleta — fundo cósmico escuro (de propósito fixo, não segue o
-          tema claro/escuro do resto do Portal) pra as estrelas brilharem. */}
+      {/* Palco da roleta — arte de fundo espacial (de propósito fixa, não segue o
+          tema claro/escuro do resto do Portal). O degradê escuro embaixo da imagem
+          é só o fallback enquanto ela carrega. */}
       <div style={{ position: 'relative', borderRadius: 24, padding: isMobile ? '32px 12px' : '48px 20px',
-        background: 'radial-gradient(120% 90% at 50% 0%, #182849 0%, #0e1730 45%, #060a18 100%)',
+        background: `url(${roletaFundo}) center bottom / cover no-repeat, radial-gradient(120% 90% at 50% 0%, #182849 0%, #0e1730 45%, #060a18 100%)`,
         border: '1px solid rgba(255,255,255,.08)', boxShadow: '0 20px 60px rgba(0,0,0,.35)',
         display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 22, overflow: 'hidden' }}>
         <Starfield/>
