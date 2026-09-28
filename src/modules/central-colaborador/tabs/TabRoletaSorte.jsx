@@ -323,6 +323,12 @@ const TabRoletaSorte = () => {
     setNewLabel('');
   };
   const removeEntry = (id) => persist(entries.filter(e => e.id !== id));
+  const removeAllEntries = async () => {
+    if (!entries.length) return;
+    if (!window.confirm(`Tirar todos os ${entries.length} participantes da roleta?`)) return;
+    await persist([]);
+    flash('✅ Roleta esvaziada');
+  };
   const addAllColleagues = async () => {
     setBusy(true);
     try {
@@ -621,6 +627,18 @@ const TabRoletaSorte = () => {
                 </button>
                 <span style={{ fontSize: 11.5, color: T.textT }}>{numRows.length} número(s) no total · os já adicionados aparecem esmaecidos</span>
               </div>
+            </div>
+          )}
+
+          {entries.length > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+              <span style={{ fontSize: 12, color: T.textS, fontWeight: 600 }}>{entries.length} participante(s) na roleta</span>
+              <button onClick={removeAllEntries} disabled={busy}
+                style={{ padding: '6px 12px', borderRadius: 9, cursor: 'pointer', border: `1px solid ${T.danger || '#C04050'}55`,
+                  background: 'transparent', color: T.danger || '#C04050', fontWeight: 700, fontSize: 12, fontFamily: 'var(--font-body)',
+                  opacity: busy ? .5 : 1 }}>
+                Remover todos
+              </button>
             </div>
           )}
 
