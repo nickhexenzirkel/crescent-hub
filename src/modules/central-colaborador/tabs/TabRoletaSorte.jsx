@@ -57,6 +57,13 @@ const WheelIcon = ({ size = 20, color = 'currentColor', strokeWidth = 1.8 }) => 
   </svg>
 );
 
+// Estrela de 4 pontas (brilho) — miolo da roleta. Lados côncavos, cheia.
+const SparkleIcon = ({ size = 20, color = 'currentColor' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill={color} style={{ filter: 'drop-shadow(0 0 4px rgba(255,255,255,.7))' }}>
+    <path d="M12 1.5C12.9 7.6 16.4 11.1 22.5 12C16.4 12.9 12.9 16.4 12 22.5C11.1 16.4 7.6 12.9 1.5 12C7.6 11.1 11.1 7.6 12 1.5Z"/>
+  </svg>
+);
+
 const BellIcon = ({ size = 18, color = 'currentColor', strokeWidth = 1.8 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
     <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/>
@@ -151,7 +158,7 @@ const Wheel = ({ entries, angle, phase, size, gold }) => {
         border: '3px solid rgba(255,255,255,.6)', boxShadow: '0 4px 18px rgba(0,0,0,.4)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         animation: 'roletaHubShine 2.4s ease-in-out infinite' }}>
-        <WheelIcon size={size > 300 ? 32 : 26} color="#fff" strokeWidth={1.6}/>
+        <SparkleIcon size={size > 300 ? 34 : 28} color="#fff"/>
       </div>
     </div>
   );
