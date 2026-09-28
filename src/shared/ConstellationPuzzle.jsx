@@ -1,6 +1,7 @@
 // src/shared/ConstellationPuzzle.jsx
-// Mini-jogo de "desbloqueio" pro Capture o Uniko/Número: quem já capturou 2+ vezes
-// nesse sistema precisa ligar 6 estrelas, da MENOR até a MAIOR, antes de poder
+// Mini-jogo de "desbloqueio" pro Capture o Uniko/Número: quem ganhou 4 eventos
+// SEGUIDOS nesse sistema precisa ligar 6 estrelas na 5ª e na 6ª vez (a 7ª volta ao
+// normal, ciclo reinicia — ver puzzleRequiredForStreak em captureUniko.js), da MENOR até a MAIOR, antes de poder
 // arrastar o assistente até a área de captura de novo — dá uma chance maior pra
 // quem ainda não ganhou nada. Usado dentro de CaptureUnikoWidget.jsx e
 // CaptureNumeroWidget.jsx (ver `mustSolvePuzzle` em cada um).

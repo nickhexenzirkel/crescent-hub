@@ -13,15 +13,14 @@ import ConstellationPuzzle from './ConstellationPuzzle';
 import {
   isSpawned, spawnMoment, isCaptureDone, markCaptureDone,
   saveCaptureToCollection, emitCaptureNumeroState, emitCaptureNumeroSlotBusy, getCaptureResult, setCaptureResult,
-  WINNER_PANEL_MS, fetchCaptureWinners, claimCapture, addToMyNumeroCollection, fetchCapturesFor,
+  WINNER_PANEL_MS, fetchCaptureWinners, claimCapture, addToMyNumeroCollection, fetchCaptureStreak, puzzleRequiredForStreak,
   registerCaptureNumeroTarget, onCaptureNumeroThrow, clearCaptureLocal, clearCaptureDone, isWithinWindow, subscribeCaptureWinner,
   syncNumeroCollectionFromServer, nowMs, ensureServerClock, maxWinnersFor, captureEventId, numeroValueForSlot,
 } from './captureNumero';
 
-// A partir da 2ª captura JÁ FEITA (ou seja, na 3ª tentativa em diante), a pessoa
-// precisa resolver a constelação antes de poder capturar de novo — dá mais chance
-// pra quem ainda não ganhou nada. Pedido explícito do usuário.
-const PUZZLE_AFTER_CAPTURES = 2;
+// Só quem vem GANHANDO os eventos seguidos precisa resolver a constelação: depois de
+// 4 vitórias seguidas, a 5ª e a 6ª exigem a tarefa e a 7ª volta ao normal (ciclo de 6,
+// ver puzzleRequiredForStreak). Quem nunca capturou nunca vê a tarefa.
 
 // Cartão dourado fixo — "número da sorte" não tem tema por item (ao contrário do
 // Uniko, que tem cor/cenário próprios por personagem).
@@ -84,7 +83,7 @@ const CaptureNumeroWidget = ({ cfg, inPortal = false }) => {
   const winnerAt = panelWinner?.at ? Date.parse(panelWinner.at) : null;
   const winnerActive = winnerAt != null && !Number.isNaN(winnerAt) && (nowTs - winnerAt < WINNER_PANEL_MS);
   const winnerMine = !!myWin;
-  const mustSolvePuzzle = (priorCount ?? 0) >= PUZZLE_AFTER_CAPTURES && !puzzleSolved;
+  const mustSolvePuzzle = puzzleRequiredForStreak(priorCount ?? 0) && !puzzleSolved;
 
   const sceneRef = useRef(null);
   const numeroRef = useRef(null);
@@ -283,7 +282,7 @@ const CaptureNumeroWidget = ({ cfg, inPortal = false }) => {
     let alive = true;
     const me2 = getAuthUser()?.name;
     if (!me2) { setPriorCount(0); return; }
-    fetchCapturesFor(me2).then(rows => { if (alive) setPriorCount(rows.length); });
+    fetchCaptureStreak(me2, eventId).then(n => { if (alive) setPriorCount(n); });
     return () => { alive = false; };
   }, [available, eventId]);
 
@@ -456,7 +455,7 @@ const CaptureNumeroWidget = ({ cfg, inPortal = false }) => {
               <div style={{ position: 'absolute', top: 12, left: 0, right: 0, textAlign: 'center', zIndex: 5, pointerEvents: 'none', padding: '0 14px' }}>
                 <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '.14em', color: th.glow, textShadow: `0 0 10px ${th.accent}`, animation: 'cnPulse 1.6s ease-in-out infinite' }}>★ DESBLOQUEIE PRA CAPTURAR ★</div>
                 <div style={{ fontSize: 13, fontWeight: 800, color: '#fff', marginTop: 3, fontFamily: 'var(--font-brand)', textShadow: `0 2px 12px ${th.accent2}` }}>Ligue as estrelas: da menor até a maior</div>
-                <div style={{ fontSize: 10.5, color: th.ink, marginTop: 2 }}>Você já capturou {priorCount}x — dá uma chance pros outros primeiro! ✨</div>
+                <div style={{ fontSize: 10.5, color: th.ink, marginTop: 2 }}>Você capturou {priorCount}x seguidas — dá uma chance pros outros primeiro! ✨</div>
               </div>
               <div style={{ position: 'absolute', inset: '62px 18px 16px' }}>
                 <ConstellationPuzzle accent={th.glow} onSolved={() => setPuzzleSolved(true)} />

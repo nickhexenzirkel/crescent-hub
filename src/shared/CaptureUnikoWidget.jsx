@@ -22,16 +22,15 @@ import ConstellationPuzzle from './ConstellationPuzzle';
 import {
   getUniko, isSpawned, spawnMoment, isCaptureDone, markCaptureDone,
   saveCaptureToCollection, emitCaptureState, emitCaptureSlotBusy, getCaptureResult, setCaptureResult,
-  getCaptureReward, WINNER_PANEL_MS, fetchCaptureWinners, claimCapture, awardPrismas, addToMyUnikoCollection, fetchCapturesFor,
+  getCaptureReward, WINNER_PANEL_MS, fetchCaptureWinners, claimCapture, awardPrismas, addToMyUnikoCollection, fetchCaptureStreak, puzzleRequiredForStreak,
   registerCaptureTarget, onCaptureThrow, clearCaptureLocal, clearCaptureDone, isWithinWindow, subscribeCaptureWinner, syncCollectionFromServer,
   loadCustomUnikos, loadRewardOverrides, nowMs, ensureServerClock, maxWinnersFor, captureEventId, unikoIdForSlot,
 } from './captureUniko';
 
-// A partir da 2ª captura JÁ FEITA (ou seja, na 3ª tentativa em diante), a pessoa
-// precisa resolver a constelação antes de poder capturar de novo — dá mais chance
-// pra quem ainda não ganhou nenhum Uniko. Pedido explícito do usuário. Contagem
-// SEPARADA do Capture o Número (cada sistema tem a sua).
-const PUZZLE_AFTER_CAPTURES = 2;
+// Só quem vem GANHANDO os eventos seguidos precisa resolver a constelação: depois de
+// 4 vitórias seguidas, a 5ª e a 6ª exigem a tarefa e a 7ª volta ao normal (ciclo de 6,
+// ver puzzleRequiredForStreak). Quem nunca capturou (mesmo tendo Unikos comprados ou
+// presenteados) nunca vê a tarefa. Sequência SEPARADA do Capture o Número.
 
 // Captura sempre na 1ª (e única) tentativa de arremesso — sem chance de escapar.
 
@@ -73,9 +72,9 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
   const [checked, setChecked]     = useState(false);
   const [nowTs, setNowTs]         = useState(Date.now());
   const [, forceRefresh]          = useState(0);
-  // Desbloqueio por tarefa: quem já capturou PUZZLE_AFTER_CAPTURES+ Unikos precisa
-  // ligar a constelação antes de poder tentar de novo (ver efeitos mais abaixo).
-  const [priorCount, setPriorCount]     = useState(null); // null = ainda não checou
+  // Desbloqueio por tarefa: quem ganhou os últimos PUZZLE_AFTER_STREAK eventos seguidos
+  // precisa ligar a constelação antes de poder tentar de novo (ver efeitos mais abaixo).
+  const [priorCount, setPriorCount]     = useState(null); // sequência de vitórias; null = ainda não checou
   const [puzzleSolved, setPuzzleSolved] = useState(false);
 
   // Garante que os Unikos da Oficina estejam carregados ANTES de precisar deles aqui —
@@ -102,7 +101,7 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
   const winnerAt = panelWinner?.at ? Date.parse(panelWinner.at) : null;
   const winnerActive = winnerAt != null && !Number.isNaN(winnerAt) && (nowTs - winnerAt < WINNER_PANEL_MS);
   const winnerMine = !!myWin;
-  const mustSolvePuzzle = (priorCount ?? 0) >= PUZZLE_AFTER_CAPTURES && !puzzleSolved;
+  const mustSolvePuzzle = puzzleRequiredForStreak(priorCount ?? 0) && !puzzleSolved;
 
   const sceneRef = useRef(null);
   const unikoRef = useRef(null);
@@ -338,14 +337,14 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [available, uniko]);
 
-  /* ── Checa quantas vezes essa pessoa JÁ capturou Uniko (pra saber se precisa
+  /* ── Checa quantos eventos SEGUIDOS essa pessoa já ganhou (pra saber se precisa
        da tarefa de desbloqueio) — uma vez por evento, quando fica disponível. ── */
   useEffect(() => {
     if (!available) return;
     let alive = true;
     const me2 = getAuthUser()?.name;
     if (!me2) { setPriorCount(0); return; }
-    fetchCapturesFor(me2).then(rows => { if (alive) setPriorCount(rows.length); });
+    fetchCaptureStreak(me2, eventId).then(n => { if (alive) setPriorCount(n); });
     return () => { alive = false; };
   }, [available, eventId]);
 
@@ -560,7 +559,7 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
               <div style={{ position: 'absolute', top: 12, left: 0, right: 0, textAlign: 'center', zIndex: 5, pointerEvents: 'none', padding: '0 14px' }}>
                 <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '.14em', color: th.glow, textShadow: `0 0 10px ${th.accent}`, animation: 'cuPulse 1.6s ease-in-out infinite' }}>★ DESBLOQUEIE PRA CAPTURAR ★</div>
                 <div style={{ fontSize: 13, fontWeight: 800, color: '#fff', marginTop: 3, fontFamily: 'var(--font-brand)', textShadow: `0 2px 12px ${th.accent2}` }}>Ligue as estrelas: da menor até a maior</div>
-                <div style={{ fontSize: 10.5, color: th.ink, marginTop: 2 }}>Você já capturou {priorCount}x — dá uma chance pros outros primeiro! ✨</div>
+                <div style={{ fontSize: 10.5, color: th.ink, marginTop: 2 }}>Você capturou {priorCount}x seguidas — dá uma chance pros outros primeiro! ✨</div>
               </div>
               <div style={{ position: 'absolute', inset: '62px 18px 16px' }}>
                 <ConstellationPuzzle accent={th.glow} onSolved={() => setPuzzleSolved(true)} />

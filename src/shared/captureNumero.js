@@ -14,10 +14,11 @@ import { supabase as _supabase, getAuthUser } from '../contexts/user';
 import {
   nowMs, ensureServerClock, pickSpawnAt, pickSpawnAtSeeded,
   isWithinWindow, spawnMoment, isSpawned, WINNER_PANEL_MS,
-  activeOccurrence, nextOccurrence, hashStr, mulberry32,
+  activeOccurrence, nextOccurrence, hashStr, mulberry32, puzzleRequiredForStreak,
 } from './captureUniko';
 
 export {
+  puzzleRequiredForStreak,
   nowMs, ensureServerClock, pickSpawnAt, pickSpawnAtSeeded, isWithinWindow, spawnMoment, isSpawned, WINNER_PANEL_MS,
   activeOccurrence, nextOccurrence,
 };
@@ -159,6 +160,29 @@ export async function fetchCaptureWinners(cfg) {
     if (error) return undefined;
     return (data || []).map(row => ({ player: row.player, numeroValue: row.numero_value, at: row.captured_at }));
   } catch { return undefined; }
+}
+
+// Quantos eventos ANTERIORES seguidos (do mais recente pra trás) essa pessoa ganhou —
+// base do desbloqueio por tarefa (constelação). Mesma lógica de fetchCaptureStreak em
+// captureUniko.js: eventos sem vencedor não deixam linha; o evento atual fica de fora.
+export async function fetchCaptureStreak(player, currentEventId) {
+  try {
+    const { data, error } = await _supabase.from('capture_numero_event')
+      .select('event_id,player,captured_at').order('captured_at', { ascending: false }).limit(500);
+    if (error || !data) return 0;
+    const events = new Map();
+    for (const r of data) {
+      if (r.event_id === currentEventId) continue;
+      if (!events.has(r.event_id)) events.set(r.event_id, new Set());
+      events.get(r.event_id).add(r.player);
+    }
+    let streak = 0;
+    for (const players of events.values()) {
+      if (!players.has(player)) break;
+      streak++;
+    }
+    return streak;
+  } catch { return 0; }
 }
 
 // Realtime: avisa TODOS os clientes ~na hora quando alguém captura, em vez de

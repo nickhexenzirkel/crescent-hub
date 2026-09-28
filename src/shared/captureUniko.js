@@ -916,6 +916,40 @@ export async function fetchCaptureWinners(cfg) {
   } catch { return undefined; }
 }
 
+// Ciclo do desbloqueio: 4 vitórias seguidas livres → a 5ª e a 6ª exigem a constelação
+// → a 7ª volta ao normal e a contagem reinicia (ciclo de 6 vitórias). `streak` = quantos
+// eventos seguidos a pessoa já ganhou ANTES do atual (ver fetchCaptureStreak).
+export const PUZZLE_FREE_WINS = 4;
+export const PUZZLE_CYCLE = 6;
+export const puzzleRequiredForStreak = (streak) => (streak % PUZZLE_CYCLE) >= PUZZLE_FREE_WINS;
+
+// Quantos eventos ANTERIORES seguidos (do mais recente pra trás) essa pessoa ganhou.
+// Base do desbloqueio por tarefa (constelação): só quem vem pegando vários seguidos
+// precisa resolvê-la. NÃO usar capture_uniko_captures pra isso — a coleção também
+// recebe Unikos comprados na loja e presentes do RH, então quem nunca capturou nada
+// já aparecia com "capturas" e caía no puzzle. Eventos em que ninguém ganhou não
+// deixam linha, então não quebram a sequência. O evento atual fica de fora (as
+// vagas dele já podem estar ocupadas por outras pessoas). Erro de rede → 0.
+export async function fetchCaptureStreak(player, currentEventId) {
+  try {
+    const { data, error } = await _supabase.from('capture_uniko_event')
+      .select('event_id,player,captured_at').order('captured_at', { ascending: false }).limit(500);
+    if (error || !data) return 0;
+    const events = new Map(); // event_id -> Set(players), na ordem do mais recente
+    for (const r of data) {
+      if (r.event_id === currentEventId) continue;
+      if (!events.has(r.event_id)) events.set(r.event_id, new Set());
+      events.get(r.event_id).add(r.player);
+    }
+    let streak = 0;
+    for (const players of events.values()) {
+      if (!players.has(player)) break;
+      streak++;
+    }
+    return streak;
+  } catch { return 0; }
+}
+
 /* Limpa SÓ a marca de "esse evento já era" (sem apagar o cache do resultado).
    Usada quando o servidor diz que AINDA HÁ VAGA e eu não sou um dos vencedores:
    nesse caso nada pode me impedir de tentar, e uma marca local velha (de quando
