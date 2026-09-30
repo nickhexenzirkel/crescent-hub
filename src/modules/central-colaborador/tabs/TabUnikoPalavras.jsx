@@ -4,17 +4,14 @@
 //
 // COMO SE JOGA: cada um tem 2 VIDAS. Na sua vez você acrescenta UMA letra ao
 // fragmento que está na mesa (C → CA → CAS...), pensando numa palavra que
-// comece assim. Duas formas de perder uma vida:
-//   • COMPLETAR uma palavra (4+ letras) — "CASA" fecha, quem pôs o A perdeu;
-//   • ser pego BLEFANDO: na sua vez você pode DUVIDAR de quem jogou antes. Ele
-//     tem que dizer a palavra que tinha em mente. Se ela existir e começar
-//     com o fragmento, quem duvidou perde a vida; senão, perde quem blefou.
-// Demorar demais também custa uma vida. Sobrou um → ganhou.
-//
-// DICIONÁRIO: pt.wiktionary.org (API pública, CORS liberado) — vale a página que
-// tiver seção {{-pt-}}. Se a consulta falhar (rede), a dúvida cai a favor de quem
-// respondeu, e completar-palavra simplesmente não é detectado (nunca pune sem ter
-// certeza).
+// comece assim. NÃO há dicionário: quem decide é a TURMA, por votação.
+//   • DUVIDAR (só na sua vez): você desconfia de quem jogou a última letra. Ele
+//     diz a palavra que tinha em mente e todos (menos ele) votam se ela existe.
+//   • FORMOU PALAVRA (qualquer um, a qualquer hora): alguém acha que a última
+//     letra COMPLETOU uma palavra. Todos (menos o acusado) votam se formou.
+// Em 1 minuto, maioria contra o acusado → ele perde uma vida; maioria a favor
+// → perde quem acusou; sem maioria (ninguém votou, empate) → ninguém perde e o
+// jogo segue. Demorar 30s pra jogar também custa uma vida. Sobrou um → ganhou.
 //
 // SINCRONIA: mesma arquitetura já testada do Uniko Stop —
 //   • ESTADO na tabela uniko_palavras_state (postgres_changes + poll), carimbado
@@ -30,9 +27,9 @@ import { supabase, getAuthUser, USER } from '../../../contexts/user';
 
 const MASCOTE = '/uniko-palavras.png';
 const VIDAS = 2;
-const MIN_LEN = 4;              // palavra COMPLETA com 4+ letras faz perder vida
+const MIN_FORMOU = 3;           // só dá pra chamar "formou palavra" com 3+ letras na mesa
 const TURN_MS = 30_000;         // tempo pra jogar uma letra
-const DUVIDA_MS = 25_000;       // tempo de quem foi duvidado pra dizer a palavra
+const DUVIDA_MS = 60_000;       // janela de votação (dúvida / formou palavra)
 const PAUSA_MS = 6_000;         // banner do que aconteceu antes da próxima rodada
 const ROOM_TTL_MS = 20 * 60_000;
 const MIN_PLAYERS = 2;
@@ -109,26 +106,6 @@ const SFX = {
   vez:    () => { beep(880, 0.08, 'sine', 0.1); beep(1175, 0.12, 'sine', 0.1, 0.08); },
 };
 
-/* ── Dicionário (pt.wiktionary.org) ──────────────────────────────────────────
-   true = existe em português · false = não existe · null = não deu pra saber. */
-const _dic = new Map();
-const ehPalavra = async (w) => {
-  const k = String(w || '').toLowerCase().trim();
-  if (!k) return false;
-  if (_dic.has(k)) return _dic.get(k);
-  try {
-    const url = 'https://pt.wiktionary.org/w/api.php?action=query&prop=revisions&rvprop=content&rvslots=main'
-      + `&format=json&origin=*&titles=${encodeURIComponent(k)}`;
-    const r = await fetch(url, { signal: AbortSignal.timeout ? AbortSignal.timeout(6000) : undefined });
-    const j = await r.json();
-    const pg = Object.values(j?.query?.pages || {})[0];
-    let v = false;
-    if (pg && pg.missing === undefined) v = /\{\{-pt-\}\}/.test(pg.revisions?.[0]?.slots?.main?.['*'] || '');
-    _dic.set(k, v);
-    return v;
-  } catch { return null; }
-};
-
 /* ── motor puro (só o HOST usa, mas não depende de React) ── */
 const proxVivo = (s, de) => {
   const ord = s.ordem || [];
@@ -148,11 +125,21 @@ const perderVida = (s, quem, texto, palavra) => {
   return { ...s, vidas, evento, phase: 'pausa', starter, endsAt: Date.now() + PAUSA_MS, duvida: null };
 };
 
+/* Quem vota: vivos, presentes, menos o acusado. */
+const contarVotos = (s, presentes) => {
+  const d = s.duvida; if (!d) return null;
+  const votantes = (s.ordem || []).filter(n => (s.vidas?.[n] || 0) > 0 && n !== d.alvo && presentes.includes(n));
+  const total = votantes.length;
+  const contra = votantes.filter(n => d.votos?.[n] === 'contra').length;
+  const favor = votantes.filter(n => d.votos?.[n] === 'favor').length;
+  return { total, contra, favor };
+};
+
 /* ═══════════════════════════════════════════════════════════════════════════
    ARENA — mascote no CENTRO, letras da palavra e jogadores ao redor
    ═══════════════════════════════════════════════════════════════════════════ */
 const Coracoes = ({ n, total = VIDAS }) => (
-  <span style={{ fontSize: 'clamp(11px, 3cqw, 17px)', letterSpacing: 1, lineHeight: 1 }}>
+  <span style={{ fontSize: 'clamp(12px, 3.4cqw, 20px)', letterSpacing: 1, lineHeight: 1 }}>
     {Array.from({ length: total }).map((_, i) => (
       <span key={i} style={{ color: i < n ? '#FF4D6D' : 'rgba(255,255,255,.22)', textShadow: i < n ? '0 0 8px rgba(255,77,109,.7)' : 'none' }}>♥</span>
     ))}
@@ -163,27 +150,27 @@ const Arena = ({ seats, letras, ordem, vez, alvo, treme, centro }) => {
   const corDe = (n) => CORES[Math.max(0, ordem.indexOf(n)) % CORES.length];
   const passo = 360 / Math.max(letras.length, 10);
   return (
-    <div style={{ position: 'relative', width: 'min(100%, 640px, 66vh)', aspectRatio: '1 / 1', margin: '0 auto', containerType: 'inline-size',
+    <div style={{ position: 'relative', width: 'min(100%, 860px, 92vh)', aspectRatio: '1 / 1', margin: '0 auto', containerType: 'inline-size',
       borderRadius: '50%', flexShrink: 0,
       background: 'radial-gradient(circle at 50% 50%, #12225a 0%, #0a1238 46%, #050818 100%)',
       boxShadow: '0 12px 44px rgba(47,123,255,.28), inset 0 0 0 2px rgba(34,211,238,.25)' }}>
       {/* anéis neon decorativos */}
-      <div style={{ position: 'absolute', inset: '17%', borderRadius: '50%', border: '1.5px dashed rgba(34,211,238,.28)', pointerEvents: 'none' }} />
+      <div style={{ position: 'absolute', inset: '18%', borderRadius: '50%', border: '1.5px dashed rgba(34,211,238,.28)', pointerEvents: 'none' }} />
       <div style={{ position: 'absolute', inset: '9%', borderRadius: '50%', border: '1px solid rgba(47,123,255,.22)', pointerEvents: 'none' }} />
 
       {/* MASCOTE no centro */}
       <img src={MASCOTE} alt="" draggable={false} className={`up-mascote${treme ? ' up-treme' : ''}`}
-        style={{ position: 'absolute', left: '50%', top: '50%', width: '27%', height: '27%', objectFit: 'contain',
-          transform: 'translate(-50%,-50%)', filter: 'drop-shadow(0 0 14px rgba(34,211,238,.55))', pointerEvents: 'none', userSelect: 'none' }} />
+        style={{ position: 'absolute', left: '50%', top: '50%', width: '36%', height: '36%', objectFit: 'contain',
+          transform: 'translate(-50%,-50%)', filter: 'drop-shadow(0 0 22px rgba(34,211,238,.6))', pointerEvents: 'none', userSelect: 'none' }} />
 
       {/* LETRAS formando a palavra ao redor do mascote */}
       {letras.map((x, i) => {
         const a = (-90 + i * passo) * Math.PI / 180;
         return (
           <div key={`${i}_${x.l}`} className="up-letra" title={primeiro(x.by)}
-            style={{ position: 'absolute', left: `${50 + 24.5 * Math.cos(a)}%`, top: `${50 + 24.5 * Math.sin(a)}%`,
-              width: '8.4%', aspectRatio: '1', transform: 'translate(-50%,-50%)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: corDe(x.by), color: '#fff', fontFamily: 'var(--font-brand)', fontWeight: 900, fontSize: '5.4cqw',
+            style={{ position: 'absolute', left: `${50 + 27 * Math.cos(a)}%`, top: `${50 + 27 * Math.sin(a)}%`,
+              width: '8%', aspectRatio: '1', transform: 'translate(-50%,-50%)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: corDe(x.by), color: '#fff', fontFamily: 'var(--font-brand)', fontWeight: 900, fontSize: '5cqw',
               border: '2px solid rgba(255,255,255,.85)', boxShadow: `0 0 12px ${corDe(x.by)}aa` }}>
             {x.l.toUpperCase()}
           </div>
@@ -197,14 +184,14 @@ const Arena = ({ seats, letras, ordem, vez, alvo, treme, centro }) => {
         const a = (-90 + i * (360 / seats.length)) * Math.PI / 180;
         const minhaVez = vez === p.name, ehAlvo = alvo === p.name;
         return (
-          <div key={p.name} style={{ position: 'absolute', left: `${50 + 40 * Math.cos(a)}%`, top: `${50 + 40 * Math.sin(a)}%`,
-            transform: 'translate(-50%,-50%)', width: '19%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+          <div key={p.name} style={{ position: 'absolute', left: `${50 + 40.5 * Math.cos(a)}%`, top: `${50 + 40.5 * Math.sin(a)}%`,
+            transform: 'translate(-50%,-50%)', width: '20%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
             opacity: p.out ? 0.38 : 1, filter: p.out ? 'grayscale(1)' : 'none' }}>
             <img src={p.photo || '/UNIKO_NEW.png'} alt="" className={minhaVez ? 'up-vez' : ''}
-              style={{ width: '46%', aspectRatio: '1', borderRadius: '50%', objectFit: 'cover', background: '#1b2a63',
+              style={{ width: '62%', aspectRatio: '1', borderRadius: '50%', objectFit: 'cover', background: '#1b2a63',
                 border: `2.5px solid ${ehAlvo ? P.vermelho : minhaVez ? P.ciano : corDe(p.name)}`,
                 boxShadow: minhaVez ? `0 0 14px ${P.ciano}` : ehAlvo ? `0 0 14px ${P.vermelho}` : 'none' }} />
-            <div style={{ fontSize: 'clamp(9px, 2.6cqw, 13px)', fontWeight: 800, color: '#fff', maxWidth: '100%', textAlign: 'center',
+            <div style={{ fontSize: 'clamp(10px, 3cqw, 16px)', fontWeight: 800, color: '#fff', maxWidth: '100%', textAlign: 'center',
               overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textShadow: '0 1px 4px rgba(0,0,0,.8)' }}>
               {primeiro(p.name)}{p.ausente ? ' 💤' : ''}
             </div>
@@ -273,7 +260,7 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
   const stateRef = useRef(null);
   const hostRef = useRef(false);
   const chanRef = useRef(null);
-  const lockRef = useRef(false);
+  const playersRef = useRef([]);
   const ultFase = useRef(null);
   const ultVez = useRef(null);
 
@@ -286,6 +273,7 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
   const isHost = host === name;
   useEffect(() => { hostRef.current = isHost; }, [isHost]);
   useEffect(() => { stateRef.current = state; }, [state]);
+  useEffect(() => { playersRef.current = players; }, [players]);
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 250); return () => clearInterval(t); }, []);
 
   /* ── Estado (descarta o que chega atrasado, igual ao Stop) ── */
@@ -321,48 +309,67 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
   }, [roomId, aplicaEstado]);
 
   /* ── Motor: só o HOST processa jogada/dúvida/resposta ── */
-  const processar = async (ev, p) => {
+  /* Fecha a votação: maioria contra → acusado perde; maioria a favor → acusador perde;
+     `forcar` (tempo esgotado) sem maioria → ninguém perde e o jogo continua. */
+  const resolver = (s, forcar) => {
+    const v = contarVotos(s, playersRef.current.map(p => p.name));
+    if (!v) return;
+    const { por, alvo, tipo, palavra } = s.duvida;
+    const w = palavra ? ` "${palavra.toUpperCase()}"` : '';
+    const frag = fragmentoDe(s).toUpperCase();
+    if (v.total > 0 && v.contra > v.total / 2) {
+      pushState(perderVida(s, alvo, tipo === 'blefe'
+        ? `${primeiro(alvo)} foi pego blefando — a turma decidiu que${w || ' a palavra'} não vale!`
+        : `${primeiro(alvo)} completou a palavra "${frag}" — a turma confirmou!`, palavra));
+    } else if (v.total > 0 && v.favor > v.total / 2) {
+      pushState(perderVida(s, por, tipo === 'blefe'
+        ? `${primeiro(por)} duvidou, mas a turma aceitou${w || ' a palavra'} de ${primeiro(alvo)}!`
+        : `${primeiro(por)} chamou palavra, mas "${frag}" não formou nada!`, palavra));
+    } else if (forcar || (v.total > 0 && v.contra + v.favor === v.total)) {
+      pushState({ ...s, phase: 'jogando', duvida: null, endsAt: Date.now() + TURN_MS,
+        aviso: 'Ninguém decidiu a tempo — o jogo continua e ninguém perde vida.' });
+    }
+  };
+
+  const processar = (ev, p) => {
     const s = stateRef.current;
-    if (!s || lockRef.current) return;
+    if (!s) return;
+    const vivo = (n) => (s.vidas?.[n] || 0) > 0;
 
     if (ev === 'jogada') {
       if (s.phase !== 'jogando' || s.vez !== p.name || p.pos !== (s.letras || []).length) return;   // pos = idempotência do reenvio
       const l = normLetra(p.letra); if (!l) return;
-      const letras = [...(s.letras || []), { l, by: p.name }];
-      const frag = letras.map(x => x.l).join('');
-      if (frag.length >= MIN_LEN) {
-        lockRef.current = true;
-        let ok; try { ok = await ehPalavra(frag); } finally { lockRef.current = false; }
-        if (stateRef.current?.ts !== s.ts) return;
-        if (ok === true) {
-          pushState(perderVida({ ...s, letras }, p.name, `${primeiro(p.name)} completou a palavra "${frag.toUpperCase()}"`, frag));
-          return;
-        }
-      }
-      pushState({ ...s, letras, vez: proxVivo(s, p.name), endsAt: Date.now() + TURN_MS });
+      pushState({ ...s, letras: [...(s.letras || []), { l, by: p.name }], vez: proxVivo(s, p.name), aviso: null, endsAt: Date.now() + TURN_MS });
     }
 
     if (ev === 'duvidar') {
       if (s.phase !== 'jogando' || s.vez !== p.name || !(s.letras || []).length) return;
       const alvo = s.letras[s.letras.length - 1].by;
       if (alvo === p.name) return;
-      pushState({ ...s, phase: 'duvida', duvida: { por: p.name, alvo }, endsAt: Date.now() + DUVIDA_MS });
+      pushState({ ...s, phase: 'duvida', aviso: null, duvida: { tipo: 'blefe', por: p.name, alvo, votos: {}, palavra: null }, endsAt: Date.now() + DUVIDA_MS });
     }
 
-    if (ev === 'resposta') {
-      if (s.phase !== 'duvida' || s.duvida?.alvo !== p.name) return;
-      const raw = String(p.palavra || '').trim().toLowerCase().replace(/[^a-zà-ú]/g, '');
-      const frag = fragmentoDe(s), n = norm(raw);
-      const { por, alvo } = s.duvida;
-      let valida = false;
-      if (n.startsWith(frag) && n.length > frag.length) {
-        lockRef.current = true;
-        let ok; try { ok = await ehPalavra(raw); } finally { lockRef.current = false; }
-        if (stateRef.current?.ts !== s.ts) return;
-        valida = ok !== false;                       // sem rede → benefício da dúvida pra quem respondeu
-      }
-      if (valida) pushState(perderVida(s, por, `${primeiro(por)} duvidou, mas ${primeiro(alvo)} tinha "${raw.toUpperCase()}" em mente!`, raw));
-      else pushState(perderVida(s, alvo, `${primeiro(alvo)} foi pego blefando${raw ? ` — "${raw.toUpperCase()}" não vale` : ''}!`, raw));
+    if (ev === 'formou') {
+      if (s.phase !== 'jogando' || (s.letras || []).length < MIN_FORMOU || !vivo(p.name)) return;
+      const alvo = s.letras[s.letras.length - 1].by;
+      if (alvo === p.name) return;
+      pushState({ ...s, phase: 'duvida', aviso: null, duvida: { tipo: 'palavra', por: p.name, alvo, votos: {}, palavra: null }, endsAt: Date.now() + DUVIDA_MS });
+    }
+
+    if (ev === 'resposta') {          // o acusado diz a palavra (só na dúvida de blefe)
+      if (s.phase !== 'duvida' || s.duvida?.tipo !== 'blefe' || s.duvida.alvo !== p.name || s.duvida.palavra) return;
+      const raw = String(p.palavra || '').trim().toLowerCase().replace(/[^a-zà-ú]/g, '').slice(0, 30);
+      if (!raw) return;
+      pushState({ ...s, duvida: { ...s.duvida, palavra: raw } });
+    }
+
+    if (ev === 'voto') {
+      if (s.phase !== 'duvida' || !s.duvida || p.name === s.duvida.alvo || !vivo(p.name)) return;
+      if (p.voto !== 'contra' && p.voto !== 'favor') return;
+      const nova = { ...s, duvida: { ...s.duvida, votos: { ...(s.duvida.votos || {}), [p.name]: p.voto } } };
+      const v = contarVotos(nova, playersRef.current.map(x => x.name));
+      if (v && v.total > 0 && (v.contra > v.total / 2 || v.favor > v.total / 2 || v.contra + v.favor === v.total)) resolver(nova, true);
+      else pushState(nova);
     }
   };
 
@@ -394,7 +401,19 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
     const s = stateRef.current; const w = palavra.trim();
     if (!s || s.phase !== 'duvida' || s.duvida?.alvo !== name || !w) return;
     setPalavra('');
-    enviar('resposta', { name, palavra: w }, (x) => x?.phase !== 'duvida');
+    enviar('resposta', { name, palavra: w }, (x) => !!x?.duvida?.palavra || x?.phase !== 'duvida');
+  };
+  const chamarFormou = () => {
+    const s = stateRef.current;
+    if (!s || s.phase !== 'jogando' || (s.letras || []).length < MIN_FORMOU) return;
+    SFX.duvida();
+    enviar('formou', { name }, (x) => x?.phase !== 'jogando');
+  };
+  const votar = (voto) => {
+    const s = stateRef.current;
+    if (!s || s.phase !== 'duvida' || s.duvida?.alvo === name) return;
+    SFX.letra();
+    enviar('voto', { name, voto }, (x) => x?.phase !== 'duvida' || x?.duvida?.votos?.[name] === voto);
   };
 
   /* Relógio do host: estourou o tempo → perde vida / próxima rodada. */
@@ -402,16 +421,17 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
     if (!isHost) return;
     const t = setInterval(() => {
       const s = stateRef.current;
-      if (!s || !s.endsAt || Date.now() < s.endsAt || lockRef.current) return;
+      if (!s || !s.endsAt || Date.now() < s.endsAt) return;
       if (s.phase === 'jogando') {
         pushState(perderVida(s, s.vez, `${primeiro(s.vez)} demorou demais e perdeu a vez`));
       } else if (s.phase === 'duvida') {
-        pushState(perderVida(s, s.duvida.alvo, `${primeiro(s.duvida.alvo)} não respondeu à dúvida de ${primeiro(s.duvida.por)}`));
+        resolver(s, true);
       } else if (s.phase === 'pausa') {
         pushState({ ...s, phase: 'jogando', letras: [], vez: s.starter, evento: null, round: (s.round || 1) + 1, endsAt: Date.now() + TURN_MS });
       }
     }, 400);
     return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isHost, pushState]);
 
   const comecar = () => {
@@ -420,7 +440,7 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
     if (ordem.length < MIN_PLAYERS) return;
     const vidas = {}; ordem.forEach(n => { vidas[n] = VIDAS; });
     pushState({ ...s, phase: 'jogando', ordem, vidas, letras: [], vez: ordem[0], round: 1, evento: null,
-      duvida: null, vencedor: null, endsAt: Date.now() + TURN_MS });
+      duvida: null, aviso: null, vencedor: null, endsAt: Date.now() + TURN_MS });
   };
   const voltarLobby = () => {
     const s = stateRef.current; if (!s) return;
@@ -431,7 +451,7 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
   useEffect(() => {
     const ch = supabase.channel(`uniko-palavras-room-${roomId}`);
     chanRef.current = ch;
-    ['jogada', 'duvidar', 'resposta'].forEach(ev => {
+    ['jogada', 'duvidar', 'formou', 'resposta', 'voto'].forEach(ev => {
       ch.on('broadcast', { event: ev }, ({ payload }) => { if (hostRef.current && payload?.name) processar(ev, payload); });
     });
     ch.on('broadcast', { event: 'chat' }, ({ payload }) => {
@@ -473,6 +493,8 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
   const frag = fragmentoDe(state);
   const secs = state?.endsAt ? Math.max(0, Math.ceil((state.endsAt - now) / 1000)) : 0;
   const minhaVez = fase === 'jogando' && state?.vez === name;
+  const ultimoPor = letras.length ? letras[letras.length - 1].by : null;
+  const podeFormou = fase === 'jogando' && letras.length >= MIN_FORMOU && ultimoPor !== name && (state?.vidas?.[name] || 0) > 0;
   const souAlvo = fase === 'duvida' && state?.duvida?.alvo === name;
   const fotoDe = (n) => players.find(p => p.name === n)?.photo || null;
   const seats = noLobby
@@ -490,8 +512,9 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
       <div style={{ textAlign: 'center' }}>
         <div style={{ fontSize: 13, color: T.textT, lineHeight: 1.6, marginBottom: 12 }}>
           Cada um tem <b style={{ color: T.text }}>{VIDAS} vidas</b>. Acrescente uma letra por vez formando uma palavra —
-          quem <b style={{ color: T.text }}>completar</b> uma palavra ({MIN_LEN}+ letras) perde uma vida, e quem for pego{' '}
-          <b style={{ color: T.text }}>blefando</b> também. Na sua vez, você pode <b style={{ color: T.text }}>duvidar</b> de quem jogou antes!
+          quem <b style={{ color: T.text }}>completar</b> uma palavra perde uma vida, e quem for pego{' '}
+          <b style={{ color: T.text }}>blefando</b> também. Na sua vez, você pode <b style={{ color: T.text }}>duvidar</b> de quem jogou antes.
+          Não tem dicionário: <b style={{ color: T.text }}>a turma vota</b> (1 minuto, maioria decide)!
         </div>
         {isHost ? (
           <button className="up-btn" onClick={comecar} disabled={players.length < MIN_PLAYERS}
@@ -530,18 +553,28 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
     );
 
     if (fase === 'duvida') {
-      const { por, alvo } = state.duvida || {};
+      const d = state.duvida || {};
+      const v = contarVotos(state, players.map(p => p.name)) || { total: 0, contra: 0, favor: 0 };
+      const meuVoto = d.votos?.[name];
+      const podeVotar = d.alvo !== name && (state.vidas?.[name] || 0) > 0;
+      const blefe = d.tipo === 'blefe';
+      const destaque = (on, cor) => ({ outline: on ? '3px solid #fff' : 'none', boxShadow: on ? `0 0 0 3px ${cor}` : 'none' });
       return (
         <div className="up-fade" style={{ textAlign: 'center' }}>
           <div style={{ fontFamily: 'var(--font-brand)', fontSize: 16, fontWeight: 800, color: T.text }}>
-            🤨 {primeiro(por)} duvidou de {primeiro(alvo)}!
+            {blefe ? `🤨 ${primeiro(d.por)} duvidou de ${primeiro(d.alvo)}!` : `🏁 ${primeiro(d.por)} diz que ${primeiro(d.alvo)} formou uma palavra!`}
           </div>
-          <div style={{ fontSize: 12.5, color: T.textT, margin: '5px 0 10px' }}>
-            {souAlvo ? <>Diga a palavra que você tinha em mente — ela tem que começar com <b style={{ color: T.text, letterSpacing: 2 }}>{frag.toUpperCase()}</b> ({secs}s)</>
-              : <>{primeiro(alvo)} precisa dizer uma palavra que comece com <b style={{ color: T.text, letterSpacing: 2 }}>{frag.toUpperCase()}</b> ({secs}s)</>}
+          <div style={{ fontSize: 12.5, color: T.textT, margin: '5px 0 10px', lineHeight: 1.5 }}>
+            {blefe
+              ? (souAlvo && !d.palavra
+                ? <>Diga a palavra que você tinha em mente — ela tem que começar com <b style={{ color: T.text, letterSpacing: 2 }}>{frag.toUpperCase()}</b></>
+                : d.palavra
+                  ? <>{primeiro(d.alvo)} disse: <b style={{ color: T.text, fontSize: 17, letterSpacing: 2 }}>{d.palavra.toUpperCase()}</b></>
+                  : <>Esperando {primeiro(d.alvo)} dizer a palavra que começa com <b style={{ color: T.text, letterSpacing: 2 }}>{frag.toUpperCase()}</b>...</>)
+              : <>A palavra na mesa é <b style={{ color: T.text, fontSize: 17, letterSpacing: 4 }}>{frag.toUpperCase()}</b> — isso é uma palavra que existe?</>}
           </div>
-          {souAlvo && (
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+          {blefe && souAlvo && !d.palavra && (
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 10 }}>
               <input autoFocus value={palavra} onChange={e => setPalavra(e.target.value)} maxLength={30}
                 onKeyDown={e => e.key === 'Enter' && responder()} placeholder={`${frag.toUpperCase()}...`}
                 style={{ ...inputCss, width: 'min(60%, 240px)' }} />
@@ -549,6 +582,23 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
                 style={{ ...btnBase, background: palavra.trim() ? `linear-gradient(135deg, ${P.verde}, ${P.ciano})` : T.textD }}>Enviar</button>
             </div>
           )}
+          {podeVotar ? (
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+              <button className="up-btn" onClick={() => votar('contra')} style={{ ...btnBase, background: P.vermelho, ...destaque(meuVoto === 'contra', P.vermelho) }}>
+                {blefe ? '❌ Não existe' : '✅ Formou palavra'}
+              </button>
+              <button className="up-btn" onClick={() => votar('favor')} style={{ ...btnBase, background: P.verde, ...destaque(meuVoto === 'favor', P.verde) }}>
+                {blefe ? '✅ Existe' : '❌ Não formou'}
+              </button>
+            </div>
+          ) : (
+            <div style={{ fontSize: 12.5, color: T.textT }}>{souAlvo ? 'A turma está votando...' : 'Você está fora — só acompanhe!'}</div>
+          )}
+          <div style={{ fontSize: 12, color: T.textT, marginTop: 10 }}>
+            Votos: <b style={{ color: P.vermelho }}>{v.contra}</b> {blefe ? 'não existe' : 'formou'} · <b style={{ color: P.verde }}>{v.favor}</b> {blefe ? 'existe' : 'não formou'}
+            {' '}· {v.total} votante{v.total === 1 ? '' : 's'} · {secs}s
+          </div>
+          <div style={{ fontSize: 11, color: T.textD, marginTop: 3 }}>Maioria decide na hora. Sem maioria em 1 minuto, ninguém perde vida.</div>
         </div>
       );
     }
@@ -560,6 +610,13 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
         <div style={{ fontFamily: 'var(--font-brand)', fontSize: 26, fontWeight: 900, letterSpacing: 6, color: T.text, minHeight: 34 }}>
           {frag ? frag.toUpperCase() : '—'}
         </div>
+        {state.aviso && <div className="up-fade" style={{ fontSize: 12.5, color: P.amarelo, fontWeight: 700, margin: '2px 0 6px' }}>{state.aviso}</div>}
+        {podeFormou && (
+          <button className="up-btn" onClick={chamarFormou} title={`Chamar: ${primeiro(ultimoPor)} formou uma palavra`}
+            style={{ ...btnBase, padding: '7px 14px', fontSize: 12.5, marginBottom: 8, background: `linear-gradient(135deg, ${P.roxo}, ${P.azul})` }}>
+            🏁 Formou palavra!
+          </button>
+        )}
         {minhaVez ? (
           <>
             <div style={{ fontSize: 13, fontWeight: 800, color: P.azul, margin: '2px 0 9px' }}>Sua vez! ({secs}s)</div>
