@@ -17,6 +17,7 @@ import {
 import { fetchAllCaptures } from '../../../shared/captureNumero';
 import roletaFundo from '../../../assets/roleta-fundo.webp';
 
+const HIST_MAX = 300; // teto de ganhadores guardados no histórico
 const ROLETA_MUSICA_SRC = '/roleta-sorte-musica.mp3'; // public/
 const ROLETA_MUSICA_VOL = 0.7;
 
@@ -92,6 +93,34 @@ const fmtWinDate = (iso) => {
   try { return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }); }
   catch { return ''; }
 };
+
+/* Card de ganhador: foto quadrada com nome/data por cima. Admin ganha os botões de trocar foto e remover. */
+const WinnerCard = ({ h, big, isAdmin, uploading, onOpen, onUpload, onRemove }) => (
+  <div onClick={() => h.photoUrl && onOpen(h.photoUrl)}
+    style={{ position: 'relative', width: '100%', aspectRatio: '1', borderRadius: big ? 16 : 13, overflow: 'hidden',
+      cursor: h.photoUrl ? 'zoom-in' : 'default',
+      background: h.photoUrl ? `center/cover no-repeat url(${h.photoUrl})` : `linear-gradient(135deg,${T.gold}26,${T.gold}0d)`,
+      border: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    {!h.photoUrl && <CameraIcon size={big ? 38 : 26} color={T.textT}/>}
+    <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: big ? '12px 14px 10px' : '18px 9px 7px',
+      background: 'linear-gradient(0deg, rgba(0,0,0,.72), rgba(0,0,0,0))', color: '#fff' }}>
+      <div style={{ fontSize: big ? 16 : 12.5, fontWeight: 800, fontFamily: 'var(--font-brand)', textShadow: '0 1px 3px rgba(0,0,0,.5)',
+        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{h.label}</div>
+      <div style={{ fontSize: big ? 11 : 10, opacity: .85 }}>{fmtWinDate(h.at)}</div>
+    </div>
+    {isAdmin && (
+      <div onClick={e => e.stopPropagation()} style={{ position: 'absolute', top: 7, right: 7, display: 'flex', gap: 5 }}>
+        <button onClick={() => onUpload(h.id)} disabled={uploading} title={h.photoUrl ? 'Trocar foto' : 'Adicionar foto'}
+          style={{ width: 28, height: 28, borderRadius: 8, border: 'none', cursor: 'pointer', background: 'rgba(0,0,0,.55)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: uploading ? .6 : 1 }}>
+          <CameraIcon size={14} color="#fff"/>
+        </button>
+        <button onClick={() => onRemove(h.id)} title="Remover ganhador"
+          style={{ width: 28, height: 28, borderRadius: 8, border: 'none', cursor: 'pointer', background: 'rgba(192,64,80,.85)', color: '#fff', fontSize: 15, lineHeight: 1 }}>×</button>
+      </div>
+    )}
+  </div>
+);
 
 const labelStyleFor = (n) => {
   if (n <= 6)  return { width: 112, fontSize: 15 };
@@ -232,6 +261,13 @@ const TabRoletaSorte = () => {
 
   // Histórico de Ganhadores — anexar foto (admin)
   const [lightboxUrl, setLightboxUrl] = useState(null);
+  const [allOpen, setAllOpen] = useState(false);            // tela grande com TODOS os ganhadores
+  const [addOpen, setAddOpen] = useState(false);            // formulário "Adicionar ganhador"
+  const [addNome, setAddNome] = useState('');
+  const [addData, setAddData] = useState(() => new Date().toISOString().slice(0, 10));
+  const [addFile, setAddFile] = useState(null);
+  const [addBusy, setAddBusy] = useState(false);
+  const addPreview = useMemo(() => (addFile ? URL.createObjectURL(addFile) : null), [addFile]);
   const [uploadingId, setUploadingId] = useState(null);
   const fileInputRef = useRef(null);
   const pendingUploadIdRef = useRef(null);
@@ -481,7 +517,7 @@ const TabRoletaSorte = () => {
       const winner = s.entries?.[s.winnerIndex];
       // Já entra pro Histórico de Ganhadores na hora do giro (sem foto ainda —
       // o admin anexa depois, num giro já resolvido).
-      const nextHistory = [{ id: s.id, label: winner?.label || '?', at: s.startedAt, photoUrl: null, photoPath: null }, ...history].slice(0, 60);
+      const nextHistory = [{ id: s.id, label: winner?.label || '?', at: s.startedAt, photoUrl: null, photoPath: null }, ...history].slice(0, HIST_MAX);
       setSpin(s); // otimista — todo mundo (inclusive este PC) já começa a girar na hora
       setHistory(nextHistory);
       await saveRoletaConfig({ entries, spin: s, history: nextHistory });
@@ -514,6 +550,43 @@ const TabRoletaSorte = () => {
       flash('✅ Foto adicionada ao histórico!');
     } catch (e) { flash('❌ ' + (e.message || 'Erro ao enviar a foto')); }
     setUploadingId(null);
+  };
+  /* Adicionar ganhador à mão (com foto): entra ordenado por data, do mais recente ao mais antigo. */
+  const fecharAdd = () => { setAddOpen(false); setAddNome(''); setAddFile(null); setAddData(new Date().toISOString().slice(0, 10)); };
+  const addWinner = async () => {
+    const nome = addNome.trim();
+    if (!nome || addBusy) return;
+    setAddBusy(true);
+    try {
+      const id = `m_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+      let photoUrl = null, photoPath = null;
+      if (addFile) {
+        photoPath = `${id}/${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}.jpg`;
+        const { error: upErr } = await supabase.storage.from('roleta-sorte').upload(photoPath, addFile, { contentType: addFile.type || 'image/jpeg', upsert: false });
+        if (upErr) throw upErr;
+        photoUrl = supabase.storage.from('roleta-sorte').getPublicUrl(photoPath).data.publicUrl;
+      }
+      const hoje = new Date().toISOString().slice(0, 10);
+      const at = addData && addData !== hoje ? new Date(`${addData}T12:00:00`).toISOString() : new Date().toISOString();
+      const nextHistory = [{ id, label: nome, at, photoUrl, photoPath, manual: true }, ...history]
+        .sort((a, b) => Date.parse(b.at) - Date.parse(a.at)).slice(0, HIST_MAX);
+      setHistory(nextHistory);
+      await saveRoletaConfig({ entries, spin, history: nextHistory });
+      flash('✅ Ganhador adicionado ao histórico!');
+      fecharAdd();
+    } catch (e) { flash('❌ ' + (e.message || 'Erro ao adicionar o ganhador')); }
+    setAddBusy(false);
+  };
+  const removeWinner = async (id) => {
+    const h = history.find(x => x.id === id);
+    if (!h || !window.confirm(`Remover "${h.label}" do histórico de ganhadores?`)) return;
+    const nextHistory = history.filter(x => x.id !== id);
+    setHistory(nextHistory);
+    try {
+      await saveRoletaConfig({ entries, spin, history: nextHistory });
+      if (h.photoPath) { try { await supabase.storage.from('roleta-sorte').remove([h.photoPath]); } catch { /* foto órfã não é crítica */ } }
+      flash('✅ Ganhador removido.');
+    } catch (e) { flash('❌ ' + (e.message || 'Erro ao remover')); }
   };
   const onHistoryFileChosen = (e) => {
     const file = e.target.files?.[0];
@@ -816,6 +889,14 @@ const TabRoletaSorte = () => {
         </div>
 
         <div style={{ padding: '0 18px 16px' }}>
+          {isAdmin && (
+            <button onClick={() => setAddOpen(true)}
+              style={{ width: '100%', marginBottom: 12, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                padding: '9px 12px', borderRadius: 10, cursor: 'pointer', border: `1px dashed ${T.gold}`, background: `${T.gold}14`,
+                color: T.gold, fontWeight: 800, fontSize: 12.5, fontFamily: 'var(--font-body)' }}>
+              + Adicionar ganhador
+            </button>
+          )}
           {history.length === 0 ? (
             <div style={{ borderRadius: 14, border: `1px dashed ${T.border}`, padding: '26px 12px', textAlign: 'center' }}>
               <div style={{ fontSize: 12.5, color: T.textT }}>Ninguém ganhou ainda — o primeiro giro entra aqui.</div>
@@ -825,67 +906,103 @@ const TabRoletaSorte = () => {
               <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: T.textT, marginBottom: 8 }}>
                 Último ganhador
               </div>
-              <div onClick={() => history[0].photoUrl && setLightboxUrl(history[0].photoUrl)}
-                style={{ position: 'relative', width: '100%', aspectRatio: '1', borderRadius: 16, overflow: 'hidden',
-                  cursor: history[0].photoUrl ? 'zoom-in' : 'default',
-                  background: history[0].photoUrl ? `center/cover no-repeat url(${history[0].photoUrl})` : `linear-gradient(135deg,${T.gold}26,${T.gold}0d)`,
-                  border: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                {!history[0].photoUrl && <CameraIcon size={38} color={T.textT}/>}
-                <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '12px 14px 10px',
-                  background: 'linear-gradient(0deg, rgba(0,0,0,.68), rgba(0,0,0,0))', color: '#fff' }}>
-                  <div style={{ fontSize: 16, fontWeight: 800, fontFamily: 'var(--font-brand)', textShadow: '0 1px 3px rgba(0,0,0,.5)' }}>{history[0].label}</div>
-                  <div style={{ fontSize: 11, opacity: .85 }}>{fmtWinDate(history[0].at)}</div>
-                </div>
-              </div>
-              {isAdmin && (
-                <button onClick={() => triggerUpload(history[0].id)} disabled={uploadingId === history[0].id}
-                  style={{ marginTop: 8, width: '100%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-                    padding: '9px 12px', borderRadius: 10, cursor: 'pointer', border: `1px solid ${T.border}`,
-                    background: T.surfaceSub || 'rgba(0,0,0,.04)', color: T.text, fontWeight: 700, fontSize: 12.5,
-                    fontFamily: 'var(--font-body)', opacity: uploadingId === history[0].id ? .6 : 1 }}>
-                  <CameraIcon size={14} color={T.text}/>
-                  {uploadingId === history[0].id ? 'Enviando…' : (history[0].photoUrl ? 'Trocar foto' : 'Adicionar foto')}
+              <WinnerCard big h={history[0]} isAdmin={isAdmin} uploading={uploadingId === history[0].id}
+                onOpen={setLightboxUrl} onUpload={triggerUpload} onRemove={removeWinner}/>
+              {history.length > 1 && (
+                <>
+                  <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: T.textT, margin: '14px 0 8px' }}>
+                    Anteriores
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    {history.slice(1, 5).map(h => (
+                      <WinnerCard key={h.id} h={h} isAdmin={isAdmin} uploading={uploadingId === h.id}
+                        onOpen={setLightboxUrl} onUpload={triggerUpload} onRemove={removeWinner}/>
+                    ))}
+                  </div>
+                </>
+              )}
+              {history.length > 5 && (
+                <button onClick={() => setAllOpen(true)}
+                  style={{ marginTop: 12, width: '100%', padding: '10px 12px', borderRadius: 10, cursor: 'pointer', border: `1px solid ${T.border}`,
+                    background: T.surfaceSub || 'rgba(0,0,0,.04)', color: T.text, fontWeight: 800, fontSize: 12.5, fontFamily: 'var(--font-body)' }}>
+                  Visualizar todos os ganhadores ({history.length})
                 </button>
               )}
             </div>
           )}
         </div>
 
-        {history.length > 1 && (
-          <div style={{ borderTop: `1px solid ${T.border}`, maxHeight: 380, overflowY: 'auto' }}>
-            {history.slice(1).map(h => (
-              <div key={h.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 18px', borderBottom: `1px solid ${T.border}` }}>
-                <div onClick={() => h.photoUrl && setLightboxUrl(h.photoUrl)}
-                  style={{ width: 42, height: 42, borderRadius: 10, overflow: 'hidden', flexShrink: 0,
-                    cursor: h.photoUrl ? 'zoom-in' : 'default',
-                    background: h.photoUrl ? `center/cover no-repeat url(${h.photoUrl})` : (T.surfaceSub || 'rgba(0,0,0,.05)'),
-                    border: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  {!h.photoUrl && <CameraIcon size={16} color={T.textT}/>}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 12.5, fontWeight: 700, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{h.label}</div>
-                  <div style={{ fontSize: 10.5, color: T.textT }}>{fmtWinDate(h.at)}</div>
-                </div>
-                {isAdmin && (
-                  <button onClick={() => triggerUpload(h.id)} disabled={uploadingId === h.id} title={h.photoUrl ? 'Trocar foto' : 'Adicionar foto'}
-                    style={{ width: 30, height: 30, borderRadius: 9, flexShrink: 0, cursor: 'pointer', border: `1px solid ${T.border}`,
-                      background: T.surfaceSub || 'rgba(0,0,0,.04)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      opacity: uploadingId === h.id ? .6 : 1 }}>
-                    <CameraIcon size={14} color={T.text}/>
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-
         <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={onHistoryFileChosen}/>
       </div>
       </div>
 
+      {/* Tela grande: TODOS os ganhadores, do mais recente ao mais antigo */}
+      {allOpen && (
+        <div onClick={() => setAllOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 250, background: 'rgba(6,6,10,.82)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: 'min(1120px, 96vw)', maxHeight: '92vh', display: 'flex', flexDirection: 'column',
+            borderRadius: 18, background: T.surface, border: `1px solid ${T.border}`, boxShadow: '0 24px 70px rgba(0,0,0,.6)', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '16px 20px', borderBottom: `1px solid ${T.border}` }}>
+              <TrophyIcon size={22} color={T.gold}/>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontFamily: 'var(--font-brand)', fontSize: 18, fontWeight: 800, color: T.text }}>Histórico de Ganhadores</div>
+                <div style={{ fontSize: 12, color: T.textS }}>{history.length} ganhadores · do mais recente ao mais antigo</div>
+              </div>
+              {isAdmin && (
+                <button onClick={() => setAddOpen(true)}
+                  style={{ padding: '8px 14px', borderRadius: 10, cursor: 'pointer', border: `1px dashed ${T.gold}`, background: `${T.gold}14`, color: T.gold, fontWeight: 800, fontSize: 12.5 }}>
+                  + Adicionar ganhador
+                </button>
+              )}
+              <button onClick={() => setAllOpen(false)}
+                style={{ width: 36, height: 36, borderRadius: '50%', border: 'none', cursor: 'pointer', background: T.surfaceSub || 'rgba(0,0,0,.08)', color: T.text, fontSize: 18 }}>×</button>
+            </div>
+            <div style={{ overflowY: 'auto', padding: 20, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: 14 }}>
+              {history.map((h, i) => (
+                <div key={h.id} style={{ position: 'relative' }}>
+                  <span style={{ position: 'absolute', top: 8, left: 8, zIndex: 2, minWidth: 24, padding: '2px 7px', borderRadius: 999, background: 'rgba(0,0,0,.6)',
+                    color: '#fff', fontSize: 11, fontWeight: 800, textAlign: 'center' }}>#{i + 1}</span>
+                  <WinnerCard h={h} isAdmin={isAdmin} uploading={uploadingId === h.id} onOpen={setLightboxUrl} onUpload={triggerUpload} onRemove={removeWinner}/>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Adicionar ganhador (admin): nome + data + foto */}
+      {addOpen && (
+        <div onClick={fecharAdd} style={{ position: 'fixed', inset: 0, zIndex: 280, background: 'rgba(6,6,10,.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: 'min(420px, 94vw)', borderRadius: 16, background: T.surface, border: `1px solid ${T.border}`, padding: 20, boxShadow: '0 20px 60px rgba(0,0,0,.5)' }}>
+            <div style={{ fontFamily: 'var(--font-brand)', fontSize: 17, fontWeight: 800, color: T.text, marginBottom: 14 }}>Adicionar ganhador</div>
+            <label style={{ fontSize: 11.5, fontWeight: 700, color: T.textT }}>Nome / número</label>
+            <input value={addNome} onChange={e => setAddNome(e.target.value)} maxLength={40} autoFocus onKeyDown={e => e.key === 'Enter' && addWinner()}
+              style={{ width: '100%', margin: '4px 0 12px', padding: '9px 12px', borderRadius: 9, border: `1px solid ${T.border}`, background: T.surfaceInput || 'transparent', color: T.text, fontSize: 14 }} />
+            <label style={{ fontSize: 11.5, fontWeight: 700, color: T.textT }}>Data em que ganhou</label>
+            <input type="date" value={addData} onChange={e => setAddData(e.target.value)}
+              style={{ width: '100%', margin: '4px 0 12px', padding: '9px 12px', borderRadius: 9, border: `1px solid ${T.border}`, background: T.surfaceInput || 'transparent', color: T.text, fontSize: 14 }} />
+            <label style={{ fontSize: 11.5, fontWeight: 700, color: T.textT }}>Foto</label>
+            <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, margin: '4px 0 14px', minHeight: 110, borderRadius: 12, cursor: 'pointer', overflow: 'hidden',
+              border: `1px dashed ${T.border}`, background: addPreview ? `center/cover no-repeat url(${addPreview})` : (T.surfaceSub || 'rgba(0,0,0,.04)'), color: T.textT, fontSize: 12.5, fontWeight: 700 }}>
+              {!addPreview && <><CameraIcon size={18} color={T.textT}/> Escolher foto</>}
+              <input type="file" accept="image/*" style={{ display: 'none' }}
+                onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f && f.type.startsWith('image/')) setAddFile(f); }} />
+            </label>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button onClick={fecharAdd} style={{ padding: '9px 16px', borderRadius: 10, cursor: 'pointer', border: `1px solid ${T.border}`, background: 'transparent', color: T.text, fontWeight: 700, fontSize: 13 }}>Cancelar</button>
+              <button onClick={addWinner} disabled={!addNome.trim() || addBusy}
+                style={{ padding: '9px 18px', borderRadius: 10, cursor: addNome.trim() && !addBusy ? 'pointer' : 'not-allowed', border: 'none', color: '#fff', fontWeight: 800, fontSize: 13,
+                  background: `linear-gradient(135deg,${T.gold},${T.goldL || T.gold}cc)`, opacity: addNome.trim() && !addBusy ? 1 : .55 }}>
+                {addBusy ? 'Salvando…' : 'Adicionar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Lightbox — foto do histórico em tamanho grande */}
       {lightboxUrl && (
-        <div onClick={() => setLightboxUrl(null)} style={{ position: 'fixed', inset: 0, zIndex: 300,
+        <div onClick={() => setLightboxUrl(null)} style={{ position: 'fixed', inset: 0, zIndex: 320,
           background: 'rgba(6,6,10,.88)', display: 'flex', alignItems: 'center', justifyContent: 'center',
           padding: 24, cursor: 'zoom-out' }}>
           <img src={lightboxUrl} alt="" onClick={e => e.stopPropagation()}
