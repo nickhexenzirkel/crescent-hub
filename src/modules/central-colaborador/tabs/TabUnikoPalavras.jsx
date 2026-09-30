@@ -2,7 +2,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // UNIKO PALAVRAS — Blefe de palavras (o clássico "Ghost"), online, com salas e chat.
 //
-// COMO SE JOGA: cada um tem 2 VIDAS. Na sua vez você acrescenta UMA letra ao
+// COMO SE JOGA: cada um tem 2 VIDAS (o host pode pôr até 5). Na sua vez você acrescenta UMA letra ao
 // fragmento que está na mesa (C → CA → CAS...), pensando numa palavra que
 // comece assim. NÃO há dicionário: quem decide é a TURMA, por votação.
 //   • DUVIDAR (só na sua vez): você desconfia de quem jogou a última letra. Ele
@@ -29,7 +29,8 @@ import { getActiveAssistantSkinId, getAssistantSkin } from '../../../shared/assi
 const MASCOTE = '/uniko-palavras.png';
 const CENARIO = "url('/uniko-palavras-cenario.jpg') center / cover no-repeat";
 const MASCOTE_BRAVO = '/uniko-palavras-bravo.png';   // com raiva: dúvida, vida perdida, eliminação
-const VIDAS = 2;
+const VIDAS = 2;                // padrão; o host escolhe de 1 a MAX_VIDAS no lobby
+const MAX_VIDAS = 5;
 const VER_MS = 5_000;               // quanto tempo as letras ficam à mostra ao espiar
 const CHANCES_VER = 2;              // espiadas por jogador, por rodada
 const MIN_FORMOU = 3;           // só dá pra chamar "formou palavra" com 3+ letras na mesa
@@ -50,6 +51,15 @@ const CSS = `
 @keyframes upShake { 0%,100% { transform: translate(-50%,-50%) rotate(0); } 20% { transform: translate(-50%,-50%) rotate(-6deg); } 40% { transform: translate(-50%,-50%) rotate(6deg); } 60% { transform: translate(-50%,-50%) rotate(-4deg); } 80% { transform: translate(-50%,-50%) rotate(4deg); } }
 @keyframes upFade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @keyframes upSpin { to { transform: rotate(360deg); } }
+.up-fxhost > *:not(.up-fx) { position: relative; z-index: 1; }
+.up-fx { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; border-radius: inherit; }
+.up-estrela { position: absolute; background: radial-gradient(circle, #fff 0%, #bfe9ff 45%, #6cc7ff 100%);
+  clip-path: polygon(50% 0, 61% 39%, 100% 50%, 61% 61%, 50% 100%, 39% 61%, 0 50%, 39% 39%); animation: upBrilha 3s ease-in-out infinite; }
+@keyframes upBrilha { 0%,100% { opacity: .15; transform: scale(.55) rotate(0deg); } 50% { opacity: 1; transform: scale(1) rotate(45deg); } }
+.up-bolha { position: absolute; bottom: -8%; border-radius: 50%; border: 1.5px solid rgba(190,235,255,.7);
+  background: radial-gradient(circle at 30% 28%, rgba(255,255,255,.75) 0%, rgba(255,255,255,.12) 28%, rgba(120,200,255,.08) 62%, rgba(120,200,255,.22) 100%);
+  animation: upSobe linear infinite; }
+@keyframes upSobe { 0% { transform: translate(0, 0); opacity: 0; } 8% { opacity: .9; } 50% { transform: translate(14px, -55vh); } 100% { transform: translate(-6px, -115vh); opacity: 0; } }
 .up-mascote { animation: upFloat 3.2s ease-in-out infinite; }
 .up-mascote.up-treme { animation: upShake .6s ease-in-out infinite; }
 .up-mascote.up-pula { animation: upPula .7s ease-in-out 3; }
@@ -79,7 +89,7 @@ const CSS = `
   .up-side { order: 3; height: 300px; flex-shrink: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .up-mascote, .up-balao, .up-letra, .up-fade, .up-fogo::before, .up-fogo::after, .up-chama { animation: none !important; }
+  .up-estrela, .up-bolha, .up-mascote, .up-balao, .up-letra, .up-fade, .up-fogo::before, .up-fogo::after, .up-chama { animation: none !important; }
 }
 `;
 
@@ -158,10 +168,35 @@ const contarVotos = (s, presentes) => {
 /* ═══════════════════════════════════════════════════════════════════════════
    ARENA — mascote no CENTRO, letras da palavra e jogadores ao redor
    ═══════════════════════════════════════════════════════════════════════════ */
+/* Efeitos do fundo: estrelas de 4 pontas piscando + bolhas subindo. Posições fixas
+   (geradas uma vez por um sorteio determinístico) pra não "pular" a cada render. */
+const _fx = (() => {
+  let x = 7;
+  const r = () => { x = (x * 16807) % 2147483647; return x / 2147483647; };
+  return {
+    estrelas: Array.from({ length: 34 }, () => ({ l: r() * 100, t: r() * 100, z: 7 + r() * 13, d: r() * 4, dur: 2.2 + r() * 3 })),
+    bolhas: Array.from({ length: 22 }, () => ({ l: r() * 100, z: 8 + r() * 28, dur: 9 + r() * 12, d: -r() * 20 })),
+  };
+})();
+const FundoFX = () => (
+  <div className="up-fx" aria-hidden="true">
+    {_fx.estrelas.map((e, i) => (
+      <span key={`e${i}`} className="up-estrela"
+        style={{ left: `${e.l}%`, top: `${e.t}%`, width: e.z, height: e.z, animationDuration: `${e.dur}s`, animationDelay: `${e.d}s`,
+          filter: 'drop-shadow(0 0 4px rgba(150,220,255,.9))' }} />
+    ))}
+    {_fx.bolhas.map((b, i) => (
+      <span key={`b${i}`} className="up-bolha"
+        style={{ left: `${b.l}%`, width: b.z, height: b.z, animationDuration: `${b.dur}s`, animationDelay: `${b.d}s` }} />
+    ))}
+  </div>
+);
+
+/* Corações grandes: o tamanho encolhe conforme a quantidade, pra 5 caberem no cartão do jogador. */
 const Coracoes = ({ n, total = VIDAS }) => (
-  <span style={{ fontSize: 'clamp(12px, 3.4cqw, 20px)', letterSpacing: 1, lineHeight: 1 }}>
+  <span style={{ fontSize: `clamp(16px, ${total <= 2 ? 6 : total === 3 ? 5.2 : total === 4 ? 4.4 : 3.7}cqw, ${total <= 2 ? 40 : 32}px)`, letterSpacing: 0, lineHeight: 1, whiteSpace: 'nowrap' }}>
     {Array.from({ length: total }).map((_, i) => (
-      <span key={i} style={{ color: i < n ? '#FF4D6D' : 'rgba(255,255,255,.22)', textShadow: i < n ? '0 0 8px rgba(255,77,109,.7)' : 'none' }}>♥</span>
+      <span key={i} style={{ color: i < n ? '#FF4D6D' : 'rgba(255,255,255,.22)', textShadow: i < n ? '0 0 10px rgba(255,77,109,.8)' : 'none' }}>♥</span>
     ))}
   </span>
 );
@@ -235,7 +270,7 @@ const Arena = ({ seats, letras, ordem, vez, alvo, humor, fala, mostrar }) => {
               overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textShadow: '0 1px 4px rgba(0,0,0,.8)' }}>
               {primeiro(p.name)}{p.ausente ? ' 💤' : ''}
             </div>
-            {p.vidas != null && (p.out ? <span style={{ fontSize: 'clamp(10px, 2.6cqw, 13px)' }}>💀</span> : <Coracoes n={p.vidas} />)}
+            {p.vidas != null && (p.out ? <span style={{ fontSize: 'clamp(10px, 2.6cqw, 13px)' }}>💀</span> : <Coracoes n={p.vidas} total={p.total} />)}
           </div>
         );
       })}
@@ -495,13 +530,20 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
     const s = stateRef.current; if (!s) return;
     const ordem = players.map(p => p.name).sort(() => Math.random() - 0.5);
     if (ordem.length < MIN_PLAYERS) return;
-    const vidas = {}; ordem.forEach(n => { vidas[n] = VIDAS; });
+    const ini = Math.min(MAX_VIDAS, Math.max(1, s.vidasIni || VIDAS));
+    const vidas = {}; ordem.forEach(n => { vidas[n] = ini; });
     pushState({ ...s, phase: 'jogando', ordem, vidas, letras: [], vez: ordem[0], round: 1, evento: null,
       duvida: null, aviso: null, olhadas: {}, vencedor: null, endsAt: Date.now() + TURN_MS });
   };
+  const escolherVidas = (e) => {
+    const n = Number(e.currentTarget.dataset.n);
+    const s = stateRef.current;
+    if (!s || !hostRef.current || (s.phase && s.phase !== 'lobby')) return;
+    pushState({ ...s, vidasIni: n });
+  };
   const voltarLobby = () => {
     const s = stateRef.current; if (!s) return;
-    pushState({ nome: s.nome, criador: s.criador, phase: 'lobby' });
+    pushState({ nome: s.nome, criador: s.criador, vidasIni: s.vidasIni, phase: 'lobby' });
   };
 
   /* ── Canal da sala (jogadas até o host + chat) ── */
@@ -554,9 +596,10 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
   const podeFormou = fase === 'jogando' && letras.length >= MIN_FORMOU && ultimoPor !== name && (state?.vidas?.[name] || 0) > 0;
   const souAlvo = fase === 'duvida' && state?.duvida?.alvo === name;
   const fotoDe = (n) => players.find(p => p.name === n)?.photo || null;
+  const vidasIni = Math.min(MAX_VIDAS, Math.max(1, state?.vidasIni || VIDAS));
   const seats = noLobby
     ? players.map(p => ({ name: p.name, photo: p.photo }))
-    : ordem.map(n => ({ name: n, photo: fotoDe(n), vidas: state?.vidas?.[n] ?? 0, out: (state?.vidas?.[n] ?? 0) <= 0,
+    : ordem.map(n => ({ name: n, photo: fotoDe(n), vidas: state?.vidas?.[n] ?? 0, total: vidasIni, out: (state?.vidas?.[n] ?? 0) <= 0,
       ausente: !players.some(p => p.name === n) }));
 
   const btnBase = { border: 'none', borderRadius: 12, fontWeight: 800, fontSize: 14, cursor: 'pointer', color: '#fff', padding: '11px 20px' };
@@ -647,7 +690,7 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
   const quemPerdeu = primeiro(state?.evento?.quem);
   const falaPadrao = () => {
     if (!state) return null;
-    if (noLobby) return players.length < MIN_PLAYERS ? 'Chame mais gente pra jogar comigo!' : `Bora começar? Cada um tem ${VIDAS} vidas!`;
+    if (noLobby) return players.length < MIN_PLAYERS ? 'Chame mais gente pra jogar comigo!' : `Bora começar? Cada um tem ${vidasIni} ${vidasIni === 1 ? 'vida' : 'vidas'}!`;
     if (fase === 'jogando') return secs <= 10 ? `Faltam ${secs} segundos para ${primeiro(state.vez)} responder...` : `Agora é a vez do ${primeiro(state.vez)}!`;
     if (fase === 'duvida') return `Votem! Faltam ${secs} segundos.`;
     if (fase === 'pausa') return state.evento?.eliminado ? `${quemPerdeu} eliminado! 💀` : `${quemPerdeu} perdeu uma vida! 💔`;
@@ -665,10 +708,21 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
     if (noLobby) return (
       <div style={{ textAlign: 'center' }}>
         <div style={{ fontSize: 13, color: T.textT, lineHeight: 1.6, marginBottom: 12 }}>
-          Cada um tem <b style={{ color: T.text }}>{VIDAS} vidas</b>. Acrescente uma letra por vez formando uma palavra —
+          Cada um tem <b style={{ color: T.text }}>{vidasIni} {vidasIni === 1 ? 'vida' : 'vidas'}</b>. Acrescente uma letra por vez formando uma palavra —
           quem <b style={{ color: T.text }}>completar</b> uma palavra perde uma vida, e quem for pego{' '}
           <b style={{ color: T.text }}>blefando</b> também. Na sua vez, você pode <b style={{ color: T.text }}>duvidar</b> de quem jogou antes.
           As letras ficam <b style={{ color: T.text }}>ocultas</b> — decore! Você pode espiar {CHANCES_VER}x por rodada. Não tem dicionário: <b style={{ color: T.text }}>a turma vota</b> (1 minuto, maioria decide)!
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+          <span style={{ fontSize: 12, fontWeight: 800, color: T.textT }}>Vidas por jogador:</span>
+          {Array.from({ length: MAX_VIDAS }, (_, i) => i + 1).map(n => (
+            <button key={n} className="up-btn" data-n={n} onClick={escolherVidas} disabled={!isHost}
+              title={isHost ? `${n} ${n === 1 ? 'vida' : 'vidas'}` : 'Só o host escolhe'}
+              style={{ width: 34, height: 34, borderRadius: 10, border: n === vidasIni ? '2px solid #FF4D6D' : `1px solid ${T.border}`, fontWeight: 900, fontSize: 14,
+                cursor: isHost ? 'pointer' : 'default', background: n === vidasIni ? 'rgba(255,77,109,.16)' : 'transparent', color: n === vidasIni ? '#FF4D6D' : T.textT }}>
+              {n}
+            </button>
+          ))}
         </div>
         {isHost ? (
           <button className="up-btn" onClick={comecar} disabled={players.length < MIN_PLAYERS}
@@ -801,9 +855,10 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, height: '100%', minHeight: 0, overflow: 'hidden', padding: 12, borderRadius: 18,
-      background: `linear-gradient(rgba(2,6,24,.22), rgba(2,6,24,.22)), ${CENARIO}` }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, height: '100%', minHeight: 0, overflow: 'hidden', padding: 12, borderRadius: 18, position: 'relative',
+      background: `linear-gradient(rgba(2,6,24,.22), rgba(2,6,24,.22)), ${CENARIO}` }} className="up-fxhost">
       <style>{CSS}</style>
+      <FundoFX />
       {/* Cabeçalho */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0, borderRadius: 14, padding: '10px 14px',
         background: `linear-gradient(120deg, ${P.azul}, ${P.roxo})`, boxShadow: '0 6px 20px rgba(47,123,255,.25)' }}>
@@ -900,9 +955,10 @@ const Lobby = ({ name, porSala, onEnter }) => {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, height: '100%', minHeight: 0, overflowY: 'auto', padding: 12, borderRadius: 18,
-      background: `linear-gradient(rgba(2,6,24,.35), rgba(2,6,24,.35)), ${CENARIO}` }} className="up-scroll">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, height: '100%', minHeight: 0, overflowY: 'auto', padding: 12, borderRadius: 18, position: 'relative',
+      background: `linear-gradient(rgba(2,6,24,.35), rgba(2,6,24,.35)), ${CENARIO}` }} className="up-scroll up-fxhost">
       <style>{CSS}</style>
+      <FundoFX />
       <div style={{ borderRadius: 16, padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', flexShrink: 0,
         background: `linear-gradient(120deg, ${P.azul} 0%, ${P.roxo} 70%, ${P.ciano} 130%)`, boxShadow: '0 8px 26px rgba(47,123,255,.28)' }}>
         <img src={MASCOTE} alt="" style={{ width: 70, height: 70, objectFit: 'contain', filter: 'drop-shadow(0 4px 10px rgba(0,0,0,.35))' }} />
