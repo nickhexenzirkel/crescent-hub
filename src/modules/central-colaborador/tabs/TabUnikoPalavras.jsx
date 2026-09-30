@@ -148,12 +148,18 @@ const proxVivo = (s, de) => {
   }
   return de;
 };
+/* Ordem da roda: o host abre, depois o pessoal na ordem em que entrou na sala (fixa, nada de sorteio). */
+const ordenaJogadores = (players, hostName) => {
+  const base = [...players].sort((a, b) => (a.entrouEm || 0) - (b.entrouEm || 0) || a.name.localeCompare(b.name));
+  return [...base.filter(p => p.name === hostName), ...base.filter(p => p.name !== hostName)];
+};
 const perderVida = (s, quem, texto, palavra) => {
   const vidas = { ...s.vidas, [quem]: Math.max(0, (s.vidas?.[quem] || 0) - 1) };
   const vivos = (s.ordem || []).filter(n => vidas[n] > 0);
   const evento = { quem, texto, palavra: palavra || null, ts: nowMs(), eliminado: vidas[quem] === 0 };
   if (vivos.length <= 1) return { ...s, vidas, evento, phase: 'fim', vencedor: vivos[0] || null, endsAt: null, duvida: null };
-  const starter = vidas[quem] > 0 ? quem : proxVivo({ ...s, vidas }, quem);
+  // Quem abre a próxima rodada NÃO é quem perdeu: o posto de abrir gira no sentido da roda (quem abriu esta → o próximo vivo).
+  const starter = proxVivo({ ...s, vidas }, s.iniciador ?? s.ordem?.[0]);
   return { ...s, vidas, evento, phase: 'pausa', starter, endsAt: nowMs() + PAUSA_MS, duvida: null };
 };
 
@@ -524,7 +530,7 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
       } else if (s.phase === 'duvida') {
         resolver(s, true);
       } else if (s.phase === 'pausa') {
-        pushState({ ...s, phase: 'jogando', letras: [], olhadas: {}, vez: s.starter, evento: null, round: (s.round || 1) + 1, endsAt: nowMs() + TURN_MS });
+        pushState({ ...s, phase: 'jogando', letras: [], olhadas: {}, vez: s.starter, iniciador: s.starter, evento: null, round: (s.round || 1) + 1, endsAt: nowMs() + TURN_MS });
       }
     }, 400);
     return () => clearInterval(t);
@@ -533,11 +539,11 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
 
   const comecar = () => {
     const s = stateRef.current; if (!s) return;
-    const ordem = players.map(p => p.name).sort(() => Math.random() - 0.5);
+    const ordem = ordenaJogadores(players, name).map(p => p.name);   // quem aperta Começar (o host) abre; segue a roda
     if (ordem.length < MIN_PLAYERS) return;
     const ini = Math.min(MAX_VIDAS, Math.max(1, s.vidasIni || VIDAS));
     const vidas = {}; ordem.forEach(n => { vidas[n] = ini; });
-    pushState({ ...s, phase: 'jogando', ordem, vidas, letras: [], vez: ordem[0], round: 1, evento: null,
+    pushState({ ...s, phase: 'jogando', ordem, vidas, letras: [], vez: ordem[0], iniciador: ordem[0], round: 1, evento: null,
       duvida: null, aviso: null, olhadas: {}, vencedor: null, endsAt: nowMs() + TURN_MS });
   };
   const escolherVidas = (e) => {
@@ -604,7 +610,7 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
   const fotoDe = (n) => players.find(p => p.name === n)?.photo || null;
   const vidasIni = Math.min(MAX_VIDAS, Math.max(1, state?.vidasIni || VIDAS));
   const seats = noLobby
-    ? players.map(p => ({ name: p.name, photo: p.photo }))
+    ? ordenaJogadores(players, host).map(p => ({ name: p.name, photo: p.photo }))
     : ordem.map(n => ({ name: n, photo: fotoDe(n), vidas: state?.vidas?.[n] ?? 0, total: vidasIni, out: (state?.vidas?.[n] ?? 0) <= 0,
       ausente: !players.some(p => p.name === n) }));
 
