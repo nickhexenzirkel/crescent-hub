@@ -31,6 +31,7 @@ const CENARIO = "url('/uniko-palavras-cenario.jpg') center / cover no-repeat";
 const MASCOTE_BRAVO = '/uniko-palavras-bravo.png';   // com raiva: dúvida, vida perdida, eliminação
 const VIDAS = 2;                // padrão; o host escolhe de 1 a MAX_VIDAS no lobby
 const MAX_VIDAS = 5;
+const NOVA_MS = 7_000;              // a letra recém-jogada fica à mostra por 7s, depois vira "?"
 const VER_MS = 5_000;               // quanto tempo as letras ficam à mostra ao espiar
 const CHANCES_VER = 2;              // espiadas por jogador, por rodada
 const MIN_FORMOU = 3;           // só dá pra chamar "formou palavra" com 3+ letras na mesa
@@ -201,7 +202,7 @@ const Coracoes = ({ n, total = VIDAS }) => (
   </span>
 );
 
-const Arena = ({ seats, letras, ordem, vez, alvo, humor, fala, mostrar }) => {
+const Arena = ({ seats, letras, ordem, vez, alvo, humor, fala, mostrar, novaIdx }) => {
   const corDe = (n) => CORES[Math.max(0, ordem.indexOf(n)) % CORES.length];
   const passo = 360 / Math.max(letras.length, 10);
   return (
@@ -229,7 +230,7 @@ const Arena = ({ seats, letras, ordem, vez, alvo, humor, fala, mostrar }) => {
               width: '8%', aspectRatio: '1', transform: 'translate(-50%,-50%)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
               background: corDe(x.by), color: '#fff', fontFamily: 'var(--font-brand)', fontWeight: 900, fontSize: '5cqw',
               border: '2px solid rgba(255,255,255,.85)', boxShadow: `0 0 12px ${corDe(x.by)}aa` }}>
-            {mostrar ? x.l.toUpperCase() : '?'}
+            {mostrar || i === novaIdx ? x.l.toUpperCase() : '?'}
           </div>
         );
       })}
@@ -603,13 +604,24 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
       ausente: !players.some(p => p.name === n) }));
 
   const btnBase = { border: 'none', borderRadius: 12, fontWeight: 800, fontSize: 14, cursor: 'pointer', color: '#fff', padding: '11px 20px' };
+  /* Letra RECÉM-JOGADA: aparece pra todos por NOVA_MS e depois vira "?" (marca o instante em que
+     a letra chegou a ESTE cliente, então relógios diferentes não desencontram o tempo). */
+  const [nova, setNova] = useState({ i: -1, ate: 0 });
+  const antLen = useRef(null);
+  useEffect(() => {
+    const n = letras.length;
+    if (antLen.current !== null && n > antLen.current) queueMicrotask(() => setNova({ i: n - 1, ate: Date.now() + NOVA_MS }));
+    antLen.current = n;
+  }, [letras.length]);
+  const novaIdx = now < nova.ate ? nova.i : -1;
+
   /* Letras OCULTAS: só aparecem ao espiar (2x por rodada), no fim da rodada, ou quando
      a votação precisa delas (formou palavra / depois que o acusado disse a palavra). */
   const revelaTudo = fase !== 'jogando' && !(fase === 'duvida' && !(state?.duvida?.tipo === 'palavra' || state?.duvida?.palavra));
   const mostrar = revelaTudo || now < verAte;
   const restantes = CHANCES_VER - (state?.olhadas?.[name] || 0);
   const verSecs = Math.max(0, Math.ceil((verAte - now) / 1000));
-  const fragV = mostrar ? frag.toUpperCase() : Array.from({ length: letras.length }, () => '•').join(' ');
+  const fragV = letras.map((x, i) => (mostrar || i === novaIdx ? x.l.toUpperCase() : '•')).join(' ');
   const podeEspiar = (fase === 'jogando' || fase === 'duvida') && letras.length > 0 && !revelaTudo && (state?.vidas?.[name] || 0) > 0;
   const botaoEspiar = podeEspiar && (
     <button className="up-btn" onClick={espiar} disabled={restantes <= 0 || mostrar}
@@ -711,7 +723,7 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
           Cada um tem <b style={{ color: T.text }}>{vidasIni} {vidasIni === 1 ? 'vida' : 'vidas'}</b>. Acrescente uma letra por vez formando uma palavra —
           quem <b style={{ color: T.text }}>completar</b> uma palavra perde uma vida, e quem for pego{' '}
           <b style={{ color: T.text }}>blefando</b> também. Na sua vez, você pode <b style={{ color: T.text }}>duvidar</b> de quem jogou antes.
-          As letras ficam <b style={{ color: T.text }}>ocultas</b> — decore! Você pode espiar {CHANCES_VER}x por rodada. Não tem dicionário: <b style={{ color: T.text }}>a turma vota</b> (1 minuto, maioria decide)!
+          As letras ficam <b style={{ color: T.text }}>ocultas</b> — a nova aparece por {NOVA_MS / 1000}s e vira “?”, então decore! Você pode espiar {CHANCES_VER}x por rodada. Não tem dicionário: <b style={{ color: T.text }}>a turma vota</b> (1 minuto, maioria decide)!
         </div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
           <span style={{ fontSize: 12, fontWeight: 800, color: T.textT }}>Vidas por jogador:</span>
@@ -888,7 +900,7 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
       <div className="up-wrap">
         <div className="up-main">
           <Arena seats={seats} letras={letras} ordem={ordem} vez={fase === 'jogando' ? state?.vez : null}
-            alvo={fase === 'duvida' ? state?.duvida?.alvo : null} humor={humor} fala={fala} mostrar={mostrar} />
+            alvo={fase === 'duvida' ? state?.duvida?.alvo : null} humor={humor} fala={fala} mostrar={mostrar} novaIdx={novaIdx} />
         </div>
         <div className="up-panel up-scroll" style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 14, padding: 16, boxShadow: T.sh }}>
           {!state ? <div style={{ textAlign: 'center', fontSize: 13, color: T.textT }}>Carregando sala...</div> : painel()}
