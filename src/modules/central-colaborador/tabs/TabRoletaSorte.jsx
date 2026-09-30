@@ -122,17 +122,34 @@ const WinnerCard = ({ h, big, isAdmin, uploading, onOpen, onUpload, onRemove }) 
   </div>
 );
 
-const labelStyleFor = (n) => {
-  if (n <= 6)  return { width: 112, fontSize: 15 };
-  if (n <= 10) return { width: 88,  fontSize: 13 };
-  if (n <= 16) return { width: 66,  fontSize: 11 };
-  return { width: 52, fontSize: 9.5 };
+/* Nome CURTO pra caber no gomo: só o primeiro nome (números ficam inteiros). Se dois participantes
+   tiverem o mesmo primeiro nome, acrescenta a inicial do sobrenome ("Ana S." / "Ana M."). O nome
+   completo do sorteado aparece em destaque embaixo da roleta quando ela para. */
+const shortLabels = (entries) => {
+  const first = entries.map(e => String(e.label || '').trim().split(/\s+/));
+  const count = {};
+  first.forEach(w => { const k = (w[0] || '').toLowerCase(); count[k] = (count[k] || 0) + 1; });
+  return first.map(w => {
+    const k = (w[0] || '').toLowerCase();
+    if (count[k] > 1 && w[1]) return `${w[0]} ${w[1][0].toUpperCase()}.`;
+    return w[0] || '?';
+  });
 };
 
 const Wheel = ({ entries, angle, phase, size, gold }) => {
   const n = Math.max(entries.length, 1);
   const segWidth = 360 / n;
-  const { width: labelW, fontSize: labelFs } = labelStyleFor(n);
+  const R = (size - 32) / 2 - 4;                               // raio útil do disco
+  // Texto DEITADO ao longo do raio (do aro pro centro): o comprimento disponível é o raio inteiro
+  // e a altura é a largura do gomo — por isso dá pra ler até com muita gente. A fonte cresce
+  // até onde o gomo permite (medida na parte mais estreita, perto do centro).
+  const arcInner = (2 * Math.PI * R * 0.36) / n;
+  const labelFs = Math.max(10, Math.min(22, arcInner * 0.8));
+  const labels = shortLabels(entries);
+  // Comprimento útil: o texto não desce até onde o gomo fica mais fino que a fonte (senão os nomes vizinhos se sobrepõem).
+  const rMin = (labelFs * n * 1.1) / (2 * Math.PI);
+  const avail = Math.min(R * 0.62, Math.max(R * 0.22, R - 14 - rMin));
+  const maxChars = Math.max(3, Math.floor(avail / (labelFs * 0.62)));
   const gradient = entries.length
     ? `conic-gradient(from 0deg, ${entries.map((e, i) => `${segColor(i, n)} ${(i / n) * 100}% ${((i + 1) / n) * 100}%`).join(', ')})`
     : `repeating-conic-gradient(${gold}22 0deg 12deg, transparent 12deg 24deg)`;
@@ -158,17 +175,16 @@ const Wheel = ({ entries, angle, phase, size, gold }) => {
               background: 'rgba(255,255,255,.4)', transform: 'translateX(-50%)' }}/>
           </div>
         ))}
-        {/* Rótulos radiais */}
+        {/* Rótulos ao longo do raio (nome curto, legível) */}
         {entries.map((e, i) => {
           const mid = i * segWidth + segWidth / 2;
+          const txt = labels[i].length > maxChars ? `${labels[i].slice(0, maxChars - 1)}…` : labels[i];
           return (
             <div key={`lbl-${e.id}`} style={{ position: 'absolute', inset: 0, transform: `rotate(${mid}deg)` }}>
-              <div style={{ position: 'absolute', left: '50%', top: 10, transform: 'translateX(-50%)',
-                width: labelW, textAlign: 'center', pointerEvents: 'none' }}>
-                <span style={{ display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap', color: '#fff', fontSize: labelFs, fontWeight: 800,
-                  fontFamily: 'var(--font-body)', textShadow: '0 1px 3px rgba(0,0,0,.55)' }}>{e.label}</span>
-              </div>
+              <div style={{ position: 'absolute', left: '50%', top: 9, transform: 'translateX(-50%)', writingMode: 'vertical-rl',
+                whiteSpace: 'nowrap', pointerEvents: 'none', color: '#fff', fontSize: labelFs, fontWeight: 900, lineHeight: 1,
+                letterSpacing: '.02em', fontFamily: 'var(--font-body)',
+                textShadow: '0 0 3px rgba(0,0,0,.9), 0 1px 3px rgba(0,0,0,.75)' }}>{txt}</div>
             </div>
           );
         })}
@@ -619,7 +635,7 @@ const TabRoletaSorte = () => {
   // ocupa no máximo ~58% da largura do palco; a arte é ancorada embaixo/à direita, então
   // o mascote sempre ocupa os ~30% finais. No celular fica centralizada e a arte ganha
   // uma faixa extra embaixo (paddingBottom) onde o mascote aparece sem ficar sob a roleta.
-  const wheelSize = isMobile ? 300 : Math.max(320, Math.min(560, Math.round(stageW * 0.58) - 22));
+  const wheelSize = isMobile ? (entries.length > 30 ? 340 : 300) : Math.max(320, Math.min(entries.length > 30 ? 680 : 560, Math.round(stageW * 0.58) - 22));
   const inpSt = { flex: 1, minWidth: 160, padding: '10px 14px', borderRadius: 11, border: `1.5px solid ${T.border}`,
     background: T.surfaceSub || 'rgba(0,0,0,.04)', fontSize: 13, color: T.text, fontFamily: 'var(--font-body)',
     outline: 'none', boxSizing: 'border-box' };
