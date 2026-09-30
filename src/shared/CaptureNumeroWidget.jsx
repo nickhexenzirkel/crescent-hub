@@ -197,10 +197,14 @@ const CaptureNumeroWidget = ({ cfg, inPortal = false }) => {
     });
   }, [available, cfg]);
 
-  /* ── Alguém capturou? → acumula na lista; quando fecha as vagas, some pra
-       quem ainda não capturou. Realtime + poll de 4s como fallback. ── */
+  /* ── Alguém capturou? → acumula na lista (realtime + poll + reconsulta ao voltar pra aba).
+       No modo "um número por vaga" o número na tela é o da PRÓXIMA vaga livre, então uma lista
+       de vencedores defasada fazia vários colegas verem o MESMO número e só atualizar com F5.
+       Por isso a escuta roda SEMPRE que há evento em aberto — mesmo antes do número surgir e
+       mesmo pra quem já capturou (pra ver as outras vagas enchendo) — e o poll é curto. ── */
   useEffect(() => {
-    if (!cfg || isFull || myWin || !available) return;
+    if (!cfg || isFull) return;
+    let alive = true;
     const addWinner = (w) => {
       setWinners(prev => {
         if (prev.some(p => p.player === w.player)) return prev;
@@ -209,20 +213,27 @@ const CaptureNumeroWidget = ({ cfg, inPortal = false }) => {
         return next;
       });
     };
-    const unsub = subscribeCaptureWinner(cfg, addWinner);
-    const id = setInterval(async () => {
+    const sync = async () => {
       const ws = await fetchCaptureWinners(cfg);
-      if (!ws || !ws.length) return;
+      if (!alive || !ws || !ws.length) return;
       setWinners(prev => {
         const map = new Map(prev.map(p => [p.player, p]));
         for (const w of ws) map.set(w.player, w);
-        const merged = Array.from(map.values());
+        const merged = Array.from(map.values()).sort((a, b) => Date.parse(a.at) - Date.parse(b.at)).slice(0, maxWinners);
+        if (merged.length === prev.length && merged.every((m, k) => m.player === prev[k]?.player)) return prev;   // nada novo: sem re-render
         setCaptureResult(cfg, merged);
         return merged;
       });
-    }, 4000);
-    return () => { unsub(); clearInterval(id); };
-  }, [available, cfg, isFull, myWin, maxWinners]);
+    };
+    const unsub = subscribeCaptureWinner(cfg, addWinner);
+    const id = setInterval(sync, 2500);
+    // Aba em segundo plano tem timers/realtime estrangulados pelo navegador: ao voltar, reconsulta na hora.
+    const acordar = () => { if (document.visibilityState === 'visible') sync(); };
+    document.addEventListener('visibilitychange', acordar);
+    window.addEventListener('focus', acordar);
+    sync();
+    return () => { alive = false; unsub(); clearInterval(id); document.removeEventListener('visibilitychange', acordar); window.removeEventListener('focus', acordar); };
+  }, [cfg, isFull, maxWinners]);
 
   /* ── Quando as vagas se esgotam → some pra quem ainda não capturou. ── */
   useEffect(() => {
