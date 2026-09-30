@@ -38,6 +38,7 @@ const CHANCES_VER = 2;              // espiadas por jogador, por rodada
 const MIN_FORMOU = 3;           // só dá pra chamar "formou palavra" com 3+ letras na mesa
 const TURN_MS = 60_000;         // tempo pra jogar uma letra
 const DUVIDA_MS = 60_000;       // janela de votação (dúvida / formou palavra)
+const DUELO_MS = 300_000;       // só 2 vivos: os DOIS precisam concordar em até 5 minutos
 const PAUSA_MS = 6_000;         // banner do que aconteceu antes da próxima rodada
 const ROOM_TTL_MS = 20 * 60_000;
 const MIN_PLAYERS = 2;
@@ -193,7 +194,7 @@ const perderVida = (s, quem, texto, palavra) => {
 /* Quem vota: vivos, presentes, menos o acusado. */
 const contarVotos = (s, presentes) => {
   const d = s.duvida; if (!d) return null;
-  const votantes = (s.ordem || []).filter(n => (s.vidas?.[n] || 0) > 0 && n !== d.alvo && presentes.includes(n));
+  const votantes = (s.ordem || []).filter(n => (s.vidas?.[n] || 0) > 0 && (d.duelo || n !== d.alvo) && presentes.includes(n));
   const total = votantes.length;
   const contra = votantes.filter(n => d.votos?.[n] === 'contra').length;
   const favor = votantes.filter(n => d.votos?.[n] === 'favor').length;
@@ -431,6 +432,25 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
     const { por, alvo, tipo, palavra } = s.duvida;
     const w = palavra ? ` "${palavra.toUpperCase()}"` : '';
     const frag = fragmentoDe(s).toUpperCase();
+    if (s.duvida.duelo) {
+      // Só dois vivos: vale apenas se os DOIS concordarem (os dois "contra" ou os dois "a favor").
+      if (v.total === 2 && v.contra === 2) {
+        pushState(perderVida(s, alvo, tipo === 'blefe'
+          ? `Os dois concordaram: a palavra${w} não vale — ${primeiro(alvo)} foi pego blefando!`
+          : `Os dois concordaram: "${frag}" formou palavra — ${primeiro(alvo)} perdeu!`, palavra));
+      } else if (v.total === 2 && v.favor === 2) {
+        pushState(perderVida(s, por, tipo === 'blefe'
+          ? `Os dois concordaram: a palavra${w} vale — ${primeiro(por)} duvidou errado!`
+          : `Os dois concordaram: "${frag}" não formou palavra — ${primeiro(por)} errou a chamada!`, palavra));
+      } else if (forcar) {
+        // 5 minutos sem acordo: os dois saem e ninguém vence.
+        const ordem = s.ordem || [];
+        const vidas = { ...s.vidas }; ordem.forEach(n => { vidas[n] = 0; });
+        pushState({ ...s, vidas, phase: 'fim', vencedor: null, duvida: null, endsAt: null,
+          evento: { quem: null, texto: 'Os dois não chegaram a um acordo em 5 minutos — os dois foram eliminados e ninguém ganhou.', palavra: null, ts: nowMs(), eliminado: true, empate: true } });
+      }
+      return;
+    }
     if (v.total > 0 && v.contra > v.total / 2) {
       pushState(perderVida(s, alvo, tipo === 'blefe'
         ? `${primeiro(alvo)} foi pego blefando — a turma decidiu que${w || ' a palavra'} não vale!`
@@ -460,14 +480,16 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
       if (s.phase !== 'jogando' || s.vez !== p.name || !(s.letras || []).length) return;
       const alvo = s.letras[s.letras.length - 1].by;
       if (alvo === p.name || !(s.ordem || []).includes(alvo)) return;
-      pushState({ ...s, phase: 'duvida', aviso: null, duvida: { tipo: 'blefe', por: p.name, alvo, votos: {}, palavra: null }, endsAt: nowMs() + DUVIDA_MS });
+      const duelo = (s.ordem || []).filter(vivo).length === 2;
+      pushState({ ...s, phase: 'duvida', aviso: null, duvida: { tipo: 'blefe', por: p.name, alvo, votos: {}, palavra: null, duelo }, endsAt: nowMs() + (duelo ? DUELO_MS : DUVIDA_MS) });
     }
 
     if (ev === 'formou') {
       if (s.phase !== 'jogando' || (s.letras || []).length < MIN_FORMOU || !vivo(p.name)) return;
       const alvo = s.letras[s.letras.length - 1].by;
       if (alvo === p.name || !(s.ordem || []).includes(alvo)) return;
-      pushState({ ...s, phase: 'duvida', aviso: null, duvida: { tipo: 'palavra', por: p.name, alvo, votos: {}, palavra: null }, endsAt: nowMs() + DUVIDA_MS });
+      const duelo = (s.ordem || []).filter(vivo).length === 2;
+      pushState({ ...s, phase: 'duvida', aviso: null, duvida: { tipo: 'palavra', por: p.name, alvo, votos: {}, palavra: null, duelo }, endsAt: nowMs() + (duelo ? DUELO_MS : DUVIDA_MS) });
     }
 
     if (ev === 'saiu') {
@@ -490,11 +512,12 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
     }
 
     if (ev === 'voto') {
-      if (s.phase !== 'duvida' || !s.duvida || p.name === s.duvida.alvo || !vivo(p.name)) return;
+      if (s.phase !== 'duvida' || !s.duvida || (p.name === s.duvida.alvo && !s.duvida.duelo) || !vivo(p.name)) return;
       if (p.voto !== 'contra' && p.voto !== 'favor') return;
       const nova = { ...s, duvida: { ...s.duvida, votos: { ...(s.duvida.votos || {}), [p.name]: p.voto } } };
       const v = contarVotos(nova, playersRef.current.map(x => x.name));
-      if (v && v.total > 0 && (v.contra > v.total / 2 || v.favor > v.total / 2 || v.contra + v.favor === v.total)) resolver(nova, true);
+      if (nova.duvida.duelo) { if (v && v.total === 2 && (v.contra === 2 || v.favor === 2)) resolver(nova, false); else pushState(nova); }
+      else if (v && v.total > 0 && (v.contra > v.total / 2 || v.favor > v.total / 2 || v.contra + v.favor === v.total)) resolver(nova, true);
       else pushState(nova);
     }
   };
@@ -546,7 +569,7 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
   };
   const votar = (voto) => {
     const s = stateRef.current;
-    if (!s || s.phase !== 'duvida' || s.duvida?.alvo === name) return;
+    if (!s || s.phase !== 'duvida' || (s.duvida?.alvo === name && !s.duvida?.duelo)) return;
     SFX.letra();
     enviar('voto', { name, voto }, (x) => x?.phase !== 'duvida' || x?.duvida?.votos?.[name] === voto);
   };
@@ -740,13 +763,13 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
       else if (letras.length > antLetras) falar(`Muito bem! Agora é a vez do ${eu1(state.vez)}.`, 3000, 'feliz');
     } else if (fase === 'duvida' && state.duvida) {
       const d = state.duvida;
-      falar(d.tipo === 'blefe' ? `${eu1(d.por)} duvidou de ${eu1(d.alvo)}! Será que é blefe?` : `${eu1(d.por)} diz que ${eu1(d.alvo)} formou uma palavra!`, 3600, 'bravo');
+      falar(d.duelo ? `${eu1(d.por)} duvidou! Só restam dois: os dois precisam concordar em 5 minutos.` : d.tipo === 'blefe' ? `${eu1(d.por)} duvidou de ${eu1(d.alvo)}! Será que é blefe?` : `${eu1(d.por)} diz que ${eu1(d.alvo)} formou uma palavra!`, 3600, 'bravo');
     } else if (fase === 'pausa' && state.evento) {
       const q = eu1(state.evento.quem);
       falar(state.evento.eliminado ? `${q} eliminado!` : `${q} perdeu uma vida! 💔`, 3200, 'bravo',
         state.evento.eliminado ? `${q} eliminado!` : `${q} perdeu uma vida!`);
     } else if (fase === 'fim') {
-      falar(state.vencedor ? `${eu1(state.vencedor)} venceu! Parabéns!` : 'Fim de jogo!', 7000, 'feliz');
+      falar(state.vencedor ? `${eu1(state.vencedor)} venceu! Parabéns!` : 'Empate! Ninguém ganhou.', 7000, state.vencedor ? 'feliz' : 'bravo');
     }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -771,7 +794,7 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
     if (fase === 'jogando') return secs <= 10 ? `Faltam ${secs} segundos para ${primeiro(state.vez)} responder...` : `Agora é a vez do ${primeiro(state.vez)}!`;
     if (fase === 'duvida') return `Votem! Faltam ${secs} segundos.`;
     if (fase === 'pausa') return state.evento?.eliminado ? `${quemPerdeu} eliminado! 💀` : `${quemPerdeu} perdeu uma vida! 💔`;
-    if (fase === 'fim') return state.vencedor ? `${primeiro(state.vencedor)} venceu!` : 'Fim de jogo!';
+    if (fase === 'fim') return state.vencedor ? `${primeiro(state.vencedor)} venceu!` : 'Empate! Ninguém ganhou.';
     return null;
   };
   const fala = msgAtiva ? msgAtiva.t : falaPadrao();
@@ -817,7 +840,7 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
       <div style={{ textAlign: 'center' }} className="up-fade">
         <div style={{ fontSize: 34 }}>🏆</div>
         <div style={{ fontFamily: 'var(--font-brand)', fontSize: 21, fontWeight: 800, color: T.text }}>
-          {state.vencedor ? `${primeiro(state.vencedor)} venceu!` : 'Fim de jogo'}
+          {state.vencedor ? `${primeiro(state.vencedor)} venceu!` : 'Empate — ninguém ganhou'}
         </div>
         {state.evento?.texto && <div style={{ fontSize: 13, color: T.textT, margin: '6px 0 12px' }}>{state.evento.texto}</div>}
         {isHost
@@ -841,7 +864,8 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
       const d = state.duvida || {};
       const v = contarVotos(state, players.map(p => p.name)) || { total: 0, contra: 0, favor: 0 };
       const meuVoto = d.votos?.[name];
-      const podeVotar = d.alvo !== name && (state.vidas?.[name] || 0) > 0;
+      const podeVotar = (d.duelo || d.alvo !== name) && (state.vidas?.[name] || 0) > 0;
+      const tempo = d.duelo ? `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}` : `${secs}s`;
       const blefe = d.tipo === 'blefe';
       const destaque = (on, cor) => ({ outline: on ? '3px solid #fff' : 'none', boxShadow: on ? `0 0 0 3px ${cor}` : 'none' });
       return (
@@ -878,13 +902,13 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
               </button>
             </div>
           ) : (
-            <div style={{ fontSize: 12.5, color: T.textT }}>{souAlvo ? 'A turma está votando...' : 'Você está fora — só acompanhe!'}</div>
+            <div style={{ fontSize: 12.5, color: T.textT }}>{souAlvo && !d.duelo ? 'A turma está votando...' : 'Você está fora — só acompanhe!'}</div>
           )}
           <div style={{ fontSize: 12, color: T.textT, marginTop: 10 }}>
             Votos: <b style={{ color: P.vermelho }}>{v.contra}</b> {blefe ? 'não existe' : 'formou'} · <b style={{ color: P.verde }}>{v.favor}</b> {blefe ? 'existe' : 'não formou'}
-            {' '}· {v.total} votante{v.total === 1 ? '' : 's'} · {secs}s
+            {' '}· {v.total} votante{v.total === 1 ? '' : 's'} · {tempo}
           </div>
-          <div style={{ fontSize: 11, color: T.textD, marginTop: 3 }}>Maioria decide na hora. Sem maioria em 1 minuto, ninguém perde vida.</div>
+          <div style={{ fontSize: 11, color: d.duelo ? P.amarelo : T.textD, marginTop: 3, fontWeight: d.duelo ? 700 : 400 }}>{d.duelo ? '⚔️ Só restam dois: os DOIS precisam votar igual. Sem acordo em 5 minutos, os dois são eliminados e ninguém ganha!' : 'Maioria decide na hora. Sem maioria em 1 minuto, ninguém perde vida.'}</div>
         </div>
       );
     }
