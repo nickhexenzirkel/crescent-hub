@@ -113,13 +113,33 @@ export const restAngleOf = (cfg) => cfg?.spin?.finalAngle || 0;
 
 export const ROLETA_TURNS_DEFAULT = 9;       // voltas completas antes de desacelerar
 export const ROLETA_DURATION_MS   = 7200;    // duração total do giro
+export const DUR_MIN_S = 5;                  // limites da duração escolhida pelo admin
+export const DUR_MAX_S = 120;
+
+/* Duração AUTOMÁTICA: quanto mais participantes, mais tempo de suspense (8s com 2 pessoas,
+   ~13s com 10, ~27s com 30, teto de 60s). É só enfeite: a duração NÃO interfere em quem ganha. */
+export const duracaoAutoMs = (n) => Math.min(60000, Math.max(8000, 6000 + n * 700));
+/* Voltas proporcionais ao tempo — giro longo não pode parecer lento/travado. */
+export const turnsParaDuracao = (ms) => Math.max(ROLETA_TURNS_DEFAULT, Math.round((ms / 1000) * 1.2));
+
+/* Sorteio uniforme (1/N pra cada um) com o gerador criptográfico do navegador e rejeição
+   de viés — nenhum participante tem chance maior que outro. */
+const sorteio = (n) => {
+  try {
+    const a = new Uint32Array(1);
+    const lim = Math.floor(4294967296 / n) * n;
+    let x;
+    do { crypto.getRandomValues(a); x = a[0]; } while (x >= lim);
+    return x % n;
+  } catch { return Math.floor(Math.random() * n); }
+};
 
 // Monta o objeto do PRÓXIMO giro: sorteia um vencedor dentre `entries` e
 // calcula o ângulo final (a partir do ângulo de descanso atual) pra esse
 // vencedor terminar centralizado sob o ponteiro fixo no topo da roleta.
 export function buildSpin(entries, restAngle, { turns = ROLETA_TURNS_DEFAULT, durationMs = ROLETA_DURATION_MS } = {}) {
   const n = entries.length;
-  const winnerIndex = Math.floor(Math.random() * n);
+  const winnerIndex = sorteio(n);   // decidido AQUI, antes de qualquer animação — a duração não muda o resultado
   const segWidth = 360 / n;
   const segCenter = winnerIndex * segWidth + segWidth / 2; // a partir do topo, sentido horário
   const jitter = (Math.random() - 0.5) * segWidth * 0.6;   // não cai sempre bem no centro do gomo

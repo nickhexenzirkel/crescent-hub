@@ -12,7 +12,7 @@ import { useIsMobile } from '../../../hooks/useIsMobile';
 import {
   loadRoletaConfig, saveRoletaConfig, subscribeRoletaConfig,
   restAngleOf, buildSpin, spinProgress, nowMs, ensureServerClock,
-  ROLETA_DURATION_MS, notifyRoletaPing,
+  ROLETA_DURATION_MS, notifyRoletaPing, duracaoAutoMs, turnsParaDuracao, DUR_MIN_S, DUR_MAX_S,
 } from '../../../shared/roletaSorte';
 import { fetchAllCaptures } from '../../../shared/captureNumero';
 import roletaFundo from '../../../assets/roleta-fundo.webp';
@@ -241,6 +241,10 @@ const TabRoletaSorte = () => {
   const [team, setTeam] = useState(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
+  // Duração do giro (só o admin que gira escolhe): automática (cresce com o nº de participantes) ou manual em segundos.
+  const [durModo, setDurModo] = useState(() => { try { return localStorage.getItem('roleta_dur_modo') === 'manual' ? 'manual' : 'auto'; } catch { return 'auto'; } });
+  const [durSeg, setDurSeg] = useState(() => { try { return Math.min(DUR_MAX_S, Math.max(DUR_MIN_S, Number(localStorage.getItem('roleta_dur_seg')) || 15)); } catch { return 15; } });
+  useEffect(() => { try { localStorage.setItem('roleta_dur_modo', durModo); localStorage.setItem('roleta_dur_seg', String(durSeg)); } catch { /* sem localStorage */ } }, [durModo, durSeg]);
   const stageRef = useRef(null);
   const [stageW, setStageW] = useState(880); // largura do palco da roleta (px)
   useEffect(() => {
@@ -335,6 +339,7 @@ const TabRoletaSorte = () => {
     const audio = new Audio(ROLETA_MUSICA_SRC);
     audio.preload = 'auto';
     audio.volume = ROLETA_MUSICA_VOL;
+    audio.loop = true;   // giro longo pode durar mais que a música
     let alive = true;
     let fadeIv = null;
     const start = () => {
@@ -471,7 +476,8 @@ const TabRoletaSorte = () => {
     try {
       await ensureServerClock();
       const rest = restAngleOf({ spin });
-      const s = buildSpin(entries, rest);
+      const durationMs = durModo === 'manual' ? Math.round(durSeg * 1000) : duracaoAutoMs(entries.length);
+      const s = buildSpin(entries, rest, { durationMs, turns: turnsParaDuracao(durationMs) });
       const winner = s.entries?.[s.winnerIndex];
       // Já entra pro Histórico de Ganhadores na hora do giro (sem foto ainda —
       // o admin anexa depois, num giro já resolvido).
@@ -740,7 +746,29 @@ const TabRoletaSorte = () => {
             </div>
           )}
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', borderTop: `1px solid ${T.border}`, paddingTop: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', borderTop: `1px solid ${T.border}`, paddingTop: 14 }}>
+            <span style={{ fontSize: 12.5, fontWeight: 800, color: T.text }}>Duração do giro:</span>
+            {['auto', 'manual'].map(m => (
+              <button key={m} onClick={() => setDurModo(m)} disabled={spinning}
+                style={{ padding: '6px 14px', borderRadius: 999, cursor: 'pointer', fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-body)',
+                  border: `1px solid ${durModo === m ? T.gold : T.border}`, background: durModo === m ? `${T.gold}22` : 'transparent', color: durModo === m ? T.gold : T.textT }}>
+                {m === 'auto' ? `Automática (${Math.round(duracaoAutoMs(entries.length) / 1000)}s)` : 'Escolher segundos'}
+              </button>
+            ))}
+            {durModo === 'manual' && (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <input type="number" min={DUR_MIN_S} max={DUR_MAX_S} value={durSeg} disabled={spinning}
+                  onChange={e => setDurSeg(Math.min(DUR_MAX_S, Math.max(DUR_MIN_S, Number(e.target.value) || DUR_MIN_S)))}
+                  style={{ width: 70, padding: '6px 8px', borderRadius: 8, border: `1px solid ${T.border}`, background: T.surfaceInput || 'transparent', color: T.text, fontSize: 13, fontWeight: 700 }} />
+                <span style={{ fontSize: 12.5, color: T.textT }}>segundos ({DUR_MIN_S}–{DUR_MAX_S})</span>
+              </span>
+            )}
+            <span style={{ flexBasis: '100%', fontSize: 11, color: T.textT, lineHeight: 1.5 }}>
+              A duração é só suspense: o vencedor é sorteado por igual entre todos (1 chance em {Math.max(entries.length, 1)} pra cada um) antes da roleta começar a girar, então um tempo maior ou menor não favorece ninguém.
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', paddingTop: 2 }}>
             <button onClick={doSpin} disabled={busy || entries.length < 2 || spinning}
               style={{ display: 'inline-flex', alignItems: 'center', gap: 9, padding: '12px 26px', borderRadius: 12, border: 'none', cursor: 'pointer',
                 background: `linear-gradient(135deg,${T.gold},${T.goldL || T.gold}cc)`, color: '#fff', fontWeight: 800,
