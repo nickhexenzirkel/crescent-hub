@@ -48,22 +48,29 @@ const CSS = `
 .up-mascote { animation: upFloat 3.2s ease-in-out infinite; }
 .up-mascote.up-treme { animation: upShake .6s ease-in-out infinite; }
 .up-letra { animation: upPop .35s cubic-bezier(.2,1.4,.4,1) both; }
-.up-vez { animation: upPulse 1.3s ease-out infinite; }
+.up-fogo::before, .up-fogo::after { content: ''; position: absolute; border-radius: 50%; pointer-events: none; }
+.up-fogo::before { inset: -16%; background: conic-gradient(from 0deg, #ff2d00, #ffb300, #ff6d00, #ffe600, #ff2d00); filter: blur(6px); animation: upSpin 1.4s linear infinite, upFlicker .18s steps(2) infinite alternate; }
+.up-fogo::after { inset: -8%; background: conic-gradient(from 180deg, #ffe600, #ff6d00, #ff2d00, #ffb300, #ffe600); filter: blur(3px); animation: upSpin 0.9s linear infinite reverse, upFlicker .23s steps(2) infinite alternate; }
+.up-chama { position: absolute; z-index: 2; font-size: 1.05em; line-height: 1; pointer-events: none; animation: upChama 1s ease-in infinite; filter: drop-shadow(0 0 5px #ff6d00); }
+@keyframes upFlicker { from { opacity: .95; transform: scale(1); } to { opacity: .72; transform: scale(1.07); } }
+@keyframes upChama { 0% { transform: translateY(6px) scale(.6); opacity: 0; } 30% { opacity: 1; } 100% { transform: translateY(-14px) scale(1.15); opacity: 0; } }
 .up-fade { animation: upFade .3s ease both; }
 .up-btn { transition: transform .12s ease, filter .12s ease; }
 .up-btn:not(:disabled):hover { transform: translateY(-1px); filter: brightness(1.07); }
 .up-btn:not(:disabled):active { transform: scale(.97); }
 .up-scroll { scrollbar-width: thin; }
-.up-wrap { display: flex; gap: 12px; flex: 1; min-height: 0; }
-.up-main { flex: 1; min-width: 0; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
-.up-side { width: 290px; flex-shrink: 0; min-height: 0; }
+.up-wrap { display: grid; gap: 12px; flex: 1; min-height: 0; grid-template-columns: minmax(0,1fr) 340px; grid-template-rows: auto minmax(0,1fr); }
+.up-main { grid-column: 1; grid-row: 1 / span 2; min-width: 0; min-height: 0; display: flex; align-items: center; justify-content: center; }
+.up-panel { grid-column: 2; grid-row: 1; min-height: 0; max-height: 58vh; overflow-y: auto; }
+.up-side { grid-column: 2; grid-row: 2; min-height: 180px; }
 @media (max-width: 860px) {
-  .up-wrap { flex-direction: column; overflow-y: auto; }
-  .up-main { overflow: visible; flex: none; }
-  .up-side { width: 100%; height: 300px; flex-shrink: 0; }
+  .up-wrap { display: flex; flex-direction: column; overflow-y: auto; }
+  .up-panel { order: 1; max-height: none; flex-shrink: 0; }
+  .up-main { order: 2; flex-shrink: 0; }
+  .up-side { order: 3; height: 300px; flex-shrink: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .up-mascote, .up-letra, .up-vez, .up-fade { animation: none !important; }
+  .up-mascote, .up-letra, .up-fade, .up-fogo::before, .up-fogo::after, .up-chama { animation: none !important; }
 }
 `;
 
@@ -150,7 +157,7 @@ const Arena = ({ seats, letras, ordem, vez, alvo, treme, centro }) => {
   const corDe = (n) => CORES[Math.max(0, ordem.indexOf(n)) % CORES.length];
   const passo = 360 / Math.max(letras.length, 10);
   return (
-    <div style={{ position: 'relative', width: 'min(100%, 860px, 92vh)', aspectRatio: '1 / 1', margin: '0 auto', containerType: 'inline-size',
+    <div style={{ position: 'relative', width: 'min(100%, 860px, max(340px, calc(100vh - 190px)))', aspectRatio: '1 / 1', margin: '0 auto', containerType: 'inline-size',
       borderRadius: '50%', flexShrink: 0,
       background: 'radial-gradient(circle at 50% 50%, #12225a 0%, #0a1238 46%, #050818 100%)',
       boxShadow: '0 12px 44px rgba(47,123,255,.28), inset 0 0 0 2px rgba(34,211,238,.25)' }}>
@@ -187,10 +194,17 @@ const Arena = ({ seats, letras, ordem, vez, alvo, treme, centro }) => {
           <div key={p.name} style={{ position: 'absolute', left: `${50 + 40.5 * Math.cos(a)}%`, top: `${50 + 40.5 * Math.sin(a)}%`,
             transform: 'translate(-50%,-50%)', width: '20%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
             opacity: p.out ? 0.38 : 1, filter: p.out ? 'grayscale(1)' : 'none' }}>
-            <img src={p.photo || '/UNIKO_NEW.png'} alt="" className={minhaVez ? 'up-vez' : ''}
-              style={{ width: '62%', aspectRatio: '1', borderRadius: '50%', objectFit: 'cover', background: '#1b2a63',
-                border: `2.5px solid ${ehAlvo ? P.vermelho : minhaVez ? P.ciano : corDe(p.name)}`,
-                boxShadow: minhaVez ? `0 0 14px ${P.ciano}` : ehAlvo ? `0 0 14px ${P.vermelho}` : 'none' }} />
+            <div className={minhaVez ? 'up-fogo' : ''} style={{ position: 'relative', width: '62%', aspectRatio: '1', borderRadius: '50%' }}>
+              {minhaVez && <>
+                <span className="up-chama" style={{ left: '-14%', top: '8%', animationDelay: '0s' }}>🔥</span>
+                <span className="up-chama" style={{ left: '38%', top: '-30%', animationDelay: '.35s', fontSize: '1.5em' }}>🔥</span>
+                <span className="up-chama" style={{ right: '-14%', top: '8%', animationDelay: '.7s' }}>🔥</span>
+              </>}
+              <img src={p.photo || '/UNIKO_NEW.png'} alt=""
+                style={{ position: 'relative', zIndex: 1, width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover', background: '#1b2a63',
+                  border: `2.5px solid ${ehAlvo ? P.vermelho : minhaVez ? '#FFB300' : corDe(p.name)}`,
+                  boxShadow: ehAlvo ? `0 0 14px ${P.vermelho}` : 'none' }} />
+            </div>
             <div style={{ fontSize: 'clamp(10px, 3cqw, 16px)', fontWeight: 800, color: '#fff', maxWidth: '100%', textAlign: 'center',
               overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textShadow: '0 1px 4px rgba(0,0,0,.8)' }}>
               {primeiro(p.name)}{p.ausente ? ' 💤' : ''}
@@ -672,12 +686,12 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
       </div>
 
       <div className="up-wrap">
-        <div className="up-main up-scroll">
+        <div className="up-main">
           <Arena seats={seats} letras={letras} ordem={ordem} vez={fase === 'jogando' ? state?.vez : null}
             alvo={fase === 'duvida' ? state?.duvida?.alvo : null} treme={fase === 'duvida' || fase === 'pausa'} />
-          <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 14, padding: 16, boxShadow: T.sh, flexShrink: 0 }}>
-            {!state ? <div style={{ textAlign: 'center', fontSize: 13, color: T.textT }}>Carregando sala...</div> : painel()}
-          </div>
+        </div>
+        <div className="up-panel up-scroll" style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 14, padding: 16, boxShadow: T.sh }}>
+          {!state ? <div style={{ textAlign: 'center', fontSize: 13, color: T.textT }}>Carregando sala...</div> : painel()}
         </div>
         <div className="up-side">
           <ChatSala mensagens={chatMsgs} texto={chatTexto} setTexto={setChatTexto} onEnviar={enviarChat} name={name} cardBg={cardBg} />
