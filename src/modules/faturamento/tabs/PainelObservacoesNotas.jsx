@@ -22,6 +22,9 @@ const fmtEmissao = (v) => {
   return isNaN(d) ? String(v) : d.toLocaleDateString('pt-BR');
 };
 
+const fmtMoeda = (v) =>
+  v == null ? '—' : v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
 const ROTULO = {
   lida: 'Lida do PDF',
   'sem-pdf': 'PDF não encontrado',
@@ -190,12 +193,21 @@ export const PainelObservacoesNotas = () => {
     const dados = relatorio.linhas.map((l) => ({
       'NOTA': l.numero,
       'OBSERVAÇÃO': l.observacao,
+      'VALOR BRUTO': l.valores?.bruto ?? '',
+      'DESCONTO': l.valores?.desconto ?? '',
+      'VALOR LÍQUIDO': l.valores?.liquido ?? '',
       'CLIENTE': l.cliente,
       'SITUAÇÃO': ROTULO[l.situacao] + (l.situacao === 'lida' ? '' : ` — ${l.detalhe}`),
       'ARQUIVO (PDF)': l.arquivo,
     }));
     const ws = XLSX.utils.json_to_sheet(dados);
-    ws['!cols'] = [{ wch: 10 }, { wch: 42 }, { wch: 34 }, { wch: 46 }, { wch: 80 }];
+    ws['!cols'] = [{ wch: 10 }, { wch: 42 }, { wch: 15 }, { wch: 13 }, { wch: 15 }, { wch: 34 }, { wch: 46 }, { wch: 80 }];
+    // Colunas C, D e E (valores) como moeda, para o Excel somar e filtrar direito.
+    for (let r = 1; r <= dados.length; r++)
+      for (const c of ['C', 'D', 'E']) {
+        const cel = ws[`${c}${r + 1}`];
+        if (cel && typeof cel.v === 'number') cel.z = '"R$" #,##0.00';
+      }
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Observações');
     XLSX.writeFile(wb, `observacoes_notas_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.xlsx`);
@@ -229,7 +241,7 @@ export const PainelObservacoesNotas = () => {
       <div style={{ fontSize: 13, color: T.textS, marginBottom: 16, lineHeight: 1.6 }}>
         1) Anexe a planilha de <strong>Finanças</strong> (Contas a Receber) com as notas. 2) Anexe os <strong>ZIPs</strong> (ou PDFs) das notas —
         por exemplo as pastas baixadas do OneDrive. O sistema abre cada PDF, confere o <strong>número</strong> e o <strong>CNPJ do cliente</strong> e
-        devolve a observação no formato <strong>CATEGORIA, FAT. PERÍODO</strong>. Nada sai do seu navegador.
+        devolve a observação no formato <strong>CATEGORIA, FAT. PERÍODO</strong> e os valores <strong>bruto</strong>, <strong>desconto</strong> e <strong>líquido</strong> de cada nota. Nada sai do seu navegador.
       </div>
 
       {erro && (
@@ -366,7 +378,7 @@ export const PainelObservacoesNotas = () => {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'var(--font-body)', fontSize: 13 }}>
                 <thead>
                   <tr style={{ background: T.goldGl, borderBottom: `1px solid ${T.border}` }}>
-                    {['Nota', 'Observação', 'Cliente', 'Situação'].map((h) => (
+                    {['Nota', 'Observação', 'Valor bruto', 'Desconto', 'Valor líquido', 'Cliente', 'Situação'].map((h) => (
                       <th key={h} style={{ padding: '12px 14px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: T.textS, letterSpacing: '.05em', textTransform: 'uppercase', whiteSpace: 'nowrap', position: 'sticky', top: 0, background: T.goldGl }}>
                         {h}
                       </th>
@@ -378,6 +390,9 @@ export const PainelObservacoesNotas = () => {
                     <tr key={`${l.numero}-${i}`} style={{ borderBottom: `1px solid ${T.divider}` }}>
                       <td style={{ padding: '10px 14px', color: T.text, fontWeight: 600 }}>{l.numero}</td>
                       <td style={{ padding: '10px 14px', color: T.text, whiteSpace: 'nowrap' }}>{l.observacao || '—'}</td>
+                      <td style={{ padding: '10px 14px', color: T.text, whiteSpace: 'nowrap', textAlign: 'right' }}>{fmtMoeda(l.valores?.bruto)}</td>
+                      <td style={{ padding: '10px 14px', color: T.textS, whiteSpace: 'nowrap', textAlign: 'right' }}>{fmtMoeda(l.valores?.desconto)}</td>
+                      <td style={{ padding: '10px 14px', color: T.text, fontWeight: 600, whiteSpace: 'nowrap', textAlign: 'right' }}>{fmtMoeda(l.valores?.liquido)}</td>
                       <td style={{ padding: '10px 14px', color: T.textS, maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={l.cliente}>{l.cliente}</td>
                       <td style={{ padding: '10px 14px', whiteSpace: 'nowrap' }} title={l.arquivo || l.detalhe}>
                         <span style={{ padding: '2px 8px', borderRadius: 99, fontSize: 11, fontWeight: 600, color: COR[l.situacao], background: `${COR[l.situacao]}1A` }}>
@@ -388,7 +403,7 @@ export const PainelObservacoesNotas = () => {
                   ))}
                   {linhas.length === 0 && (
                     <tr>
-                      <td colSpan={4} style={{ padding: 32, textAlign: 'center', color: T.textT, fontSize: 14 }}>
+                      <td colSpan={7} style={{ padding: 32, textAlign: 'center', color: T.textT, fontSize: 14 }}>
                         Nenhuma nota para o filtro aplicado
                       </td>
                     </tr>

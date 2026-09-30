@@ -95,6 +95,44 @@ export const extrairCategoriaDoAssunto = (assuntoNorm) => {
   return null;
 };
 
+/* ── Valores (bruto, desconto e líquido) ───────────────────────────────── */
+
+/** "5.448,99" → 5448.99 */
+const paraNumero = (s) => {
+  const v = parseFloat(String(s).replace(/\./g, '').replace(',', '.'));
+  return Number.isFinite(v) ? v : null;
+};
+const VALOR = String.raw`-?R\$ ?-?(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2})`;
+const arred = (v) => Math.round(v * 100) / 100;
+
+/**
+ * Valores da nota, do corpo do PDF (texto já normalizado):
+ *   bruto    "REEMBOLSO DE SERVICOS DE MANUT/ABAST: R$ X" (2026), "ABASTECIMENTO : R$ X"
+ *            (2024) ou "TOTAL DA FATURA DE CONSUMO DE COMBUSTIVEIS: R$ X" (2025)
+ *   desconto "DESCONTO DO CLIENTE: 0,0% ( R$ Y )" (2026) ou "DESCONTO TAXA ADMINISTRATIVA: -R$ Y" (2024)
+ *   liquido  "VALOR LIQUIDO A RECEBER DO CLIENTE: R$ Z" (o valor que a nota manda pagar,
+ *            já com retenções de IR; por isso nem sempre é bruto − desconto);
+ *            sem ele, bruto − desconto
+ * Cada campo é null quando não aparece; nada é inventado.
+ */
+export const extrairValores = (textoNorm) => {
+  const pega = (re) => {
+    const m = textoNorm.match(re);
+    return m ? paraNumero(m[1]) : null;
+  };
+  let bruto =
+    pega(new RegExp(`REEMBOLSO DE SERVICOS? DE (?:MANUT|ABAST)[A-Z]* ?: ?${VALOR}`)) ??
+    pega(new RegExp(`(?:ABASTECIMENTO|MANUTENCAO) ?: ?${VALOR}`)) ??
+    pega(new RegExp(`CONSUMO DE COMBUSTIVEIS ?: ?${VALOR}`));
+  const desconto =
+    pega(new RegExp(`DESCONTO TAXA ADMINISTRATIVA ?: ?${VALOR}`)) ??
+    pega(new RegExp(String.raw`DESCONTO DO CLIENTE ?: ?[\d.,]+ ?% ?\( ?` + VALOR));
+  let liquido = pega(new RegExp(`VALOR LIQUIDO A RECEBER DO CLIENTE ?: ?${VALOR}`));
+  if (liquido == null && bruto != null && desconto != null) liquido = arred(bruto - desconto);
+  if (bruto == null && liquido != null) bruto = arred(liquido + (desconto ?? 0));
+  return { bruto, desconto, liquido };
+};
+
 /** "MANUTENCAO, FAT. 02/05 A 02/06/2026" (sem ano no início se for o mesmo ano). */
 export const formatarObservacao = (categoria, periodo) => {
   if (!categoria || !periodo) return '';
@@ -150,6 +188,7 @@ export const lerNotaDoTexto = (texto, esperado, assunto = '') => {
     periodo,
     observacao: formatarObservacao(categoria, periodo),
     deAssunto: { categoria: !catCorpo, periodo: !perCorpo },
+    valores: extrairValores(norm),
   };
 };
 
@@ -254,6 +293,7 @@ export const montarRelatorio = (notas, pdfs) => {
       linhas.push({
         ...n,
         observacao: achou.r.observacao,
+        valores: achou.r.valores,
         situacao: 'lida',
         detalhe: usouAssunto
           ? `Lida do PDF; ${[das.periodo && 'período', das.categoria && 'categoria'].filter(Boolean).join(' e ')} tirado(s) do assunto do e-mail`
@@ -268,6 +308,7 @@ export const montarRelatorio = (notas, pdfs) => {
       linhas.push({
         ...n,
         observacao: '',
+        valores: null,
         situacao: tipo,
         detalhe: tipo === 'sem-pdf' ? 'PDF não encontrado nos arquivos anexados' : motivo,
         arquivo: '',
