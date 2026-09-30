@@ -296,11 +296,18 @@ export async function fetchCapturesFor(player) {
 // já que o sorteio pode repetir número entre eventos/jogadores diferentes).
 export async function fetchAllCaptures() {
   try {
-    const { data, error } = await _supabase.from('capture_numero_captures')
-      .select('player,numero_value,captured_at').order('captured_at', { ascending: true });
-    if (error) return {};
+    // Pagina de 1000 em 1000: o Supabase corta em 1000 linhas por consulta, e com muita gente
+    // as capturas passavam disso (números dos colaboradores ficavam faltando na lista).
+    const data = [];
+    for (let from = 0; ; from += 1000) {
+      const { data: page, error } = await _supabase.from('capture_numero_captures')
+        .select('player,numero_value,captured_at').order('captured_at', { ascending: true }).range(from, from + 999);
+      if (error) return {};
+      data.push(...(page || []));
+      if (!page || page.length < 1000) break;
+    }
     const byNumero = {};
-    for (const row of (data || [])) {
+    for (const row of data) {
       (byNumero[row.numero_value] ||= []).push({ player: row.player, at: row.captured_at });
     }
     return byNumero;

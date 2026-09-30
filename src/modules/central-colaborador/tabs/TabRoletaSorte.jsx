@@ -126,10 +126,17 @@ const WinnerCard = ({ h, big, isAdmin, uploading, onOpen, onUpload, onRemove }) 
    tiverem o mesmo primeiro nome, acrescenta a inicial do sobrenome ("Ana S." / "Ana M."). O nome
    completo do sorteado aparece em destaque embaixo da roleta quando ela para. */
 const shortLabels = (entries) => {
+  // Formato "21 - Maria" (números dos colaboradores): na roleta vai só o número; se o mesmo número
+  // aparecer em mais de um gomo, acrescenta a inicial do colaborador.
+  const numFmt = entries.map(e => /^(\d+)\s*-\s*(.+)$/.exec(String(e.label || '').trim()));
+  const numCount = {};
+  numFmt.forEach(m => { if (m) numCount[m[1]] = (numCount[m[1]] || 0) + 1; });
   const first = entries.map(e => String(e.label || '').trim().split(/\s+/));
   const count = {};
   first.forEach(w => { const k = (w[0] || '').toLowerCase(); count[k] = (count[k] || 0) + 1; });
-  return first.map(w => {
+  return first.map((w, i) => {
+    const m = numFmt[i];
+    if (m) return numCount[m[1]] > 1 ? `${m[1]} ${m[2].trim()[0].toUpperCase()}.` : m[1];
     const k = (w[0] || '').toLowerCase();
     if (count[k] > 1 && w[1]) return `${w[0]} ${w[1][0].toUpperCase()}.`;
     return w[0] || '?';
@@ -514,6 +521,14 @@ const TabRoletaSorte = () => {
   const toggleNumPick = (key) => setNumPicked(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
   const pickAllNums = () => setNumPicked(prev => { const n = new Set(prev); numSelectable.forEach(r => n.add(r.key)); return n; });
   const clearNumPicks = () => setNumPicked(new Set());
+  // 1 clique: põe na roleta TODOS os que aparecem na lista (respeita o filtro) e ainda não estão nela.
+  const addAllNums = async () => {
+    const novos = numSelectable.map((r, i) => ({ id: `p_${Date.now().toString(36)}${i}${Math.random().toString(36).slice(2, 5)}`, label: r.label }));
+    if (!novos.length) { flash('ℹ️ Não há números novos pra adicionar'); return; }
+    await persist([...entries, ...novos]);
+    setNumPicked(new Set());
+    flash(`✅ ${novos.length} número(s) adicionado(s) à roleta`);
+  };
   const addPickedNums = async () => {
     const novos = numRows
       .filter(r => numPicked.has(r.key) && !inWheel.has(r.label.toLowerCase()))
@@ -761,6 +776,12 @@ const TabRoletaSorte = () => {
                   style={{ padding: '9px 14px', borderRadius: 10, cursor: 'pointer', border: `1px solid ${T.border}`, background: 'transparent',
                     color: T.text, fontWeight: 700, fontSize: 12.5, fontFamily: 'var(--font-body)', opacity: numSelectable.length ? 1 : .5 }}>
                   Selecionar todos{numFilter.trim() ? ' (filtrados)' : ''}
+                </button>
+                <button onClick={addAllNums} disabled={busy || !numSelectable.length}
+                  style={{ padding: '9px 14px', borderRadius: 10, border: 'none', cursor: 'pointer',
+                    background: `linear-gradient(135deg,${T.gold},${T.goldL || T.gold}cc)`, color: '#fff', fontWeight: 800, fontSize: 12.5,
+                    fontFamily: 'var(--font-body)', opacity: (busy || !numSelectable.length) ? .55 : 1 }}>
+                  + Adicionar todos à roleta{numFilter.trim() ? ' (filtrados)' : ''} ({numSelectable.length})
                 </button>
                 <button onClick={clearNumPicks} disabled={!numPicked.size}
                   style={{ padding: '9px 14px', borderRadius: 10, cursor: 'pointer', border: `1px solid ${T.border}`, background: 'transparent',
