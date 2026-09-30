@@ -104,9 +104,11 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange, initialTab, restri
     // Uniko Paint: no iPhone (Safari), o assistente flutuante tampava a área de
     // desenho e o toolbar — esconde ele enquanto essa aba estiver aberta.
     document.body.classList.toggle('up-active', tab === 'unikopaint');
+    // Uniko Palavras: o assistente flutuante também fica escondido enquanto essa aba estiver aberta.
+    document.body.classList.toggle('upal-active', tab === 'unikopalavras');
     // Widget "Acessos recentes" da Início — grava toda troca de aba.
     recordRecentTab(tab);
-    return () => { document.body.classList.remove('uw-active'); document.body.classList.remove('up-active'); };
+    return () => { document.body.classList.remove('uw-active'); document.body.classList.remove('up-active'); document.body.classList.remove('upal-active'); };
   }, [tab]);
 
   // Convite de jogo aceito → abre a aba do jogo (Uniko Paint / Stop). Checa ao montar
