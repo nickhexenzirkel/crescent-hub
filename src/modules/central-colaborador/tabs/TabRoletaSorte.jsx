@@ -443,6 +443,11 @@ const TabRoletaSorte = () => {
   // O giro já grava o ganhador no histórico na hora do clique (pra todo mundo), mas ele só pode APARECER
   // depois que a roleta para — senão entrega o resultado antes do fim. Esconde o giro em andamento.
   const historyView = history.filter(h => !(spin && h.id === spin.id && spinProgress(spin) < 1));
+  // O disco SEMPRE mostra os gomos CONGELADOS do giro (spin.entries) — o mesmo vetor em que o ângulo final foi
+  // calculado. Desenhar a lista atual (`entries`) fazia a roleta parar num gomo diferente do sorteado se alguém
+  // mexesse nos participantes durante/depois do giro, ou se o PC de quem assistia tivesse a lista desatualizada.
+  const wheelEntries = spin?.entries?.length ? spin.entries : entries;
+  const poolMudou = !!spin?.entries?.length && entries.map(e => e.id).join('|') !== spin.entries.map(e => e.id).join('|');
   const winnerLabel = phase === 'done' && spin ? spin.entries?.[spin.winnerIndex]?.label : null;
   const spinning = phase === 'spinning';
 
@@ -700,7 +705,7 @@ const TabRoletaSorte = () => {
           </div>
         ) : (
           <div style={{ position: 'relative', zIndex: 1 }}>
-            <Wheel entries={entries} angle={angle} phase={phase} size={wheelSize} gold={T.gold}/>
+            <Wheel entries={wheelEntries} angle={angle} phase={phase} size={wheelSize} gold={T.gold}/>
           </div>
         )}
 
@@ -721,6 +726,11 @@ const TabRoletaSorte = () => {
             boxShadow: `0 10px 30px ${T.goldLine || T.gold}55`, color: '#fff' }}>
             <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', opacity: .85 }}>🎉 Ganhou a roleta</div>
             <div style={{ fontSize: 22, fontWeight: 900, fontFamily: 'var(--font-brand)', marginTop: 2 }}>{winnerLabel}</div>
+          </div>
+        )}
+        {isAdmin && poolMudou && !spinning && (
+          <div style={{ position: 'relative', zIndex: 1, maxWidth: 420, textAlign: 'center', fontSize: 11.5, lineHeight: 1.5, color: '#ffd873', fontFamily: 'var(--font-body)' }}>
+            A roleta mostra o último sorteio. As mudanças na lista de participantes entram no próximo giro.
           </div>
         )}
         {spinning && (
