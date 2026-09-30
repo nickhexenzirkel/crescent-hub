@@ -48,6 +48,7 @@ const NAV=[
   {id:'unikocamera',label:'Uniko Camera',   icon:<I><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></I>},
   {id:'quizmm',     label:'Quiz do M&M',    icon:<I><circle cx="12" cy="12" r="9"/><path d="M9.1 9.5a3 3 0 015.8 1c0 2-3 2.5-3 4"/><line x1="12" y1="17.5" x2="12" y2="17.5"/></I>},
   {id:'unikostop',  label:'Uniko Stop!',    icon:<I><rect x="4" y="4" width="16" height="16" rx="3"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="12" y2="17"/></I>},
+  {id:'unikopalavras',label:'Uniko Palavras', icon:<I><path d="M4 7V5h16v2"/><line x1="12" y1="5" x2="12" y2="19"/><line x1="9" y1="19" x2="15" y2="19"/></I>},
   {id:'unikofaster',label:'Uniko Speed',   icon:<I><path d="M5 11l1.5-4.5A2 2 0 018.4 5h7.2a2 2 0 011.9 1.5L19 11"/><path d="M3 11h18v5a1 1 0 01-1 1h-1a2 2 0 01-4 0H9a2 2 0 01-4 0H4a1 1 0 01-1-1z"/><circle cx="7.5" cy="14.5" r="1"/><circle cx="16.5" cy="14.5" r="1"/></I>},
 ];
 
@@ -228,7 +229,7 @@ const TopBar = ({tab,onBack}) => {
     conquistas:'Conquistas',comunicados:'Comunicados',simulador:'Simulação',
     uniko:'Coleção de Unikos',roleta:'Roleta da Sorte',colegas:'Colegas',unikowave:'Uniko Wave',unikopaint:'Uniko Paint',
     unikocamera:'Uniko Camera',
-    quizmm:'Quiz do M&M',unikostop:'Uniko Stop!',unikofaster:'Uniko Speed',unikosuspect:'Uniko Detetive'};
+    quizmm:'Quiz do M&M',unikostop:'Uniko Stop!',unikopalavras:'Uniko Palavras',unikofaster:'Uniko Speed',unikosuspect:'Uniko Detetive'};
   const [notifOpen,setNO]=useState(false);
   const [notifs,setNotifs]=useState([]);
   const unread=notifs.filter(n=>!n.read).length;

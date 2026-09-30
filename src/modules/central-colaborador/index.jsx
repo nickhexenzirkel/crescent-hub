@@ -22,6 +22,7 @@ import { TabUnikoPaint } from './tabs/TabUnikoPaint';
 import { TabUnikoCamera } from './tabs/TabUnikoCamera';
 import { TabQuizMM } from './tabs/TabQuizMM';
 import { TabUnikoStop } from './tabs/TabUnikoStop';
+import { TabUnikoPalavras } from './tabs/TabUnikoPalavras';
 import { TabUnikoFaster } from './tabs/TabUnikoFaster';
 import { TabUnikoSuspect } from './tabs/TabUnikoSuspect';
 import CentralLembretes from '../central-lembretes';
@@ -238,6 +239,7 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange, initialTab, restri
     if(tab==='unikocamera') return <TabUnikoCamera/>;
     if(tab==='quizmm')      return <TabQuizMM/>;
     if(tab==='unikostop')   return <TabUnikoStop/>;
+    if(tab==='unikopalavras') return <TabUnikoPalavras/>;
     if(tab==='unikofaster') return <TabUnikoFaster/>;
     if(tab==='unikosuspect') return <TabUnikoSuspect/>;
     return null;
@@ -304,9 +306,9 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange, initialTab, restri
             container ia de 668px pra 1348px com 60 mensagens, e a lista nunca
             rolava). Com `basis:auto` o `height` vira a base e a altura se mantém.
             Só pro Paint pra não mexer no layout das outras abas. */}
-        <div className="portal-area" style={{flex: (tab==='unikopaint'||tab==='unikostop'||tab==='unikofaster'||tab==='unikocamera') ? '1 1 auto' : 1,
+        <div className="portal-area" style={{flex: (tab==='unikopaint'||tab==='unikostop'||tab==='unikopalavras'||tab==='unikofaster'||tab==='unikocamera') ? '1 1 auto' : 1,
           padding: tab==='unikowave' ? 0 : (isMobile?'16px':'28px 34px'),
-          overflowY: (tab==='unikowave'||tab==='unikopaint'||tab==='unikostop'||tab==='unikofaster'||tab==='unikocamera') ? 'hidden' : 'auto',
+          overflowY: (tab==='unikowave'||tab==='unikopaint'||tab==='unikostop'||tab==='unikopalavras'||tab==='unikofaster'||tab==='unikocamera') ? 'hidden' : 'auto',
           // Trava de segurança: nenhuma aba deve exigir rolagem PARA OS LADOS pra
           // ver informação ou alcançar um botão — se algum card/linha (ellipsis
           // sem minWidth:0 num flex, texto sem quebra, etc.) forçar mais largura
@@ -314,7 +316,7 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange, initialTab, restri
           // inteira pro lado (o que escondia botões sem dar nenhuma pista visual
           // de que dava pra arrastar).
           overflowX: 'hidden',
-          minHeight: (tab==='unikopaint'||tab==='unikostop'||tab==='unikofaster'||tab==='unikocamera') ? 0 : undefined,
+          minHeight: (tab==='unikopaint'||tab==='unikostop'||tab==='unikopalavras'||tab==='unikofaster'||tab==='unikocamera') ? 0 : undefined,
           paddingBottom: tab==='unikowave' ? 0 : (isMobile?'76px':'28px'),
           // Com zoomOut, o 100vh/52px têm que compensar o encolhimento (÷0.8) —
           // mesma lógica do zoom do Seletor de módulos: sem isso a caixa sobra
