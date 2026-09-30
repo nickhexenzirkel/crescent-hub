@@ -527,7 +527,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto, cargoModules, 
     {id:'uniko-safer',      label:'Uniko Safer',           sub:'Conversas do WhatsApp organizadas', icon:IcoSafer,       color:T.gold, bg:T.goldGl, tag:'Admin',      adminOnly:true},
     // Só admin vê (não moderador) — pedido explícito: dado sensível vindo da
     // WhatsApp Cloud API oficial (Coexistence), não export manual.
-    {id:'uniko-security',   label:'Uniko Security',        sub:'Conversas via WhatsApp Cloud API', icon:IcoSecurityMod, color:T.gold, bg:T.goldGl, tag:'Admin',      adminOnly:true, strictAdmin:true},
+    {id:'uniko-security',   label:'Uniko WhatsApp',        sub:'Conversas via WhatsApp Cloud API', icon:IcoSecurityMod, color:T.gold, bg:T.goldGl, tag:'Admin',      adminOnly:true, strictAdmin:true},
     {id:'7-beneficios',     label:'Portal dos Credenciados', sub:'Plataforma 7 Benefícios',        icon:IcoBeneficios,  color:T.gold, bg:T.goldGl, tag:'Ferramenta', adminOnly:true, strictAdmin:true},
     // Só admin vê (não moderador) — chamadas gravadas do WhatsApp Web, dado sensível.
     {id:'uniko-call',       label:'Uniko Call',            sub:'Chamadas gravadas e transcritas',  icon:IcoCall,        color:T.gold, bg:T.goldGl, tag:'Admin',    adminOnly:true, strictAdmin:true},

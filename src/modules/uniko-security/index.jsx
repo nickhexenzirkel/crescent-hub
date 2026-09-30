@@ -219,7 +219,7 @@ const UnikoSecurity = ({ onBack }) => {
         setProgressModal({ title: 'Baixando arquivo…', pct: total ? (received / total) * 100 : null, sublabel: total ? `${fmtMB(received)} de ${fmtMB(total)}` : fmtMB(received) });
       });
       downloadBlobDirect(blob, `uniko-security-backup-${label}-${new Date().toISOString().slice(0, 10)}.ukbak`);
-      flash('Backup baixado — arquivo só abre aqui no Uniko Security.');
+      flash('Backup baixado — arquivo só abre aqui no Uniko WhatsApp.');
     } catch (e) {
       flash('Erro no backup: ' + e.message);
     } finally {
@@ -608,7 +608,7 @@ const UnikoSecurity = ({ onBack }) => {
             border: `1px solid ${T.border}`, borderRadius: 9, cursor: 'pointer', color: T.textS, outline: 'none', fontFamily: 'var(--font-body)', fontSize: 13 }}>
           <IcoBack /> Módulos
         </button>
-        <div style={{ fontFamily: 'var(--font-brand)', fontSize: 15, fontWeight: 700, color: T.text }}>Uniko Security</div>
+        <div style={{ fontFamily: 'var(--font-brand)', fontSize: 15, fontWeight: 700, color: T.text }}>Uniko WhatsApp</div>
       </div>
 
       {/* Corpo: sidebar + conversa */}
@@ -898,7 +898,7 @@ const UnikoSecurity = ({ onBack }) => {
                 { icon: <IcoSelect />, title: 'Selecionar contatos', desc: 'Marque vários contatos pra excluir de uma vez', onClick: () => { setMoreMenuOpen(false); toggleSelectionMode(); } },
                 { icon: <IcoAudit />, title: 'Registro de auditoria', desc: 'Quem viu, editou ou excluiu cada conversa', onClick: () => { setMoreMenuOpen(false); openAuditLog(); } },
                 { icon: <IcoShieldDown />, title: 'Backup completo', desc: 'Baixa as conversas (texto + mídia) num arquivo criptografado — todos os setores ou só um', onClick: () => { setMoreMenuOpen(false); setBackupPickerOpen(true); } },
-                { icon: <IcoUpload />, title: 'Importar backup', desc: 'Abre um .ukbak baixado antes — só o Uniko Security sabe ler', onClick: () => importFileRef.current?.click() },
+                { icon: <IcoUpload />, title: 'Importar backup', desc: 'Abre um .ukbak baixado antes — só o Uniko WhatsApp sabe ler', onClick: () => importFileRef.current?.click() },
                 { icon: <IcoHistory />, title: 'Backups automáticos', desc: 'Histórico dos backups mensais gerados sozinhos (últimos 12)', onClick: openAutoBackups },
               ].map(card => (
                 <button key={card.title} onClick={card.onClick}

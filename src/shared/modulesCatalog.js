@@ -14,7 +14,7 @@ export const MODULES_CATALOG = [
   { id: 'conexao-setorial', label: 'Trello' },
   { id: 'info-adicional', label: 'Informações Adicionais' },
   { id: 'uniko-safer', label: 'Uniko Safer' },
-  { id: 'uniko-security', label: 'Uniko Security' },
+  { id: 'uniko-security', label: 'Uniko WhatsApp' },
   { id: '7-beneficios', label: 'Portal dos Credenciados' },
   { id: 'uniko-call', label: 'Uniko Call' },
   { id: 'prestacao-contas', label: 'Prestações de Contas' },
