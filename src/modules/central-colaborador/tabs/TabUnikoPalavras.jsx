@@ -24,6 +24,7 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { T } from '../../../contexts/theme';
 import { supabase, getAuthUser, USER } from '../../../contexts/user';
+import { getActiveAssistantSkinId, getAssistantSkin } from '../../../shared/assistantSkin';
 
 const MASCOTE = '/uniko-palavras.png';
 const CENARIO = "url('/uniko-palavras-cenario.jpg') center / cover no-repeat";
@@ -87,8 +88,12 @@ const myName = () => {
   try { const a = getAuthUser(); return String(a?.name || USER?.name || 'Colaborador').trim(); }
   catch { return 'Colaborador'; }
 };
-const PHOTO_SRC_KEY = 'up_photo_src';   // mesma foto escolhida no Uniko Paint
-const myPhotoSrc = () => { try { return localStorage.getItem(PHOTO_SRC_KEY) || '/UNIKO_NEW.png'; } catch { return '/UNIKO_NEW.png'; } };
+/* A foto do jogador aqui é o Uniko ASSISTENTE que ele está usando agora (carinha de olhos
+   abertos, igual ao Uniko Stop). Sem skin ativa, cai pro Uniko padrão. */
+const myPhotoSrc = () => {
+  try { return getAssistantSkin(getActiveAssistantSkinId())?.blink?.open || '/UNIKO_NEW.png'; }
+  catch { return '/UNIKO_NEW.png'; }
+};
 const semTabela = (e) => !!e && (e.code === 'PGRST205' || e.code === '42P01'
   || /Could not find the table|does not exist|schema cache/i.test(e.message || ''));
 const primeiro = (n) => String(n || '').split(' ')[0];

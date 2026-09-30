@@ -44,6 +44,7 @@ export const MODULE_TABS_CATALOG = {
     { id: 'unikocamera', label: 'Uniko Camera' },
     { id: 'quizmm', label: 'Quiz do M&M' },
     { id: 'unikostop', label: 'Uniko Stop!' },
+    { id: 'unikopalavras', label: 'Uniko Palavras' },
     { id: 'unikofaster', label: 'Uniko Speed' },
   ],
   faturamento: [
