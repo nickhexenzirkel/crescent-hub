@@ -26,8 +26,11 @@ import { T } from '../../../contexts/theme';
 import { supabase, getAuthUser, USER } from '../../../contexts/user';
 
 const MASCOTE = '/uniko-palavras.png';
+const CENARIO = "url('/uniko-palavras-cenario.jpg') center / cover no-repeat";
 const MASCOTE_BRAVO = '/uniko-palavras-bravo.png';   // com raiva: dúvida, vida perdida, eliminação
 const VIDAS = 2;
+const VER_MS = 5_000;               // quanto tempo as letras ficam à mostra ao espiar
+const CHANCES_VER = 2;              // espiadas por jogador, por rodada
 const MIN_FORMOU = 3;           // só dá pra chamar "formou palavra" com 3+ letras na mesa
 const TURN_MS = 30_000;         // tempo pra jogar uma letra
 const DUVIDA_MS = 60_000;       // janela de votação (dúvida / formou palavra)
@@ -158,13 +161,13 @@ const Coracoes = ({ n, total = VIDAS }) => (
   </span>
 );
 
-const Arena = ({ seats, letras, ordem, vez, alvo, humor, fala }) => {
+const Arena = ({ seats, letras, ordem, vez, alvo, humor, fala, mostrar }) => {
   const corDe = (n) => CORES[Math.max(0, ordem.indexOf(n)) % CORES.length];
   const passo = 360 / Math.max(letras.length, 10);
   return (
     <div style={{ position: 'relative', width: 'min(100%, 860px, max(340px, calc(100vh - 190px)))', aspectRatio: '1 / 1', margin: '0 auto', containerType: 'inline-size',
       borderRadius: '50%', flexShrink: 0,
-      background: 'radial-gradient(circle at 50% 50%, #12225a 0%, #0a1238 46%, #050818 100%)',
+      background: 'radial-gradient(circle at 50% 50%, rgba(10,20,70,.55) 0%, rgba(5,10,40,.4) 62%, rgba(3,6,24,.15) 100%)',
       boxShadow: '0 12px 44px rgba(47,123,255,.28), inset 0 0 0 2px rgba(34,211,238,.25)' }}>
       {/* anéis neon decorativos */}
       <div style={{ position: 'absolute', inset: '18%', borderRadius: '50%', border: '1.5px dashed rgba(34,211,238,.28)', pointerEvents: 'none' }} />
@@ -186,7 +189,7 @@ const Arena = ({ seats, letras, ordem, vez, alvo, humor, fala }) => {
               width: '8%', aspectRatio: '1', transform: 'translate(-50%,-50%)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
               background: corDe(x.by), color: '#fff', fontFamily: 'var(--font-brand)', fontWeight: 900, fontSize: '5cqw',
               border: '2px solid rgba(255,255,255,.85)', boxShadow: `0 0 12px ${corDe(x.by)}aa` }}>
-            {x.l.toUpperCase()}
+            {mostrar ? x.l.toUpperCase() : '?'}
           </div>
         );
       })}
@@ -389,6 +392,13 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
       pushState({ ...s, phase: 'duvida', aviso: null, duvida: { tipo: 'palavra', por: p.name, alvo, votos: {}, palavra: null }, endsAt: Date.now() + DUVIDA_MS });
     }
 
+    if (ev === 'olhar') {             // espiar as letras (contador por jogador, por rodada)
+      if ((s.phase !== 'jogando' && s.phase !== 'duvida') || !(s.letras || []).length || !vivo(p.name)) return;
+      const usadas = s.olhadas?.[p.name] || 0;
+      if (p.n !== usadas || usadas >= CHANCES_VER) return;      // n = idempotência do reenvio
+      pushState({ ...s, olhadas: { ...(s.olhadas || {}), [p.name]: usadas + 1 } });
+    }
+
     if (ev === 'resposta') {          // o acusado diz a palavra (só na dúvida de blefe)
       if (s.phase !== 'duvida' || s.duvida?.tipo !== 'blefe' || s.duvida.alvo !== p.name || s.duvida.palavra) return;
       const raw = String(p.palavra || '').trim().toLowerCase().replace(/[^a-zà-ú]/g, '').slice(0, 30);
@@ -436,6 +446,15 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
     setPalavra('');
     enviar('resposta', { name, palavra: w }, (x) => !!x?.duvida?.palavra || x?.phase !== 'duvida');
   };
+  const [verAte, setVerAte] = useState(0);
+  const espiar = () => {
+    const s = stateRef.current;
+    if (!s || (s.phase !== 'jogando' && s.phase !== 'duvida') || !(s.letras || []).length) return;
+    const n = s.olhadas?.[name] || 0;
+    if (n >= CHANCES_VER || (s.vidas?.[name] || 0) <= 0) return;
+    setVerAte(Date.now() + VER_MS);
+    enviar('olhar', { name, n }, (x) => (x?.olhadas?.[name] || 0) > n || (x?.phase !== 'jogando' && x?.phase !== 'duvida'));
+  };
   const chamarFormou = () => {
     const s = stateRef.current;
     if (!s || s.phase !== 'jogando' || (s.letras || []).length < MIN_FORMOU) return;
@@ -460,7 +479,7 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
       } else if (s.phase === 'duvida') {
         resolver(s, true);
       } else if (s.phase === 'pausa') {
-        pushState({ ...s, phase: 'jogando', letras: [], vez: s.starter, evento: null, round: (s.round || 1) + 1, endsAt: Date.now() + TURN_MS });
+        pushState({ ...s, phase: 'jogando', letras: [], olhadas: {}, vez: s.starter, evento: null, round: (s.round || 1) + 1, endsAt: Date.now() + TURN_MS });
       }
     }, 400);
     return () => clearInterval(t);
@@ -473,7 +492,7 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
     if (ordem.length < MIN_PLAYERS) return;
     const vidas = {}; ordem.forEach(n => { vidas[n] = VIDAS; });
     pushState({ ...s, phase: 'jogando', ordem, vidas, letras: [], vez: ordem[0], round: 1, evento: null,
-      duvida: null, aviso: null, vencedor: null, endsAt: Date.now() + TURN_MS });
+      duvida: null, aviso: null, olhadas: {}, vencedor: null, endsAt: Date.now() + TURN_MS });
   };
   const voltarLobby = () => {
     const s = stateRef.current; if (!s) return;
@@ -484,7 +503,7 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
   useEffect(() => {
     const ch = supabase.channel(`uniko-palavras-room-${roomId}`);
     chanRef.current = ch;
-    ['jogada', 'duvidar', 'formou', 'resposta', 'voto'].forEach(ev => {
+    ['jogada', 'duvidar', 'formou', 'olhar', 'resposta', 'voto'].forEach(ev => {
       ch.on('broadcast', { event: ev }, ({ payload }) => { if (hostRef.current && payload?.name) processar(ev, payload); });
     });
     ch.on('broadcast', { event: 'chat' }, ({ payload }) => {
@@ -534,6 +553,24 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
     ? players.map(p => ({ name: p.name, photo: p.photo }))
     : ordem.map(n => ({ name: n, photo: fotoDe(n), vidas: state?.vidas?.[n] ?? 0, out: (state?.vidas?.[n] ?? 0) <= 0,
       ausente: !players.some(p => p.name === n) }));
+
+  const btnBase = { border: 'none', borderRadius: 12, fontWeight: 800, fontSize: 14, cursor: 'pointer', color: '#fff', padding: '11px 20px' };
+  /* Letras OCULTAS: só aparecem ao espiar (2x por rodada), no fim da rodada, ou quando
+     a votação precisa delas (formou palavra / depois que o acusado disse a palavra). */
+  const revelaTudo = fase !== 'jogando' && !(fase === 'duvida' && !(state?.duvida?.tipo === 'palavra' || state?.duvida?.palavra));
+  const mostrar = revelaTudo || now < verAte;
+  const restantes = CHANCES_VER - (state?.olhadas?.[name] || 0);
+  const verSecs = Math.max(0, Math.ceil((verAte - now) / 1000));
+  const fragV = mostrar ? frag.toUpperCase() : Array.from({ length: letras.length }, () => '•').join(' ');
+  const podeEspiar = (fase === 'jogando' || fase === 'duvida') && letras.length > 0 && !revelaTudo && (state?.vidas?.[name] || 0) > 0;
+  const botaoEspiar = podeEspiar && (
+    <button className="up-btn" onClick={espiar} disabled={restantes <= 0 || mostrar}
+      title="Ver todas as letras por alguns segundos (só você vê)"
+      style={{ ...btnBase, padding: '7px 14px', fontSize: 12.5, marginBottom: 8,
+        background: restantes > 0 ? `linear-gradient(135deg, ${P.ciano}, ${P.azul})` : T.textD, cursor: restantes > 0 && !mostrar ? 'pointer' : 'not-allowed' }}>
+      {mostrar ? `👁 Vendo... ${verSecs}s` : `👁 Visualizar letras (${Math.max(0, restantes)})`}
+    </button>
+  );
 
   /* ── Mascote fala: balão + voz (speechSynthesis pt-BR, com botão de mudo) ── */
   const [msg, setMsg] = useState(null);                 // fala pontual {t, until, humor}
@@ -615,7 +652,6 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
   const fala = msgAtiva ? msgAtiva.t : falaPadrao();
   const humor = fase === 'duvida' || fase === 'pausa' ? 'bravo' : (msgAtiva?.humor || null);
 
-  const btnBase = { border: 'none', borderRadius: 12, fontWeight: 800, fontSize: 14, cursor: 'pointer', color: '#fff', padding: '11px 20px' };
   const inputCss = { padding: '11px 14px', borderRadius: 12, border: `1.5px solid ${P.azul}66`, background: T.surfaceInput || 'rgba(0,0,0,.03)',
     color: T.text, fontSize: 16, fontWeight: 700, outline: 'none', fontFamily: 'var(--font-body)' };
 
@@ -627,7 +663,7 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
           Cada um tem <b style={{ color: T.text }}>{VIDAS} vidas</b>. Acrescente uma letra por vez formando uma palavra —
           quem <b style={{ color: T.text }}>completar</b> uma palavra perde uma vida, e quem for pego{' '}
           <b style={{ color: T.text }}>blefando</b> também. Na sua vez, você pode <b style={{ color: T.text }}>duvidar</b> de quem jogou antes.
-          Não tem dicionário: <b style={{ color: T.text }}>a turma vota</b> (1 minuto, maioria decide)!
+          As letras ficam <b style={{ color: T.text }}>ocultas</b> — decore! Você pode espiar {CHANCES_VER}x por rodada. Não tem dicionário: <b style={{ color: T.text }}>a turma vota</b> (1 minuto, maioria decide)!
         </div>
         {isHost ? (
           <button className="up-btn" onClick={comecar} disabled={players.length < MIN_PLAYERS}
@@ -680,16 +716,17 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
           <div style={{ fontSize: 12.5, color: T.textT, margin: '5px 0 10px', lineHeight: 1.5 }}>
             {blefe
               ? (souAlvo && !d.palavra
-                ? <>Diga a palavra que você tinha em mente — ela tem que começar com <b style={{ color: T.text, letterSpacing: 2 }}>{frag.toUpperCase()}</b></>
+                ? <>Diga a palavra que você tinha em mente — ela tem que começar com <b style={{ color: T.text, letterSpacing: 2 }}>{fragV}</b></>
                 : d.palavra
                   ? <>{primeiro(d.alvo)} disse: <b style={{ color: T.text, fontSize: 17, letterSpacing: 2 }}>{d.palavra.toUpperCase()}</b></>
-                  : <>Esperando {primeiro(d.alvo)} dizer a palavra que começa com <b style={{ color: T.text, letterSpacing: 2 }}>{frag.toUpperCase()}</b>...</>)
-              : <>A palavra na mesa é <b style={{ color: T.text, fontSize: 17, letterSpacing: 4 }}>{frag.toUpperCase()}</b> — isso é uma palavra que existe?</>}
+                  : <>Esperando {primeiro(d.alvo)} dizer a palavra que começa com <b style={{ color: T.text, letterSpacing: 2 }}>{fragV}</b>...</>)
+              : <>A palavra na mesa é <b style={{ color: T.text, fontSize: 17, letterSpacing: 4 }}>{fragV}</b> — isso é uma palavra que existe?</>}
           </div>
+          {botaoEspiar}
           {blefe && souAlvo && !d.palavra && (
             <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 10 }}>
               <input autoFocus value={palavra} onChange={e => setPalavra(e.target.value)} maxLength={30}
-                onKeyDown={e => e.key === 'Enter' && responder()} placeholder={`${frag.toUpperCase()}...`}
+                onKeyDown={e => e.key === 'Enter' && responder()} placeholder={`${fragV}...`}
                 style={{ ...inputCss, width: 'min(60%, 240px)' }} />
               <button className="up-btn" onClick={responder} disabled={!palavra.trim()}
                 style={{ ...btnBase, background: palavra.trim() ? `linear-gradient(135deg, ${P.verde}, ${P.ciano})` : T.textD }}>Enviar</button>
@@ -721,9 +758,10 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
       <div style={{ textAlign: 'center' }}>
         <div style={{ fontSize: 11, fontWeight: 800, color: T.textT, letterSpacing: '.08em' }}>PALAVRA NA MESA</div>
         <div style={{ fontFamily: 'var(--font-brand)', fontSize: 26, fontWeight: 900, letterSpacing: 6, color: T.text, minHeight: 34 }}>
-          {frag ? frag.toUpperCase() : '—'}
+          {frag ? fragV : '—'}
         </div>
         {state.aviso && <div className="up-fade" style={{ fontSize: 12.5, color: P.amarelo, fontWeight: 700, margin: '2px 0 6px' }}>{state.aviso}</div>}
+        {botaoEspiar}
         {podeFormou && (
           <button className="up-btn" onClick={chamarFormou} title={`Chamar: ${primeiro(ultimoPor)} formou uma palavra`}
             style={{ ...btnBase, padding: '7px 14px', fontSize: 12.5, marginBottom: 8, background: `linear-gradient(135deg, ${P.roxo}, ${P.azul})` }}>
@@ -758,7 +796,8 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, height: '100%', minHeight: 0, overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, height: '100%', minHeight: 0, overflow: 'hidden', padding: 12, borderRadius: 18,
+      background: `linear-gradient(rgba(2,6,24,.22), rgba(2,6,24,.22)), ${CENARIO}` }}>
       <style>{CSS}</style>
       {/* Cabeçalho */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0, borderRadius: 14, padding: '10px 14px',
@@ -789,7 +828,7 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
       <div className="up-wrap">
         <div className="up-main">
           <Arena seats={seats} letras={letras} ordem={ordem} vez={fase === 'jogando' ? state?.vez : null}
-            alvo={fase === 'duvida' ? state?.duvida?.alvo : null} humor={humor} fala={fala} />
+            alvo={fase === 'duvida' ? state?.duvida?.alvo : null} humor={humor} fala={fala} mostrar={mostrar} />
         </div>
         <div className="up-panel up-scroll" style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 14, padding: 16, boxShadow: T.sh }}>
           {!state ? <div style={{ textAlign: 'center', fontSize: 13, color: T.textT }}>Carregando sala...</div> : painel()}
@@ -856,7 +895,8 @@ const Lobby = ({ name, porSala, onEnter }) => {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, height: '100%', minHeight: 0, overflowY: 'auto' }} className="up-scroll">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, height: '100%', minHeight: 0, overflowY: 'auto', padding: 12, borderRadius: 18,
+      background: `linear-gradient(rgba(2,6,24,.35), rgba(2,6,24,.35)), ${CENARIO}` }} className="up-scroll">
       <style>{CSS}</style>
       <div style={{ borderRadius: 16, padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', flexShrink: 0,
         background: `linear-gradient(120deg, ${P.azul} 0%, ${P.roxo} 70%, ${P.ciano} 130%)`, boxShadow: '0 8px 26px rgba(47,123,255,.28)' }}>
