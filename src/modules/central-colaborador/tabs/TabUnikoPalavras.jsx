@@ -11,7 +11,7 @@
 //     letra COMPLETOU uma palavra. Todos (menos o acusado) votam se formou.
 // Em 1 minuto, maioria contra o acusado → ele perde uma vida; maioria a favor
 // → perde quem acusou; sem maioria (ninguém votou, empate) → ninguém perde e o
-// jogo segue. Demorar 30s pra jogar também custa uma vida. Sobrou um → ganhou.
+// jogo segue. Demorar 60s pra jogar também custa uma vida. Sobrou um → ganhou.
 //
 // SINCRONIA: mesma arquitetura já testada do Uniko Stop —
 //   • ESTADO na tabela uniko_palavras_state (postgres_changes + poll), carimbado
@@ -24,6 +24,7 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { T } from '../../../contexts/theme';
 import { supabase, getAuthUser, USER } from '../../../contexts/user';
+import { nowMs, ensureServerClock } from '../../../shared/captureUniko';
 import { getActiveAssistantSkinId, getAssistantSkin } from '../../../shared/assistantSkin';
 
 const MASCOTE = '/uniko-palavras.png';
@@ -35,7 +36,7 @@ const NOVA_MS = 7_000;              // a letra recém-jogada fica à mostra por 
 const VER_MS = 5_000;               // quanto tempo as letras ficam à mostra ao espiar
 const CHANCES_VER = 2;              // espiadas por jogador, por rodada
 const MIN_FORMOU = 3;           // só dá pra chamar "formou palavra" com 3+ letras na mesa
-const TURN_MS = 30_000;         // tempo pra jogar uma letra
+const TURN_MS = 60_000;         // tempo pra jogar uma letra
 const DUVIDA_MS = 60_000;       // janela de votação (dúvida / formou palavra)
 const PAUSA_MS = 6_000;         // banner do que aconteceu antes da próxima rodada
 const ROOM_TTL_MS = 20 * 60_000;
@@ -150,10 +151,10 @@ const proxVivo = (s, de) => {
 const perderVida = (s, quem, texto, palavra) => {
   const vidas = { ...s.vidas, [quem]: Math.max(0, (s.vidas?.[quem] || 0) - 1) };
   const vivos = (s.ordem || []).filter(n => vidas[n] > 0);
-  const evento = { quem, texto, palavra: palavra || null, ts: Date.now(), eliminado: vidas[quem] === 0 };
+  const evento = { quem, texto, palavra: palavra || null, ts: nowMs(), eliminado: vidas[quem] === 0 };
   if (vivos.length <= 1) return { ...s, vidas, evento, phase: 'fim', vencedor: vivos[0] || null, endsAt: null, duvida: null };
   const starter = vidas[quem] > 0 ? quem : proxVivo({ ...s, vidas }, quem);
-  return { ...s, vidas, evento, phase: 'pausa', starter, endsAt: Date.now() + PAUSA_MS, duvida: null };
+  return { ...s, vidas, evento, phase: 'pausa', starter, endsAt: nowMs() + PAUSA_MS, duvida: null };
 };
 
 /* Quem vota: vivos, presentes, menos o acusado. */
@@ -326,7 +327,7 @@ const ChatSala = ({ mensagens, texto, setTexto, onEnviar, name, cardBg }) => {
 const Sala = ({ roomId, name, photo, players, onLeave }) => {
   useEffect(() => { const im = new Image(); im.src = MASCOTE_BRAVO; }, []);
   const [state, setState] = useState(null);
-  const [now, setNow] = useState(() => Date.now());
+  const [now, setNow] = useState(() => nowMs());
   const [letra, setLetra] = useState('');
   const [palavra, setPalavra] = useState('');
   const [chatMsgs, setChatMsgs] = useState([]);
@@ -351,7 +352,9 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
   useEffect(() => { hostRef.current = isHost; }, [isHost]);
   useEffect(() => { stateRef.current = state; }, [state]);
   useEffect(() => { playersRef.current = players; }, [players]);
-  useEffect(() => { const t = setInterval(() => setNow(Date.now()), 250); return () => clearInterval(t); }, []);
+  useEffect(() => { const t = setInterval(() => setNow(nowMs()), 250); return () => clearInterval(t); }, []);
+  // Relógio do SERVIDOR: cada PC tem a sua hora; sem isso a contagem e o fim da vez desencontravam entre jogadores.
+  useEffect(() => { ensureServerClock(); const t = setInterval(() => ensureServerClock(), 50_000); return () => clearInterval(t); }, []);
 
   /* ── Estado (descarta o que chega atrasado, igual ao Stop) ── */
   const aplicaEstado = useCallback((st) => {
@@ -362,8 +365,9 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
     setState(st);
   }, []);
   const pushState = useCallback(async (next) => {
-    const carimbado = { ...next, ts: Date.now() };
+    const carimbado = { ...next, ts: nowMs() };
     aplicaEstado(carimbado);
+    chanRef.current?.send({ type: 'broadcast', event: 'estado', payload: carimbado });   // caminho rápido: vez/fogo mudam na hora pra todos
     try {
       await supabase.from('uniko_palavras_state')
         .update({ state: carimbado, updated_at: new Date().toISOString() }).eq('id', roomId);
@@ -403,7 +407,7 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
         ? `${primeiro(por)} duvidou, mas a turma aceitou${w || ' a palavra'} de ${primeiro(alvo)}!`
         : `${primeiro(por)} chamou palavra, mas "${frag}" não formou nada!`, palavra));
     } else if (forcar || (v.total > 0 && v.contra + v.favor === v.total)) {
-      pushState({ ...s, phase: 'jogando', duvida: null, endsAt: Date.now() + TURN_MS,
+      pushState({ ...s, phase: 'jogando', duvida: null, endsAt: nowMs() + TURN_MS,
         aviso: 'Ninguém decidiu a tempo — o jogo continua e ninguém perde vida.' });
     }
   };
@@ -416,21 +420,21 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
     if (ev === 'jogada') {
       if (s.phase !== 'jogando' || s.vez !== p.name || p.pos !== (s.letras || []).length) return;   // pos = idempotência do reenvio
       const l = normLetra(p.letra); if (!l) return;
-      pushState({ ...s, letras: [...(s.letras || []), { l, by: p.name }], vez: proxVivo(s, p.name), aviso: null, endsAt: Date.now() + TURN_MS });
+      pushState({ ...s, letras: [...(s.letras || []), { l, by: p.name }], vez: proxVivo(s, p.name), aviso: null, endsAt: nowMs() + TURN_MS });
     }
 
     if (ev === 'duvidar') {
       if (s.phase !== 'jogando' || s.vez !== p.name || !(s.letras || []).length) return;
       const alvo = s.letras[s.letras.length - 1].by;
       if (alvo === p.name) return;
-      pushState({ ...s, phase: 'duvida', aviso: null, duvida: { tipo: 'blefe', por: p.name, alvo, votos: {}, palavra: null }, endsAt: Date.now() + DUVIDA_MS });
+      pushState({ ...s, phase: 'duvida', aviso: null, duvida: { tipo: 'blefe', por: p.name, alvo, votos: {}, palavra: null }, endsAt: nowMs() + DUVIDA_MS });
     }
 
     if (ev === 'formou') {
       if (s.phase !== 'jogando' || (s.letras || []).length < MIN_FORMOU || !vivo(p.name)) return;
       const alvo = s.letras[s.letras.length - 1].by;
       if (alvo === p.name) return;
-      pushState({ ...s, phase: 'duvida', aviso: null, duvida: { tipo: 'palavra', por: p.name, alvo, votos: {}, palavra: null }, endsAt: Date.now() + DUVIDA_MS });
+      pushState({ ...s, phase: 'duvida', aviso: null, duvida: { tipo: 'palavra', por: p.name, alvo, votos: {}, palavra: null }, endsAt: nowMs() + DUVIDA_MS });
     }
 
     if (ev === 'olhar') {             // espiar as letras (contador por jogador, por rodada)
@@ -493,7 +497,7 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
     if (!s || (s.phase !== 'jogando' && s.phase !== 'duvida') || !(s.letras || []).length) return;
     const n = s.olhadas?.[name] || 0;
     if (n >= CHANCES_VER || (s.vidas?.[name] || 0) <= 0) return;
-    setVerAte(Date.now() + VER_MS);
+    setVerAte(nowMs() + VER_MS);
     enviar('olhar', { name, n }, (x) => (x?.olhadas?.[name] || 0) > n || (x?.phase !== 'jogando' && x?.phase !== 'duvida'));
   };
   const chamarFormou = () => {
@@ -514,13 +518,13 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
     if (!isHost) return;
     const t = setInterval(() => {
       const s = stateRef.current;
-      if (!s || !s.endsAt || Date.now() < s.endsAt) return;
+      if (!s || !s.endsAt || nowMs() < s.endsAt) return;
       if (s.phase === 'jogando') {
         pushState(perderVida(s, s.vez, `${primeiro(s.vez)} demorou demais e perdeu a vez`));
       } else if (s.phase === 'duvida') {
         resolver(s, true);
       } else if (s.phase === 'pausa') {
-        pushState({ ...s, phase: 'jogando', letras: [], olhadas: {}, vez: s.starter, evento: null, round: (s.round || 1) + 1, endsAt: Date.now() + TURN_MS });
+        pushState({ ...s, phase: 'jogando', letras: [], olhadas: {}, vez: s.starter, evento: null, round: (s.round || 1) + 1, endsAt: nowMs() + TURN_MS });
       }
     }, 400);
     return () => clearInterval(t);
@@ -534,7 +538,7 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
     const ini = Math.min(MAX_VIDAS, Math.max(1, s.vidasIni || VIDAS));
     const vidas = {}; ordem.forEach(n => { vidas[n] = ini; });
     pushState({ ...s, phase: 'jogando', ordem, vidas, letras: [], vez: ordem[0], round: 1, evento: null,
-      duvida: null, aviso: null, olhadas: {}, vencedor: null, endsAt: Date.now() + TURN_MS });
+      duvida: null, aviso: null, olhadas: {}, vencedor: null, endsAt: nowMs() + TURN_MS });
   };
   const escolherVidas = (e) => {
     const n = Number(e.currentTarget.dataset.n);
@@ -551,6 +555,7 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
   useEffect(() => {
     const ch = supabase.channel(`uniko-palavras-room-${roomId}`);
     chanRef.current = ch;
+    ch.on('broadcast', { event: 'estado' }, ({ payload }) => { if (payload && !hostRef.current) aplicaEstado(payload); });
     ['jogada', 'duvidar', 'formou', 'olhar', 'resposta', 'voto'].forEach(ev => {
       ch.on('broadcast', { event: ev }, ({ payload }) => { if (hostRef.current && payload?.name) processar(ev, payload); });
     });
@@ -610,7 +615,7 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
   const antLen = useRef(null);
   useEffect(() => {
     const n = letras.length;
-    if (antLen.current !== null && n > antLen.current) queueMicrotask(() => setNova({ i: n - 1, ate: Date.now() + NOVA_MS }));
+    if (antLen.current !== null && n > antLen.current) queueMicrotask(() => setNova({ i: n - 1, ate: nowMs() + NOVA_MS }));
     antLen.current = n;
   }, [letras.length]);
   const novaIdx = now < nova.ate ? nova.i : -1;
@@ -653,7 +658,7 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
     } catch { /* sem voz: o balão basta */ }
   }, []);
   const falar = useCallback((t, ms = 3200, humor = null, voz) => {
-    setMsg({ t, until: Date.now() + ms, humor });
+    setMsg({ t, until: nowMs() + ms, humor });
     dizer(voz || t);
   }, [dizer]);
 
