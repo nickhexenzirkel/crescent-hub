@@ -417,6 +417,9 @@ const TabRoletaSorte = () => {
     return () => clearTimeout(id);
   }, [showConfetti]);
 
+  // O giro já grava o ganhador no histórico na hora do clique (pra todo mundo), mas ele só pode APARECER
+  // depois que a roleta para — senão entrega o resultado antes do fim. Esconde o giro em andamento.
+  const historyView = history.filter(h => !(spin && h.id === spin.id && spinProgress(spin) < 1));
   const winnerLabel = phase === 'done' && spin ? spin.entries?.[spin.winnerIndex]?.label : null;
   const spinning = phase === 'spinning';
 
@@ -897,7 +900,7 @@ const TabRoletaSorte = () => {
               + Adicionar ganhador
             </button>
           )}
-          {history.length === 0 ? (
+          {historyView.length === 0 ? (
             <div style={{ borderRadius: 14, border: `1px dashed ${T.border}`, padding: '26px 12px', textAlign: 'center' }}>
               <div style={{ fontSize: 12.5, color: T.textT }}>Ninguém ganhou ainda — o primeiro giro entra aqui.</div>
             </div>
@@ -906,26 +909,26 @@ const TabRoletaSorte = () => {
               <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: T.textT, marginBottom: 8 }}>
                 Último ganhador
               </div>
-              <WinnerCard big h={history[0]} isAdmin={isAdmin} uploading={uploadingId === history[0].id}
+              <WinnerCard big h={historyView[0]} isAdmin={isAdmin} uploading={uploadingId === historyView[0].id}
                 onOpen={setLightboxUrl} onUpload={triggerUpload} onRemove={removeWinner}/>
-              {history.length > 1 && (
+              {historyView.length > 1 && (
                 <>
                   <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: T.textT, margin: '14px 0 8px' }}>
                     Anteriores
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                    {history.slice(1, 5).map(h => (
+                    {historyView.slice(1, 5).map(h => (
                       <WinnerCard key={h.id} h={h} isAdmin={isAdmin} uploading={uploadingId === h.id}
                         onOpen={setLightboxUrl} onUpload={triggerUpload} onRemove={removeWinner}/>
                     ))}
                   </div>
                 </>
               )}
-              {history.length > 5 && (
+              {historyView.length > 5 && (
                 <button onClick={() => setAllOpen(true)}
                   style={{ marginTop: 12, width: '100%', padding: '10px 12px', borderRadius: 10, cursor: 'pointer', border: `1px solid ${T.border}`,
                     background: T.surfaceSub || 'rgba(0,0,0,.04)', color: T.text, fontWeight: 800, fontSize: 12.5, fontFamily: 'var(--font-body)' }}>
-                  Visualizar todos os ganhadores ({history.length})
+                  Visualizar todos os ganhadores ({historyView.length})
                 </button>
               )}
             </div>
@@ -946,7 +949,7 @@ const TabRoletaSorte = () => {
               <TrophyIcon size={22} color={T.gold}/>
               <div style={{ flex: 1 }}>
                 <div style={{ fontFamily: 'var(--font-brand)', fontSize: 18, fontWeight: 800, color: T.text }}>Histórico de Ganhadores</div>
-                <div style={{ fontSize: 12, color: T.textS }}>{history.length} ganhadores · do mais recente ao mais antigo</div>
+                <div style={{ fontSize: 12, color: T.textS }}>{historyView.length} ganhadores · do mais recente ao mais antigo</div>
               </div>
               {isAdmin && (
                 <button onClick={() => setAddOpen(true)}
@@ -958,7 +961,7 @@ const TabRoletaSorte = () => {
                 style={{ width: 36, height: 36, borderRadius: '50%', border: 'none', cursor: 'pointer', background: T.surfaceSub || 'rgba(0,0,0,.08)', color: T.text, fontSize: 18 }}>×</button>
             </div>
             <div style={{ overflowY: 'auto', padding: 20, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: 14 }}>
-              {history.map((h, i) => (
+              {historyView.map((h, i) => (
                 <div key={h.id} style={{ position: 'relative' }}>
                   <span style={{ position: 'absolute', top: 8, left: 8, zIndex: 2, minWidth: 24, padding: '2px 7px', borderRadius: 999, background: 'rgba(0,0,0,.6)',
                     color: '#fff', fontSize: 11, fontWeight: 800, textAlign: 'center' }}>#{i + 1}</span>
