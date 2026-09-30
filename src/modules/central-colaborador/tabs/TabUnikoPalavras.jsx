@@ -153,6 +153,33 @@ const ordenaJogadores = (players, hostName) => {
   const base = [...players].sort((a, b) => (a.entrouEm || 0) - (b.entrouEm || 0) || a.name.localeCompare(b.name));
   return [...base.filter(p => p.name === hostName), ...base.filter(p => p.name !== hostName)];
 };
+/* Jogador SAIU da partida (clicou em Sair ou caiu): some da roda de verdade — ordem, vidas e vez
+   passam a contar só quem ficou. Se sobrar um, ele ganha. */
+const removerJogador = (s, quem) => {
+  const ord = s.ordem || [];
+  const i = ord.indexOf(quem);
+  if (i < 0) return s;
+  const vidasSem = { ...s.vidas, [quem]: 0 };
+  const prox = proxVivo({ ...s, vidas: vidasSem }, quem);          // próximo vivo depois dele (na roda antiga)
+  const ant = ord[(i - 1 + ord.length) % ord.length];               // quem vinha antes: mantém o giro certo de "quem abre"
+  const ordem = ord.filter(n => n !== quem);
+  const vidas = { ...s.vidas }; delete vidas[quem];
+  const vivos = ordem.filter(n => (vidas[n] || 0) > 0);
+  const evento = { quem, texto: `${primeiro(quem)} saiu da partida`, palavra: null, ts: nowMs(), eliminado: false, saiu: true };
+  let n = { ...s, ordem, vidas };
+  if (s.iniciador === quem) n.iniciador = ant !== quem ? ant : ordem[0];
+  if (s.starter === quem) n.starter = prox;
+  if (vivos.length <= 1) return { ...n, phase: 'fim', vencedor: vivos[0] || null, evento, endsAt: null, duvida: null };
+  if (s.phase === 'duvida' && (s.duvida?.por === quem || s.duvida?.alvo === quem)) {
+    n = { ...n, phase: 'jogando', duvida: null, vez: s.vez === quem ? prox : s.vez, endsAt: nowMs() + TURN_MS,
+      aviso: `${primeiro(quem)} saiu — a dúvida foi cancelada.` };
+  } else if (s.phase === 'jogando' && s.vez === quem) {
+    n = { ...n, vez: prox, endsAt: nowMs() + TURN_MS, aviso: `${primeiro(quem)} saiu da partida.` };
+  } else if (s.phase === 'jogando') {
+    n = { ...n, aviso: `${primeiro(quem)} saiu da partida.` };
+  }
+  return n;
+};
 const perderVida = (s, quem, texto, palavra) => {
   const vidas = { ...s.vidas, [quem]: Math.max(0, (s.vidas?.[quem] || 0) - 1) };
   const vivos = (s.ordem || []).filter(n => vidas[n] > 0);
@@ -432,15 +459,20 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
     if (ev === 'duvidar') {
       if (s.phase !== 'jogando' || s.vez !== p.name || !(s.letras || []).length) return;
       const alvo = s.letras[s.letras.length - 1].by;
-      if (alvo === p.name) return;
+      if (alvo === p.name || !(s.ordem || []).includes(alvo)) return;
       pushState({ ...s, phase: 'duvida', aviso: null, duvida: { tipo: 'blefe', por: p.name, alvo, votos: {}, palavra: null }, endsAt: nowMs() + DUVIDA_MS });
     }
 
     if (ev === 'formou') {
       if (s.phase !== 'jogando' || (s.letras || []).length < MIN_FORMOU || !vivo(p.name)) return;
       const alvo = s.letras[s.letras.length - 1].by;
-      if (alvo === p.name) return;
+      if (alvo === p.name || !(s.ordem || []).includes(alvo)) return;
       pushState({ ...s, phase: 'duvida', aviso: null, duvida: { tipo: 'palavra', por: p.name, alvo, votos: {}, palavra: null }, endsAt: nowMs() + DUVIDA_MS });
+    }
+
+    if (ev === 'saiu') {
+      if (!s.phase || s.phase === 'lobby' || s.phase === 'fim' || !(s.ordem || []).includes(p.name)) return;
+      pushState(removerJogador(s, p.name));
     }
 
     if (ev === 'olhar') {             // espiar as letras (contador por jogador, por rodada)
@@ -520,10 +552,20 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
   };
 
   /* Relógio do host: estourou o tempo → perde vida / próxima rodada. */
+  const ausenteDesde = useRef({});
   useEffect(() => {
     if (!isHost) return;
     const t = setInterval(() => {
       const s = stateRef.current;
+      // Quem fechou a aba / caiu e ficou 12s fora da sala (presence) sai da partida também.
+      if (s?.phase && s.phase !== 'lobby' && s.phase !== 'fim') {
+        const agora = Date.now();
+        for (const n of s.ordem || []) {
+          if (playersRef.current.some(p => p.name === n)) { delete ausenteDesde.current[n]; continue; }
+          if (!ausenteDesde.current[n]) { ausenteDesde.current[n] = agora; continue; }
+          if (agora - ausenteDesde.current[n] > 12_000) { delete ausenteDesde.current[n]; pushState(removerJogador(s, n)); return; }
+        }
+      }
       if (!s || !s.endsAt || nowMs() < s.endsAt) return;
       if (s.phase === 'jogando') {
         pushState(perderVida(s, s.vez, `${primeiro(s.vez)} demorou demais e perdeu a vez`));
@@ -537,6 +579,18 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isHost, pushState]);
 
+  const sair = () => {
+    const s = stateRef.current;
+    if (s?.phase && s.phase !== 'lobby' && s.phase !== 'fim') {
+      if (hostRef.current) processar('saiu', { name });
+      else {
+        chanRef.current?.send({ type: 'broadcast', event: 'saiu', payload: { name } });
+        setTimeout(onLeave, 300);       // dá tempo do aviso sair antes do canal ser fechado
+        return;
+      }
+    }
+    onLeave();
+  };
   const comecar = () => {
     const s = stateRef.current; if (!s) return;
     const ordem = ordenaJogadores(players, name).map(p => p.name);   // quem aperta Começar (o host) abre; segue a roda
@@ -562,7 +616,7 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
     const ch = supabase.channel(`uniko-palavras-room-${roomId}`);
     chanRef.current = ch;
     ch.on('broadcast', { event: 'estado' }, ({ payload }) => { if (payload && !hostRef.current) aplicaEstado(payload); });
-    ['jogada', 'duvidar', 'formou', 'olhar', 'resposta', 'voto'].forEach(ev => {
+    ['jogada', 'duvidar', 'formou', 'saiu', 'olhar', 'resposta', 'voto'].forEach(ev => {
       ch.on('broadcast', { event: ev }, ({ payload }) => { if (hostRef.current && payload?.name) processar(ev, payload); });
     });
     ch.on('broadcast', { event: 'chat' }, ({ payload }) => {
@@ -899,11 +953,11 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
         {confirmSair ? (
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             <span style={{ fontSize: 12, color: '#fff', fontWeight: 700 }}>Sair da sala?</span>
-            <button className="up-btn" onClick={onLeave} style={{ ...btnBase, padding: '6px 12px', fontSize: 12, background: P.vermelho }}>Sair</button>
+            <button className="up-btn" onClick={sair} style={{ ...btnBase, padding: '6px 12px', fontSize: 12, background: P.vermelho }}>Sair</button>
             <button className="up-btn" onClick={() => setConfirmSair(false)} style={{ ...btnBase, padding: '6px 12px', fontSize: 12, background: 'rgba(255,255,255,.22)' }}>Ficar</button>
           </div>
         ) : (
-          <button className="up-btn" onClick={() => (noLobby || fase === 'fim' ? onLeave() : setConfirmSair(true))}
+          <button className="up-btn" onClick={() => (noLobby || fase === 'fim' ? sair() : setConfirmSair(true))}
             style={{ ...btnBase, padding: '7px 14px', fontSize: 12.5, background: 'rgba(255,255,255,.2)' }}>← Sair</button>
         )}
       </div>
