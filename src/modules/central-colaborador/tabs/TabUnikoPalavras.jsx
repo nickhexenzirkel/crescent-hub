@@ -75,9 +75,15 @@ const CSS = `
 .up-btn:not(:disabled):hover { transform: translateY(-1px); filter: brightness(1.07); }
 .up-btn:not(:disabled):active { transform: scale(.97); }
 .up-scroll { scrollbar-width: thin; }
-.up-wrap { flex: 1; min-height: 0; overflow-y: auto; }
-.up-col { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px; padding-bottom: 8px; }
-.up-chatbox { height: 340px; flex-shrink: 0; }
+.up-wrap { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 12px; overflow: hidden; }
+.up-left { display: flex; flex-direction: column; gap: 10px; min-height: 0; overflow-y: auto; }
+.up-right { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+.up-chatbox { flex: 1; min-height: 0; }
+@media (max-width: 860px) {
+  .up-wrap { display: flex; flex-direction: column; gap: 8px; overflow-y: auto; }
+  .up-left { flex-shrink: 0; overflow: visible; gap: 8px; }
+  .up-right { flex: 1 0 auto; min-height: 210px; gap: 8px; }
+}
 .up-letra2 { animation: upPop2 .35s cubic-bezier(.2,1.4,.4,1) both; }
 @keyframes upPop2 { 0% { transform: scale(.2) rotate(-20deg); opacity: 0; } 65% { transform: scale(1.15); } 100% { transform: scale(1); opacity: 1; } }
 @media (prefers-reduced-motion: reduce) {
@@ -237,23 +243,23 @@ const Avatar = ({ src, size, borda }) => (
 
 /* Cartão GRANDE: de quem é a vez (ou quem está sendo julgado), com o Uniko assistente ativo da pessoa. */
 const CardVez = ({ titulo, sub, quem, photo, cor, tempo, vidas, total, souEu, fala, humor }) => (
-  <div className="up-fade" style={{ borderRadius: 20, padding: 'clamp(14px, 3vw, 22px)', display: 'flex', alignItems: 'center', gap: 'clamp(12px, 3vw, 22px)',
+  <div className="up-fade" style={{ borderRadius: 18, padding: 'clamp(8px, 1.6vh, 16px) clamp(10px, 2vw, 18px)', display: 'flex', alignItems: 'center', gap: 'clamp(10px, 2vw, 18px)',
     background: souEu ? 'linear-gradient(135deg, #1d4ed8, #22D3EE)' : `linear-gradient(135deg, ${cor}, #1b2a63)`, color: '#fff',
     boxShadow: `0 8px 30px ${cor}66`, border: '3px solid rgba(255,255,255,.55)', flexShrink: 0 }}>
-    {quem ? <Avatar src={photo} size="clamp(84px, 22vw, 130px)" borda="#fff" />
-      : <img src={humor === 'bravo' ? MASCOTE_BRAVO : MASCOTE} alt="" style={{ width: 'clamp(84px, 22vw, 130px)', height: 'clamp(84px, 22vw, 130px)', objectFit: 'contain' }} />}
+    {quem ? <Avatar src={photo} size="clamp(58px, 12vh, 104px)" borda="#fff" />
+      : <img src={humor === 'bravo' ? MASCOTE_BRAVO : MASCOTE} alt="" style={{ width: 'clamp(58px, 12vh, 104px)', height: 'clamp(58px, 12vh, 104px)', objectFit: 'contain' }} />}
     <div style={{ flex: 1, minWidth: 0 }}>
       <div style={{ fontSize: 'clamp(11px, 2.8vw, 14px)', fontWeight: 900, letterSpacing: '.12em', opacity: .9 }}>{titulo}</div>
-      {quem && <div style={{ fontFamily: 'var(--font-brand)', fontSize: 'clamp(26px, 7vw, 44px)', fontWeight: 900, lineHeight: 1.05, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      {quem && <div style={{ fontFamily: 'var(--font-brand)', fontSize: 'clamp(22px, 5vh, 40px)', fontWeight: 900, lineHeight: 1.05, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {souEu ? 'VOCÊ!' : primeiro(quem)}
       </div>}
-      {sub && <div style={{ fontSize: 'clamp(13px, 3.2vw, 17px)', fontWeight: 700, marginTop: 2, lineHeight: 1.3 }}>{sub}</div>}
+      {sub && <div style={{ fontSize: 'clamp(12px, 1.9vh, 16px)', fontWeight: 700, marginTop: 1, lineHeight: 1.3 }}>{sub}</div>}
       {vidas != null && <div style={{ marginTop: 4 }}><Coracoes n={vidas} total={total} /></div>}
-      {fala && <div style={{ marginTop: 6, fontSize: 'clamp(12px, 3vw, 15px)', fontWeight: 700, background: 'rgba(255,255,255,.2)', borderRadius: 12, padding: '5px 10px', display: 'inline-block' }}>🐙 {fala}</div>}
+      {fala && !sub && <div style={{ marginTop: 4, fontSize: 'clamp(11px, 1.8vh, 14px)', fontWeight: 700, background: 'rgba(255,255,255,.2)', borderRadius: 12, padding: '5px 10px', display: 'inline-block' }}>🐙 {fala}</div>}
     </div>
     {tempo != null && (
       <div style={{ textAlign: 'center', flexShrink: 0 }}>
-        <div style={{ fontFamily: 'var(--font-brand)', fontSize: 'clamp(34px, 9vw, 58px)', fontWeight: 900, lineHeight: 1, color: typeof tempo === 'number' && tempo <= 10 ? '#FFE066' : '#fff' }}>{tempo}</div>
+        <div style={{ fontFamily: 'var(--font-brand)', fontSize: 'clamp(30px, 6.5vh, 52px)', fontWeight: 900, lineHeight: 1, color: typeof tempo === 'number' && tempo <= 10 ? '#FFE066' : '#fff' }}>{tempo}</div>
         <div style={{ fontSize: 11, fontWeight: 800, opacity: .85 }}>SEGUNDOS</div>
       </div>
     )}
@@ -266,28 +272,25 @@ const CardPalavra = ({ letras, ordem, mostrar, novaIdx, cardBg }) => {
   const ult = letras[letras.length - 1];
   const tile = (x, i, grande) => (
     <div key={`${i}_${x.l}`} className="up-letra2" title={primeiro(x.by)}
-      style={{ width: grande ? 'clamp(64px, 18vw, 96px)' : 'clamp(38px, 10vw, 58px)', aspectRatio: '1', borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: corDe(x.by), color: '#fff', fontFamily: 'var(--font-brand)', fontWeight: 900, fontSize: grande ? 'clamp(36px, 10vw, 56px)' : 'clamp(22px, 6vw, 34px)',
+      style={{ width: grande ? 'clamp(54px, 10vh, 84px)' : 'clamp(32px, 5.6vh, 48px)', aspectRatio: '1', borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: corDe(x.by), color: '#fff', fontFamily: 'var(--font-brand)', fontWeight: 900, fontSize: grande ? 'clamp(30px, 6vh, 48px)' : 'clamp(18px, 3.4vh, 28px)',
         border: '3px solid rgba(255,255,255,.85)', boxShadow: `0 4px 14px ${corDe(x.by)}88` }}>
       {mostrar || i === novaIdx ? x.l.toUpperCase() : '?'}
     </div>
   );
   return (
-    <div style={{ background: cardBg, border: `2px solid ${T.border}`, borderRadius: 20, padding: 'clamp(14px, 3vw, 20px)', boxShadow: T.sh, flexShrink: 0 }}>
-      <div style={{ fontSize: 12, fontWeight: 900, color: T.textT, letterSpacing: '.12em', marginBottom: 8, textAlign: 'center' }}>PALAVRA NA MESA</div>
+    <div style={{ background: cardBg, border: `2px solid ${T.border}`, borderRadius: 18, padding: 'clamp(8px, 1.6vh, 14px) clamp(10px, 2vw, 16px)', boxShadow: T.sh, flexShrink: 0 }}>
+      <div style={{ fontSize: 11, fontWeight: 900, color: T.textT, letterSpacing: '.12em', marginBottom: 6, textAlign: 'center' }}>PALAVRA NA MESA</div>
       {letras.length === 0 ? (
-        <div style={{ textAlign: 'center', fontSize: 'clamp(16px, 4vw, 20px)', fontWeight: 800, color: T.textT, padding: '10px 0' }}>Ainda não tem nenhuma letra</div>
+        <div style={{ textAlign: 'center', fontSize: 'clamp(14px, 2.2vh, 18px)', fontWeight: 800, color: T.textT, padding: '6px 0' }}>Ainda não tem nenhuma letra</div>
       ) : (
-        <>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>{letras.map((x, i) => tile(x, i, false))}</div>
-          <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px dashed ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14 }}>
-            <div style={{ textAlign: 'right', fontSize: 'clamp(13px, 3.4vw, 17px)', fontWeight: 800, color: T.text, lineHeight: 1.25 }}>
-              <div style={{ fontSize: 11, color: T.textT, letterSpacing: '.1em' }}>ÚLTIMA LETRA</div>
-              {primeiro(ult.by)} escolheu
-            </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>{letras.map((x, i) => tile(x, i, false))}</div>
+          <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, paddingLeft: 12, borderLeft: `2px dashed ${T.border}` }}>
+            <div style={{ fontSize: 10.5, fontWeight: 900, color: T.textT, letterSpacing: '.08em', textAlign: 'center' }}>ÚLTIMA · {primeiro(ult.by).toUpperCase()}</div>
             {tile(ult, letras.length - 1, true)}
           </div>
-        </>
+        </div>
       )}
     </div>
   );
@@ -297,12 +300,12 @@ const CardPalavra = ({ letras, ordem, mostrar, novaIdx, cardBg }) => {
 const FaixaJogadores = ({ seats, ordem, vez, alvo, cardBg }) => {
   const corDe = (n) => CORES[Math.max(0, ordem.indexOf(n)) % CORES.length];
   return (
-    <div style={{ display: 'flex', gap: 10, overflowX: 'auto', padding: '10px 12px', background: cardBg, border: `1px solid ${T.border}`, borderRadius: 16, boxShadow: T.sh, flexShrink: 0 }} className="up-scroll">
+    <div style={{ display: 'flex', gap: 10, overflowX: 'auto', padding: '8px 12px', background: cardBg, border: `1px solid ${T.border}`, borderRadius: 16, boxShadow: T.sh, flexShrink: 0 }} className="up-scroll">
       {seats.map(p => {
         const minha = vez === p.name, ehAlvo = alvo === p.name;
         return (
           <div key={p.name} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, minWidth: 64, opacity: p.out ? 0.4 : 1, filter: p.out ? 'grayscale(1)' : 'none' }}>
-            <img src={p.photo || '/UNIKO_NEW.png'} alt="" style={{ width: 52, height: 52, borderRadius: '50%', objectFit: 'cover', background: '#1b2a63',
+            <img src={p.photo || '/UNIKO_NEW.png'} alt="" style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', background: '#1b2a63',
               border: `3.5px solid ${ehAlvo ? P.vermelho : minha ? '#FFB300' : corDe(p.name)}`, boxShadow: minha ? '0 0 12px #FFB300' : ehAlvo ? `0 0 12px ${P.vermelho}` : 'none' }} />
             <div style={{ fontSize: 12.5, fontWeight: 800, color: T.text, maxWidth: 74, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{primeiro(p.name)}{p.ausente ? ' 💤' : ''}</div>
             {p.vidas != null && (p.out ? <span style={{ fontSize: 14 }}>💀</span> : <span style={{ fontSize: 13, color: '#FF4D6D', fontWeight: 900, whiteSpace: 'nowrap' }}>{'♥'.repeat(Math.min(p.vidas, 5))}</span>)}
@@ -895,13 +898,15 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
     return (
       <div style={{ textAlign: 'center' }}>
         {state.aviso && <div className="up-fade" style={{ fontSize: 12.5, color: P.amarelo, fontWeight: 700, margin: '2px 0 6px' }}>{state.aviso}</div>}
-        {botaoEspiar}
-        {podeFormou && (
-          <button className="up-btn" onClick={chamarFormou} title={`Chamar: ${primeiro(ultimoPor)} formou uma palavra`}
-            style={{ ...btnBase, padding: '7px 14px', fontSize: 12.5, marginBottom: 8, background: `linear-gradient(135deg, ${P.roxo}, ${P.azul})` }}>
-            🏁 Formou palavra!
-          </button>
-        )}
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+          {botaoEspiar}
+          {podeFormou && (
+            <button className="up-btn" onClick={chamarFormou} title={`Chamar: ${primeiro(ultimoPor)} formou uma palavra`}
+              style={{ ...btnBase, padding: '7px 14px', fontSize: 12.5, marginBottom: 8, background: `linear-gradient(135deg, ${P.roxo}, ${P.azul})` }}>
+              🏁 Formou palavra!
+            </button>
+          )}
+        </div>
         {minhaVez ? (
           <>
             <div style={{ fontSize: 15, fontWeight: 800, color: T.text, margin: '2px 0 10px' }}>Digite UMA letra para continuar a palavra — ou duvide de {primeiro(ultimoPor) || 'quem jogou'}.</div>
@@ -982,17 +987,19 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
         )}
       </div>
 
-      <div className="up-wrap up-scroll">
-        <div className="up-col">
+      <div className="up-wrap">
+        <div className="up-left up-scroll">
           {!state ? <div style={{ textAlign: 'center', fontSize: 13, color: T.textT }}>Carregando sala...</div> : (
             <>
               {cartaoVez}
               {(fase === 'jogando' || fase === 'duvida') && <CardPalavra letras={letras} ordem={ordem} mostrar={mostrar} novaIdx={novaIdx} cardBg={cardBg} />}
-              <div style={{ background: cardBg, border: `2px solid ${T.border}`, borderRadius: 20, padding: 18, boxShadow: T.sh, flexShrink: 0 }}>{painel()}</div>
-              <FaixaJogadores seats={seats} ordem={ordem} vez={fase === 'jogando' ? state.vez : null}
-                alvo={fase === 'duvida' ? state.duvida?.alvo : null} cardBg={cardBg} />
+              <div style={{ background: cardBg, border: `2px solid ${T.border}`, borderRadius: 18, padding: 'clamp(10px, 1.8vh, 16px)', boxShadow: T.sh, flexShrink: 0 }}>{painel()}</div>
             </>
           )}
+        </div>
+        <div className="up-right">
+          {state && <FaixaJogadores seats={seats} ordem={ordem} vez={fase === 'jogando' ? state.vez : null}
+            alvo={fase === 'duvida' ? state.duvida?.alvo : null} cardBg={cardBg} />}
           <div className="up-chatbox">
             <ChatSala mensagens={chatMsgs} texto={chatTexto} setTexto={setChatTexto} onEnviar={enviarChat} name={name} cardBg={cardBg} />
           </div>
