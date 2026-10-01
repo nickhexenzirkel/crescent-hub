@@ -186,6 +186,8 @@ const perderVida = (s, quem, texto, palavra) => {
   return { ...s, vidas, evento, phase: 'pausa', starter, endsAt: nowMs() + PAUSA_MS, duvida: null };
 };
 
+const blefeAguarda = (d) => d?.tipo === 'blefe' && !d.palavra;
+
 /* Quem vota: vivos, presentes, menos o acusado. */
 const contarVotos = (s, presentes) => {
   const d = s.duvida; if (!d) return null;
@@ -222,7 +224,7 @@ const FundoFX = () => (
 
 /* Corações grandes: o tamanho encolhe conforme a quantidade, pra 5 caberem no cartão do jogador. */
 const Coracoes = ({ n, total = VIDAS }) => (
-  <span style={{ fontSize: `clamp(16px, ${total <= 2 ? 6 : total === 3 ? 5.2 : total === 4 ? 4.4 : 3.7}cqw, ${total <= 2 ? 40 : 32}px)`, letterSpacing: 0, lineHeight: 1, whiteSpace: 'nowrap' }}>
+  <span style={{ fontSize: `clamp(16px, ${total <= 2 ? 6 : total === 3 ? 5.2 : total === 4 ? 4.4 : 3.7}vw, ${total <= 2 ? 34 : 28}px)`, letterSpacing: 0, lineHeight: 1, whiteSpace: 'nowrap' }}>
     {Array.from({ length: total }).map((_, i) => (
       <span key={i} style={{ color: i < n ? '#FF4D6D' : 'rgba(255,255,255,.22)', textShadow: i < n ? '0 0 10px rgba(255,77,109,.8)' : 'none' }}>♥</span>
     ))}
@@ -435,6 +437,11 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
     const { por, alvo, tipo, palavra } = s.duvida;
     const w = palavra ? ` "${palavra.toUpperCase()}"` : '';
     const frag = fragmentoDe(s).toUpperCase();
+    if (tipo === 'blefe' && !palavra) {
+      // O acusado nem disse a palavra: não há o que votar. Se o tempo acabou, está pego blefando.
+      if (forcar) pushState(perderVida(s, alvo, `${primeiro(alvo)} não disse a palavra a tempo — foi pego blefando!`, null));
+      return;
+    }
     if (s.duvida.duelo) {
       // Só dois vivos: vale apenas se os DOIS concordarem (os dois "contra" ou os dois "a favor").
       if (v.total === 2 && v.contra === 2) {
@@ -489,6 +496,7 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
 
     if (ev === 'formou') {
       if (s.phase !== 'jogando' || (s.letras || []).length < MIN_FORMOU || !vivo(p.name)) return;
+      if (p.pos !== undefined && p.pos !== (s.letras || []).length) return;   // a letra mudou desde o clique: não acusa o autor errado
       const alvo = s.letras[s.letras.length - 1].by;
       if (alvo === p.name || !(s.ordem || []).includes(alvo)) return;
       const duelo = (s.ordem || []).filter(vivo).length === 2;
@@ -517,6 +525,7 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
     if (ev === 'voto') {
       if (s.phase !== 'duvida' || !s.duvida || (p.name === s.duvida.alvo && !s.duvida.duelo) || !vivo(p.name)) return;
       if (p.voto !== 'contra' && p.voto !== 'favor') return;
+      if (s.duvida.tipo === 'blefe' && !s.duvida.palavra) return;        // só se vota depois que o acusado diz a palavra
       const nova = { ...s, duvida: { ...s.duvida, votos: { ...(s.duvida.votos || {}), [p.name]: p.voto } } };
       const v = contarVotos(nova, playersRef.current.map(x => x.name));
       if (nova.duvida.duelo) { if (v && v.total === 2 && (v.contra === 2 || v.favor === 2)) resolver(nova, false); else pushState(nova); }
@@ -568,7 +577,7 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
     const s = stateRef.current;
     if (!s || s.phase !== 'jogando' || (s.letras || []).length < MIN_FORMOU) return;
     SFX.duvida();
-    enviar('formou', { name }, (x) => x?.phase !== 'jogando');
+    enviar('formou', { name, pos: (s.letras || []).length }, (x) => x?.phase !== 'jogando' || (x?.letras || []).length !== (s.letras || []).length);
   };
   const votar = (voto) => {
     const s = stateRef.current;
@@ -811,7 +820,7 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
       <div style={{ textAlign: 'center' }}>
         <div style={{ fontSize: 13, color: T.textT, lineHeight: 1.6, marginBottom: 12 }}>
           Cada um tem <b style={{ color: T.text }}>{vidasIni} {vidasIni === 1 ? 'vida' : 'vidas'}</b>. Acrescente uma letra por vez formando uma palavra —
-          quem <b style={{ color: T.text }}>completar</b> uma palavra perde uma vida, e quem for pego{' '}
+          quem <b style={{ color: T.text }}>completar</b> uma palavra (a partir de {MIN_FORMOU} letras) perde uma vida, e quem for pego{' '}
           <b style={{ color: T.text }}>blefando</b> também. Na sua vez, você pode <b style={{ color: T.text }}>duvidar</b> de quem jogou antes.
           As letras ficam <b style={{ color: T.text }}>ocultas</b> — a nova aparece por {NOVA_MS / 1000}s e vira “?”, então decore! Você pode espiar {CHANCES_VER}x por rodada. Não tem dicionário: <b style={{ color: T.text }}>a turma vota</b> (1 minuto, maioria decide)!
         </div>
@@ -866,7 +875,8 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
       const d = state.duvida || {};
       const v = contarVotos(state, players.map(p => p.name)) || { total: 0, contra: 0, favor: 0 };
       const meuVoto = d.votos?.[name];
-      const podeVotar = (d.duelo || d.alvo !== name) && (state.vidas?.[name] || 0) > 0;
+      const aguardaPalavra = blefeAguarda(d);
+      const podeVotar = !aguardaPalavra && (d.duelo || d.alvo !== name) && (state.vidas?.[name] || 0) > 0;
       const tempo = d.duelo ? `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}` : `${secs}s`;
       const blefe = d.tipo === 'blefe';
       const destaque = (on, cor) => ({ outline: on ? '3px solid #fff' : 'none', boxShadow: on ? `0 0 0 3px ${cor}` : 'none' });
@@ -904,7 +914,10 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
               </button>
             </div>
           ) : (
-            <div style={{ fontSize: 12.5, color: T.textT }}>{souAlvo && !d.duelo ? 'A turma está votando...' : 'Você está fora — só acompanhe!'}</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: T.textT }}>
+              {aguardaPalavra ? (souAlvo ? 'Digite a palavra acima e envie. Se o tempo acabar, você perde uma vida!' : `A votação abre quando ${primeiro(d.alvo)} disser a palavra.`)
+                : souAlvo && !d.duelo ? 'A turma está votando...' : 'Você está fora — só acompanhe!'}
+            </div>
           )}
           <div style={{ fontSize: 12, color: T.textT, marginTop: 10 }}>
             Votos: <b style={{ color: P.vermelho }}>{v.contra}</b> {blefe ? 'não existe' : 'formou'} · <b style={{ color: P.verde }}>{v.favor}</b> {blefe ? 'existe' : 'não formou'}
