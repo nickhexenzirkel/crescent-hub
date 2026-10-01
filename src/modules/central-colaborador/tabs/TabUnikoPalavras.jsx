@@ -81,18 +81,13 @@ const CSS = `
 .up-btn:not(:disabled):hover { transform: translateY(-1px); filter: brightness(1.07); }
 .up-btn:not(:disabled):active { transform: scale(.97); }
 .up-scroll { scrollbar-width: thin; }
-.up-wrap { display: grid; gap: 12px; flex: 1; min-height: 0; grid-template-columns: minmax(0,1fr) 340px; grid-template-rows: auto minmax(0,1fr); }
-.up-main { grid-column: 1; grid-row: 1 / span 2; min-width: 0; min-height: 0; display: flex; align-items: center; justify-content: center; }
-.up-panel { grid-column: 2; grid-row: 1; min-height: 0; max-height: 58vh; overflow-y: auto; }
-.up-side { grid-column: 2; grid-row: 2; min-height: 180px; }
-@media (max-width: 860px) {
-  .up-wrap { display: flex; flex-direction: column; overflow-y: auto; }
-  .up-panel { order: 1; max-height: none; flex-shrink: 0; }
-  .up-main { order: 2; flex-shrink: 0; }
-  .up-side { order: 3; height: 300px; flex-shrink: 0; }
-}
+.up-wrap { flex: 1; min-height: 0; overflow-y: auto; }
+.up-col { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px; padding-bottom: 8px; }
+.up-chatbox { height: 340px; flex-shrink: 0; }
+.up-letra2 { animation: upPop2 .35s cubic-bezier(.2,1.4,.4,1) both; }
+@keyframes upPop2 { 0% { transform: scale(.2) rotate(-20deg); opacity: 0; } 65% { transform: scale(1.15); } 100% { transform: scale(1); opacity: 1; } }
 @media (prefers-reduced-motion: reduce) {
-  .up-estrela, .up-bolha, .up-mascote, .up-balao, .up-letra, .up-fade, .up-fogo::before, .up-fogo::after, .up-chama { animation: none !important; }
+  .up-estrela, .up-bolha, .up-mascote, .up-balao, .up-letra, .up-letra2, .up-fade, .up-fogo::before, .up-fogo::after, .up-chama { animation: none !important; }
 }
 `;
 
@@ -201,9 +196,6 @@ const contarVotos = (s, presentes) => {
   return { total, contra, favor };
 };
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   ARENA — mascote no CENTRO, letras da palavra e jogadores ao redor
-   ═══════════════════════════════════════════════════════════════════════════ */
 /* Efeitos do fundo: estrelas de 4 pontas piscando + bolhas subindo. Posições fixas
    (geradas uma vez por um sorteio determinístico) pra não "pular" a cada render. */
 const _fx = (() => {
@@ -237,76 +229,87 @@ const Coracoes = ({ n, total = VIDAS }) => (
   </span>
 );
 
-const Arena = ({ seats, letras, ordem, vez, alvo, humor, fala, mostrar, novaIdx }) => {
+/* ═══════════════════════════════════════════════════════════════════════════
+   CARTÕES DA SALA — layout de chat: cartão da VEZ, cartão da PALAVRA, jogadores e chat
+   ═══════════════════════════════════════════════════════════════════════════ */
+const Avatar = ({ src, size, borda, fogo }) => (
+  <div className={fogo ? 'up-fogo' : ''} style={{ position: 'relative', width: size, height: size, borderRadius: '50%', flexShrink: 0 }}>
+    <img src={src || '/UNIKO_NEW.png'} alt="" style={{ position: 'relative', zIndex: 1, width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover',
+      background: '#1b2a63', border: `4px solid ${borda}` }} />
+  </div>
+);
+
+/* Cartão GRANDE: de quem é a vez (ou quem está sendo julgado), com o Uniko assistente ativo da pessoa. */
+const CardVez = ({ titulo, sub, quem, photo, cor, tempo, vidas, total, souEu, fala, humor, fogo }) => (
+  <div className="up-fade" style={{ borderRadius: 20, padding: 'clamp(14px, 3vw, 22px)', display: 'flex', alignItems: 'center', gap: 'clamp(12px, 3vw, 22px)',
+    background: souEu ? 'linear-gradient(135deg, #1d4ed8, #22D3EE)' : `linear-gradient(135deg, ${cor}, #1b2a63)`, color: '#fff',
+    boxShadow: `0 8px 30px ${cor}66`, border: '3px solid rgba(255,255,255,.55)', flexShrink: 0 }}>
+    {quem ? <Avatar src={photo} size="clamp(84px, 22vw, 130px)" borda="#fff" fogo={fogo} />
+      : <img src={humor === 'bravo' ? MASCOTE_BRAVO : MASCOTE} alt="" style={{ width: 'clamp(84px, 22vw, 130px)', height: 'clamp(84px, 22vw, 130px)', objectFit: 'contain' }} />}
+    <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={{ fontSize: 'clamp(11px, 2.8vw, 14px)', fontWeight: 900, letterSpacing: '.12em', opacity: .9 }}>{titulo}</div>
+      {quem && <div style={{ fontFamily: 'var(--font-brand)', fontSize: 'clamp(26px, 7vw, 44px)', fontWeight: 900, lineHeight: 1.05, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {souEu ? 'VOCÊ!' : primeiro(quem)}
+      </div>}
+      {sub && <div style={{ fontSize: 'clamp(13px, 3.2vw, 17px)', fontWeight: 700, marginTop: 2, lineHeight: 1.3 }}>{sub}</div>}
+      {vidas != null && <div style={{ marginTop: 4 }}><Coracoes n={vidas} total={total} /></div>}
+      {fala && <div style={{ marginTop: 6, fontSize: 'clamp(12px, 3vw, 15px)', fontWeight: 700, background: 'rgba(255,255,255,.2)', borderRadius: 12, padding: '5px 10px', display: 'inline-block' }}>🐙 {fala}</div>}
+    </div>
+    {tempo != null && (
+      <div style={{ textAlign: 'center', flexShrink: 0 }}>
+        <div style={{ fontFamily: 'var(--font-brand)', fontSize: 'clamp(34px, 9vw, 58px)', fontWeight: 900, lineHeight: 1, color: typeof tempo === 'number' && tempo <= 10 ? '#FFE066' : '#fff' }}>{tempo}</div>
+        <div style={{ fontSize: 11, fontWeight: 800, opacity: .85 }}>SEGUNDOS</div>
+      </div>
+    )}
+  </div>
+);
+
+/* Cartão da PALAVRA: letras grandes (coloridas por quem jogou) + a letra que a última pessoa escolheu. */
+const CardPalavra = ({ letras, ordem, mostrar, novaIdx, cardBg }) => {
   const corDe = (n) => CORES[Math.max(0, ordem.indexOf(n)) % CORES.length];
-  const passo = 360 / Math.max(letras.length, 10);
+  const ult = letras[letras.length - 1];
+  const tile = (x, i, grande) => (
+    <div key={`${i}_${x.l}`} className="up-letra2" title={primeiro(x.by)}
+      style={{ width: grande ? 'clamp(64px, 18vw, 96px)' : 'clamp(38px, 10vw, 58px)', aspectRatio: '1', borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: corDe(x.by), color: '#fff', fontFamily: 'var(--font-brand)', fontWeight: 900, fontSize: grande ? 'clamp(36px, 10vw, 56px)' : 'clamp(22px, 6vw, 34px)',
+        border: '3px solid rgba(255,255,255,.85)', boxShadow: `0 4px 14px ${corDe(x.by)}88` }}>
+      {mostrar || i === novaIdx ? x.l.toUpperCase() : '?'}
+    </div>
+  );
   return (
-    <div style={{ position: 'relative', width: 'min(100%, 860px, max(340px, calc(100vh - 190px)))', aspectRatio: '1 / 1', margin: '0 auto', containerType: 'inline-size',
-      borderRadius: '50%', flexShrink: 0,
-      background: 'radial-gradient(circle at 50% 50%, rgba(10,20,70,.55) 0%, rgba(5,10,40,.4) 62%, rgba(3,6,24,.15) 100%)',
-      boxShadow: '0 12px 44px rgba(47,123,255,.28), inset 0 0 0 2px rgba(34,211,238,.25)' }}>
-      {/* anéis neon decorativos */}
-      <div style={{ position: 'absolute', inset: '18%', borderRadius: '50%', border: '1.5px dashed rgba(34,211,238,.28)', pointerEvents: 'none' }} />
-      <div style={{ position: 'absolute', inset: '9%', borderRadius: '50%', border: '1px solid rgba(47,123,255,.22)', pointerEvents: 'none' }} />
-
-      {/* MASCOTE no centro */}
-      <img src={humor === 'bravo' ? MASCOTE_BRAVO : MASCOTE} alt="" draggable={false}
-        className={`up-mascote${humor === 'bravo' ? ' up-treme' : humor === 'feliz' ? ' up-pula' : ''}`}
-        style={{ position: 'absolute', left: '50%', top: '50%', width: '36%', height: '36%', objectFit: 'contain',
-          transform: 'translate(-50%,-50%)', pointerEvents: 'none', userSelect: 'none',
-          filter: humor === 'bravo' ? 'drop-shadow(0 0 24px rgba(255,40,40,.75))' : 'drop-shadow(0 0 22px rgba(34,211,238,.6))' }} />
-
-      {/* LETRAS formando a palavra ao redor do mascote */}
-      {letras.map((x, i) => {
-        const a = (-90 + i * passo) * Math.PI / 180;
-        return (
-          <div key={`${i}_${x.l}`} className="up-letra" title={primeiro(x.by)}
-            style={{ position: 'absolute', left: `${50 + 27 * Math.cos(a)}%`, top: `${50 + 27 * Math.sin(a)}%`,
-              width: '8%', aspectRatio: '1', transform: 'translate(-50%,-50%)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: corDe(x.by), color: '#fff', fontFamily: 'var(--font-brand)', fontWeight: 900, fontSize: '5cqw',
-              border: '2px solid rgba(255,255,255,.85)', boxShadow: `0 0 12px ${corDe(x.by)}aa` }}>
-            {mostrar || i === novaIdx ? x.l.toUpperCase() : '?'}
+    <div style={{ background: cardBg, border: `2px solid ${T.border}`, borderRadius: 20, padding: 'clamp(14px, 3vw, 20px)', boxShadow: T.sh, flexShrink: 0 }}>
+      <div style={{ fontSize: 12, fontWeight: 900, color: T.textT, letterSpacing: '.12em', marginBottom: 8, textAlign: 'center' }}>PALAVRA NA MESA</div>
+      {letras.length === 0 ? (
+        <div style={{ textAlign: 'center', fontSize: 'clamp(16px, 4vw, 20px)', fontWeight: 800, color: T.textT, padding: '10px 0' }}>Ainda não tem nenhuma letra</div>
+      ) : (
+        <>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>{letras.map((x, i) => tile(x, i, false))}</div>
+          <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px dashed ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14 }}>
+            <div style={{ textAlign: 'right', fontSize: 'clamp(13px, 3.4vw, 17px)', fontWeight: 800, color: T.text, lineHeight: 1.25 }}>
+              <div style={{ fontSize: 11, color: T.textT, letterSpacing: '.1em' }}>ÚLTIMA LETRA</div>
+              {primeiro(ult.by)} escolheu
+            </div>
+            {tile(ult, letras.length - 1, true)}
           </div>
-        );
-      })}
-
-      {/* BALÃO DE FALA do mascote */}
-      {fala && (
-        <div key={fala} className="up-balao" style={{ position: 'absolute', left: '50%', top: '64%', zIndex: 3, width: 'max-content', maxWidth: '46%',
-          padding: '1.2cqw 2cqw', borderRadius: 14, background: '#fff', color: '#111a3a', textAlign: 'center', fontWeight: 800,
-          fontSize: 'clamp(11px, 2.5cqw, 17px)', lineHeight: 1.25, boxShadow: '0 4px 18px rgba(0,0,0,.4)',
-          border: `2px solid ${humor === 'bravo' ? '#EF4444' : '#22D3EE'}` }}>
-          <span style={{ position: 'absolute', left: '50%', top: -9, marginLeft: -8, width: 0, height: 0,
-            borderLeft: '8px solid transparent', borderRight: '8px solid transparent',
-            borderBottom: `9px solid ${humor === 'bravo' ? '#EF4444' : '#22D3EE'}` }} />
-          {fala}
-        </div>
+        </>
       )}
+    </div>
+  );
+};
 
-      {/* JOGADORES ao redor */}
-      {seats.map((p, i) => {
-        const a = (-90 + i * (360 / seats.length)) * Math.PI / 180;
-        const minhaVez = vez === p.name, ehAlvo = alvo === p.name;
+/* Faixa de jogadores: foto do Uniko ativo, nome e vidas. Quem tem a vez fica destacado. */
+const FaixaJogadores = ({ seats, ordem, vez, alvo, cardBg }) => {
+  const corDe = (n) => CORES[Math.max(0, ordem.indexOf(n)) % CORES.length];
+  return (
+    <div style={{ display: 'flex', gap: 10, overflowX: 'auto', padding: '10px 12px', background: cardBg, border: `1px solid ${T.border}`, borderRadius: 16, boxShadow: T.sh, flexShrink: 0 }} className="up-scroll">
+      {seats.map(p => {
+        const minha = vez === p.name, ehAlvo = alvo === p.name;
         return (
-          <div key={p.name} style={{ position: 'absolute', left: `${50 + 40.5 * Math.cos(a)}%`, top: `${50 + 40.5 * Math.sin(a)}%`,
-            transform: 'translate(-50%,-50%)', width: '20%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-            opacity: p.out ? 0.38 : 1, filter: p.out ? 'grayscale(1)' : 'none' }}>
-            <div className={minhaVez ? 'up-fogo' : ''} style={{ position: 'relative', width: '62%', aspectRatio: '1', borderRadius: '50%' }}>
-              {minhaVez && <>
-                <span className="up-chama" style={{ left: '-14%', top: '8%', animationDelay: '0s' }}>🔥</span>
-                <span className="up-chama" style={{ left: '38%', top: '-30%', animationDelay: '.35s', fontSize: '1.5em' }}>🔥</span>
-                <span className="up-chama" style={{ right: '-14%', top: '8%', animationDelay: '.7s' }}>🔥</span>
-              </>}
-              <img src={p.photo || '/UNIKO_NEW.png'} alt=""
-                style={{ position: 'relative', zIndex: 1, width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover', background: '#1b2a63',
-                  border: `2.5px solid ${ehAlvo ? P.vermelho : minhaVez ? '#FFB300' : corDe(p.name)}`,
-                  boxShadow: ehAlvo ? `0 0 14px ${P.vermelho}` : 'none' }} />
-            </div>
-            <div style={{ fontSize: 'clamp(10px, 3cqw, 16px)', fontWeight: 800, color: '#fff', maxWidth: '100%', textAlign: 'center',
-              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textShadow: '0 1px 4px rgba(0,0,0,.8)' }}>
-              {primeiro(p.name)}{p.ausente ? ' 💤' : ''}
-            </div>
-            {p.vidas != null && (p.out ? <span style={{ fontSize: 'clamp(10px, 2.6cqw, 13px)' }}>💀</span> : <Coracoes n={p.vidas} total={p.total} />)}
+          <div key={p.name} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, minWidth: 64, opacity: p.out ? 0.4 : 1, filter: p.out ? 'grayscale(1)' : 'none' }}>
+            <img src={p.photo || '/UNIKO_NEW.png'} alt="" style={{ width: 52, height: 52, borderRadius: '50%', objectFit: 'cover', background: '#1b2a63',
+              border: `3.5px solid ${ehAlvo ? P.vermelho : minha ? '#FFB300' : corDe(p.name)}`, boxShadow: minha ? '0 0 12px #FFB300' : ehAlvo ? `0 0 12px ${P.vermelho}` : 'none' }} />
+            <div style={{ fontSize: 12.5, fontWeight: 800, color: T.text, maxWidth: 74, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{primeiro(p.name)}{p.ausente ? ' 💤' : ''}</div>
+            {p.vidas != null && (p.out ? <span style={{ fontSize: 14 }}>💀</span> : <span style={{ fontSize: 13, color: '#FF4D6D', fontWeight: 900, whiteSpace: 'nowrap' }}>{'♥'.repeat(Math.min(p.vidas, 5))}</span>)}
           </div>
         );
       })}
@@ -678,7 +681,6 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
   const noLobby = !state || state.phase === 'lobby';
   const ordem = state?.ordem || [];
   const letras = state?.letras || [];
-  const frag = fragmentoDe(state);
   const secs = state?.endsAt ? Math.max(0, Math.ceil((state.endsAt - now) / 1000)) : 0;
   const minhaVez = fase === 'jogando' && state?.vez === name;
   const ultimoPor = letras.length ? letras[letras.length - 1].by : null;
@@ -916,10 +918,6 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
     // jogando
     return (
       <div style={{ textAlign: 'center' }}>
-        <div style={{ fontSize: 11, fontWeight: 800, color: T.textT, letterSpacing: '.08em' }}>PALAVRA NA MESA</div>
-        <div style={{ fontFamily: 'var(--font-brand)', fontSize: 26, fontWeight: 900, letterSpacing: 6, color: T.text, minHeight: 34 }}>
-          {frag ? fragV : '—'}
-        </div>
         {state.aviso && <div className="up-fade" style={{ fontSize: 12.5, color: P.amarelo, fontWeight: 700, margin: '2px 0 6px' }}>{state.aviso}</div>}
         {botaoEspiar}
         {podeFormou && (
@@ -930,11 +928,11 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
         )}
         {minhaVez ? (
           <>
-            <div style={{ fontSize: 13, fontWeight: 800, color: P.azul, margin: '2px 0 9px' }}>Sua vez! ({secs}s)</div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: T.text, margin: '2px 0 10px' }}>Digite UMA letra para continuar a palavra — ou duvide de {primeiro(ultimoPor) || 'quem jogou'}.</div>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
               <input autoFocus value={letra} onChange={e => setLetra(e.target.value.slice(-1))} maxLength={1}
                 onKeyDown={e => e.key === 'Enter' && jogarLetra()} placeholder="A"
-                style={{ ...inputCss, width: 64, textAlign: 'center', fontSize: 22, textTransform: 'uppercase' }} />
+                style={{ ...inputCss, width: 84, textAlign: 'center', fontSize: 32, fontWeight: 900, textTransform: 'uppercase' }} />
               <button className="up-btn" onClick={jogarLetra} disabled={!normLetra(letra)}
                 style={{ ...btnBase, background: normLetra(letra) ? `linear-gradient(135deg, ${P.azul}, ${P.ciano})` : T.textD, cursor: normLetra(letra) ? 'pointer' : 'not-allowed' }}>
                 Jogar letra
@@ -947,13 +945,37 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
             </div>
           </>
         ) : (
-          <div style={{ fontSize: 13, fontWeight: 700, color: T.textT, marginTop: 4 }}>
-            Vez de <b style={{ color: T.text }}>{primeiro(state.vez)}</b> ({secs}s)
+          <div style={{ fontSize: 14, fontWeight: 700, color: T.textT, marginTop: 4 }}>
+            Espere <b style={{ color: T.text }}>{primeiro(state.vez)}</b> jogar. Se achar que a palavra já está completa, toque em “Formou palavra!”.
           </div>
         )}
       </div>
     );
   };
+
+  const corVez = (n) => CORES[Math.max(0, ordem.indexOf(n)) % CORES.length];
+  const seatDe = (n) => seats.find(x => x.name === n);
+  const cartaoVez = (() => {
+    if (!state) return null;
+    if (fase === 'jogando') {
+      const q = state.vez, st = seatDe(q);
+      return <CardVez titulo={minhaVez ? 'É A SUA VEZ' : 'É A VEZ DE'} quem={q} photo={st?.photo} cor={corVez(q)} tempo={secs} vidas={st?.vidas} total={vidasIni}
+        souEu={minhaVez} fogo fala={fala} humor={humor} sub={minhaVez ? 'Jogue uma letra agora!' : null} />;
+    }
+    if (fase === 'duvida' && state.duvida) {
+      const d = state.duvida, q = d.alvo, st = seatDe(q);
+      const tempo = d.duelo ? `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}` : secs;
+      return <CardVez titulo="VOTAÇÃO — DÚVIDA" quem={q} photo={st?.photo} cor={P.vermelho} tempo={tempo} vidas={st?.vidas} total={vidasIni}
+        souEu={souAlvo} fala={fala} humor="bravo"
+        sub={d.tipo === 'blefe' ? `${primeiro(d.por)} duvidou da letra de ${primeiro(q)}` : `${primeiro(d.por)} diz que ${primeiro(q)} formou uma palavra`} />;
+    }
+    if (fase === 'pausa' && state.evento) {
+      const q = state.evento.quem, st = seatDe(q);
+      return <CardVez titulo={state.evento.eliminado ? 'ELIMINADO' : 'PERDEU UMA VIDA'} quem={q} photo={st?.photo || fotoDe(q)} cor={P.vermelho} humor="bravo" fala={fala} />;
+    }
+    if (fase === 'fim') return <CardVez titulo="FIM DE JOGO" cor={P.verde} humor="feliz" fala={fala} />;
+    return <CardVez titulo="SALA DE ESPERA" cor={P.azul} fala={fala} />;
+  })();
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12, height: '100%', minHeight: 0, overflow: 'hidden', padding: 12, borderRadius: 18, position: 'relative',
@@ -986,16 +1008,20 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
         )}
       </div>
 
-      <div className="up-wrap">
-        <div className="up-main">
-          <Arena seats={seats} letras={letras} ordem={ordem} vez={fase === 'jogando' ? state?.vez : null}
-            alvo={fase === 'duvida' ? state?.duvida?.alvo : null} humor={humor} fala={fala} mostrar={mostrar} novaIdx={novaIdx} />
-        </div>
-        <div className="up-panel up-scroll" style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 14, padding: 16, boxShadow: T.sh }}>
-          {!state ? <div style={{ textAlign: 'center', fontSize: 13, color: T.textT }}>Carregando sala...</div> : painel()}
-        </div>
-        <div className="up-side">
-          <ChatSala mensagens={chatMsgs} texto={chatTexto} setTexto={setChatTexto} onEnviar={enviarChat} name={name} cardBg={cardBg} />
+      <div className="up-wrap up-scroll">
+        <div className="up-col">
+          {!state ? <div style={{ textAlign: 'center', fontSize: 13, color: T.textT }}>Carregando sala...</div> : (
+            <>
+              {cartaoVez}
+              {(fase === 'jogando' || fase === 'duvida') && <CardPalavra letras={letras} ordem={ordem} mostrar={mostrar} novaIdx={novaIdx} cardBg={cardBg} />}
+              <div style={{ background: cardBg, border: `2px solid ${T.border}`, borderRadius: 20, padding: 18, boxShadow: T.sh, flexShrink: 0 }}>{painel()}</div>
+              <FaixaJogadores seats={seats} ordem={ordem} vez={fase === 'jogando' ? state.vez : null}
+                alvo={fase === 'duvida' ? state.duvida?.alvo : null} cardBg={cardBg} />
+            </>
+          )}
+          <div className="up-chatbox">
+            <ChatSala mensagens={chatMsgs} texto={chatTexto} setTexto={setChatTexto} onEnviar={enviarChat} name={name} cardBg={cardBg} />
+          </div>
         </div>
       </div>
     </div>
