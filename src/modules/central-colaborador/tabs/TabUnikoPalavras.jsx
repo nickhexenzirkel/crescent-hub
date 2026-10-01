@@ -70,12 +70,6 @@ const CSS = `
 .up-balao { animation: upBalao .3s cubic-bezier(.2,1.4,.4,1) both; }
 @keyframes upBalao { from { opacity: 0; transform: translate(-50%, 8px) scale(.85); } to { opacity: 1; transform: translate(-50%, 0) scale(1); } }
 .up-letra { animation: upPop .35s cubic-bezier(.2,1.4,.4,1) both; }
-.up-fogo::before, .up-fogo::after { content: ''; position: absolute; border-radius: 50%; pointer-events: none; }
-.up-fogo::before { inset: -16%; background: conic-gradient(from 0deg, #ff2d00, #ffb300, #ff6d00, #ffe600, #ff2d00); filter: blur(6px); animation: upSpin 1.4s linear infinite, upFlicker .18s steps(2) infinite alternate; }
-.up-fogo::after { inset: -8%; background: conic-gradient(from 180deg, #ffe600, #ff6d00, #ff2d00, #ffb300, #ffe600); filter: blur(3px); animation: upSpin 0.9s linear infinite reverse, upFlicker .23s steps(2) infinite alternate; }
-.up-chama { position: absolute; z-index: 2; font-size: 1.05em; line-height: 1; pointer-events: none; animation: upChama 1s ease-in infinite; filter: drop-shadow(0 0 5px #ff6d00); }
-@keyframes upFlicker { from { opacity: .95; transform: scale(1); } to { opacity: .72; transform: scale(1.07); } }
-@keyframes upChama { 0% { transform: translateY(6px) scale(.6); opacity: 0; } 30% { opacity: 1; } 100% { transform: translateY(-14px) scale(1.15); opacity: 0; } }
 .up-fade { animation: upFade .3s ease both; }
 .up-btn { transition: transform .12s ease, filter .12s ease; }
 .up-btn:not(:disabled):hover { transform: translateY(-1px); filter: brightness(1.07); }
@@ -87,7 +81,7 @@ const CSS = `
 .up-letra2 { animation: upPop2 .35s cubic-bezier(.2,1.4,.4,1) both; }
 @keyframes upPop2 { 0% { transform: scale(.2) rotate(-20deg); opacity: 0; } 65% { transform: scale(1.15); } 100% { transform: scale(1); opacity: 1; } }
 @media (prefers-reduced-motion: reduce) {
-  .up-estrela, .up-bolha, .up-mascote, .up-balao, .up-letra, .up-letra2, .up-fade, .up-fogo::before, .up-fogo::after, .up-chama { animation: none !important; }
+  .up-estrela, .up-bolha, .up-mascote, .up-balao, .up-letra, .up-letra2, .up-fade { animation: none !important; }
 }
 `;
 
@@ -234,19 +228,19 @@ const Coracoes = ({ n, total = VIDAS }) => (
 /* ═══════════════════════════════════════════════════════════════════════════
    CARTÕES DA SALA — layout de chat: cartão da VEZ, cartão da PALAVRA, jogadores e chat
    ═══════════════════════════════════════════════════════════════════════════ */
-const Avatar = ({ src, size, borda, fogo }) => (
-  <div className={fogo ? 'up-fogo' : ''} style={{ position: 'relative', width: size, height: size, borderRadius: '50%', flexShrink: 0 }}>
+const Avatar = ({ src, size, borda }) => (
+  <div style={{ position: 'relative', width: size, height: size, borderRadius: '50%', flexShrink: 0 }}>
     <img src={src || '/UNIKO_NEW.png'} alt="" style={{ position: 'relative', zIndex: 1, width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover',
       background: '#1b2a63', border: `4px solid ${borda}` }} />
   </div>
 );
 
 /* Cartão GRANDE: de quem é a vez (ou quem está sendo julgado), com o Uniko assistente ativo da pessoa. */
-const CardVez = ({ titulo, sub, quem, photo, cor, tempo, vidas, total, souEu, fala, humor, fogo }) => (
+const CardVez = ({ titulo, sub, quem, photo, cor, tempo, vidas, total, souEu, fala, humor }) => (
   <div className="up-fade" style={{ borderRadius: 20, padding: 'clamp(14px, 3vw, 22px)', display: 'flex', alignItems: 'center', gap: 'clamp(12px, 3vw, 22px)',
     background: souEu ? 'linear-gradient(135deg, #1d4ed8, #22D3EE)' : `linear-gradient(135deg, ${cor}, #1b2a63)`, color: '#fff',
     boxShadow: `0 8px 30px ${cor}66`, border: '3px solid rgba(255,255,255,.55)', flexShrink: 0 }}>
-    {quem ? <Avatar src={photo} size="clamp(84px, 22vw, 130px)" borda="#fff" fogo={fogo} />
+    {quem ? <Avatar src={photo} size="clamp(84px, 22vw, 130px)" borda="#fff" />
       : <img src={humor === 'bravo' ? MASCOTE_BRAVO : MASCOTE} alt="" style={{ width: 'clamp(84px, 22vw, 130px)', height: 'clamp(84px, 22vw, 130px)', objectFit: 'contain' }} />}
     <div style={{ flex: 1, minWidth: 0 }}>
       <div style={{ fontSize: 'clamp(11px, 2.8vw, 14px)', fontWeight: 900, letterSpacing: '.12em', opacity: .9 }}>{titulo}</div>
@@ -731,30 +725,11 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
     </button>
   );
 
-  /* ── Mascote fala: balão + voz (speechSynthesis pt-BR, com botão de mudo) ── */
+  /* ── Mascote fala: só texto no cartão (sem voz) ── */
   const [msg, setMsg] = useState(null);                 // fala pontual {t, until, humor}
-  const [vozOn, setVozOn] = useState(() => { try { return localStorage.getItem('up_voz') !== '0'; } catch { return true; } });
-  const vozRef = useRef(vozOn);
-  useEffect(() => {
-    vozRef.current = vozOn;
-    try { localStorage.setItem('up_voz', vozOn ? '1' : '0'); } catch { /* sem localStorage */ }
-    if (!vozOn) { try { window.speechSynthesis?.cancel(); } catch { /* sem voz */ } }
-  }, [vozOn]);
-  useEffect(() => () => { try { window.speechSynthesis?.cancel(); } catch { /* sem voz */ } }, []);
-  const dizer = useCallback((t) => {
-    if (!vozRef.current) return;
-    try {
-      const ss = window.speechSynthesis; if (!ss) return;
-      ss.cancel();
-      const u = new SpeechSynthesisUtterance(String(t).replace(/[^\p{L}\p{N}\s.,!?'-]/gu, ''));
-      u.lang = 'pt-BR'; u.rate = 1.05; u.pitch = 1.15;
-      ss.speak(u);
-    } catch { /* sem voz: o balão basta */ }
-  }, []);
-  const falar = useCallback((t, ms = 3200, humor = null, voz) => {
+  const falar = useCallback((t, ms = 3200, humor = null) => {
     setMsg({ t, until: nowMs() + ms, humor });
-    dizer(voz || t);
-  }, [dizer]);
+  }, []);
 
   /* Anuncia as transições (nova rodada, letra jogada, dúvida, vida perdida, fim). */
   const ultAnun = useRef(null);
@@ -777,25 +752,13 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
       falar(d.duelo ? `${eu1(d.por)} duvidou! Só restam dois: os dois precisam concordar em 5 minutos.` : d.tipo === 'blefe' ? `${eu1(d.por)} duvidou de ${eu1(d.alvo)}! Será que é blefe?` : `${eu1(d.por)} diz que ${eu1(d.alvo)} formou uma palavra!`, 3600, 'bravo');
     } else if (fase === 'pausa' && state.evento) {
       const q = eu1(state.evento.quem);
-      falar(state.evento.eliminado ? `${q} eliminado!` : `${q} perdeu uma vida! 💔`, 3200, 'bravo',
-        state.evento.eliminado ? `${q} eliminado!` : `${q} perdeu uma vida!`);
+      falar(state.evento.eliminado ? `${q} eliminado!` : `${q} perdeu uma vida! 💔`, 3200, 'bravo');
     } else if (fase === 'fim') {
       falar(state.vencedor ? `${eu1(state.vencedor)} venceu! Parabéns!` : 'Empate! Ninguém ganhou.', 7000, state.vencedor ? 'feliz' : 'bravo');
     }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fase, state?.round, letras.length, state?.vez, state?.evento?.ts, state?.duvida?.por, state?.duvida?.tipo]);
-
-  /* Contagem regressiva falada: 10s e 5s pro fim da vez / da votação. */
-  const ultCont = useRef('');
-  useEffect(() => {
-    if ((fase !== 'jogando' && fase !== 'duvida') || (secs !== 10 && secs !== 5)) return;
-    const k = `${fase}_${state?.round}_${letras.length}_${secs}`;
-    if (ultCont.current === k) return;
-    ultCont.current = k;
-    dizer(fase === 'jogando' ? `Faltam ${secs} segundos para ${primeiro(state?.vez)} responder` : `Faltam ${secs} segundos para votar`);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [secs, fase]);
 
   const msgAtiva = msg && now < msg.until ? msg : null;
   const quemPerdeu = primeiro(state?.evento?.quem);
@@ -973,7 +936,7 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
     if (fase === 'jogando') {
       const q = state.vez, st = seatDe(q);
       return <CardVez titulo={minhaVez ? 'É A SUA VEZ' : 'É A VEZ DE'} quem={q} photo={st?.photo} cor={corVez(q)} tempo={secs} vidas={st?.vidas} total={vidasIni}
-        souEu={minhaVez} fogo fala={fala} humor={humor} sub={minhaVez ? 'Jogue uma letra agora!' : null} />;
+        souEu={minhaVez} fala={fala} humor={humor} sub={minhaVez ? 'Jogue uma letra agora!' : null} />;
     }
     if (fase === 'duvida' && state.duvida) {
       const d = state.duvida, q = d.alvo, st = seatDe(q);
@@ -1007,8 +970,6 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
             {players.length} na sala{!noLobby && state?.round ? ` · rodada ${state.round}` : ''}
           </div>
         </div>
-        <button className="up-btn" onClick={() => setVozOn(v => !v)} title={vozOn ? 'Silenciar a voz do mascote' : 'Ligar a voz do mascote'}
-          style={{ ...btnBase, padding: '7px 11px', fontSize: 15, background: 'rgba(255,255,255,.2)' }}>{vozOn ? '🔊' : '🔇'}</button>
         {confirmSair ? (
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             <span style={{ fontSize: 12, color: '#fff', fontWeight: 700 }}>Sair da sala?</span>
