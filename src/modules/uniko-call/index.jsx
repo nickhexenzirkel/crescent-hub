@@ -66,8 +66,11 @@ const fmtDuration = (s) => {
   return `${m}:${String(sec).padStart(2, '0')}`;
 };
 
-const AudioPlayer = ({ src }) => {
+const IcoDownload = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12" /><polyline points="7 11 12 16 17 11" /><path d="M5 21h14" /></svg>);
+
+const AudioPlayer = ({ src, fileName = 'chamada' }) => {
   const audioRef = useRef(null);
+  const [downloading, setDownloading] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
@@ -130,6 +133,25 @@ const AudioPlayer = ({ src }) => {
     setCurrentTime(el.currentTime);
   };
 
+  // fetch + blob: o atributo `download` é ignorado em URLs de outra origem (Supabase Storage).
+  const download = async () => {
+    if (downloading) return;
+    setDownloading(true);
+    try {
+      const res = await fetch(src);
+      if (!res.ok) throw new Error(String(res.status));
+      const blob = await res.blob();
+      const ext = (src.split('?')[0].match(/\.(\w{2,4})$/) || [])[1] || (blob.type.includes('mp4') ? 'm4a' : blob.type.includes('mpeg') ? 'mp3' : 'webm');
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `${fileName}.${ext}`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    } catch {
+      window.open(src, '_blank', 'noopener');
+    } finally { setDownloading(false); }
+  };
+
   const pct = duration ? Math.min(100, (currentTime / duration) * 100) : 0;
 
   return (
@@ -148,6 +170,9 @@ const AudioPlayer = ({ src }) => {
           <span>{fmtDuration(duration)}</span>
         </div>
       </div>
+      <button onClick={download} disabled={downloading} title="Baixar áudio" style={{ width: 28, height: 28, borderRadius: '50%', border: `1px solid ${T.border}`, background: 'transparent', color: T.textS, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: downloading ? 'wait' : 'pointer', flexShrink: 0, opacity: downloading ? 0.5 : 1 }}>
+        <IcoDownload />
+      </button>
     </div>
   );
 };
@@ -322,7 +347,7 @@ const UnikoCall = ({ onBack }) => {
                       <div style={{ color: T.green || '#3ba55c', fontWeight: 800, fontSize: 12.5, marginBottom: 6 }}>✅ Aviso prévio de ligação dito</div>
                     )}
                     {call.audio_url && (
-                      <AudioPlayer src={call.audio_url} />
+                      <AudioPlayer src={call.audio_url} fileName={`chamada-${call.protocol}`} />
                     )}
                     {status
                       ? <span style={{ color: call.status === 'error' ? T.danger : T.textT, fontStyle: 'italic' }}>{status}</span>
