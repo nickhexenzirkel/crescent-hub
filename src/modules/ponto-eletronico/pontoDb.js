@@ -188,6 +188,48 @@ export async function savePontoSnapshot({ marks, nameMap, excluded, header }) {
   return { total: markRows.length };
 }
 
+/* Liga sozinho (ponto_vinculo) quem tem marcações mas ainda não tem vínculo, quando o NOME
+   no ponto é idêntico (sem acento/caixa) ao de UM único colaborador do portal. Sem isso a
+   RLS devolve ponto vazio pro colaborador (ele vê 0 horas).
+   Devolve { criados: [nome], pendentes: [nome] } — pendentes = sem nome idêntico, RH vincula na mão. */
+export async function autoVincularPonto() {
+  const out = { criados: [], pendentes: [] };
+  try {
+    const r = await fetch(`${SERVER_URL}/api/employees`, {
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('ch_token') || ''}` },
+    });
+    if (!r.ok) return out;
+    const emps = ((await r.json()).employees || []).filter(e => !e.desligado);
+    const norm = s => (s || '').toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '').replace(/\s+/g, ' ').trim();
+    const [{ data: funcs }, { data: vinc }] = await Promise.all([
+      supabase.from('ponto_funcionarios').select('cpf,nome,excluido'),
+      supabase.from('ponto_vinculo').select('portal_cpf,ponto_id'),
+    ]);
+    const jaPonto = new Set((vinc || []).map(v => v.ponto_id));
+    const jaPortal = new Set((vinc || []).map(v => v.portal_cpf));
+    const empCpfs = new Set(emps.map(e => soDigitos(e.cpf)));
+    const porNome = {}, funcPorNome = {};
+    for (const e of emps) (porNome[norm(e.name)] ||= []).push(e);
+    for (const f of (funcs || [])) if (!f.excluido) (funcPorNome[norm(f.nome)] ||= []).push(f);
+
+    const novos = [];
+    for (const f of (funcs || [])) {
+      if (f.excluido || !f.cpf || !f.nome || jaPonto.has(f.cpf) || empCpfs.has(f.cpf)) continue;
+      const n = norm(f.nome);
+      const cand = porNome[n] || [];
+      if (cand.length === 1 && (funcPorNome[n] || []).length === 1 && !jaPortal.has(soDigitos(cand[0].cpf))) {
+        novos.push({ portal_cpf: soDigitos(cand[0].cpf), ponto_id: f.cpf, ponto_nome: f.nome, updated_at: nowISO() });
+        out.criados.push(f.nome);
+      } else out.pendentes.push(f.nome);
+    }
+    if (novos.length) {
+      const { error } = await supabase.from('ponto_vinculo').upsert(novos, { onConflict: 'portal_cpf' });
+      if (error) { out.pendentes.push(...out.criados); out.criados = []; }
+    }
+  } catch { /* melhor esforço: não atrapalha a importação */ }
+  return out;
+}
+
 /* Persiste o RESUMO de presença por funcionário e MÊS (saldo em min + nº de inconsistências).
    Usado pela missão "Presença Impecável" da Prisma Store (saldo 0 e 0 inconsistências no mês).
    Tabela: ponto_presenca (ver supabase_ponto_presenca.sql). */

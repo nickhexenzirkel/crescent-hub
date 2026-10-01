@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { T } from '../../contexts/theme';
 import { StarDivider, Card, Tag, Moon, Logo } from '../../shared/components';
-import { loadPonto, savePontoSnapshot, saveJustificativa, savePontoPresenca, savePontoNegativos, loadSolicitacoes, uploadJustifAnexo, loadDesligados } from './pontoDb';
+import { loadPonto, savePontoSnapshot, saveJustificativa, savePontoPresenca, savePontoNegativos, loadSolicitacoes, uploadJustifAnexo, loadDesligados, autoVincularPonto } from './pontoDb';
 
 /* ══════════════════════════════════════════════════════════════════
    PONTO ELETRÔNICO — Leitor de AFD (Portaria 671 / 1510)
@@ -447,10 +447,11 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
         const ext = extractAFD(e.target.result);
         if (!ext.marks.length) { setErr('Nenhuma marcação encontrada. Verifique se é um AFD válido (Portaria 671 ou 1510).'); setLoad(false); setSyncing(false); return; }
         await savePontoSnapshot(ext);
+        const vinc = await autoVincularPonto();
         const d = await loadPonto();
         setJustifs(d.justifs);
         setRawData({ marks:d.marks, nameMap:d.nameMap, excluded:d.excluded, header: ext.header || d.header });
-        setUploadReport({ nsrGaps: ext.nsrGaps, total: ext.marks.length, fileName: file.name });
+        setUploadReport({ nsrGaps: ext.nsrGaps, total: ext.marks.length, fileName: file.name, vincCriados: vinc.criados, vincPendentes: vinc.pendentes });
         setTab('usuarios');
         setSelEmp(null);
         setCalIdx(0);
@@ -1101,6 +1102,8 @@ const PontoEletronico = ({onBack, isAdmin=false}) => {
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#1A9C70" strokeWidth="2.2" strokeLinecap="round" style={{flexShrink:0}}><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
             <div style={{flex:1,fontSize:13,color:T.textS}}>
               <strong style={{color:T.text}}>{uploadReport.fileName}</strong> processado — {uploadReport.total} marcação{uploadReport.total!==1?'ões':''} enviada{uploadReport.total!==1?'s':''} ao banco (duplicadas ignoradas). Banco de horas atualizado.
+              {uploadReport.vincCriados?.length>0&&(<div style={{marginTop:4,color:'#1A9C70'}}>Vínculo com o portal criado automaticamente: {uploadReport.vincCriados.join(', ')}.</div>)}
+              {uploadReport.vincPendentes?.length>0&&(<div style={{marginTop:4,color:'#B8860B'}}>Sem vínculo (nome não bate com nenhum colaborador — vincule em Dashboard RH → Vínculo Ponto, senão a pessoa verá 0 horas): {uploadReport.vincPendentes.join(', ')}.</div>)}
             </div>
             <button onClick={()=>setUploadReport(null)} style={{flexShrink:0,background:'transparent',border:'none',cursor:'pointer',color:T.textD,fontSize:16,lineHeight:1,outline:'none'}}>✕</button>
           </div>
