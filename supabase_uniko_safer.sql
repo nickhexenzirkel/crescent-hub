@@ -20,7 +20,7 @@ create table if not exists public.uniko_safer_contacts (
   name         text not null,
   phone_number text,
   notes        text,
-  category     text not null default 'faturamento' check (category in ('faturamento','financeiro','suporte_tecnico','contratual')),
+  category     text not null default 'faturamento' check (category in ('faturamento','financeiro')),
   created_at   timestamptz not null default now(),
   updated_at   timestamptz not null default now()
 );
