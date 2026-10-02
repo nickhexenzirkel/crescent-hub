@@ -101,10 +101,16 @@ const IcoAudit = () => (
 // contatos — abas dentro do módulo (não módulos separados no seletor
 // principal). Contato antigo sem categoria (coluna nova) cai em
 // 'faturamento' por padrão — era o que já estava sincronizado.
+// `conta` = qual número de WhatsApp (sessão do WhatsApp Web na VPS) atende o
+// setor. Faturamento e Financeiro dividem o número principal; Suporte Técnico
+// e Contratual têm cada um o seu (QR Code próprio).
 const CATEGORIES = [
-  { id: 'faturamento', label: 'Faturamento' },
-  { id: 'financeiro', label: 'Financeiro' },
+  { id: 'faturamento', label: 'Faturamento', conta: 'principal' },
+  { id: 'financeiro', label: 'Financeiro', conta: 'principal' },
+  { id: 'suporte_tecnico', label: 'Suporte Técnico', conta: 'suporte' },
+  { id: 'contratual', label: 'Contratual', conta: 'contratual' },
 ];
+const contaDoSetor = (catId) => CATEGORIES.find(c => c.id === catId)?.conta || 'principal';
 
 // Paleta curada pras etiquetas — em vez de um seletor de cor livre, mantém
 // visual consistente com o resto do Portal.
@@ -178,6 +184,8 @@ const UnikoSafer = ({ onBack }) => {
   const [autoModalOpen, setAutoModalOpen] = useState(false);
   const [autoStep, setAutoStep] = useState('connect'); // 'connect' | 'choose' | 'running'
   const [autoCategory, setAutoCategory] = useState('faturamento');
+  const autoCategoryRef = useRef('faturamento');
+  autoCategoryRef.current = autoCategory;
   const [autoPauseSeconds, setAutoPauseSeconds] = useState(8);
   const [autoConnectMsg, setAutoConnectMsg] = useState('');
   const [autoQrImage, setAutoQrImage] = useState(null);
@@ -621,7 +629,7 @@ const UnikoSafer = ({ onBack }) => {
 
   const checkWaStatus = async () => {
     try {
-      const res = await fetch(`${SERVER_URL}/api/safer/whatsapp/status`, { headers: authHeaders() });
+      const res = await fetch(`${SERVER_URL}/api/safer/whatsapp/status?conta=${contaDoSetor(autoCategoryRef.current)}`, { headers: authHeaders() });
       const data = await res.json();
       if (data.loggedIn) { setAutoQrImage(null); setAutoStep('choose'); return true; }
       if (data.needsQr) { setAutoQrImage(data.qrImageBase64); setAutoConnectMsg('Escaneie o QR Code com o celular do WhatsApp do setor.'); return false; }
@@ -636,10 +644,24 @@ const UnikoSafer = ({ onBack }) => {
   const openAutoModal = () => {
     setAutoStep('connect'); setAutoQrImage(null);
     setAutoConnectMsg('Verificando sessão do WhatsApp Web…');
+    autoCategoryRef.current = activeCategory;
     setAutoCategory(activeCategory); setAutoLog([]); setAutoJobId(null); setAutoStopping(false);
     autoProcessedIdx.current = new Set();
     setAutoModalOpen(true);
     checkWaStatus();
+  };
+
+  // Setor de outro número de WhatsApp = outra sessão: volta pro passo de
+  // conexão (QR Code) daquele número antes de liberar a importação.
+  const pickAutoCategory = (id) => {
+    const mudouConta = contaDoSetor(id) !== contaDoSetor(autoCategoryRef.current);
+    autoCategoryRef.current = id;
+    setAutoCategory(id);
+    if (mudouConta) {
+      setAutoStep('connect'); setAutoQrImage(null);
+      setAutoConnectMsg('Verificando sessão do WhatsApp Web…');
+      checkWaStatus();
+    }
   };
 
   // Enquanto não conecta, sonda a cada 3s (dá tempo do usuário escanear o QR Code).
@@ -655,7 +677,7 @@ const UnikoSafer = ({ onBack }) => {
     try {
       const res = await fetch(`${SERVER_URL}/api/safer/whatsapp/import/start`, {
         method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pauseSeconds: autoPauseSeconds }),
+        body: JSON.stringify({ pauseSeconds: autoPauseSeconds, conta: contaDoSetor(autoCategory) }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Falha ao iniciar a importação automática.');
@@ -742,13 +764,13 @@ const UnikoSafer = ({ onBack }) => {
     if (periodicSyncRunningRef.current) return;
     periodicSyncRunningRef.current = true;
     try {
-      const statusRes = await fetch(`${SERVER_URL}/api/safer/whatsapp/status`, { headers: authHeaders() });
+      const statusRes = await fetch(`${SERVER_URL}/api/safer/whatsapp/status?conta=${contaDoSetor(autoCategory)}`, { headers: authHeaders() });
       const statusData = await statusRes.json().catch(() => ({}));
       if (!statusData.loggedIn) { pushPeriodicSyncLog('WhatsApp Web não está conectado — pulando este ciclo.', 'error'); return; }
 
       const startRes = await fetch(`${SERVER_URL}/api/safer/whatsapp/import/start`, {
         method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pauseSeconds: 8, onlyChanged: true }),
+        body: JSON.stringify({ pauseSeconds: 8, onlyChanged: true, conta: contaDoSetor(autoCategory) }),
       });
       const startData = await startRes.json().catch(() => ({}));
       if (!startRes.ok || !startData.jobId) {
@@ -827,7 +849,7 @@ const UnikoSafer = ({ onBack }) => {
     // sim pode ter atividade nova de fato.
     (async () => {
       try {
-        const res = await fetch(`${SERVER_URL}/api/safer/whatsapp/sync/baseline`, { method: 'POST', headers: authHeaders() });
+        const res = await fetch(`${SERVER_URL}/api/safer/whatsapp/sync/baseline`, { method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify({ conta: contaDoSetor(autoCategory) }) });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
         if (!cancelled) pushPeriodicSyncLog(`Modo ativado — vigiando ${data.count ?? '?'} contato(s) a partir de agora.`, 'info');
@@ -927,12 +949,12 @@ const UnikoSafer = ({ onBack }) => {
               </div>
             </div>
 
-            <div style={{ padding: '0 16px 10px', display: 'flex', gap: 6 }}>
+            <div style={{ padding: '0 16px 10px', display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               {CATEGORIES.map(cat => {
                 const sel = activeCategory === cat.id;
                 return (
                   <button key={cat.id} onClick={() => switchCategory(cat.id)}
-                    style={{ flex: 1, padding: '8px 10px', borderRadius: 10, cursor: 'pointer', fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-body)',
+                    style={{ flex: '1 1 40%', padding: '8px 10px', borderRadius: 10, cursor: 'pointer', fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-body)',
                       border: `1.5px solid ${sel ? T.gold : T.border}`, background: sel ? T.goldGl : 'transparent', color: sel ? T.gold : T.textS }}>
                     {cat.label}
                   </button>
@@ -1284,7 +1306,7 @@ const UnikoSafer = ({ onBack }) => {
                     const sel = bulkCategory === cat.id;
                     return (
                       <button key={cat.id} onClick={() => setBulkCategory(cat.id)}
-                        style={{ flex: 1, padding: '10px 10px', borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-body)',
+                        style={{ flex: '1 1 40%', padding: '10px 10px', borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-body)',
                           border: `1.5px solid ${sel ? T.gold : T.border}`, background: sel ? T.goldGl : 'transparent', color: sel ? T.gold : T.textS }}>
                         {cat.label}
                       </button>
@@ -1397,12 +1419,12 @@ const UnikoSafer = ({ onBack }) => {
                   WhatsApp Web conectado. Escolha o setor e o intervalo entre cada contato (evita disparar detecção de automação no WhatsApp) e inicie a importação — ela percorre todos os contatos da barra lateral, exporta e importa sozinha.
                 </div>
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: T.textT, marginBottom: 6 }}>Setor</label>
-                <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
                   {CATEGORIES.map(cat => {
                     const sel = autoCategory === cat.id;
                     return (
-                      <button key={cat.id} onClick={() => setAutoCategory(cat.id)}
-                        style={{ flex: 1, padding: '10px 10px', borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-body)',
+                      <button key={cat.id} onClick={() => pickAutoCategory(cat.id)}
+                        style={{ flex: '1 1 40%', padding: '10px 10px', borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-body)',
                           border: `1.5px solid ${sel ? T.gold : T.border}`, background: sel ? T.goldGl : 'transparent', color: sel ? T.gold : T.textS }}>
                         {cat.label}
                       </button>
