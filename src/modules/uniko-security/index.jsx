@@ -63,7 +63,7 @@ const TAG_COLORS = ['#d4a017', '#e0533d', '#3ba55c', '#4a90d9', '#9b59b6', '#e89
 // Um setor = um número/conexão Dualhook diferente (ver UNIKO_SECURITY_SECTORS
 // em whatsappCloudApi.js). Acrescente aqui quando conectar um setor novo —
 // precisa bater com o `category` configurado no servidor.
-// Contratual e Suporte Operacional: setores planejados, ainda sem número
+// Contratual e Suporte Técnico: setores planejados, ainda sem número
 // conectado (24/set/2026) — a aba já fica pronta aqui, sem contato nenhum
 // até o admin adicionar o item correspondente em UNIKO_SECURITY_SECTORS
 // (.env da VPS, ver whatsappCloudApi.js) com o WABA ID/Phone Number ID reais
@@ -73,7 +73,7 @@ const CATEGORIES = [
   { id: 'faturamento', label: 'Faturamento' },
   { id: 'financeiro', label: 'Financeiro' },
   { id: 'contratual', label: 'Contratual' },
-  { id: 'suporte_operacional', label: 'Suporte Operacional' },
+  { id: 'suporte_tecnico', label: 'Suporte Técnico' },
 ];
 
 const AUDIT_ACTIONS = [
