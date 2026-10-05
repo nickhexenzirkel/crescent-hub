@@ -3,7 +3,6 @@ const dot = $('dot'), statusText = $('statusText'), micBtn = $('micBtn'), micOk 
 const toggleBtn = $('toggleBtn'), recordingNotice = $('recordingNotice');
 const avisoBtn = $('avisoBtn'), avisoStatus = $('avisoStatus'), avisoProg = $('avisoProg'), avisoProgBar = $('avisoProgBar');
 const micFill = $('micFill'), tabFill = $('tabFill'), micChk = $('micChk'), tabChk = $('tabChk');
-const testBtn = $('testBtn'), testResult = $('testResult'), liveText = $('liveText');
 
 // "Microfone autorizado" no rodapé em vez do botão quando a permissão já foi concedida
 // (a autorização é pedida numa ABA — permissoes.html — porque o popup fecha rápido demais pro prompt).
@@ -162,11 +161,7 @@ avisoBtn.addEventListener('click', async () => {
 });
 
 /* ── Medidores + teste de áudio/transcrição ──────────────────────────────── */
-let testRunning = false, liveSeqShown = 0, finalizeTimer = null;
 const setBar = (fill, v) => { const pct = Math.min(100, Math.round(Math.sqrt(v) * 100)); fill.style.width = pct + '%'; fill.classList.toggle('low', pct < 8); };
-const showBox = (el, cls, html) => { el.className = 'box show ' + cls; el.innerHTML = html; };
-const esc = (t) => String(t || '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
-const TEST_LABEL = '🎙️ Testar áudio e transcrição';
 
 let localMic = null; // medidor local do microfone (só quando ocioso)
 async function startLocalMicMeter() {
@@ -204,64 +199,10 @@ chrome.runtime.onMessage.addListener((m) => {
     micChk.textContent = m.peakMic > 0.05 ? '✅' : '…';
     tabChk.textContent = m.peakTab > 0.02 ? '✅' : '…';
   }
-  if (m.type === 'UNIKO_CALL_TEST_PARTIAL' && testRunning && m.seq >= liveSeqShown) {
-    liveSeqShown = m.seq;
-    const txt = [m.committed, m.current].filter(Boolean).join(' ');
-    showBox(liveText, 'live', txt ? `📝 ${esc(txt)}` : '🎙️ ouvindo…');
-  }
-  if (m.type === 'UNIKO_CALL_TEST_RESULT') showTestResult(m);
-});
-
-function showTestResult(m) {
-  clearTimeout(finalizeTimer);
-  testRunning = false;
-  testBtn.disabled = false; testBtn.textContent = TEST_LABEL;
-  liveText.className = 'box live';
-  const mic = m.peakMic > 0.05 ? '🎤 ✅' : '🎤 ❌ sem som';
-  const tab = m.peakTab > 0.02 ? '🔊 ✅' : '🔊 ⚠️ sem som';
-  if (m.error) { showBox(testResult, 'bad', `${mic} · ${tab}<br>❌ Falha na transcrição: ${esc(m.error)}`); return; }
-  const aviso = m.consentGiven ? 'Aviso ✅' : 'Aviso ❌';
-  const audioTag = m.audioB64 ? `<audio controls src="data:audio/webm;base64,${m.audioB64}"></audio>` : '';
-  showBox(testResult, m.consentGiven && m.peakMic > 0.05 ? 'ok' : 'bad',
-    `<b>${mic} · ${tab} · ${aviso}</b><br>${m.text ? `📝 “${esc(m.text)}”` : '❌ Nada transcrito (áudio mudo ou baixo).'}${audioTag}`);
-}
-
-testBtn.addEventListener('click', async () => {
-  if (testRunning) {
-    chrome.runtime.sendMessage({ type: 'UNIKO_CALL_MANUAL_STOP' });
-    testBtn.disabled = true; testBtn.textContent = 'Finalizando…';
-    clearTimeout(finalizeTimer);
-    finalizeTimer = setTimeout(() => { // salvaguarda: não fica preso se o resultado não chegar
-      if (!testRunning) return;
-      testRunning = false; testBtn.disabled = false; testBtn.textContent = TEST_LABEL; liveText.className = 'box live';
-      showBox(testResult, 'bad', 'O resultado demorou demais. Tente de novo (pode ser limite de uso da OpenAI).');
-    }, 30000);
-    return;
-  }
-  const st = await chrome.runtime.sendMessage({ type: 'UNIKO_CALL_GET_STATE' }).catch(() => null);
-  if (st?.state === 'recording' || st?.state === 'testing') { showBox(testResult, 'bad', 'Há uma gravação em andamento — os medidores já mostram o áudio ao vivo.'); return; }
-  try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab?.url?.includes('web.whatsapp.com')) { showBox(testResult, 'bad', 'Abra o WhatsApp Web nesta aba pra testar.'); return; }
-    const streamId = await getStreamIdWithRetry();
-    stopLocalMicMeter();
-    micChk.textContent = ''; tabChk.textContent = '';
-    testRunning = true; liveSeqShown = 0;
-    testBtn.textContent = '⏹ Parar teste';
-    testResult.className = 'box';
-    showBox(liveText, 'live', '🎙️ Pode falar — o texto aparece aqui ao vivo.');
-    await chrome.runtime.sendMessage({ type: 'UNIKO_CALL_START_WITH_STREAM', streamId, contactName: null, test: true });
-  } catch (e) {
-    testRunning = false; testBtn.disabled = false; testBtn.textContent = TEST_LABEL;
-    showBox(testResult, 'bad', 'Falhou: ' + esc(e.message));
-  }
 });
 
 // Medidor local só quando ocioso; resultado do último teste se o popup fechou durante a finalização.
 chrome.runtime.sendMessage({ type: 'UNIKO_CALL_GET_STATE' }).then((res) => {
   if (res?.state !== 'recording' && res?.state !== 'testing') startLocalMicMeter();
 }).catch(() => startLocalMicMeter());
-chrome.storage.session?.get('unikoTestResult').then(({ unikoTestResult: r }) => {
-  if (r && Date.now() - r.savedAt < 5 * 60 * 1000 && !testRunning) showTestResult(r);
-}).catch(() => {});
 window.addEventListener('unload', stopLocalMicMeter);
