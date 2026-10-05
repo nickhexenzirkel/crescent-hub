@@ -37,7 +37,6 @@ const EXTRAS = {
 const opcoesDoGrupo = (id) => [...new Set([...(GRUPO_POR_ID[id]?.exercicios || []).map(e => e[0]), ...(EXTRAS[id] || [])])];
 const serieDe = (gid, nome) => (GRUPO_POR_ID[gid]?.exercicios.find(e => e[0] === nome) || [])[1] || '';
 const novoId = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-const grupoComTudo = (id) => ({ grupo: id, exercicios: GRUPO_POR_ID[id].exercicios.map(e => e[0]) });
 
 // Coleção pronta (somente leitura) — a pessoa pode copiar pra "Meus treinos" ou aplicar num dia
 export const PRESETS = [
@@ -49,18 +48,8 @@ export const PRESETS = [
   { id: 'p-superiores', nome: 'Superiores (peito, costas e braços)', grupos: [{ grupo: 'peito', exercicios: ['Supino reto', 'Crucifixo / Peck deck'] }, { grupo: 'costas', exercicios: ['Puxada na frente', 'Remada baixa'] }, { grupo: 'biceps', exercicios: ['Rosca direta'] }, { grupo: 'triceps', exercicios: ['Tríceps na polia (pulley)'] }] },
   { id: 'p-cardio-abd', nome: 'Cardio + abdômen', grupos: [{ grupo: 'cardio', exercicios: ['Esteira', 'Bicicleta'] }, { grupo: 'abdomen', exercicios: ['Abdominal supra', 'Prancha', 'Elevação de pernas'] }] },
 ];
+const ORDEM_SEMANA = [1, 2, 3, 4, 5, 6, 0]; // segunda → domingo
 const NOMES_DIA = { 0: 'Domingo', 1: 'Segunda', 2: 'Terça', 3: 'Quarta', 4: 'Quinta', 5: 'Sexta', 6: 'Sábado' };
-
-// getDay(): 0 = domingo … 6 = sábado
-const SEMANA = [
-  { nome: 'Domingo', grupos: [] },
-  { nome: 'Segunda', grupos: ['peito', 'triceps'] },
-  { nome: 'Terça', grupos: ['costas', 'biceps'] },
-  { nome: 'Quarta', grupos: ['quadriceps', 'panturrilha'] },
-  { nome: 'Quinta', grupos: ['ombros', 'abdomen'] },
-  { nome: 'Sexta', grupos: ['posteriores', 'gluteos'] },
-  { nome: 'Sábado', grupos: ['cardio'] },
-];
 
 const IcoHalter = <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="8" width="4" height="8" rx="1.3" /><rect x="18" y="8" width="4" height="8" rx="1.3" /><line x1="6" y1="12" x2="18" y2="12" /></svg>;
 const IcoPlay = <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><polygon points="7 4 20 12 7 20" /></svg>;
@@ -123,7 +112,7 @@ const MidiaCard = ({ m, T, ENERGIA, FOGO, podeCurar, onApagar }) => {
 };
 
 /* ═══════════════ Editor: montar o treino de um dia, em 3 passos ═══════════════ */
-const EditorTreino = ({ T, ENERGIA, FOGO, EG, titulo, inicial, colecao, onSalvar, onSalvarNaColecao, onDescanso, onCancelar }) => {
+const EditorTreino = ({ T, ENERGIA, FOGO, EG, titulo, passoTexto, textoSalvar, textoDescanso, inicial, colecao, onSalvar, onSalvarNaColecao, onDescanso, onCancelar }) => {
   const [nome, setNome] = useState(inicial?.nome || '');
   const [sel, setSel] = useState(() => { const m = {}; (inicial?.grupos || []).forEach(g => { m[g.grupo] = [...g.exercicios]; }); return m; }); // grupoId -> [exercícios escolhidos]
   const [custom, setCustom] = useState({});
@@ -169,7 +158,10 @@ const EditorTreino = ({ T, ENERGIA, FOGO, EG, titulo, inicial, colecao, onSalvar
       <div className="fit-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '16px 14px 12px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <button onClick={onCancelar} className="fit-btn" aria-label="Voltar" style={{ width: 40, height: 40, borderRadius: '50%', border: `1.5px solid ${T.border}`, background: T.surface, color: T.text, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{IcoVoltar}</button>
-          <div style={{ fontFamily: 'var(--font-brand)', fontSize: 19, fontWeight: 800, color: T.text }}>{titulo}</div>
+          <div>
+            {passoTexto && <div style={{ fontSize: 12, fontWeight: 800, color: ENERGIA, letterSpacing: .2 }}>{passoTexto}</div>}
+            <div style={{ fontFamily: 'var(--font-brand)', fontSize: 19, fontWeight: 800, color: T.text }}>{titulo}</div>
+          </div>
         </div>
 
         <div style={{ ...caixa, padding: '10px 12px', marginTop: 14, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
@@ -241,7 +233,7 @@ const EditorTreino = ({ T, ENERGIA, FOGO, EG, titulo, inicial, colecao, onSalvar
       <div style={{ padding: '10px 14px 12px', borderTop: `1px solid ${T.border}`, background: T.surface }}>
         <button onClick={() => { if (validar()) onSalvar(montar()); }} className="fit-btn"
           style={{ width: '100%', minHeight: 50, borderRadius: 14, border: 'none', background: `linear-gradient(135deg, ${ENERGIA}, ${FOGO})`, color: '#fff', fontWeight: 800, fontSize: 15.5, cursor: 'pointer', boxShadow: `0 6px 18px ${EG}` }}>
-          Salvar treino{total ? ` · ${total} exercício${total !== 1 ? 's' : ''}` : ''}
+          {textoSalvar || 'Salvar treino'}{total ? ` · ${total} exercício${total !== 1 ? 's' : ''}` : ''}
         </button>
         <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
           {onSalvarNaColecao && (
@@ -249,7 +241,7 @@ const EditorTreino = ({ T, ENERGIA, FOGO, EG, titulo, inicial, colecao, onSalvar
               style={{ flex: 1, minHeight: 42, borderRadius: 12, border: `1.5px solid ${ENERGIA}`, background: 'transparent', color: ENERGIA, fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>Salvar e guardar na coleção</button>
           )}
           {onDescanso && (
-            <button onClick={onDescanso} className="fit-btn" style={{ flex: 1, minHeight: 42, borderRadius: 12, border: `1.5px solid ${T.border}`, background: 'transparent', color: T.textS, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Marcar como descanso</button>
+            <button onClick={onDescanso} className="fit-btn" style={{ flex: 1, minHeight: 42, borderRadius: 12, border: `1.5px solid ${T.border}`, background: 'transparent', color: T.textS, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>{textoDescanso || 'Marcar como descanso'}</button>
           )}
         </div>
       </div>
@@ -309,6 +301,7 @@ export const TreinosTab = ({ T, ENERGIA, FOGO, EG, supabase, podeCurar, onAbrirC
   const [aba, setAba] = useState('hoje');          // hoje | semana | colecao | exercicios
   const [sub, setSub] = useState(null);            // null | { tipo:'grupo', id } | { tipo:'dia', dia }
   const [editando, setEditando] = useState(null);  // { tipo:'dia', dia } | { tipo:'colecao', id|null }
+  const [fluxo, setFluxo] = useState(null);        // assistente "montar a semana inteira": { pos: 0..6 } ou null
 
   /* Meu plano: treino de cada dia da semana + coleção de treinos salvos (privado, 1 documento por pessoa) */
   const chavePlano = `uniko_fit_plano_${name}`;
@@ -335,14 +328,14 @@ export const TreinosTab = ({ T, ENERGIA, FOGO, EG, supabase, podeCurar, onAbrirC
       if (error) setPlanoLocal(true);
     }
   };
-  // treino de um dia: o personalizado, se existir; senão a divisão sugerida (null = descanso)
+  // treino de um dia: undefined = ainda sem treino · null = descanso marcado · objeto = treino montado pela pessoa
   const treinoDoDia = (i) => {
     const t = P.dias[i];
-    if (t) return t.descanso ? null : { ...t, personalizado: true };
-    const ids = SEMANA[i].grupos;
-    return ids.length ? { nome: null, grupos: ids.map(grupoComTudo), personalizado: false } : null;
+    if (!t) return undefined;
+    return t.descanso ? null : { ...t, personalizado: true };
   };
-  const resumoDoDia = (t) => t ? (t.nome || t.grupos.map(g => GRUPO_POR_ID[g.grupo].label).join(' + ')) : 'Descanso';
+  const resumoDoDia = (t) => t === undefined ? 'Sem treino ainda' : t ? (t.nome || t.grupos.map(g => GRUPO_POR_ID[g.grupo].label).join(' + ')) : 'Descanso';
+  const semNenhumTreino = Object.keys(P.dias).length === 0;
   const idxHoje = new Date().getDay();
 
   /* Marcar exercícios feitos hoje (só neste aparelho) */
@@ -388,6 +381,30 @@ export const TreinosTab = ({ T, ENERGIA, FOGO, EG, supabase, podeCurar, onAbrirC
   const avisoLocal = planoLocal && (
     <div style={{ fontSize: 12, color: T.textS, background: 'rgba(245,158,11,.12)', border: '1px solid rgba(245,158,11,.35)', borderRadius: 10, padding: '8px 11px', marginBottom: 12 }}>
       Salvando só neste aparelho por enquanto (o banco ainda não foi preparado).
+    </div>
+  );
+
+  const iniciarSemana = () => { setFluxo({ pos: 0 }); setEditando({ tipo: 'dia', dia: ORDEM_SEMANA[0] }); };
+  const cartaoCargas = (
+    <button onClick={() => onAbrirCargas('')} className="fit-btn" style={{ display: 'block', width: '100%', textAlign: 'left', padding: '14px 16px', borderRadius: 16, cursor: 'pointer', border: `1.5px solid ${ENERGIA}`, background: `${ENERGIA}10`, color: T.text, marginTop: 14 }}>
+      <div style={{ fontFamily: 'var(--font-brand)', fontSize: 15.5, fontWeight: 800, color: ENERGIA }}>Progressão de carga</div>
+      <div style={{ fontSize: 13, color: T.textS, marginTop: 3 }}>Anote quanto de peso usou em cada máquina e veja sua evolução.</div>
+    </button>
+  );
+  /* Quem ainda não montou nada vê isto (em Hoje e Semana) em vez de um treino pronto */
+  const VazioCriar = () => (
+    <div style={{ ...caixa, padding: '30px 18px 22px', textAlign: 'center' }}>
+      <div style={{ width: 64, height: 64, margin: '0 auto 14px', borderRadius: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', background: `linear-gradient(135deg, ${ENERGIA}, ${FOGO})`, boxShadow: `0 8px 22px ${EG}` }}>
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="8" width="4" height="8" rx="1.3" /><rect x="18" y="8" width="4" height="8" rx="1.3" /><line x1="6" y1="12" x2="18" y2="12" /></svg>
+      </div>
+      <div style={{ fontFamily: 'var(--font-brand)', fontSize: 20, fontWeight: 800, color: T.text, marginBottom: 8 }}>Você ainda não tem nenhum treino</div>
+      <div style={{ fontSize: 14, color: T.textS, lineHeight: 1.55, marginBottom: 20 }}>Crie um para hoje ou para a semana inteira. Eu te ajudo passo a passo: você escolhe o músculo e as máquinas, e o treino fica salvo aqui.</div>
+      <button onClick={() => setEditando({ tipo: 'dia', dia: idxHoje })} className="fit-btn"
+        style={{ width: '100%', minHeight: 52, borderRadius: 14, border: 'none', background: `linear-gradient(135deg, ${ENERGIA}, ${FOGO})`, color: '#fff', fontWeight: 800, fontSize: 15.5, cursor: 'pointer', boxShadow: `0 6px 18px ${EG}` }}>Criar treino de hoje ({NOMES_DIA[idxHoje]})</button>
+      <button onClick={iniciarSemana} className="fit-btn"
+        style={{ width: '100%', minHeight: 52, marginTop: 10, borderRadius: 14, border: `2px solid ${ENERGIA}`, background: 'transparent', color: ENERGIA, fontWeight: 800, fontSize: 15.5, cursor: 'pointer' }}>Montar a semana inteira</button>
+      <button onClick={() => { setAba('colecao'); setSub(null); }} className="fit-btn"
+        style={{ marginTop: 14, border: 'none', background: 'none', color: T.textS, fontSize: 13.5, fontWeight: 700, cursor: 'pointer', textDecoration: 'underline' }}>Prefiro começar de um treino pronto</button>
     </div>
   );
 
@@ -461,6 +478,14 @@ export const TreinosTab = ({ T, ENERGIA, FOGO, EG, supabase, podeCurar, onAbrirC
     const chaves = t ? t.grupos.flatMap(g => g.exercicios.map(ex => `${g.grupo}|${ex}`)) : [];
     const feitosHoje = chaves.filter(k => feitos.includes(k)).length;
     const pct = chaves.length ? Math.round((feitosHoje / chaves.length) * 100) : 0;
+    if (t === undefined) return (
+      <div style={{ ...caixa, padding: '26px 18px', textAlign: 'center' }}>
+        <div style={{ fontFamily: 'var(--font-brand)', fontSize: 18, fontWeight: 800, color: T.text, marginBottom: 6 }}>{ehHoje ? 'Hoje ainda não tem treino' : `${NOMES_DIA[dia]} ainda não tem treino`}</div>
+        <div style={{ fontSize: 13.5, color: T.textS, lineHeight: 1.55, marginBottom: 16 }}>Escolha os músculos e as máquinas que você vai usar {ehHoje ? 'hoje' : `na ${NOMES_DIA[dia].toLowerCase()}`}.</div>
+        <button onClick={() => setEditando({ tipo: 'dia', dia })} className="fit-btn"
+          style={{ minHeight: 48, padding: '0 22px', borderRadius: 14, border: 'none', background: `linear-gradient(135deg, ${ENERGIA}, ${FOGO})`, color: '#fff', fontWeight: 800, fontSize: 15, cursor: 'pointer', boxShadow: `0 6px 18px ${EG}` }}>Criar treino de {ehHoje ? 'hoje' : NOMES_DIA[dia]}</button>
+      </div>
+    );
     return (
       <>
         <div style={{ borderRadius: 18, padding: '16px 16px 14px', marginBottom: 14, color: '#fff', background: `linear-gradient(135deg, ${ENERGIA}, ${FOGO})`, boxShadow: `0 8px 22px ${EG}` }}>
@@ -474,7 +499,7 @@ export const TreinosTab = ({ T, ENERGIA, FOGO, EG, supabase, podeCurar, onAbrirC
             </div>
           )}
           <button onClick={() => setEditando({ tipo: 'dia', dia })} className="fit-btn" style={{ marginTop: 14, minHeight: 42, padding: '0 18px', borderRadius: 12, border: '2px solid rgba(255,255,255,.9)', background: 'rgba(255,255,255,.16)', color: '#fff', fontWeight: 800, fontSize: 13.5, cursor: 'pointer' }}>
-            {t ? 'Mudar grupos e máquinas' : 'Montar um treino'}
+            {t ? 'Mudar grupos e máquinas' : 'Montar um treino para este dia'}
           </button>
         </div>
 
@@ -524,17 +549,28 @@ export const TreinosTab = ({ T, ENERGIA, FOGO, EG, supabase, podeCurar, onAbrirC
     const ehDia = editando.tipo === 'dia';
     const atual = ehDia ? P.dias[editando.dia] : colecao.find(t => t.id === editando.id);
     const inicial = atual && !atual.descanso ? atual : (ehDia ? treinoDoDia(editando.dia) : null);
-    const fechar = () => setEditando(null);
+    const fechar = () => { setEditando(null); setFluxo(null); };
+    // depois de salvar: no assistente vai pro próximo dia da semana; fora dele só fecha
+    const avancar = () => {
+      if (fluxo && fluxo.pos < 6) { setFluxo({ pos: fluxo.pos + 1 }); setEditando({ tipo: 'dia', dia: ORDEM_SEMANA[fluxo.pos + 1] }); return; }
+      if (fluxo) { setFluxo(null); setEditando(null); setAba('semana'); setSub(null); return; }
+      setEditando(null);
+    };
     return <EditorTreino key={`${editando.tipo}-${editando.dia ?? editando.id ?? 'novo'}`} T={T} ENERGIA={ENERGIA} FOGO={FOGO} EG={EG}
       titulo={ehDia ? `Treino de ${NOMES_DIA[editando.dia]}` : (editando.id ? 'Editar treino' : 'Novo treino')}
       inicial={inicial} colecao={colecao}
+      passoTexto={fluxo ? `Montando a semana · dia ${fluxo.pos + 1} de 7` : null}
+      textoSalvar={fluxo ? (fluxo.pos < 6 ? 'Salvar e ir para o próximo dia' : 'Salvar e concluir a semana') : null}
+      textoDescanso={fluxo ? 'Descanso neste dia' : null}
       onSalvar={(t) => {
-        if (ehDia) salvarPlano({ ...P, dias: { ...P.dias, [editando.dia]: t } });
-        else salvarPlano({ ...P, colecao: editando.id ? colecao.map(x => x.id === editando.id ? { ...t, id: editando.id } : x) : [{ ...t, id: novoId() }, ...colecao] });
-        fechar();
+        let novo = P;
+        if (ehDia) novo = { ...P, dias: { ...P.dias, [editando.dia]: t } };
+        else novo = { ...P, colecao: editando.id ? colecao.map(x => x.id === editando.id ? { ...t, id: editando.id } : x) : [{ ...t, id: novoId() }, ...colecao] };
+        salvarPlano(novo);
+        avancar();
       }}
-      onSalvarNaColecao={ehDia ? (t) => { salvarPlano({ ...P, dias: { ...P.dias, [editando.dia]: t }, colecao: [{ ...t, id: novoId() }, ...colecao] }); fechar(); } : null}
-      onDescanso={ehDia ? () => { salvarPlano({ ...P, dias: { ...P.dias, [editando.dia]: { descanso: true } } }); fechar(); } : null}
+      onSalvarNaColecao={ehDia && !fluxo ? (t) => { salvarPlano({ ...P, dias: { ...P.dias, [editando.dia]: t }, colecao: [{ ...t, id: novoId() }, ...colecao] }); fechar(); } : null}
+      onDescanso={ehDia ? () => { salvarPlano({ ...P, dias: { ...P.dias, [editando.dia]: { descanso: true } } }); avancar(); } : null}
       onCancelar={fechar} />;
   }
 
@@ -563,21 +599,21 @@ export const TreinosTab = ({ T, ENERGIA, FOGO, EG, supabase, podeCurar, onAbrirC
 
   /* HOJE */
   if (aba === 'hoje') {
+    if (plano === null) return Moldura(<div style={{ textAlign: 'center', padding: 40, color: T.textT, fontSize: 13 }}>Carregando...</div>);
     return Moldura(<>
-      {DiaDetalhe(idxHoje)}
-      <button onClick={() => onAbrirCargas('')} className="fit-btn" style={{ display: 'block', width: '100%', textAlign: 'left', padding: '14px 16px', borderRadius: 16, cursor: 'pointer', border: `1.5px solid ${ENERGIA}`, background: `${ENERGIA}10`, color: T.text }}>
-        <div style={{ fontFamily: 'var(--font-brand)', fontSize: 15.5, fontWeight: 800, color: ENERGIA }}>Progressão de carga</div>
-        <div style={{ fontSize: 13, color: T.textS, marginTop: 3 }}>Anote quanto de peso usou em cada máquina e veja sua evolução.</div>
-      </button>
+      {semNenhumTreino ? VazioCriar() : DiaDetalhe(idxHoje)}
+      {cartaoCargas}
     </>);
   }
 
   /* SEMANA */
   if (aba === 'semana') {
+    if (plano === null) return Moldura(<div style={{ textAlign: 'center', padding: 40, color: T.textT, fontSize: 13 }}>Carregando...</div>);
+    if (semNenhumTreino) return Moldura(VazioCriar());
     return Moldura(<>
-      <div style={{ fontSize: 13.5, color: T.textS, margin: '0 2px 12px', lineHeight: 1.5 }}>Toque em um dia para ver o treino. Use <b style={{ color: T.text }}>Personalizar</b> para escolher os grupos e as máquinas de cada dia.</div>
+      <div style={{ fontSize: 13.5, color: T.textS, margin: '0 2px 12px', lineHeight: 1.5 }}>Toque em um dia para ver o treino. Use <b style={{ color: T.text }}>Editar</b> ou <b style={{ color: T.text }}>Criar treino</b> para escolher os grupos e as máquinas de cada dia.</div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {[1, 2, 3, 4, 5, 6, 0].map(i => {
+        {ORDEM_SEMANA.map(i => {
           const t = treinoDoDia(i); const ehHoje = i === idxHoje;
           const total = t ? t.grupos.reduce((n, g) => n + g.exercicios.length, 0) : 0;
           return (
@@ -587,17 +623,17 @@ export const TreinosTab = ({ T, ENERGIA, FOGO, EG, supabase, podeCurar, onAbrirC
                   <span style={{ fontSize: 15, fontWeight: 800 }}>{NOMES_DIA[i]}</span>
                   {ehHoje && <span style={{ fontSize: 10.5, fontWeight: 800, padding: '2px 8px', borderRadius: 999, background: ENERGIA, color: '#fff' }}>HOJE</span>}
                 </div>
-                <div style={{ fontSize: 13.5, color: t ? T.textS : T.textT, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{resumoDoDia(t)}</div>
+                <div style={{ fontSize: 13.5, color: t ? T.textS : T.textT, fontStyle: t === undefined ? 'italic' : 'normal', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{resumoDoDia(t)}</div>
                 {t && <div style={{ fontSize: 12, color: T.textT, marginTop: 1 }}>{total} exercício{total !== 1 ? 's' : ''}{t.personalizado ? ' · seu treino' : ' · sugestão'}</div>}
               </button>
-              <button onClick={() => setEditando({ tipo: 'dia', dia: i })} className="fit-btn" style={{ flexShrink: 0, minHeight: 40, padding: '0 14px', borderRadius: 12, border: `1.5px solid ${ENERGIA}`, background: 'transparent', color: ENERGIA, fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>{P.dias[i] ? 'Editar' : 'Personalizar'}</button>
+              <button onClick={() => setEditando({ tipo: 'dia', dia: i })} className="fit-btn" style={{ flexShrink: 0, minHeight: 40, padding: '0 14px', borderRadius: 12, border: `1.5px solid ${ENERGIA}`, background: 'transparent', color: ENERGIA, fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>{P.dias[i] ? 'Editar' : 'Criar treino'}</button>
             </div>
           );
         })}
       </div>
       {Object.keys(P.dias).length > 0 && (
-        <button onClick={() => { if (window.confirm('Voltar todos os dias para o treino sugerido?')) salvarPlano({ ...P, dias: {} }); }} className="fit-btn"
-          style={{ marginTop: 14, border: 'none', background: 'none', color: T.textT, fontSize: 12.5, cursor: 'pointer', textDecoration: 'underline' }}>Voltar tudo para o treino sugerido</button>
+        <button onClick={() => { if (window.confirm('Apagar todos os treinos da semana? Os treinos da sua coleção continuam salvos.')) salvarPlano({ ...P, dias: {} }); }} className="fit-btn"
+          style={{ marginTop: 14, border: 'none', background: 'none', color: T.textT, fontSize: 12.5, cursor: 'pointer', textDecoration: 'underline' }}>Apagar todos os treinos da semana</button>
       )}
     </>);
   }
