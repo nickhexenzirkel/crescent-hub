@@ -142,6 +142,9 @@ const tabChk = document.getElementById('tabChk');
 const calibHint = document.getElementById('calibHint');
 const testBtn = document.getElementById('testBtn');
 const testResult = document.getElementById('testResult');
+const liveText = document.getElementById('liveText');
+let testRunning = false;
+let liveSeqShown = 0;
 
 const setBar = (fill, v) => { const pct = Math.min(100, Math.round(Math.sqrt(v) * 100)); fill.style.width = pct + '%'; fill.classList.toggle('low', pct < 8); };
 const showResult = (cls, html) => { testResult.className = 'testResult show ' + cls; testResult.innerHTML = html; };
@@ -186,20 +189,29 @@ chrome.runtime.onMessage.addListener((m) => {
     micChk.textContent = m.peakMic > 0.05 ? '✅' : '…';
     tabChk.textContent = m.peakTab > 0.02 ? '✅' : '…';
   }
+  if (m.type === 'UNIKO_CALL_TEST_PARTIAL' && testRunning && m.seq >= liveSeqShown) {
+    liveSeqShown = m.seq;
+    liveText.className = 'testResult show';
+    liveText.textContent = m.text ? `📝 ${m.text}` : '📝 …ouvindo';
+  }
   if (m.type === 'UNIKO_CALL_TEST_RESULT') {
-    testBtn.disabled = false; testBtn.textContent = 'Testar áudio e transcrição (10s)';
+    testRunning = false;
+    testBtn.disabled = false; testBtn.textContent = 'Testar áudio e transcrição';
+    liveText.className = 'testResult';
     render('idle');
     const lines = [];
     lines.push(m.peakMic > 0.05 ? '✅ Microfone captou sua voz.' : '❌ Microfone sem som — confira o microfone selecionado no Windows.');
     lines.push(m.peakTab > 0.02 ? '✅ Áudio da ligação captado.' : '⚠️ Nenhum som da aba/ligação (normal se ninguém falou do outro lado).');
     if (m.error) { showResult('bad', lines.join('<br>') + '<br>❌ Falha na transcrição: ' + esc(m.error)); return; }
+    const audioTag = m.audioB64 ? '<audio controls src="data:audio/webm;base64,' + m.audioB64 + '"></audio>' : '';
     lines.push(m.text ? `📝 Entendido: “${esc(m.text)}”` : '❌ Nada foi transcrito (áudio mudo ou muito baixo).');
     lines.push(m.consentGiven ? '✅ O aviso prévio SERIA aceito.' : '❌ O aviso prévio NÃO seria aceito (fale: “Por questões de segurança, essa ligação está sendo gravada”).');
-    showResult(m.consentGiven && m.peakMic > 0.05 ? 'ok' : 'bad', lines.join('<br>'));
+    showResult(m.consentGiven && m.peakMic > 0.05 ? 'ok' : 'bad', lines.join('<br>') + (audioTag ? '<br>🔈 Ouça o que foi gravado:' + audioTag : ''));
   }
 });
 
 testBtn.addEventListener('click', async () => {
+  if (testRunning) { chrome.runtime.sendMessage({ type: 'UNIKO_CALL_MANUAL_STOP' }); testBtn.disabled = true; testBtn.textContent = 'Finalizando…'; return; }
   const st = await chrome.runtime.sendMessage({ type: 'UNIKO_CALL_GET_STATE' }).catch(() => null);
   if (st?.state === 'recording' || st?.state === 'testing') { showResult('bad', 'Há uma gravação em andamento — o medidor acima já mostra os níveis ao vivo.'); return; }
   try {
@@ -215,11 +227,14 @@ testBtn.addEventListener('click', async () => {
     }
     stopLocalMicMeter();
     micChk.textContent = ''; tabChk.textContent = '';
-    testBtn.disabled = true; testBtn.textContent = 'Testando… fale o aviso agora (10s)';
-    showResult('', '🎙️ Fale: “Por questões de segurança, essa ligação está sendo gravada.” Se tiver alguém na linha, peça pra falar também.');
+    testRunning = true; liveSeqShown = 0;
+    testBtn.textContent = 'Parar teste';
+    testResult.className = 'testResult';
+    liveText.className = 'testResult show'; liveText.textContent = '🎙️ Fale: “Por questões de segurança, essa ligação está sendo gravada.” O texto aparece aqui ao vivo.';
     await chrome.runtime.sendMessage({ type: 'UNIKO_CALL_START_WITH_STREAM', streamId, contactName: null, test: true });
   } catch (e) {
-    testBtn.disabled = false; testBtn.textContent = 'Testar áudio e transcrição (10s)';
+    testRunning = false;
+    testBtn.disabled = false; testBtn.textContent = 'Testar áudio e transcrição';
     showResult('bad', 'Falhou: ' + esc(e.message));
   }
 });

@@ -64,9 +64,32 @@ async function startCapture(streamId, contactName, test = false) {
   recorder = new MediaRecorder(dest.stream, { mimeType: 'audio/webm;codecs=opus', audioBitsPerSecond: 128000 });
   recorder.ondataavailable = (e) => { console.log('[uniko-call] chunk recebido, bytes:', e.data.size); if (e.data.size > 0) chunks.push(e.data); };
   recorder.onstop = uploadRecording;
-  recorder.start();
+  // Em modo teste, fatias de 1s permitem transcrever o que ja foi gravado enquanto a pessoa fala.
+  recorder.start(meta.test ? 1000 : undefined);
+  if (meta.test) startLiveTranscription();
   console.log('[uniko-call] MediaRecorder.start() chamado — state agora:', recorder.state);
   chrome.runtime.sendMessage({ type: 'UNIKO_CALL_STATE', state: 'recording' }).catch(() => {});
+}
+
+// Transcricao "ao vivo" do teste: a cada ~3s manda TUDO que foi gravado ate agora (um webm
+// acumulado e valido pq o 1o pedaco traz o cabecalho) pra transcricao de teste e devolve
+// o texto parcial pro popup. So no modo teste - nada e salvo no servidor.
+let liveTimer = null, liveBusy = false, liveSeq = 0;
+function startLiveTranscription() {
+  clearInterval(liveTimer); liveBusy = false; liveSeq = 0;
+  liveTimer = setInterval(async () => {
+    if (liveBusy || !chunks.length) return;
+    liveBusy = true;
+    const seq = ++liveSeq;
+    try {
+      const form = new FormData();
+      form.append('audio', new Blob(chunks, { type: 'audio/webm' }), 'test.webm');
+      const res = await fetch(`${CALL_SERVER}/api/uniko-call/test`, { method: 'POST', headers: { Authorization: `Bearer ${CALL_UPLOAD_TOKEN}` }, body: form });
+      const data = res.ok ? await res.json() : null;
+      if (data && meta.test && recorder && recorder.state === 'recording') chrome.runtime.sendMessage({ type: 'UNIKO_CALL_TEST_PARTIAL', seq, text: data.text || '', consentGiven: !!data.consentGiven }).catch(() => {});
+    } catch { /* proxima rodada tenta de novo */ }
+    liveBusy = false;
+  }, 3000);
 }
 
 // Mede o pico de volume da aba e do microfone durante a gravação e loga ao parar —
@@ -87,11 +110,11 @@ function startLevelMeter(tabSrc, micSrc) {
     chrome.runtime.sendMessage({ type: 'UNIKO_CALL_LEVELS', tab, mic, peakTab: peaks.tab, peakMic: peaks.mic, test: meta.test }).catch(() => {});
   }, 200);
   // Teste de calibração dura no máximo 10s e para sozinho.
-  if (meta.test) setTimeout(() => { if (recorder && recorder.state === 'recording') stopCapture(); }, 10000);
+  if (meta.test) setTimeout(() => { if (recorder && recorder.state === 'recording') stopCapture(); }, 30000);
 }
 
 function stopCapture() {
-  clearInterval(levelTimer);
+  clearInterval(levelTimer); clearInterval(liveTimer);
   console.log('[uniko-call] picos de volume — aba:', peaks.tab.toFixed(3), 'microfone:', peaks.mic.toFixed(3), '(0 = mudo)');
   console.log('[uniko-call] stopCapture() chamado — recorder existe?', !!recorder, 'state:', recorder?.state);
   if (recorder && recorder.state !== 'inactive') recorder.stop();
@@ -120,7 +143,8 @@ async function uploadRecording() {
       form.append('audio', blob, 'test.webm');
       const res = await fetch(`${CALL_SERVER}/api/uniko-call/test`, { method: 'POST', headers: { Authorization: `Bearer ${CALL_UPLOAD_TOKEN}` }, body: form });
       const data = res.ok ? await res.json() : { error: `servidor respondeu ${res.status}` };
-      chrome.runtime.sendMessage({ type: 'UNIKO_CALL_TEST_RESULT', ...data, peakTab: peaks.tab, peakMic: peaks.mic }).catch(() => {});
+      const audioB64 = await new Promise((resolve) => { const fr = new FileReader(); fr.onload = () => resolve(String(fr.result).split(',')[1] || ''); fr.readAsDataURL(blob); });
+      chrome.runtime.sendMessage({ type: 'UNIKO_CALL_TEST_RESULT', ...data, audioB64, peakTab: peaks.tab, peakMic: peaks.mic }).catch(() => {});
     } catch (e) {
       chrome.runtime.sendMessage({ type: 'UNIKO_CALL_TEST_RESULT', error: e.message, peakTab: peaks.tab, peakMic: peaks.mic }).catch(() => {});
     }
