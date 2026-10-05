@@ -69,6 +69,9 @@ async function startCapture(streamId, contactName, test = false, avisoRecent = f
   // Em modo teste, fatias de 1s permitem transcrever o que ja foi gravado enquanto a pessoa fala.
   recorder.start();
   if (meta.test) startLiveTranscription(tabSrc, micSrc);
+  // Aviso tocado poucos instantes ANTES de começar a gravar: coloca o áudio dele no início da
+  // gravação, pra a gravação (e a transcrição) mostrarem o aviso dado nesta ligação.
+  if (meta.avisoPlayed && !meta.test) playAvisoIntoRecording().catch((e) => console.error('[uniko-call] aviso no início da gravação falhou:', e.message));
   console.log('[uniko-call] MediaRecorder.start() chamado — state agora:', recorder.state);
   chrome.runtime.sendMessage({ type: 'UNIKO_CALL_STATE', state: 'recording' }).catch(() => {});
 }

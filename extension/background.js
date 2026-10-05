@@ -805,7 +805,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // manda o gravador misturar o mesmo áudio na gravação e marcar "aviso dado".
   if (message.type === 'UNIKO_CALL_AVISO_PLAYED') {
     chrome.storage.session?.set({ unikoAvisoAt: Date.now() }).catch(() => {});
-    if (unikoCallState === 'recording' || unikoCallState === 'testing') chrome.runtime.sendMessage({ type: 'UNIKO_CALL_AVISO_INTO_REC' }).catch(() => {});
+    // Não confia só no estado em memória (o service worker dorme e o perde): vê se há gravador aberto.
+    recorderExists().then((aberto) => {
+      if (aberto || unikoCallState === 'recording' || unikoCallState === 'testing') chrome.runtime.sendMessage({ type: 'UNIKO_CALL_AVISO_INTO_REC' }).catch(() => {});
+    });
   }
   if (message.type === 'UNIKO_CALL_START_WITH_STREAM') {
     console.log('[uniko-call] background recebeu UNIKO_CALL_START_WITH_STREAM do popup.');
