@@ -39,10 +39,9 @@ e-mails (Gmail) e devolve o arquivo para o Uniko ler.
   anexos). Se o Google mudar a página, a extensão pode precisar de ajuste.
 - Uma busca por vez. Se o Gmail pedir login ou verificação, a conta é pulada (aparece no andamento).
 
-## Download em lote das NFS-e (ISS Fortaleza) — v1.1.0
+## Download em lote das NFS-e (ISS Fortaleza) — v1.2.0
 No **Controle de Notas → Leitor de XML**, solte o XML (GINFES) e clique em **Baixar PDFs em lote**.
 Para cada nota da 7Serv a extensão abre
 `iss.fortaleza.ce.gov.br/grpfor/pagesPublic/consultarNota.seam?codigo=<CodigoVerificacao>&chave=951862&numero=<Numero>`
-numa janelinha, baixa o PDF embutido na página (sessão do próprio Chrome) e o Uniko entrega tudo num `.zip`
-(`NFSe_<número>.pdf`). A `chave` 951862 é fixa (inscrição da 7Serv); notas de outro prestador são ignoradas.
-Depois de atualizar os arquivos, clique em **Recarregar** em `chrome://extensions` (a v1.1.0 pede acesso ao ISS) e F5 no Uniko.
+numa janelinha, baixa o PDF embutido na página (sessão do próprio Chrome) e salva cada PDF em `Downloads/Notas ISS/NFSe_<número>.pdf`. A `chave` 951862 é fixa (inscrição da 7Serv); notas de outro prestador são ignoradas.
+Depois de atualizar os arquivos, clique em **Recarregar** em `chrome://extensions` (a v1.2.0 pede acesso ao ISS) e F5 no Uniko.

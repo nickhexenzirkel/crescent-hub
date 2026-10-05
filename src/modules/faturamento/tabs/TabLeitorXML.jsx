@@ -1,6 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import * as XLSX from 'xlsx';
-import JSZip from 'jszip';
 import { baixarNotasISS, detectarExtensao } from '../extensaoNotasEmail.js';
 import { T } from '../../../contexts/theme';
 import { StellarHero } from '../StellarHero';
@@ -275,7 +274,7 @@ export const TabLeitorXML = () => {
 
   /* Baixa em lote os PDFs das notas lendo número + código de verificação do XML.
      A extensão abre iss.fortaleza.ce.gov.br/…/consultarNota.seam?codigo=…&chave=951862&numero=…
-     para cada uma e devolve o PDF; no fim tudo vai num .zip. */
+     para cada uma e salva o PDF direto na pasta Downloads/Notas ISS. */
   const baixarPdfs = async () => {
     const todas = rows.filter(r => !r.error);
     const elegiveis = todas.filter(r => r.numero && r.codigoVerif && (r.prestadorCNPJ || '').replace(/\D/g,'') === CNPJ_7SERV);
@@ -285,31 +284,21 @@ export const TabLeitorXML = () => {
     }
     const ext = await detectarExtensao();
     if (!ext) {
-      setPdfLote({ fase:'fim', msg:'Extensão "Uniko — Notas por e-mail" não encontrada (v1.1.0+). Instale/recarregue em chrome://extensions e dê F5 aqui.' });
+      setPdfLote({ fase:'fim', msg:'Extensão "Uniko — Notas por e-mail" não encontrada (v1.2.0+). Instale/recarregue em chrome://extensions e dê F5 aqui.' });
       return;
     }
-    const zip = new JSZip();
     setPdfLote({ fase:'rodando', feitos:0, total:elegiveis.length });
     const job = baixarNotasISS({
       notas: elegiveis.map(r => ({ numero:r.numero, codigo:r.codigoVerif })),
       onProgresso: m => setPdfLote(p => ({ ...p, feitos:m.feitos, total:m.total, atual:m.numero })),
-      onArquivo: ({ numero, bytes }) => { zip.file(`NFSe_${numero}.pdf`, bytes); },
     });
     pdfCancelar.current = job.cancelar;
     try {
       const r = await job.promessa;
       const ignoradas = todas.length - elegiveis.length;
-      if (r.ok > 0) {
-        const blob = await zip.generateAsync({ type:'blob' });
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = `notas_fiscais_${new Date().toLocaleDateString('pt-BR').replace(/\//g,'-')}.zip`;
-        a.click();
-        setTimeout(() => URL.revokeObjectURL(a.href), 10000);
-      }
       setPdfLote({
         fase:'fim', falhas:r.falhas || [],
-        msg:`${r.ok} PDF(s) baixado(s)${r.cancelado ? ' (cancelado)' : ''}${r.falhas?.length ? ` · ${r.falhas.length} falha(s)` : ''}${ignoradas ? ` · ${ignoradas} nota(s) ignorada(s) (não são da 7Serv / sem código)` : ''}.`,
+        msg:`${r.ok} PDF(s) salvo(s) em Downloads/Notas ISS${r.cancelado ? ' (cancelado)' : ''}${r.falhas?.length ? ` · ${r.falhas.length} falha(s)` : ''}${ignoradas ? ` · ${ignoradas} nota(s) ignorada(s) (não são da 7Serv / sem código)` : ''}.`,
       });
     } catch (e) {
       setPdfLote({ fase:'fim', msg:e.message });

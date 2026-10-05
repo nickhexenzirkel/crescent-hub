@@ -88,6 +88,7 @@ const FaturamentoPortal = ({ onBack, authUser, initialTab, restrictedTabs }) => 
       <Sidebar tab={tab} setTab={safeSetTab} onBack={sair} isAdmin={isAdmin} authUser={authUser} only={restrictedTabs}/>
       <div style={{
         flex:1,
+        minWidth:0, // sem isso a tabela larga estica a coluna além do fundo (faixa branca)
         marginLeft: isMobile ? 0 : 252,
         display:'flex',flexDirection:'column',
         minHeight:'100vh',

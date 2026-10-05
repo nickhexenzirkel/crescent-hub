@@ -205,8 +205,17 @@ async function executarIss(jobId, job, notas) {
     await paraUniko(job, { type: 'NOTASMAIL_ISS_PROGRESSO', jobId, feitos: i, total: notas.length, numero: nota.numero });
     const r = await baixarUmaNota(job, nota);
     if (r.base64) {
-      ok++;
-      await paraUniko(job, { type: 'NOTASMAIL_ISS_ARQUIVO', jobId, numero: nota.numero, base64: r.base64 });
+      // salva na pasta Downloads (equivale a clicar no botão "Transferir" do leitor de PDF)
+      try {
+        await chrome.downloads.download({
+          url: `data:application/pdf;base64,${r.base64}`,
+          filename: `Notas ISS/NFSe_${nota.numero}.pdf`,
+          conflictAction: 'uniquify', saveAs: false,
+        });
+        ok++;
+      } catch (e) {
+        falhas.push({ numero: nota.numero, erro: `Não consegui salvar o arquivo (${e?.message || 'erro'}).` });
+      }
     } else {
       falhas.push({ numero: nota.numero, erro: r.erro || 'Falha desconhecida.' });
     }
