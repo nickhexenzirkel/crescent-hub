@@ -5,6 +5,7 @@ import { StarDivider, Card, Btn, Tag, SHead, Moon, Logo, UnikoIcon } from '../..
 import { splitContrachequesPDF, normName, onlyDigits } from './contrachequeSplit';
 import UnikoQATab from './UnikoQATab';
 import UnikoFitPosesTab from './UnikoFitPosesTab';
+import PrestacoesContasTab from './PrestacoesContasTab';
 import UnikoSuspectMapTab from './UnikoSuspectMapTab';
 import GerenciarPermissoesTab from './GerenciarPermissoesTab';
 import {
@@ -296,7 +297,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
   // tem acesso — as demais (funcionários, feedback, perguntas do UNIKO,
   // lembretes, máquina do tempo, capture, oficina, permissões) continuam
   // exclusivas do Administrador.
-  const MODERADOR_TABS = ['funcionarios','gerenciar','infopessoal','atualizacoes','contracheques','maquina','banco','justificativas','vinculo','calendario','comunicados','feedback'];
+  const MODERADOR_TABS = ['funcionarios','gerenciar','prestacoes','infopessoal','atualizacoes','contracheques','maquina','banco','justificativas','vinculo','calendario','comunicados','feedback'];
   const [tab, setTab]         = useState(isModerador ? MODERADOR_TABS[0] : 'funcionarios');
   const [users, setUsers]     = useState([]);
   const [showNewUser, setShowNewUser] = useState(false);
@@ -2137,6 +2138,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
     {id:'funcionarios',   label:'Funcionários',      icon:<><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="23" y1="11" x2="17" y2="11"/><line x1="20" y1="8" x2="20" y2="14"/></>},
     {id:'gerenciar',      label:'Gerenciar Usuários', icon:<><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></>},
     {id:'permissoes',     label:'Gerenciar Permissões', icon:<><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></>},
+    {id:'prestacoes',     label:'Prestações de Contas', icon:<><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/><line x1="6" y1="15" x2="10" y2="15"/></>},
     {id:'infopessoal',    label:'Informações Pessoais', icon:<><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/><line x1="18" y1="8" x2="23" y2="8"/></>},
     {id:'atualizacoes',   label:'Atualizações',        icon:<><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0115-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 01-15 6.7L3 16"/></>},
     {id:'contracheques',  label:'Contracheques',      icon:<><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></>},
@@ -3544,6 +3546,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
 
           {/* ── TAB: GERENCIAR PERMISSÕES (cargos → módulos liberados) ── */}
           {tab==='permissoes'&&<GerenciarPermissoesTab cardBg={cardBg}/>}
+          {tab==='prestacoes'&&<PrestacoesContasTab/>}
 
           {/* ── TAB: PERGUNTAS DO UNIKO (cache/aprendizado da IA) ── */}
           {tab==='uniko_ia'&&<UnikoQATab cardBg={cardBg}/>}

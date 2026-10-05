@@ -21,7 +21,7 @@ import UnikoSafer from './modules/uniko-safer';
 import UnikoSecurity from './modules/uniko-security';
 import UnikoCall from './modules/uniko-call';
 import Beneficios7 from './modules/beneficios-7';
-import EmBreveModulo from './shared/EmBreveModulo';
+import PrestacaoContas from './modules/prestacao-contas';
 import { notifyDesktop, ensureNotifyPermission } from './utils/desktopNotify';
 import { useIsMobile } from './hooks/useIsMobile';
 import UnikoAssistant from './shared/UnikoAssistant';
@@ -699,7 +699,7 @@ export default function CrescentHub() {
           {screen==='mercado-estelar' && <MercadoEstelar onBack={handleGoBack} authUser={authUser} userPhoto={userPhoto} initialTab={portalInitialTab}/>}
           {screen==='uniko-fit' && <UnikoFit onBack={handleGoBack} authUser={authUser} userPhoto={userPhoto}/>}
           {screen==='uniko-call' && (authUser?.role==='admin'||cargoModules.has('uniko-call')) && <UnikoCall onBack={handleGoBack}/>}
-          {screen==='prestacao-contas' && (authUser?.role==='admin'||cargoModules.has('prestacao-contas')) && <EmBreveModulo onBack={handleGoBack} title="Prestações de Contas" subtitle="Esse módulo ainda está em desenvolvimento." icon={IcoPrestacaoContas}/>}
+          {screen==='prestacao-contas' && (authUser?.role==='admin'||cargoModules.has('prestacao-contas')) && <PrestacaoContas onBack={handleGoBack} authUser={authUser}/>}
         </div>
 
         {/* ── Aviso Urgente — tela cheia ── */}
