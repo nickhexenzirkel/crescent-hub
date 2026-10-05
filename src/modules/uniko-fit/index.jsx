@@ -1213,13 +1213,15 @@ const PesoMedidor = ({ pct, rotulo }) => {
 const ABAS_ORDEM = ['paravoce', 'treinos', 'batepapo', 'buscar', 'meuperfil'];
 // O toque começou numa área que já usa o gesto lateral (carrossel, faixa rolável, campo de texto, vídeo…)?
 // Aí não troca de aba: "campo vazio" = qualquer outro lugar.
-const toqueIgnoravel = (alvo) => {
-  for (let el = alvo; el && el !== document.body; el = el.parentElement) {
+const toqueIgnoravel = (alvo, limite) => {
+  // sobe só até o contêiner da aba (`limite`): elementos fora dele (app inteiro) não contam
+  for (let el = alvo; el && el !== limite && el !== document.body; el = el.parentElement) {
     const tag = el.tagName;
-    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'VIDEO' || tag === 'AUDIO' || tag === 'CANVAS') return true;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'AUDIO' || tag === 'CANVAS') return true;
+    if (tag === 'VIDEO' && el.controls) return true; // vídeo do feed (sem controles) deixa trocar de aba
     if (el.isContentEditable || el.dataset?.noswipe !== undefined) return true;
     if (el.classList?.contains('fit-carrossel')) return true;
-    if (el.scrollWidth > el.clientWidth + 2) {
+    if (el.scrollWidth > el.clientWidth + 6) {
       const ox = getComputedStyle(el).overflowX;
       if (ox === 'auto' || ox === 'scroll') return true;
     }
@@ -1258,15 +1260,21 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
   }
   const swipeRef = useRef(null);
   const swipeInicio = (e) => {
-    if (e.touches.length !== 1 || toqueIgnoravel(e.target)) { swipeRef.current = null; return; }
+    if (e.touches.length !== 1 || toqueIgnoravel(e.target, e.currentTarget)) { swipeRef.current = null; return; }
     const tc = e.touches[0];
-    swipeRef.current = { x: tc.clientX, y: tc.clientY, t: Date.now() };
+    swipeRef.current = { x: tc.clientX, y: tc.clientY, lx: tc.clientX, ly: tc.clientY, t: Date.now() };
   };
+  const swipeMove = (e) => {
+    const s0 = swipeRef.current; if (!s0 || !e.touches.length) return;
+    s0.lx = e.touches[0].clientX; s0.ly = e.touches[0].clientY;
+  };
+  // termina no touchend OU no touchcancel (o navegador às vezes "cancela" o toque quando acha que é rolagem)
   const swipeFim = (e) => {
     const s0 = swipeRef.current; swipeRef.current = null;
-    if (!s0 || !e.changedTouches?.length) return;
-    const dx = e.changedTouches[0].clientX - s0.x, dy = e.changedTouches[0].clientY - s0.y;
-    if (Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 1.6 || Date.now() - s0.t > 900) return;
+    if (!s0) return;
+    const ct = e.changedTouches?.[0];
+    const dx = (ct ? ct.clientX : s0.lx) - s0.x, dy = (ct ? ct.clientY : s0.ly) - s0.y;
+    if (Math.abs(dx) < 55 || Math.abs(dx) < Math.abs(dy) * 1.2 || Date.now() - s0.t > 1000) return;
     const i = ABAS_ORDEM.indexOf(topTab) + (dx < 0 ? 1 : -1);
     if (i >= 0 && i < ABAS_ORDEM.length) setTopTab(ABAS_ORDEM[i]);
   };
@@ -2559,7 +2567,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
         : { position: 'absolute', top: HEADER_H, left: 0, right: 0, bottom: FOOTER_H, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
         key={topTab}
         className={direcaoAbaRef.current > 0 ? 'fit-slide-next' : direcaoAbaRef.current < 0 ? 'fit-slide-prev' : undefined}
-        onTouchStart={desk ? undefined : swipeInicio} onTouchEnd={desk ? undefined : swipeFim}>
+        onTouchStart={desk ? undefined : swipeInicio} onTouchMove={desk ? undefined : swipeMove} onTouchEnd={desk ? undefined : swipeFim} onTouchCancel={desk ? undefined : swipeFim}>
 
         {/* ── Aviso pra ativar notificação push no celular — sticky, aparece em qualquer aba até ativar/dispensar ── */}
         {mostrarBannerPush && (
