@@ -1319,6 +1319,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
 @media (min-width: 1000px) and (pointer: fine) {
   .fit-post:hover { box-shadow: 0 6px 22px rgba(0,0,0,.28) !important; }
 }
+.fit-bar-ico svg { width: 28px; height: 28px; }
 .fit-scroll { scrollbar-width: thin; scrollbar-color: ${ENERGIA}99 rgba(128,128,128,.14); -webkit-overflow-scrolling: touch; }
 .fit-scroll::-webkit-scrollbar { width: 6px; }
 .fit-scroll::-webkit-scrollbar-thumb { background: ${ENERGIA}99; border-radius: 99px; }
@@ -2424,8 +2425,8 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
     window.addEventListener('keydown', fn);
     return () => window.removeEventListener('keydown', fn);
   }, [desk, topTab, sheet, navegarFeed]);
-  const HEADER_H = 'calc(94px + env(safe-area-inset-top, 0px))'; // topbar 50 + abas 44 + notch
-  const FOOTER_H = 'calc(60px + env(safe-area-inset-bottom, 0px))';
+  const HEADER_H = 'calc(116px + env(safe-area-inset-top, 0px))'; // topbar 72 + abas 44 + notch
+  const FOOTER_H = 'calc(80px + env(safe-area-inset-bottom, 0px))';
 
   return (
     <div className="fit-root" style={{ width: '100%', maxWidth: desk ? 'none' : 480, margin: '0 auto', background: T.page, fontFamily: 'var(--font-body)', position: 'relative', overflow: 'hidden', boxShadow: desk ? 'none' : '0 0 60px rgba(0,0,0,.08)' }}>
@@ -2479,14 +2480,12 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
       {/* ── Cabeçalho fixo: topbar + abas (Para Você / Bate-Papo / Meu Perfil) ── */}
       {!desk && <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 480, zIndex: 60,
         paddingTop: 'env(safe-area-inset-top, 0px)', background: T.topbarBg || cardBg }}>
-        <div style={{ height: 50, background: T.topbarBg || cardBg, backdropFilter: 'blur(28px)', WebkitBackdropFilter: 'blur(28px)', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', padding: '0 10px 0 6px', gap: 6, boxShadow: `0 1px 16px ${ENERGIA}18`, boxSizing: 'border-box' }}>
-          <button onClick={onBack} className="fit-btn" style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', color: T.textS, fontSize: 12.5, fontFamily: 'var(--font-body)', padding: '6px 7px', borderRadius: 7 }}>
+        <div style={{ height: 72, background: T.topbarBg || cardBg, backdropFilter: 'blur(28px)', WebkitBackdropFilter: 'blur(28px)', borderBottom: `1px solid ${T.border}`, display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', padding: '0 12px 0 6px', gap: 6, boxShadow: `0 1px 16px ${ENERGIA}18`, boxSizing: 'border-box' }}>
+          <button onClick={onBack} className="fit-btn" style={{ justifySelf: 'start', display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', color: T.textS, fontSize: 12.5, fontFamily: 'var(--font-body)', padding: '6px 7px', borderRadius: 7 }}>
             {IcoBack} Módulos
           </button>
-          <div style={{ flex: 1 }} />
-          <UnikoBrandArt legenda="FIT" semLogo alturaNome={19} legendaCentrada tamanhoLegenda={14} cores={{ texto: T.text, destaque: ENERGIA }} />
-          <div style={{ flex: 1 }} />
-          <AvatarCircle name={userName} photo={userPhoto} size={28} fontSize={10} />
+          <UnikoBrandArt legenda="FIT" semLogo alturaNome={28} legendaCentrada tamanhoLegenda={16} cores={{ texto: T.text, destaque: ENERGIA }} />
+          <div style={{ justifySelf: 'end' }}><AvatarCircle name={userName} photo={userPhoto} size={34} fontSize={12} /></div>
         </div>
 
         {/* Abas centralizadas */}
@@ -3031,8 +3030,8 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
           <Fragment key={b.id}>
             {i > 0 && <div style={{ width: 1, alignSelf: 'center', height: 24, background: T.border, flexShrink: 0 }} />}
             <button onClick={() => b.id === 'notif' ? abrirNotificacoes() : openSheet(b.id)} className="fit-btn"
-              style={{ flex: 1, position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, padding: '9px 2px 8px', background: 'none', border: 'none', cursor: 'pointer', color: T.textS }}>
-              <span style={{ position: 'relative', color: ENERGIA, display: 'flex' }}>
+              style={{ flex: 1, position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, padding: '12px 2px 10px', justifyContent: 'flex-start', background: 'none', border: 'none', cursor: 'pointer', color: T.textS }}>
+              <span className="fit-bar-ico" style={{ position: 'relative', color: ENERGIA, display: 'flex' }}>
                 {b.icon}
                 {b.id === 'notif' && notifUnreadCount > 0 && (
                   <span style={{ position: 'absolute', top: -4, right: -6, minWidth: 15, height: 15, padding: '0 3px', borderRadius: '50%', background: '#DC3232', color: '#fff', fontSize: 9, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1.5px solid ${cardBg}` }}>
@@ -3040,7 +3039,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                   </span>
                 )}
               </span>
-              <span style={{ fontSize: 10, fontWeight: 700, fontFamily: 'var(--font-body)' }}>{b.label}</span>
+              <span style={{ fontSize: 11.5, fontWeight: 700, fontFamily: 'var(--font-body)', lineHeight: 1.15, textAlign: 'center' }}>{b.label}</span>
             </button>
           </Fragment>
         ))}
