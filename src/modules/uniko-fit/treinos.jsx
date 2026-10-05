@@ -165,7 +165,7 @@ const EditorTreino = ({ T, ENERGIA, FOGO, EG, titulo, inicial, colecao, onSalvar
   );
 
   return (
-    <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+    <div data-noswipe style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
       <div className="fit-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '16px 14px 12px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <button onClick={onCancelar} className="fit-btn" aria-label="Voltar" style={{ width: 40, height: 40, borderRadius: '50%', border: `1.5px solid ${T.border}`, background: T.surface, color: T.text, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{IcoVoltar}</button>

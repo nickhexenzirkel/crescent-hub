@@ -1209,6 +1209,24 @@ const PesoMedidor = ({ pct, rotulo }) => {
   );
 };
 
+// Ordem das abas do topo — arrastar pro lado no celular anda por ela
+const ABAS_ORDEM = ['paravoce', 'treinos', 'batepapo', 'buscar', 'meuperfil'];
+// O toque começou numa área que já usa o gesto lateral (carrossel, faixa rolável, campo de texto, vídeo…)?
+// Aí não troca de aba: "campo vazio" = qualquer outro lugar.
+const toqueIgnoravel = (alvo) => {
+  for (let el = alvo; el && el !== document.body; el = el.parentElement) {
+    const tag = el.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'VIDEO' || tag === 'AUDIO' || tag === 'CANVAS') return true;
+    if (el.isContentEditable || el.dataset?.noswipe !== undefined) return true;
+    if (el.classList?.contains('fit-carrossel')) return true;
+    if (el.scrollWidth > el.clientWidth + 2) {
+      const ox = getComputedStyle(el).overflowX;
+      if (ox === 'auto' || ox === 'scroll') return true;
+    }
+  }
+  return false;
+};
+
 // Computador (tela larga + mouse): o Uniko FIT troca o layout de celular por
 // barra lateral + coluna central. No celular/tablet nada muda.
 const DESK_MQ = '(min-width: 1000px) and (pointer: fine)';
@@ -1230,7 +1248,28 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
   const name = myName();
   const userName = authUser?.name || name;
   const cardBg = T.surface || '#fff';
-  const [topTab, setTopTab] = useState('paravoce'); // paravoce | batepapo
+  const [topTab, setTopTab] = useState('paravoce'); // paravoce | treinos | batepapo | buscar | meuperfil
+  // Direção da última troca de aba (pra animar entrando pelo lado certo) e gesto de arrastar no celular
+  const abaAnteriorRef = useRef('paravoce');
+  const direcaoAbaRef = useRef(0);
+  if (abaAnteriorRef.current !== topTab) {
+    direcaoAbaRef.current = Math.sign(ABAS_ORDEM.indexOf(topTab) - ABAS_ORDEM.indexOf(abaAnteriorRef.current));
+    abaAnteriorRef.current = topTab;
+  }
+  const swipeRef = useRef(null);
+  const swipeInicio = (e) => {
+    if (e.touches.length !== 1 || toqueIgnoravel(e.target)) { swipeRef.current = null; return; }
+    const tc = e.touches[0];
+    swipeRef.current = { x: tc.clientX, y: tc.clientY, t: Date.now() };
+  };
+  const swipeFim = (e) => {
+    const s0 = swipeRef.current; swipeRef.current = null;
+    if (!s0 || !e.changedTouches?.length) return;
+    const dx = e.changedTouches[0].clientX - s0.x, dy = e.changedTouches[0].clientY - s0.y;
+    if (Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 1.6 || Date.now() - s0.t > 900) return;
+    const i = ABAS_ORDEM.indexOf(topTab) + (dx < 0 ? 1 : -1);
+    if (i >= 0 && i < ABAS_ORDEM.length) setTopTab(ABAS_ORDEM[i]);
+  };
   const [sheet, setSheet] = useState(null);          // null | checkin | post | ranking | notif | amigos
   // Vídeos do feed começam mudos (autoplay com som é bloqueado sem toque do
   // usuário) — o botão de alto-falante no card muda isso pra TODOS os vídeos
@@ -1319,6 +1358,10 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
 @media (min-width: 1000px) and (pointer: fine) {
   .fit-post:hover { box-shadow: 0 6px 22px rgba(0,0,0,.28) !important; }
 }
+@keyframes fitSlideNext { from { transform: translateX(34px); opacity: .25; } to { transform: none; opacity: 1; } }
+@keyframes fitSlidePrev { from { transform: translateX(-34px); opacity: .25; } to { transform: none; opacity: 1; } }
+.fit-slide-next { animation: fitSlideNext .24s cubic-bezier(.2,.9,.3,1) both; }
+.fit-slide-prev { animation: fitSlidePrev .24s cubic-bezier(.2,.9,.3,1) both; }
 .fit-tabs-row { scrollbar-width: none; }
 .fit-tabs-row::-webkit-scrollbar { display: none; }
 .fit-bar-ico svg { width: 28px; height: 28px; }
@@ -2513,7 +2556,10 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
         ? { position: 'absolute', top: 0, bottom: 0, left: SIDE_W, right: mostraRanking ? RIGHT_W : 0, margin: '0 auto', width: topTab === 'paravoce' ? 600 : 780, maxWidth: `calc(100% - ${SIDE_W}px - ${mostraRanking ? RIGHT_W : 0}px)`,
             display: 'flex', flexDirection: 'column', overflow: 'hidden', background: topTab === 'paravoce' ? 'transparent' : cardBg,
             borderLeft: topTab === 'paravoce' ? 'none' : `1px solid ${T.border}`, borderRight: topTab === 'paravoce' ? 'none' : `1px solid ${T.border}` }
-        : { position: 'absolute', top: HEADER_H, left: 0, right: 0, bottom: FOOTER_H, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        : { position: 'absolute', top: HEADER_H, left: 0, right: 0, bottom: FOOTER_H, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+        key={topTab}
+        className={direcaoAbaRef.current > 0 ? 'fit-slide-next' : direcaoAbaRef.current < 0 ? 'fit-slide-prev' : undefined}
+        onTouchStart={desk ? undefined : swipeInicio} onTouchEnd={desk ? undefined : swipeFim}>
 
         {/* ── Aviso pra ativar notificação push no celular — sticky, aparece em qualquer aba até ativar/dispensar ── */}
         {mostrarBannerPush && (
