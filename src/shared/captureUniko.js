@@ -1133,6 +1133,17 @@ export async function fetchCapturesFor(player) {
     return data || [];
   } catch { return []; }
 }
+// Versão que NÃO engole erro (devolve null se a leitura falhar) — usada na sincronização da
+// coleção: uma falha de rede/Supabase não pode ser confundida com "não tem nenhum Uniko" e
+// zerar a coleção em cache da pessoa.
+async function fetchCapturesForStrict(player) {
+  try {
+    const { data, error } = await _supabase.from('capture_uniko_captures')
+      .select('uniko_id,uniko_name,captured_at').eq('player', player).order('captured_at', { ascending: false });
+    if (error) { console.error('[capture-uniko] leitura das capturas falhou:', error.message); return null; }
+    return data || [];
+  } catch (e) { console.error('[capture-uniko] leitura das capturas falhou:', e); return null; }
+}
 
 // Sem `img`: quem desenha a coleção resolve a arte na hora com getUniko(c.id) (a img
 // gravada aqui era ignorada de propósito — ver TabInicio — porque podia ter congelado
@@ -1160,7 +1171,8 @@ export async function syncCollectionFromServer() {
       setCapturedCollection(list);
       return list; // admin não sofre o "revert do assistente" abaixo (tem tudo)
     }
-    const rows = await fetchCapturesFor(a.name);
+    const rows = await fetchCapturesForStrict(a.name);
+    if (rows === null) return getCapturedCollection(); // falhou ao ler — mantém a coleção que já estava em cache
     const seen = new Set();
     const list = [];
     for (const r of rows) {
