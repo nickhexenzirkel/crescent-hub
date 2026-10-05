@@ -128,3 +128,104 @@ toggleBtn.addEventListener('click', async () => {
     render('idle', `Falhou: ${e.message}`);
   }
 });
+
+/* ── Calibração de áudio ─────────────────────────────────────────────────
+   - Microfone: medidor ao vivo local (popup abre o mic) enquanto NÃO há gravação/teste.
+   - Durante gravação ou teste, os níveis reais vêm do gravador (UNIKO_CALL_LEVELS).
+   - "Testar áudio": grava 10s pelo mesmo caminho da gravação de verdade e manda pra
+     uma transcrição de teste (nada é salvo) — mostra o que foi entendido e se o aviso
+     prévio seria aceito. */
+const micFill = document.getElementById('micFill');
+const tabFill = document.getElementById('tabFill');
+const micChk = document.getElementById('micChk');
+const tabChk = document.getElementById('tabChk');
+const calibHint = document.getElementById('calibHint');
+const testBtn = document.getElementById('testBtn');
+const testResult = document.getElementById('testResult');
+
+const setBar = (fill, v) => { const pct = Math.min(100, Math.round(Math.sqrt(v) * 100)); fill.style.width = pct + '%'; fill.classList.toggle('low', pct < 8); };
+const showResult = (cls, html) => { testResult.className = 'testResult show ' + cls; testResult.innerHTML = html; };
+const esc = (t) => String(t || '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+
+let localMic = null; // { stream, ctx, raf }
+async function startLocalMicMeter() {
+  if (localMic) return;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+    const ctx = new AudioContext();
+    const an = ctx.createAnalyser(); an.fftSize = 512;
+    ctx.createMediaStreamSource(stream).connect(an);
+    const buf = new Uint8Array(512);
+    localMic = { stream, ctx, raf: 0, heard: false };
+    const loop = () => {
+      an.getByteTimeDomainData(buf);
+      let m = 0; for (const v of buf) m = Math.max(m, Math.abs(v - 128));
+      const level = m / 128;
+      setBar(micFill, level);
+      if (level > 0.05 && !localMic.heard) { localMic.heard = true; micChk.textContent = '✅'; }
+      localMic.raf = requestAnimationFrame(loop);
+    };
+    loop();
+  } catch {
+    micChk.textContent = '❌';
+    calibHint.textContent = 'Microfone sem permissão. Clique em "Autorizar microfone" abaixo.';
+  }
+}
+function stopLocalMicMeter() {
+  if (!localMic) return;
+  cancelAnimationFrame(localMic.raf);
+  localMic.stream.getTracks().forEach(t => t.stop());
+  localMic.ctx.close().catch(() => {});
+  localMic = null;
+}
+
+chrome.runtime.onMessage.addListener((m) => {
+  if (m.type === 'UNIKO_CALL_LEVELS') {
+    stopLocalMicMeter(); // o gravador já mede o mic — evita abrir duas vezes
+    setBar(micFill, m.mic); setBar(tabFill, m.tab);
+    micChk.textContent = m.peakMic > 0.05 ? '✅' : '…';
+    tabChk.textContent = m.peakTab > 0.02 ? '✅' : '…';
+  }
+  if (m.type === 'UNIKO_CALL_TEST_RESULT') {
+    testBtn.disabled = false; testBtn.textContent = 'Testar áudio e transcrição (10s)';
+    render('idle');
+    const lines = [];
+    lines.push(m.peakMic > 0.05 ? '✅ Microfone captou sua voz.' : '❌ Microfone sem som — confira o microfone selecionado no Windows.');
+    lines.push(m.peakTab > 0.02 ? '✅ Áudio da ligação captado.' : '⚠️ Nenhum som da aba/ligação (normal se ninguém falou do outro lado).');
+    if (m.error) { showResult('bad', lines.join('<br>') + '<br>❌ Falha na transcrição: ' + esc(m.error)); return; }
+    lines.push(m.text ? `📝 Entendido: “${esc(m.text)}”` : '❌ Nada foi transcrito (áudio mudo ou muito baixo).');
+    lines.push(m.consentGiven ? '✅ O aviso prévio SERIA aceito.' : '❌ O aviso prévio NÃO seria aceito (fale: “Por questões de segurança, essa ligação está sendo gravada”).');
+    showResult(m.consentGiven && m.peakMic > 0.05 ? 'ok' : 'bad', lines.join('<br>'));
+  }
+});
+
+testBtn.addEventListener('click', async () => {
+  const st = await chrome.runtime.sendMessage({ type: 'UNIKO_CALL_GET_STATE' }).catch(() => null);
+  if (st?.state === 'recording' || st?.state === 'testing') { showResult('bad', 'Há uma gravação em andamento — o medidor acima já mostra os níveis ao vivo.'); return; }
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.url?.includes('web.whatsapp.com')) { showResult('bad', 'Abra o WhatsApp Web nesta aba pra testar o áudio da ligação.'); return; }
+    let streamId;
+    try { streamId = await chrome.tabCapture.getMediaStreamId(); }
+    catch (e) {
+      if (!/active stream/i.test(e.message || '')) throw e;
+      await chrome.runtime.sendMessage({ type: 'UNIKO_CALL_RESET' }).catch(() => {});
+      await new Promise(r => setTimeout(r, 700));
+      streamId = await chrome.tabCapture.getMediaStreamId();
+    }
+    stopLocalMicMeter();
+    micChk.textContent = ''; tabChk.textContent = '';
+    testBtn.disabled = true; testBtn.textContent = 'Testando… fale o aviso agora (10s)';
+    showResult('', '🎙️ Fale: “Por questões de segurança, essa ligação está sendo gravada.” Se tiver alguém na linha, peça pra falar também.');
+    await chrome.runtime.sendMessage({ type: 'UNIKO_CALL_START_WITH_STREAM', streamId, contactName: null, test: true });
+  } catch (e) {
+    testBtn.disabled = false; testBtn.textContent = 'Testar áudio e transcrição (10s)';
+    showResult('bad', 'Falhou: ' + esc(e.message));
+  }
+});
+
+// Medidor local do microfone só quando está ocioso.
+chrome.runtime.sendMessage({ type: 'UNIKO_CALL_GET_STATE' }).then((res) => {
+  if (res?.state !== 'recording' && res?.state !== 'testing') startLocalMicMeter();
+}).catch(() => startLocalMicMeter());
+window.addEventListener('unload', stopLocalMicMeter);

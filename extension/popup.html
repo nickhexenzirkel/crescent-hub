@@ -129,6 +129,19 @@
     border: 1px solid rgba(212,160,23,.3);
   }
   .recordingNotice.show { display: flex; }
+  .calib { border: 1px solid var(--line); border-radius: 11px; padding: 10px 12px; margin-bottom: 8px; background: #fbfcfd; }
+  .calib .ttl { font-size: 11px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-sub); margin-bottom: 8px; }
+  .meter { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 11.5px; font-weight: 600; }
+  .meter .lbl { width: 92px; flex-shrink: 0; }
+  .meter .bar { flex: 1; height: 8px; border-radius: 4px; background: #e7eaee; overflow: hidden; }
+  .meter .fill { height: 100%; width: 0; background: var(--green); transition: width .12s linear; }
+  .meter .fill.low { background: var(--amber); }
+  .meter .chk { width: 16px; text-align: center; flex-shrink: 0; }
+  .calibHint { font-size: 10.5px; color: var(--ink-sub); line-height: 1.45; margin: 2px 0 8px; }
+  .testResult { display: none; font-size: 11.5px; line-height: 1.5; padding: 8px 10px; border-radius: 9px; margin-top: 8px; background: #f1f2f4; word-break: break-word; }
+  .testResult.show { display: block; }
+  .testResult.ok { background: var(--green-gl); color: var(--green-dk); }
+  .testResult.bad { background: rgba(224,83,61,.12); color: #b3402d; }
 </style>
 </head>
 <body>
@@ -142,6 +155,14 @@
   <div class="status"><span id="dot" class="dot"></span><span id="statusText">Verificando…</span></div>
   <div id="micOk" class="micOk">🎤 Microfone autorizado, ativo</div>
   <div id="recordingNotice" class="recordingNotice">⚠️ Fique nesta aba do WhatsApp Web até falar o aviso prévio ("Por questões de segurança, esta ligação está sendo gravada"). Trocar de aba antes disso pode atrapalhar a captura.</div>
+  <div class="calib">
+    <div class="ttl">Calibração de áudio</div>
+    <div class="meter"><span class="lbl">🎤 Seu microfone</span><div class="bar"><div id="micFill" class="fill"></div></div><span id="micChk" class="chk"></span></div>
+    <div class="meter"><span class="lbl">🔊 Áudio da ligação</span><div class="bar"><div id="tabFill" class="fill"></div></div><span id="tabChk" class="chk"></span></div>
+    <div id="calibHint" class="calibHint">Fale: a barra do microfone deve mexer. Pra testar tudo (inclusive a transcrição), use o botão abaixo com o WhatsApp Web nesta aba.</div>
+    <button id="testBtn" class="secondary" style="margin-bottom:0">Testar áudio e transcrição (10s)</button>
+    <div id="testResult" class="testResult"></div>
+  </div>
   <button id="micBtn" class="secondary">Autorizar microfone</button>
   <button id="toggleBtn" class="primary">Iniciar gravação manual</button>
   <p class="warn">Avise sempre a pessoa do outro lado que a ligação está sendo gravada, no início da chamada. O Chrome exige um clique pra autorizar a captura — quando uma chamada é detectada, este ícone avisa (bolinha amarela); clique em "Iniciar gravação manual" pra começar de verdade.</p>

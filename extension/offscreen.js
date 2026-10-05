@@ -14,16 +14,16 @@ let recorder = null;
 let chunks = [];
 let tabStream = null;
 let micStream = null;
-let meta = { contactName: null, startedAt: null };
+let meta = { contactName: null, startedAt: null, test: false };
 
 // Log em cada passo (temporário, pra diagnóstico ao vivo 24/set/2026 — nada
 // estava chegando no servidor e nem erro nenhum sobrava pra seguir a pista).
 console.log('[uniko-call] offscreen.js carregado e ouvindo mensagens.');
 
-async function startCapture(streamId, contactName) {
+async function startCapture(streamId, contactName, test = false) {
   console.log('[uniko-call] startCapture() chamado — streamId:', streamId, 'contactName:', contactName);
   if (recorder && recorder.state === 'recording') { console.log('[uniko-call] já estava gravando — ignorando start duplicado.'); return; }
-  meta = { contactName: contactName || null, startedAt: new Date().toISOString() };
+  meta = { contactName: contactName || null, startedAt: new Date().toISOString(), test };
   chunks = [];
 
   console.log('[uniko-call] pedindo tabStream (getUserMedia tab)...');
@@ -80,7 +80,14 @@ function startLevelMeter(tabSrc, micSrc) {
   const buf = new Uint8Array(512);
   const peak = (a) => { a.getByteTimeDomainData(buf); let m = 0; for (const v of buf) m = Math.max(m, Math.abs(v - 128)); return m / 128; };
   clearInterval(levelTimer);
-  levelTimer = setInterval(() => { peaks.tab = Math.max(peaks.tab, peak(aTab)); peaks.mic = Math.max(peaks.mic, peak(aMic)); }, 300);
+  levelTimer = setInterval(() => {
+    const tab = peak(aTab), mic = peak(aMic);
+    peaks.tab = Math.max(peaks.tab, tab); peaks.mic = Math.max(peaks.mic, mic);
+    // Níveis ao vivo pro popup (medidor de calibração) — ignorado se o popup estiver fechado.
+    chrome.runtime.sendMessage({ type: 'UNIKO_CALL_LEVELS', tab, mic, peakTab: peaks.tab, peakMic: peaks.mic, test: meta.test }).catch(() => {});
+  }, 200);
+  // Teste de calibração dura no máximo 10s e para sozinho.
+  if (meta.test) setTimeout(() => { if (recorder && recorder.state === 'recording') stopCapture(); }, 10000);
 }
 
 function stopCapture() {
@@ -106,6 +113,20 @@ async function uploadRecording() {
   }
   const blob = new Blob(chunks, { type: 'audio/webm' });
   chunks = [];
+  if (meta.test) {
+    // Modo calibração: manda pra transcrição de teste (nada é salvo) e devolve o resultado pro popup.
+    try {
+      const form = new FormData();
+      form.append('audio', blob, 'test.webm');
+      const res = await fetch(`${CALL_SERVER}/api/uniko-call/test`, { method: 'POST', headers: { Authorization: `Bearer ${CALL_UPLOAD_TOKEN}` }, body: form });
+      const data = res.ok ? await res.json() : { error: `servidor respondeu ${res.status}` };
+      chrome.runtime.sendMessage({ type: 'UNIKO_CALL_TEST_RESULT', ...data, peakTab: peaks.tab, peakMic: peaks.mic }).catch(() => {});
+    } catch (e) {
+      chrome.runtime.sendMessage({ type: 'UNIKO_CALL_TEST_RESULT', error: e.message, peakTab: peaks.tab, peakMic: peaks.mic }).catch(() => {});
+    }
+    chrome.runtime.sendMessage({ type: 'UNIKO_CALL_STATE', state: 'test_done' }).catch(() => {});
+    return;
+  }
   console.log('[uniko-call] enviando blob de', blob.size, 'bytes pro servidor...');
   try {
     const form = new FormData();
@@ -128,7 +149,7 @@ async function uploadRecording() {
 
 chrome.runtime.onMessage.addListener((message) => {
   console.log('[uniko-call] offscreen recebeu mensagem:', message.type);
-  if (message.type === 'UNIKO_CALL_START') startCapture(message.streamId, message.contactName).catch((e) => {
+  if (message.type === 'UNIKO_CALL_START') startCapture(message.streamId, message.contactName, !!message.test).catch((e) => {
     console.error('[uniko-call] falha ao iniciar captura:', e.name, e.message);
     // Solta o que já tinha sido aberto (ex.: tab ok mas microfone negado), senão a aba fica "presa".
     [tabStream, micStream].forEach((s) => s?.getTracks().forEach((t) => t.stop()));
