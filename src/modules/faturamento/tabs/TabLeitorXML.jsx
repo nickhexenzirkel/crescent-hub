@@ -10,6 +10,13 @@ import { PainelObservacoesNotas } from './PainelObservacoesNotas';
 // A "chave" fixa do link do ISS (951862) é da inscrição da 7Serv — só vale para as notas dela.
 const CNPJ_7SERV = '13858769000197';
 
+// NFSe_1242_SEC_DE_SAUDE_MAC: nº da nota + secretaria (SECRETARIA → SEC) + setor, sem acento/símbolos
+const nomePdfNota = (r) => {
+  const parte = (t) => (t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase()
+    .replace(/SECRETARIA/g, 'SEC').replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  return ['NFSe', r.numero, parte(r.secretaria), parte(r.setor)].filter(Boolean).join('_').slice(0, 120) + '.pdf';
+};
+
 const GINFES_NS = 'http://www.ginfes.com.br/tipos_v03.xsd';
 
 const getEl = (parent, tag) =>
@@ -302,7 +309,7 @@ export const TabLeitorXML = () => {
     const job = baixarNotasISS({
       notas: elegiveis.map(r => ({ numero:r.numero, codigo:r.codigoVerif })),
       onArquivo: async ({ numero, bytes }) => {
-        const nome = `NFSe_${numero}.pdf`;
+        const nome = nomePdfNota(elegiveis.find(r => r.numero === numero) || { numero });
         if (!pasta) { zip.file(nome, bytes); return; }
         const w = await (await pasta.getFileHandle(nome, { create:true })).createWritable();
         await w.write(bytes);
