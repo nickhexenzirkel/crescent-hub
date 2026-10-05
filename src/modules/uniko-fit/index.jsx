@@ -2439,7 +2439,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
             {IcoBack} Módulos
           </button>
           <div style={{ padding: '12px 6px 18px' }}>
-            <UnikoBrandArt legenda="FIT" logo="/uniko-fit-icon-v2.png" tamanhoLogo={72} alturaNome={30} legendaCentrada tamanhoLegenda={22} cores={{ texto: T.text, destaque: ENERGIA }} />
+            <UnikoBrandArt legenda="FIT" logo="/uniko-fit-icon-v2.png" tamanhoLogo={120} alturaNome={30} legendaCentrada vertical tamanhoLegenda={22} cores={{ texto: T.text, destaque: ENERGIA }} />
           </div>
           {[['paravoce', 'Para Você'], ['treinos', 'Treinos'], ['batepapo', 'Bate-Papo'], ['buscar', 'Buscar'], ['meuperfil', 'Meu Perfil']].map(([id, label]) => {
             const on = topTab === id;

@@ -34,7 +34,7 @@ const BRAND_CSS = `
 /* Parâmetros opcionais (default = cabeçalho do Portal, idêntico ao de sempre): outro módulo pode
    trocar o mascote (`logo`), o tamanho dele e do nome, as cores (`cores`, quando o módulo tem tema
    próprio) e usar `compacto` (legenda ao lado do nome, numa linha só — barras de 50px). */
-export const UnikoBrandArt = ({ legenda, logo = '/UNIKO_LOGO.png', tamanhoLogo = 62, alturaNome = 30, cores, compacto = false, legendaCentrada = false, tamanhoLegenda }) => {
+export const UnikoBrandArt = ({ legenda, logo = '/UNIKO_LOGO.png', tamanhoLogo = 62, alturaNome = 30, cores, compacto = false, legendaCentrada = false, tamanhoLegenda, vertical = false }) => {
   const cTexto = cores?.texto || T.text;
   const cDestaque = cores?.destaque || T.gold;
   const legendaEl = (
@@ -44,7 +44,7 @@ export const UnikoBrandArt = ({ legenda, logo = '/UNIKO_LOGO.png', tamanhoLogo =
     </div>
   );
   return (
-    <div style={{ width: compacto ? 'auto' : '100%', display:'flex', alignItems:'center', gap: compacto ? 8 : 12 }}>
+    <div style={{ width: compacto ? 'auto' : '100%', display:'flex', flexDirection: vertical ? 'column' : 'row', alignItems:'center', gap: vertical ? 8 : (compacto ? 8 : 12) }}>
       <style>{BRAND_CSS}</style>
       {/* Logo recortada rente (UNIKO_LOGO.png) — o mascote enche o quadrado. Só
           flutua de leve por transform; nada de sombra ou brilho em volta. */}
