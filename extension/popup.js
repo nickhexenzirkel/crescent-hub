@@ -86,6 +86,16 @@ toggleBtn.addEventListener('click', async () => {
           if (r?.contactName) { contactName = r.contactName; break; }
         } catch (e) {
           console.warn(`[uniko-call] popup: aba ${t.id} não respondeu:`, e.message);
+          // Content script órfão/ausente (extensão recarregada sem F5 na aba):
+          // reinjeta o script e pergunta de novo, sem exigir que o usuário atualize a página.
+          try {
+            await chrome.scripting.executeScript({ target: { tabId: t.id }, files: ['whatsapp-call-detect.js'] });
+            const r2 = await chrome.tabs.sendMessage(t.id, { type: 'UNIKO_CALL_QUERY_CONTACT' });
+            console.log(`[uniko-call] popup: aba ${t.id} respondeu após reinjetar, contactName:`, JSON.stringify(r2?.contactName));
+            if (r2?.contactName) { contactName = r2.contactName; break; }
+          } catch (e2) {
+            console.warn(`[uniko-call] popup: reinjeção na aba ${t.id} falhou:`, e2.message);
+          }
         }
       }
       if (!contactName && waTabs.length) contentScriptStale = true;

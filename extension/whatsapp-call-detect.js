@@ -54,6 +54,8 @@ function currentContactName() {
 }
 
 function checkCallState() {
+  // Extensão recarregada: este script virou órfão — para o poll em vez de estourar erro a cada 2s.
+  if (!chrome.runtime?.id) { clearInterval(pollTimer); return; }
   const active = !!findEndCallButton();
   if (active === callActive) return;
   callActive = active;
