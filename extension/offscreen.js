@@ -40,9 +40,16 @@ async function startCapture(streamId, contactName) {
   console.log('[uniko-call] micStream OK. Montando AudioContext e MediaRecorder...');
 
   audioContext = new AudioContext();
+  // Sem gesto do usuário nesta página, o AudioContext pode nascer "suspended" e o
+  // MediaRecorder grava SILÊNCIO (transcrição vazia -> "aviso prévio não dito").
+  await audioContext.resume().catch(() => {});
+  console.log('[uniko-call] AudioContext state:', audioContext.state);
   const dest = audioContext.createMediaStreamDestination();
-  audioContext.createMediaStreamSource(tabStream).connect(dest);
-  audioContext.createMediaStreamSource(micStream).connect(dest);
+  const tabSrc = audioContext.createMediaStreamSource(tabStream);
+  const micSrc = audioContext.createMediaStreamSource(micStream);
+  tabSrc.connect(dest);
+  micSrc.connect(dest);
+  startLevelMeter(tabSrc, micSrc);
 
   // chrome.tabCapture "rouba" o áudio da aba pro nosso stream — sem isso o
   // colaborador ficaria SURDO durante a ligação. Reconecta de volta pros
@@ -57,7 +64,23 @@ async function startCapture(streamId, contactName) {
   chrome.runtime.sendMessage({ type: 'UNIKO_CALL_STATE', state: 'recording' }).catch(() => {});
 }
 
+// Mede o pico de volume da aba e do microfone durante a gravação e loga ao parar —
+// mostra de que lado vem o silêncio, se voltar a acontecer.
+let levelTimer = null;
+const peaks = { tab: 0, mic: 0 };
+function startLevelMeter(tabSrc, micSrc) {
+  peaks.tab = 0; peaks.mic = 0;
+  const mk = (src) => { const a = audioContext.createAnalyser(); a.fftSize = 512; src.connect(a); return a; };
+  const aTab = mk(tabSrc), aMic = mk(micSrc);
+  const buf = new Uint8Array(512);
+  const peak = (a) => { a.getByteTimeDomainData(buf); let m = 0; for (const v of buf) m = Math.max(m, Math.abs(v - 128)); return m / 128; };
+  clearInterval(levelTimer);
+  levelTimer = setInterval(() => { peaks.tab = Math.max(peaks.tab, peak(aTab)); peaks.mic = Math.max(peaks.mic, peak(aMic)); }, 300);
+}
+
 function stopCapture() {
+  clearInterval(levelTimer);
+  console.log('[uniko-call] picos de volume — aba:', peaks.tab.toFixed(3), 'microfone:', peaks.mic.toFixed(3), '(0 = mudo)');
   console.log('[uniko-call] stopCapture() chamado — recorder existe?', !!recorder, 'state:', recorder?.state);
   if (recorder && recorder.state !== 'inactive') recorder.stop();
   [tabStream, micStream].forEach((s) => s?.getTracks().forEach((t) => t.stop()));
