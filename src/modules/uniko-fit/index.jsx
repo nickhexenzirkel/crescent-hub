@@ -551,9 +551,9 @@ const FeedVideo = ({ src, style, muted, ativo, postId, onEl, onRatio }) => {
     const el = ref.current;
     if (!el) return;
     el.playsInline = true;
-    const io = new IntersectionObserver(([entry]) => onRatio(postId, entry.intersectionRatio), { threshold: IO_THRESHOLDS });
+    const io = new IntersectionObserver(([entry]) => onRatio?.(postId, entry.intersectionRatio), { threshold: IO_THRESHOLDS });
     io.observe(el);
-    return () => { io.disconnect(); onRatio(postId, 0); };
+    return () => { io.disconnect(); onRatio?.(postId, 0); };
   }, [postId, onRatio]);
   useEffect(() => {
     const el = ref.current; if (!el) return;
@@ -579,9 +579,9 @@ const FeedCarrossel = ({ midias, muted, onEl, indice, onIndice, postAtivo, postI
   // nunca seria eleito e o vídeo não tocaria.
   useEffect(() => {
     const el = scrollRef.current; if (!el) return;
-    const io = new IntersectionObserver(([e]) => onRatio(postId, e.intersectionRatio), { threshold: IO_THRESHOLDS });
+    const io = new IntersectionObserver(([e]) => onRatio?.(postId, e.intersectionRatio), { threshold: IO_THRESHOLDS });
     io.observe(el);
-    return () => { io.disconnect(); onRatio(postId, 0); };
+    return () => { io.disconnect(); onRatio?.(postId, 0); };
   }, [postId, onRatio]);
 
   // Descobre o slide atual pela posição do scroll (mais confiável no mobile
@@ -641,9 +641,9 @@ const FeedMusic = ({ src, start, duration, muted, ativo, postId, onEl, onRatio }
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const io = new IntersectionObserver(([entry]) => onRatio(postId, entry.intersectionRatio), { threshold: IO_THRESHOLDS });
+    const io = new IntersectionObserver(([entry]) => onRatio?.(postId, entry.intersectionRatio), { threshold: IO_THRESHOLDS });
     io.observe(el);
-    return () => { io.disconnect(); onRatio(postId, 0); };
+    return () => { io.disconnect(); onRatio?.(postId, 0); };
   }, [postId, onRatio]);
   useEffect(() => {
     const el = ref.current;
