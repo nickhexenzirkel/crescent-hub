@@ -192,7 +192,7 @@ chrome.runtime.onMessage.addListener((m) => {
   if (m.type === 'UNIKO_CALL_TEST_PARTIAL' && testRunning && m.seq >= liveSeqShown) {
     liveSeqShown = m.seq;
     liveText.className = 'testResult show';
-    liveText.textContent = m.text ? `📝 ${m.text}` : '📝 …ouvindo';
+    liveText.textContent = m.text ? `📝 (parcial) ${m.text}` : '📝 …ouvindo';
   }
   if (m.type === 'UNIKO_CALL_TEST_RESULT') {
     testRunning = false;
