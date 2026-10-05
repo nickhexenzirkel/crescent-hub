@@ -408,6 +408,23 @@ export const TreinosTab = ({ T, ENERGIA, FOGO, EG, supabase, podeCurar, onAbrirC
     </div>
   );
 
+  const usarNoDia = (t, dia) => { salvarPlano({ ...P, dias: { ...P.dias, [dia]: { id: novoId(), nome: t.nome, grupos: t.grupos } } }); setAba('semana'); setSub(null); };
+  /* "Meus treinos (N)": usado na Coleção e também nas telas vazias de Hoje/Semana */
+  const MeusTreinos = (sugestoesAbaixo) => (
+    <>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '0 2px 10px' }}>
+        <div style={{ flex: 1, fontFamily: 'var(--font-brand)', fontSize: 17, fontWeight: 800, color: T.text }}>Meus treinos ({colecao.length})</div>
+        <button onClick={() => setEditando({ tipo: 'colecao', id: null })} className="fit-btn" style={{ minHeight: 40, padding: '0 16px', borderRadius: 12, border: 'none', background: ENERGIA, color: '#fff', fontWeight: 800, fontSize: 13.5, cursor: 'pointer' }}>+ Novo treino</button>
+      </div>
+      {plano === null ? <div style={{ textAlign: 'center', padding: 24, color: T.textT, fontSize: 13 }}>Carregando...</div>
+        : !colecao.length ? <div style={{ ...caixa, padding: '22px 16px', textAlign: 'center', color: T.textT, fontSize: 13.5, lineHeight: 1.5, marginBottom: 18 }}>{sugestoesAbaixo ? 'Você ainda não guardou nenhum treino. Toque em “+ Novo treino” ou copie uma das sugestões abaixo.' : 'Você ainda não guardou nenhum treino. Toque em “+ Novo treino” ou veja as sugestões prontas na aba Coleção.'}</div>
+        : <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
+            {colecao.map(t => <CartaoTreino key={t.id} t={t} T={T} ENERGIA={ENERGIA} onEditar={(x) => setEditando({ tipo: 'colecao', id: x.id })}
+              onExcluir={(x) => { if (window.confirm('Excluir esse treino da coleção?')) salvarPlano({ ...P, colecao: colecao.filter(y => y.id !== x.id) }); }} onUsarNoDia={usarNoDia} />)}
+          </div>}
+    </>
+  );
+
   /* ── pedaços de tela (chamados como função, não como componente, pra não remontar) ── */
   const Voltar = (rot, aoVoltar) => (
     <button onClick={aoVoltar} className="fit-btn" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 40, padding: '0 14px 0 10px', borderRadius: 999, border: `1.5px solid ${T.border}`, background: T.surface, color: T.text, fontWeight: 700, fontSize: 13.5, cursor: 'pointer', marginBottom: 14 }}>{IcoVoltar} {rot}</button>
@@ -601,7 +618,7 @@ export const TreinosTab = ({ T, ENERGIA, FOGO, EG, supabase, podeCurar, onAbrirC
   if (aba === 'hoje') {
     if (plano === null) return Moldura(<div style={{ textAlign: 'center', padding: 40, color: T.textT, fontSize: 13 }}>Carregando...</div>);
     return Moldura(<>
-      {semNenhumTreino ? VazioCriar() : DiaDetalhe(idxHoje)}
+      {semNenhumTreino ? <>{VazioCriar()}<div style={{ height: 22 }} />{MeusTreinos(false)}</> : DiaDetalhe(idxHoje)}
       {cartaoCargas}
     </>);
   }
@@ -609,7 +626,7 @@ export const TreinosTab = ({ T, ENERGIA, FOGO, EG, supabase, podeCurar, onAbrirC
   /* SEMANA */
   if (aba === 'semana') {
     if (plano === null) return Moldura(<div style={{ textAlign: 'center', padding: 40, color: T.textT, fontSize: 13 }}>Carregando...</div>);
-    if (semNenhumTreino) return Moldura(VazioCriar());
+    if (semNenhumTreino) return Moldura(<>{VazioCriar()}<div style={{ height: 22 }} />{MeusTreinos(false)}</>);
     return Moldura(<>
       <div style={{ fontSize: 13.5, color: T.textS, margin: '0 2px 12px', lineHeight: 1.5 }}>Toque em um dia para ver o treino. Use <b style={{ color: T.text }}>Editar</b> ou <b style={{ color: T.text }}>Criar treino</b> para escolher os grupos e as máquinas de cada dia.</div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -640,18 +657,8 @@ export const TreinosTab = ({ T, ENERGIA, FOGO, EG, supabase, podeCurar, onAbrirC
 
   /* COLEÇÃO */
   if (aba === 'colecao') {
-    const usarNoDia = (t, dia) => { salvarPlano({ ...P, dias: { ...P.dias, [dia]: { id: novoId(), nome: t.nome, grupos: t.grupos } } }); setAba('semana'); };
     return Moldura(<>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '0 2px 10px' }}>
-        <div style={{ flex: 1, fontFamily: 'var(--font-brand)', fontSize: 17, fontWeight: 800, color: T.text }}>Meus treinos ({colecao.length})</div>
-        <button onClick={() => setEditando({ tipo: 'colecao', id: null })} className="fit-btn" style={{ minHeight: 40, padding: '0 16px', borderRadius: 12, border: 'none', background: ENERGIA, color: '#fff', fontWeight: 800, fontSize: 13.5, cursor: 'pointer' }}>+ Novo treino</button>
-      </div>
-      {plano === null ? <div style={{ textAlign: 'center', padding: 24, color: T.textT, fontSize: 13 }}>Carregando...</div>
-        : !colecao.length ? <div style={{ ...caixa, padding: '22px 16px', textAlign: 'center', color: T.textT, fontSize: 13.5, lineHeight: 1.5, marginBottom: 18 }}>Você ainda não guardou nenhum treino. Toque em “+ Novo treino” ou copie uma das sugestões abaixo.</div>
-        : <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
-            {colecao.map(t => <CartaoTreino key={t.id} t={t} T={T} ENERGIA={ENERGIA} onEditar={(x) => setEditando({ tipo: 'colecao', id: x.id })}
-              onExcluir={(x) => { if (window.confirm('Excluir esse treino da coleção?')) salvarPlano({ ...P, colecao: colecao.filter(y => y.id !== x.id) }); }} onUsarNoDia={usarNoDia} />)}
-          </div>}
+      {MeusTreinos(true)}
       <div style={{ fontFamily: 'var(--font-brand)', fontSize: 17, fontWeight: 800, color: T.text, margin: '6px 2px 10px' }}>Sugestões prontas</div>
       <div style={{ display: 'grid', gridTemplateColumns: desk ? 'repeat(2, 1fr)' : '1fr', gap: 10, alignItems: 'start' }}>
         {PRESETS.map(t => <CartaoTreino key={t.id} t={t} pronto T={T} ENERGIA={ENERGIA} onUsarNoDia={usarNoDia}
