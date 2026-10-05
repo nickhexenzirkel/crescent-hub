@@ -753,7 +753,7 @@ export default function CrescentHub() {
             <div style={{padding:'14px 16px',display:'flex',alignItems:'center',gap:11}}>
               <div style={{position:'relative',flexShrink:0}}>
                 <img src={chatToast.photo||'/UNIKO_NEW.png'} alt="" style={{width:42,height:42,borderRadius:'50%',objectFit:'cover',background:'#eee',border:'2px solid #FF6B35'}}/>
-                <img src="/uniko-fit-icon.png" alt="" style={{position:'absolute',bottom:-3,right:-3,width:18,height:18,borderRadius:'50%',objectFit:'cover',border:'2px solid #fff',boxShadow:'0 1px 4px rgba(0,0,0,.3)'}}/>
+                <img src="/uniko-fit-icon-v2.png" alt="" style={{position:'absolute',bottom:-4,right:-4,width:22,height:22,borderRadius:'50%',objectFit:'contain',background:'#fff',padding:1,boxSizing:'border-box',boxShadow:'0 1px 4px rgba(0,0,0,.3)'}}/>
               </div>
               <div style={{flex:1,minWidth:0}}>
                 <div style={{fontSize:11,fontWeight:700,color:'#FF6B35',letterSpacing:'.02em',marginBottom:2}}>Bate-Papo · Uniko FIT</div>

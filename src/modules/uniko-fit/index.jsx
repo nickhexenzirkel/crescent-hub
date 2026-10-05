@@ -2438,7 +2438,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
             {IcoBack} Módulos
           </button>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 8px 18px' }}>
-            <img src="/uniko-fit-icon.png" alt="Uniko FIT" style={{ width: 64, height: 64, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+            <img src="/uniko-fit-icon-v2.png" alt="Uniko FIT" style={{ width: 68, height: 68, objectFit: 'contain', flexShrink: 0 }} />
             <div style={{ fontSize: 22, fontWeight: 800, color: T.text, fontFamily: 'var(--font-brand)', letterSpacing: '.02em', lineHeight: 1 }}>Uniko FIT</div>
           </div>
           {[['paravoce', 'Para Você'], ['treinos', 'Treinos'], ['batepapo', 'Bate-Papo'], ['buscar', 'Buscar'], ['meuperfil', 'Meu Perfil']].map(([id, label]) => {
@@ -2483,7 +2483,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
           </button>
           <div style={{ flex: 1 }} />
           <span style={{ fontSize: 17, fontWeight: 800, color: T.text, fontFamily: 'var(--font-brand)', letterSpacing: '.02em' }}>Uniko FIT</span>
-          <img src="/uniko-fit-icon.png" alt="Uniko FIT" style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+          <img src="/uniko-fit-icon-v2.png" alt="Uniko FIT" style={{ width: 46, height: 46, objectFit: 'contain', flexShrink: 0 }} />
           <div style={{ flex: 1 }} />
           <AvatarCircle name={userName} photo={userPhoto} size={28} fontSize={10} />
         </div>
