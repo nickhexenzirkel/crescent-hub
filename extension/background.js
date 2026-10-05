@@ -638,7 +638,31 @@ function setUnikoCallState(state) {
 // acontecer, em silêncio total. Agora tenta criar SEMPRE e só ignora o erro
 // se ele disser explicitamente que já existe um documento — mais confiável
 // que confiar na checagem prévia.
+// Fallback pra navegadores Chromium sem chrome.offscreen (ex.: Opera GX): o
+// mesmo offscreen.html abre numa janelinha popup pequena e o resto do fluxo
+// (mensagens START/STOP/STATE) é idêntico. Espera o "READY" do script da página
+// antes de devolver, senão o UNIKO_CALL_START chegaria antes do listener existir.
+let recorderWindowId = null;
+let recorderReadyResolve = null;
+
+async function openRecorderWindowFallback() {
+  const ready = new Promise((resolve, reject) => {
+    recorderReadyResolve = resolve;
+    setTimeout(() => reject(new Error('A janela de gravação não respondeu.')), 8000);
+  });
+  const win = await chrome.windows.create({ url: chrome.runtime.getURL('offscreen.html'), type: 'popup', width: 340, height: 160, focused: false });
+  recorderWindowId = win.id;
+  await ready;
+  console.log('[uniko-call] janela de gravação (fallback sem offscreen) pronta.');
+}
+
+function closeRecorder() {
+  if (chrome.offscreen?.closeDocument) chrome.offscreen.closeDocument().catch(() => {});
+  if (recorderWindowId != null) { chrome.windows.remove(recorderWindowId).catch(() => {}); recorderWindowId = null; }
+}
+
 async function ensureOffscreenDocument() {
+  if (!chrome.offscreen?.createDocument) { await openRecorderWindowFallback(); return; }
   try {
     await chrome.offscreen.createDocument({
       url: 'offscreen.html',
@@ -780,8 +804,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.state === 'upload_error' || message.state === 'capture_error') {
       console.error('[uniko-call] problema na gravação:', message.state, message.error || '');
     }
-    chrome.offscreen.closeDocument?.().catch(() => {});
+    closeRecorder();
   }
+
+  if (message.type === 'UNIKO_CALL_RECORDER_READY' && recorderReadyResolve) { recorderReadyResolve(); recorderReadyResolve = null; }
 
   // Auto-envio silencioso ao carregar a página (sem logs na aba)
   if (message.type === 'UNIKO_YT_AUTO_COOKIES') {

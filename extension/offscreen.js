@@ -106,3 +106,6 @@ chrome.runtime.onMessage.addListener((message) => {
   });
   if (message.type === 'UNIKO_CALL_STOP') stopCapture();
 });
+
+// Avisa o background que o listener já existe (necessário no fallback em janela, ver background.js).
+chrome.runtime.sendMessage({ type: 'UNIKO_CALL_RECORDER_READY' }).catch(() => {});
