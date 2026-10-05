@@ -37,6 +37,7 @@ const T = {
 };
 import { USER, getAuthUser, supabase, SERVER_URL } from '../../contexts/user';
 import { AvatarCircle } from '../../shared/components';
+import { UnikoBrandArt } from '../../shared/UnikoBrand';
 import { TreinosTab, CargasPainel } from './treinos';
 import { pushSupported, hasActivePushSubscription, ensurePushSubscription } from '../../utils/pushNotify';
 
@@ -2437,9 +2438,8 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
           <button onClick={onBack} className="fit-btn fit-side-btn" style={{ display: 'flex', alignItems: 'center', gap: 6, alignSelf: 'flex-start', background: 'none', border: 'none', cursor: 'pointer', color: T.textS, fontSize: 13, fontFamily: 'var(--font-body)', padding: '6px 8px', borderRadius: 8 }}>
             {IcoBack} Módulos
           </button>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 8px 18px' }}>
-            <img src="/uniko-fit-icon-v2.png" alt="Uniko FIT" style={{ width: 68, height: 68, objectFit: 'contain', flexShrink: 0 }} />
-            <div style={{ fontSize: 22, fontWeight: 800, color: T.text, fontFamily: 'var(--font-brand)', letterSpacing: '.02em', lineHeight: 1 }}>Uniko FIT</div>
+          <div style={{ padding: '12px 6px 18px' }}>
+            <UnikoBrandArt legenda="FIT" logo="/uniko-fit-icon-v2.png" tamanhoLogo={70} alturaNome={30} cores={{ texto: T.text, destaque: ENERGIA }} />
           </div>
           {[['paravoce', 'Para Você'], ['treinos', 'Treinos'], ['batepapo', 'Bate-Papo'], ['buscar', 'Buscar'], ['meuperfil', 'Meu Perfil']].map(([id, label]) => {
             const on = topTab === id;
@@ -2482,8 +2482,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
             {IcoBack} Módulos
           </button>
           <div style={{ flex: 1 }} />
-          <span style={{ fontSize: 17, fontWeight: 800, color: T.text, fontFamily: 'var(--font-brand)', letterSpacing: '.02em' }}>Uniko FIT</span>
-          <img src="/uniko-fit-icon-v2.png" alt="Uniko FIT" style={{ width: 46, height: 46, objectFit: 'contain', flexShrink: 0 }} />
+          <UnikoBrandArt legenda="FIT" logo="/uniko-fit-icon-v2.png" tamanhoLogo={46} alturaNome={18} compacto cores={{ texto: T.text, destaque: ENERGIA }} />
           <div style={{ flex: 1 }} />
           <AvatarCircle name={userName} photo={userPhoto} size={28} fontSize={10} />
         </div>

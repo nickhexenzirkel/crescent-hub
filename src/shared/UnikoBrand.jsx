@@ -31,26 +31,36 @@ const BRAND_CSS = `
 @media (prefers-reduced-motion: reduce) { .ub-logo { animation: none !important; } }
 `;
 
-export const UnikoBrandArt = ({ legenda }) => (
-  <div style={{ width:'100%', display:'flex', alignItems:'center', gap:12 }}>
-    <style>{BRAND_CSS}</style>
-    {/* Logo recortada rente (UNIKO_LOGO.png) — o mascote enche o quadrado. Só
-        flutua de leve por transform; nada de sombra ou brilho em volta. */}
-    <img src="/UNIKO_LOGO.png" alt="Uniko" className="ub-logo" draggable={false}
-      style={{ width:62, height:62, flexShrink:0, objectFit:'contain', display:'block',
-        animation:'ubFlutua 4.5s ease-in-out infinite' }}/>
-    <div style={{ minWidth:0, display:'flex', flexDirection:'column', alignItems:'flex-start', gap:6 }}>
-      {/* alignSelf/alignItems no início: esticado na coluna, o SVG centralizava o nome. */}
-      <svg viewBox="7 7 473 116" role="img" aria-label="UNIKO"
-        style={{ height:30, width:'auto', display:'block', overflow:'visible', color:T.text }}>
-        <g fill="none" stroke="currentColor" strokeWidth="22" strokeLinecap="round" strokeLinejoin="round">
-          {UB_LETTERS.map((d, i) => <path key={i} d={d}/>)}
-        </g>
-      </svg>
-      <div style={{ fontFamily:'var(--font-brand)', fontSize:10, fontWeight:800, letterSpacing:'.06em',
-        textTransform:'uppercase', color:T.gold, lineHeight:1.2, whiteSpace:'nowrap' }}>
-        {legenda}
+/* Parâmetros opcionais (default = cabeçalho do Portal, idêntico ao de sempre): outro módulo pode
+   trocar o mascote (`logo`), o tamanho dele e do nome, as cores (`cores`, quando o módulo tem tema
+   próprio) e usar `compacto` (legenda ao lado do nome, numa linha só — barras de 50px). */
+export const UnikoBrandArt = ({ legenda, logo = '/UNIKO_LOGO.png', tamanhoLogo = 62, alturaNome = 30, cores, compacto = false }) => {
+  const cTexto = cores?.texto || T.text;
+  const cDestaque = cores?.destaque || T.gold;
+  const legendaEl = (
+    <div style={{ fontFamily:'var(--font-brand)', fontSize: compacto ? 12 : 10, fontWeight:800, letterSpacing:'.06em',
+      textTransform:'uppercase', color:cDestaque, lineHeight:1.2, whiteSpace:'nowrap' }}>
+      {legenda}
+    </div>
+  );
+  return (
+    <div style={{ width: compacto ? 'auto' : '100%', display:'flex', alignItems:'center', gap: compacto ? 8 : 12 }}>
+      <style>{BRAND_CSS}</style>
+      {/* Logo recortada rente (UNIKO_LOGO.png) — o mascote enche o quadrado. Só
+          flutua de leve por transform; nada de sombra ou brilho em volta. */}
+      <img src={logo} alt="Uniko" className="ub-logo" draggable={false}
+        style={{ width:tamanhoLogo, height:tamanhoLogo, flexShrink:0, objectFit:'contain', display:'block',
+          animation:'ubFlutua 4.5s ease-in-out infinite' }}/>
+      <div style={{ minWidth:0, display:'flex', flexDirection: compacto ? 'row' : 'column', alignItems: compacto ? 'center' : 'flex-start', gap: compacto ? 8 : 6 }}>
+        {/* alignSelf/alignItems no início: esticado na coluna, o SVG centralizava o nome. */}
+        <svg viewBox="7 7 473 116" role="img" aria-label="UNIKO"
+          style={{ height:alturaNome, width:'auto', display:'block', overflow:'visible', color:cTexto }}>
+          <g fill="none" stroke="currentColor" strokeWidth="22" strokeLinecap="round" strokeLinejoin="round">
+            {UB_LETTERS.map((d, i) => <path key={i} d={d}/>)}
+          </g>
+        </svg>
+        {legendaEl}
       </div>
     </div>
-  </div>
-);
+  );
+};
