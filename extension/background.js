@@ -807,6 +807,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     chrome.storage.session?.set({ unikoAvisoAt: Date.now(), unikoAviso: { phase: 'playing', at: Date.now(), seconds: message.seconds || 10 } }).catch(() => {});
     chrome.action.setBadgeText({ text: '♪' }).catch(() => {});
     chrome.action.setBadgeBackgroundColor({ color: '#d4a017' }).catch(() => {});
+    // Aviso tocado com a gravação JÁ em andamento: o gravador precisa marcar "aviso dado" (senão o
+    // servidor trataria como aviso não dito). Não depende do estado em memória (o service worker dorme).
+    recorderExists().then((aberto) => {
+      if (aberto || unikoCallState === 'recording') chrome.runtime.sendMessage({ type: 'UNIKO_CALL_AVISO_MARK' }).catch(() => {});
+    });
     // (O áudio do aviso NÃO é mixado na gravação: o servidor o coloca no INÍCIO do áudio salvo,
     // antes da conversa — sem sobrepor a voz de ninguém.)
   }

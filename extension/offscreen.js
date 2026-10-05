@@ -277,6 +277,7 @@ chrome.runtime.onMessage.addListener((message) => {
     chrome.runtime.sendMessage({ type: 'UNIKO_CALL_STATE', state: 'capture_error', error: e.message }).catch(() => {});
   });
   if (message.type === 'UNIKO_CALL_STOP') stopCapture();
+  if (message.type === 'UNIKO_CALL_AVISO_MARK') { meta.avisoPlayed = true; console.log('[uniko-call] aviso prévio marcado como dado nesta gravação.'); }
 });
 
 // Avisa o background que o listener já existe (necessário no fallback em janela, ver background.js).
