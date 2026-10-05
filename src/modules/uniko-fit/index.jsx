@@ -1319,6 +1319,8 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
 @media (min-width: 1000px) and (pointer: fine) {
   .fit-post:hover { box-shadow: 0 6px 22px rgba(0,0,0,.28) !important; }
 }
+.fit-tabs-row { scrollbar-width: none; }
+.fit-tabs-row::-webkit-scrollbar { display: none; }
 .fit-bar-ico svg { width: 28px; height: 28px; }
 .fit-scroll { scrollbar-width: thin; scrollbar-color: ${ENERGIA}99 rgba(128,128,128,.14); -webkit-overflow-scrolling: touch; }
 .fit-scroll::-webkit-scrollbar { width: 6px; }
@@ -2425,7 +2427,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
     window.addEventListener('keydown', fn);
     return () => window.removeEventListener('keydown', fn);
   }, [desk, topTab, sheet, navegarFeed]);
-  const HEADER_H = 'calc(116px + env(safe-area-inset-top, 0px))'; // topbar 72 + abas 44 + notch
+  const HEADER_H = 'calc(128px + env(safe-area-inset-top, 0px))'; // topbar 72 + abas 56 + notch
   const FOOTER_H = 'calc(80px + env(safe-area-inset-bottom, 0px))';
 
   return (
@@ -2490,13 +2492,13 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
 
         {/* Abas centralizadas */}
         {/* gap menor que os 20 originais — com a aba "Buscar" são 4 e precisam caber em tela de celular estreita */}
-        <div style={{ height: 44, boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 11, background: cardBg, borderBottom: `1px solid ${T.border}` }}>
+        <div className="fit-tabs-row" style={{ height: 56, boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'space-evenly', gap: 10, padding: '0 8px', overflowX: 'auto', background: cardBg, borderBottom: `1px solid ${T.border}` }}>
           {[['paravoce', 'Para Você'], ['treinos', 'Treinos'], ['batepapo', 'Bate-Papo'], ['buscar', 'Buscar'], ['meuperfil', 'Meu Perfil']].map(([id, label]) => {
             const on = topTab === id;
             // Clicar de novo na aba Para Você já ativa recarrega o feed, estilo TikTok.
             return (
               <button key={id} onClick={() => (id === 'paravoce' && on) ? recarregarFeed() : setTopTab(id)} className="fit-btn"
-                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '5px 1px 9px', fontSize: 13, fontWeight: 800, fontFamily: 'var(--font-brand)', whiteSpace: 'nowrap',
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '10px 2px 13px', fontSize: 15, fontWeight: 800, fontFamily: 'var(--font-brand)', whiteSpace: 'nowrap', flexShrink: 0,
                   color: on ? ENERGIA : T.textT, borderBottom: on ? `3px solid ${ENERGIA}` : '3px solid transparent' }}>
                 {label}
               </button>
