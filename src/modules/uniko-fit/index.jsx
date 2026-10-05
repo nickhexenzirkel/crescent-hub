@@ -2435,11 +2435,8 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
       {desk && (
         <aside style={{ position: 'fixed', top: 0, left: 0, bottom: 0, width: SIDE_W, zIndex: 60, background: T.topbarBg || cardBg, borderRight: `1px solid ${T.border}`,
           display: 'flex', flexDirection: 'column', padding: '16px 14px', boxSizing: 'border-box', gap: 4, overflowY: 'auto' }}>
-          <button onClick={onBack} className="fit-btn fit-side-btn" style={{ display: 'flex', alignItems: 'center', gap: 6, alignSelf: 'flex-start', background: 'none', border: 'none', cursor: 'pointer', color: T.textS, fontSize: 13, fontFamily: 'var(--font-body)', padding: '6px 8px', borderRadius: 8 }}>
-            {IcoBack} Módulos
-          </button>
-          <div style={{ padding: '4px 6px 12px' }}>
-            <UnikoBrandArt legenda="FIT" logo="/uniko-fit-icon-v2.png" semLogo alturaNome={28} legendaCentrada vertical tamanhoLegenda={16} cores={{ texto: T.text, destaque: ENERGIA }} />
+          <div style={{ padding: '10px 6px 16px' }}>
+            <UnikoBrandArt legenda="FIT" semLogo alturaNome={32} legendaCentrada vertical tamanhoLegenda={18} cores={{ texto: T.text, destaque: ENERGIA }} />
           </div>
           {[['paravoce', 'Para Você'], ['treinos', 'Treinos'], ['batepapo', 'Bate-Papo'], ['buscar', 'Buscar'], ['meuperfil', 'Meu Perfil']].map(([id, label]) => {
             const on = topTab === id;
@@ -2467,7 +2464,12 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
             </button>
           ))}
           <div style={{ flex: 1 }} />
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 8px', borderTop: `1px solid ${T.border}` }}>
+          <div style={{ borderTop: `1px solid ${T.border}`, paddingTop: 6 }}>
+            <button onClick={onBack} className="fit-btn fit-side-btn" style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', background: 'none', border: 'none', cursor: 'pointer', color: T.textS, fontSize: 13.5, fontWeight: 700, fontFamily: 'var(--font-body)', padding: '10px 10px', borderRadius: 10, textAlign: 'left' }}>
+              {IcoBack} Módulos
+            </button>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 8px 4px' }}>
             <AvatarCircle name={userName} photo={userPhoto} size={34} fontSize={12} />
             <div style={{ fontSize: 13, fontWeight: 700, color: T.text, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{(userName || '').split(' ').slice(0, 2).join(' ')}</div>
           </div>
@@ -2482,7 +2484,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
             {IcoBack} Módulos
           </button>
           <div style={{ flex: 1 }} />
-          <UnikoBrandArt legenda="FIT" logo="/uniko-fit-icon-v2.png" tamanhoLogo={46} alturaNome={17} legendaCentrada tamanhoLegenda={14} cores={{ texto: T.text, destaque: ENERGIA }} />
+          <UnikoBrandArt legenda="FIT" semLogo alturaNome={19} legendaCentrada tamanhoLegenda={14} cores={{ texto: T.text, destaque: ENERGIA }} />
           <div style={{ flex: 1 }} />
           <AvatarCircle name={userName} photo={userPhoto} size={28} fontSize={10} />
         </div>
