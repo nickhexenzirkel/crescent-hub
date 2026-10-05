@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Uniko Call - Extensão",
-  "version": "1.4.4",
+  "version": "1.5.0",
   "description": "Automação de downloads do módulo Faturamento do Uniko HUB + notificações desktop do Portal do Colaborador + gravação de chamadas do WhatsApp Web (Uniko Call)",
   "icons": {
     "16": "icon.png",
@@ -46,6 +46,12 @@
         "http://localhost:*/*"
       ],
       "js": ["content-script.js"]
+    },
+    {
+      "matches": ["https://web.whatsapp.com/*"],
+      "js": ["wa-mic-inject.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
     },
     {
       "matches": ["https://web.whatsapp.com/*"],

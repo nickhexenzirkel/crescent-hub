@@ -144,6 +144,11 @@
   audio { width: 100%; margin-top: 6px; height: 32px; }
   .testResult.ok { background: var(--green-gl); color: var(--green-dk); }
   .testResult.bad { background: rgba(224,83,61,.12); color: #b3402d; }
+  .aviso { border: 1px solid rgba(34,197,94,.3); background: var(--green-gl); border-radius: 11px; padding: 10px 12px; margin-bottom: 8px; }
+  .aviso .ttl { font-size: 11px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--green-dk); margin-bottom: 6px; }
+  .aviso .st { font-size: 11px; line-height: 1.45; color: var(--ink-sub); margin-top: 6px; }
+  .aviso .st.ok { color: var(--green-dk); font-weight: 700; }
+  .aviso .st.bad { color: #b3402d; font-weight: 700; }
 </style>
 </head>
 <body>
@@ -157,6 +162,11 @@
   <div class="status"><span id="dot" class="dot"></span><span id="statusText">Verificando…</span></div>
   <div id="micOk" class="micOk">🎤 Microfone autorizado, ativo</div>
   <div id="recordingNotice" class="recordingNotice">⚠️ Fique nesta aba do WhatsApp Web até falar o aviso prévio ("Por questões de segurança, esta ligação está sendo gravada"). Trocar de aba antes disso pode atrapalhar a captura.</div>
+  <div class="aviso">
+    <div class="ttl">Aviso prévio de gravação</div>
+    <button id="avisoBtn" class="primary" style="margin-bottom:0">🔔 Tocar aviso na ligação</button>
+    <div id="avisoStatus" class="st">Verificando…</div>
+  </div>
   <div class="calib">
     <div class="ttl">Calibração de áudio</div>
     <div class="meter"><span class="lbl">🎤 Seu microfone</span><div class="bar"><div id="micFill" class="fill"></div></div><span id="micChk" class="chk"></span></div>

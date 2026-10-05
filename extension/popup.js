@@ -267,3 +267,49 @@ chrome.storage.session?.get('unikoTestResult').then(({ unikoTestResult: r }) => 
     onPopupMessage(r);
   }
 }).catch(() => {});
+
+/* ── Tocar aviso prévio na ligação ─────────────────────────────────────────
+   O áudio do aviso (voz sintética guardada no servidor) é misturado ao MICROFONE da ligação
+   pelo script wa-mic-inject.js e também à gravação. Só funciona em ligações iniciadas depois
+   de o WhatsApp Web ter sido carregado com a extensão atual (F5 antes de atender). */
+const avisoBtn = document.getElementById('avisoBtn');
+const avisoStatus = document.getElementById('avisoStatus');
+const setAviso = (cls, msg) => { avisoStatus.className = 'st ' + cls; avisoStatus.textContent = msg; };
+
+async function waTabs() { return chrome.tabs.query({ url: 'https://web.whatsapp.com/*' }); }
+
+async function refreshAvisoStatus() {
+  const tabs = await waTabs();
+  if (!tabs.length) { setAviso('bad', 'Abra o WhatsApp Web.'); return; }
+  for (const t of tabs) {
+    try {
+      const r = await chrome.tabs.sendMessage(t.id, { type: 'UNIKO_AVISO_PING' });
+      if (r?.injected) { setAviso(r.active ? 'ok' : '', r.active ? '✅ Pronto — ligação com microfone ativo.' : 'Pronto. Clique quando atender a ligação.'); return; }
+    } catch { /* tenta a próxima aba */ }
+  }
+  setAviso('bad', 'Dê F5 no WhatsApp Web (a extensão foi atualizada) e abra o popup de novo.');
+}
+refreshAvisoStatus();
+
+avisoBtn.addEventListener('click', async () => {
+  avisoBtn.disabled = true; setAviso('', 'Tocando o aviso…');
+  try {
+    const tabs = await waTabs();
+    if (!tabs.length) throw new Error('Abra o WhatsApp Web.');
+    let last = null;
+    for (const t of tabs) {
+      try {
+        const r = await chrome.tabs.sendMessage(t.id, { type: 'UNIKO_AVISO_PLAY' });
+        last = r;
+        if (r?.ok) break;
+      } catch (e) { last = { ok: false, error: 'Dê F5 no WhatsApp Web e tente de novo.' }; }
+    }
+    if (last?.ok) {
+      chrome.runtime.sendMessage({ type: 'UNIKO_CALL_AVISO_PLAYED' }).catch(() => {});
+      setAviso('ok', `✅ Aviso tocado${last.seconds ? ` (${Math.round(last.seconds)}s)` : ''}. Será registrado como aviso dado.`);
+    } else {
+      setAviso('bad', '❌ ' + (last?.error || 'Não foi possível tocar o aviso.'));
+    }
+  } catch (e) { setAviso('bad', '❌ ' + e.message); }
+  avisoBtn.disabled = false;
+});

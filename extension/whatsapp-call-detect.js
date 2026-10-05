@@ -78,3 +78,43 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     sendResponse({ contactName: currentContactName() });
   }
 });
+
+/* ── Aviso prévio: ponte entre o popup e o script wa-mic-inject.js (que roda na página) ── */
+const CALL_SERVER_URL = 'https://api.centraluniko.com.br';
+let avisoSeq = 0;
+
+function micCall(type, extra = {}, timeoutMs = 1500) {
+  return new Promise((resolve) => {
+    const id = ++avisoSeq;
+    const onMsg = (e) => {
+      if (e.source !== window || e.data?.source !== 'uniko-mic' || e.data.id !== id) return;
+      if (e.data.type === 'PLAY_ENDED') return; // só o PLAYED resolve
+      window.removeEventListener('message', onMsg); clearTimeout(t); resolve(e.data);
+    };
+    const t = setTimeout(() => { window.removeEventListener('message', onMsg); resolve(null); }, timeoutMs);
+    window.addEventListener('message', onMsg);
+    window.postMessage({ target: 'uniko-mic', type, id, ...extra }, '*');
+  });
+}
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.type === 'UNIKO_AVISO_PING') {
+    micCall('PING').then((r) => sendResponse({ injected: !!r, active: !!r?.active }));
+    return true;
+  }
+  if (message.type === 'UNIKO_AVISO_PLAY') {
+    (async () => {
+      try {
+        const res = await fetch(`${CALL_SERVER_URL}/api/uniko-call/aviso-audio`, { headers: { Authorization: 'Bearer uniko-call-rec' } });
+        if (!res.ok) throw new Error('servidor respondeu ' + res.status);
+        const buf = await res.arrayBuffer();
+        const r = await micCall('PLAY', { buf }, 8000);
+        if (!r) return sendResponse({ ok: false, error: 'O script do microfone não respondeu. Dê F5 no WhatsApp Web e tente de novo.' });
+        sendResponse({ ok: !!r.ok, seconds: r.seconds, error: r.error });
+      } catch (e) {
+        sendResponse({ ok: false, error: 'Não consegui buscar o áudio do aviso: ' + e.message });
+      }
+    })();
+    return true;
+  }
+});

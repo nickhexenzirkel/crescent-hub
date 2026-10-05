@@ -14,16 +14,17 @@ let recorder = null;
 let chunks = [];
 let tabStream = null;
 let micStream = null;
-let meta = { contactName: null, startedAt: null, test: false };
+let meta = { contactName: null, startedAt: null, test: false, avisoPlayed: false };
+let recDest = null; // destino da mistura gravada (aba + microfone) — o aviso também entra aqui
 
 // Log em cada passo (temporário, pra diagnóstico ao vivo 24/set/2026 — nada
 // estava chegando no servidor e nem erro nenhum sobrava pra seguir a pista).
 console.log('[uniko-call] offscreen.js carregado e ouvindo mensagens.');
 
-async function startCapture(streamId, contactName, test = false) {
+async function startCapture(streamId, contactName, test = false, avisoRecent = false) {
   console.log('[uniko-call] startCapture() chamado — streamId:', streamId, 'contactName:', contactName);
   if (recorder && recorder.state === 'recording') { console.log('[uniko-call] já estava gravando — ignorando start duplicado.'); return; }
-  meta = { contactName: contactName || null, startedAt: new Date().toISOString(), test };
+  meta = { contactName: contactName || null, startedAt: new Date().toISOString(), test, avisoPlayed: !!avisoRecent };
   chunks = [];
 
   console.log('[uniko-call] pedindo tabStream (getUserMedia tab)...');
@@ -49,6 +50,7 @@ async function startCapture(streamId, contactName, test = false) {
   await audioContext.resume().catch(() => {});
   console.log('[uniko-call] AudioContext state:', audioContext.state);
   const dest = audioContext.createMediaStreamDestination();
+  recDest = dest;
   const tabSrc = audioContext.createMediaStreamSource(tabStream);
   const micSrc = audioContext.createMediaStreamSource(micStream);
   tabSrc.connect(dest);
@@ -194,6 +196,17 @@ function startLevelMeter(tabSrc, micSrc) {
   if (meta.test) setTimeout(() => { if (recorder && recorder.state === 'recording') stopCapture(); }, 30000);
 }
 
+async function playAvisoIntoRecording() {
+  if (!audioContext || !recDest) return;
+  const res = await fetch(`${CALL_SERVER}/api/uniko-call/aviso-audio`, { headers: { Authorization: `Bearer ${CALL_UPLOAD_TOKEN}` } });
+  if (!res.ok) throw new Error('servidor respondeu ' + res.status);
+  const buf = await audioContext.decodeAudioData(await res.arrayBuffer());
+  const node = audioContext.createBufferSource();
+  node.buffer = buf; node.connect(recDest); node.start();
+  meta.avisoPlayed = true;
+  console.log('[uniko-call] aviso prévio misturado à gravação (' + buf.duration.toFixed(1) + 's).');
+}
+
 function stopCapture() {
   clearInterval(levelTimer);
   const finalLive = live; stopLiveTranscription(); lastLive = finalLive; live = null;
@@ -250,6 +263,7 @@ async function uploadRecording() {
     form.append('audio', blob, 'call.webm');
     form.append('contactName', meta.contactName || '');
     form.append('startedAt', meta.startedAt || new Date().toISOString());
+    form.append('avisoPlayed', meta.avisoPlayed ? 'true' : 'false');
     form.append('endedAt', new Date().toISOString());
     const res = await fetch(`${CALL_SERVER}/api/uniko-call/upload`, {
       method: 'POST',
@@ -266,7 +280,7 @@ async function uploadRecording() {
 
 chrome.runtime.onMessage.addListener((message) => {
   console.log('[uniko-call] offscreen recebeu mensagem:', message.type);
-  if (message.type === 'UNIKO_CALL_START') startCapture(message.streamId, message.contactName, !!message.test).catch((e) => {
+  if (message.type === 'UNIKO_CALL_START') startCapture(message.streamId, message.contactName, !!message.test, !!message.avisoRecent).catch((e) => {
     console.error('[uniko-call] falha ao iniciar captura:', e.name, e.message);
     // Solta o que já tinha sido aberto (ex.: tab ok mas microfone negado), senão a aba fica "presa".
     [tabStream, micStream].forEach((s) => s?.getTracks().forEach((t) => t.stop()));
@@ -274,6 +288,8 @@ chrome.runtime.onMessage.addListener((message) => {
     chrome.runtime.sendMessage({ type: 'UNIKO_CALL_STATE', state: 'capture_error', error: e.message }).catch(() => {});
   });
   if (message.type === 'UNIKO_CALL_STOP') stopCapture();
+  // Aviso prévio tocado na ligação: mistura o MESMO áudio na gravação (pra ficar registrado) e marca como dado.
+  if (message.type === 'UNIKO_CALL_AVISO_INTO_REC') playAvisoIntoRecording().catch((e) => console.error('[uniko-call] aviso na gravação falhou:', e.message));
 });
 
 // Avisa o background que o listener já existe (necessário no fallback em janela, ver background.js).

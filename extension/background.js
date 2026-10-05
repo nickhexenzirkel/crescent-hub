@@ -622,7 +622,8 @@ if (chrome.notifications && chrome.notifications.onClicked) {
    gravação sozinha — só avisa (badge + notificação) pra pessoa clicar. ── */
 
 let unikoCallState = 'idle'; // 'idle' | 'aguardando' | 'recording'
-let unikoCallFinishing = false; // parou, mas o gravador ainda está enviando/fechando
+let unikoCallFinishing = false;
+const AVISO_RECENT_MS = 3 * 60 * 1000; // aviso tocado até 3 min antes de gravar ainda conta pra essa ligação // parou, mas o gravador ainda está enviando/fechando
 let unikoCallLastError = null; // último erro de gravação, mostrado no popup
 
 function setUnikoCallState(state) {
@@ -708,7 +709,9 @@ async function startUnikoCallRecordingWithStream(streamId, contactName, test = f
     await new Promise(r => setTimeout(r, 300));
     await ensureOffscreenDocument();
     console.log('[uniko-call] background: offscreen document garantido, mandando UNIKO_CALL_START...');
-    chrome.runtime.sendMessage({ type: 'UNIKO_CALL_START', streamId, contactName, test });
+    const { unikoAvisoAt } = (await chrome.storage.session?.get('unikoAvisoAt').catch(() => ({}))) || {};
+    const avisoRecent = !test && !!unikoAvisoAt && Date.now() - unikoAvisoAt < AVISO_RECENT_MS;
+    chrome.runtime.sendMessage({ type: 'UNIKO_CALL_START', streamId, contactName, test, avisoRecent });
     setUnikoCallState(test ? 'testing' : 'recording');
   } catch (e) {
     console.error('[uniko-call] falha ao preparar o offscreen document:', e.message);
@@ -798,6 +801,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   // Uniko Call — streamId já obtido no clique, dentro do popup (única forma
   // que o Chrome aceita) — aqui só prepara o offscreen document e repassa.
+  // Botão "Tocar aviso": guarda o horário (service worker pode dormir) e, se já está gravando,
+  // manda o gravador misturar o mesmo áudio na gravação e marcar "aviso dado".
+  if (message.type === 'UNIKO_CALL_AVISO_PLAYED') {
+    chrome.storage.session?.set({ unikoAvisoAt: Date.now() }).catch(() => {});
+    if (unikoCallState === 'recording' || unikoCallState === 'testing') chrome.runtime.sendMessage({ type: 'UNIKO_CALL_AVISO_INTO_REC' }).catch(() => {});
+  }
   if (message.type === 'UNIKO_CALL_START_WITH_STREAM') {
     console.log('[uniko-call] background recebeu UNIKO_CALL_START_WITH_STREAM do popup.');
     startUnikoCallRecordingWithStream(message.streamId, message.contactName, !!message.test);
