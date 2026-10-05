@@ -2704,7 +2704,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
 
         {/* ── TREINOS (biblioteca por grupo muscular, treino do dia/semana, atalho pra progressão de carga) ── */}
         {topTab === 'treinos' && (
-          <TreinosTab T={T} ENERGIA={ENERGIA} FOGO={FOGO} EG={EG} supabase={supabase} desk={desk}
+          <TreinosTab T={T} ENERGIA={ENERGIA} FOGO={FOGO} EG={EG} supabase={supabase} desk={desk} name={name}
             podeCurar={['admin', 'moderador'].includes(authUser?.role)} onAbrirCargas={() => openSheet('cargas')} />
         )}
 

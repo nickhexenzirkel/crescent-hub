@@ -47,3 +47,19 @@ create policy "uniko_fit_cargas select" on public.uniko_fit_cargas for select us
 create policy "uniko_fit_cargas insert" on public.uniko_fit_cargas for insert with check (player = public.current_name());
 create policy "uniko_fit_cargas update" on public.uniko_fit_cargas for update using (player = public.current_name()) with check (player = public.current_name());
 create policy "uniko_fit_cargas delete" on public.uniko_fit_cargas for delete using (player = public.current_name());
+
+-- ── Meu plano de treino: treino de cada dia da semana + coleção de treinos salvos (1 documento por pessoa, privado) ──
+create table if not exists public.uniko_fit_plano (
+  player     text primary key,
+  dados      jsonb not null default '{}'::jsonb,   -- { dias: {"0".."6": treino | {descanso:true}}, colecao: [treino] }
+  updated_at timestamptz not null default now()
+);
+alter table public.uniko_fit_plano enable row level security;
+drop policy if exists "uniko_fit_plano select" on public.uniko_fit_plano;
+drop policy if exists "uniko_fit_plano insert" on public.uniko_fit_plano;
+drop policy if exists "uniko_fit_plano update" on public.uniko_fit_plano;
+drop policy if exists "uniko_fit_plano delete" on public.uniko_fit_plano;
+create policy "uniko_fit_plano select" on public.uniko_fit_plano for select using (player = public.current_name());
+create policy "uniko_fit_plano insert" on public.uniko_fit_plano for insert with check (player = public.current_name());
+create policy "uniko_fit_plano update" on public.uniko_fit_plano for update using (player = public.current_name()) with check (player = public.current_name());
+create policy "uniko_fit_plano delete" on public.uniko_fit_plano for delete using (player = public.current_name());

@@ -20,6 +20,37 @@ export const GRUPOS = [
 ];
 const GRUPO_POR_ID = Object.fromEntries(GRUPOS.map(g => [g.id, g]));
 
+// Mais opções de máquina/exercício por grupo (além das sugestões fixas) pra montar o treino personalizado
+const EXTRAS = {
+  peito: ['Supino máquina', 'Supino declinado', 'Voador (peck deck)', 'Crucifixo com halteres', 'Pullover', 'Paralelas (mergulho)'],
+  costas: ['Remada cavalinho', 'Serrote (remada unilateral)', 'Puxada com triângulo', 'Remada na máquina', 'Levantamento terra'],
+  posteriores: ['Flexora em pé', 'Flexora deitada', 'Bom dia (good morning)', 'Elevação pélvica unilateral'],
+  quadriceps: ['Agachamento no smith', 'Agachamento búlgaro', 'Leg press horizontal', 'Passada no smith'],
+  gluteos: ['Glúteo na máquina', 'Elevação pélvica na máquina', 'Agachamento búlgaro', 'Passada longa'],
+  ombros: ['Desenvolvimento na máquina', 'Arnold press', 'Elevação lateral na polia', 'Remada alta'],
+  biceps: ['Rosca na polia', 'Rosca concentrada', 'Rosca inversa'],
+  triceps: ['Tríceps corda', 'Tríceps coice', 'Supino fechado', 'Tríceps na máquina'],
+  abdomen: ['Abdominal na máquina', 'Abdominal remador', 'Roda abdominal', 'Elevação de joelhos'],
+  panturrilha: ['Panturrilha no smith', 'Panturrilha na máquina (burrinho)'],
+  cardio: ['Remo ergométrico', 'Escada (stair)', 'Pular corda', 'Caminhada inclinada'],
+};
+const opcoesDoGrupo = (id) => [...new Set([...(GRUPO_POR_ID[id]?.exercicios || []).map(e => e[0]), ...(EXTRAS[id] || [])])];
+const serieDe = (gid, nome) => (GRUPO_POR_ID[gid]?.exercicios.find(e => e[0] === nome) || [])[1] || '';
+const novoId = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+const grupoComTudo = (id) => ({ grupo: id, exercicios: GRUPO_POR_ID[id].exercicios.map(e => e[0]) });
+
+// Coleção pronta (somente leitura) — a pessoa pode copiar pra "Meus treinos" ou aplicar num dia
+export const PRESETS = [
+  { id: 'p-fullbody', nome: 'Full body (corpo inteiro)', grupos: [{ grupo: 'peito', exercicios: ['Supino reto'] }, { grupo: 'costas', exercicios: ['Puxada na frente'] }, { grupo: 'quadriceps', exercicios: ['Leg press 45°'] }, { grupo: 'ombros', exercicios: ['Elevação lateral'] }, { grupo: 'abdomen', exercicios: ['Prancha'] }] },
+  { id: 'p-push', nome: 'Empurrar (peito, ombro e tríceps)', grupos: [{ grupo: 'peito', exercicios: ['Supino reto', 'Supino inclinado com halteres', 'Crossover na polia'] }, { grupo: 'ombros', exercicios: ['Desenvolvimento com halteres', 'Elevação lateral'] }, { grupo: 'triceps', exercicios: ['Tríceps na polia (pulley)', 'Tríceps testa'] }] },
+  { id: 'p-pull', nome: 'Puxar (costas e bíceps)', grupos: [{ grupo: 'costas', exercicios: ['Puxada na frente', 'Remada curvada', 'Remada baixa'] }, { grupo: 'biceps', exercicios: ['Rosca direta', 'Rosca martelo'] }, { grupo: 'ombros', exercicios: ['Crucifixo inverso'] }] },
+  { id: 'p-pernas', nome: 'Pernas completo', grupos: [{ grupo: 'quadriceps', exercicios: ['Agachamento livre', 'Leg press 45°', 'Cadeira extensora'] }, { grupo: 'posteriores', exercicios: ['Mesa flexora', 'Stiff'] }, { grupo: 'gluteos', exercicios: ['Elevação pélvica'] }, { grupo: 'panturrilha', exercicios: ['Panturrilha em pé'] }] },
+  { id: 'p-gluteos', nome: 'Glúteos e posteriores', grupos: [{ grupo: 'gluteos', exercicios: ['Elevação pélvica', 'Agachamento sumô', 'Cadeira abdutora', 'Coice na polia'] }, { grupo: 'posteriores', exercicios: ['Mesa flexora', 'Stiff'] }] },
+  { id: 'p-superiores', nome: 'Superiores (peito, costas e braços)', grupos: [{ grupo: 'peito', exercicios: ['Supino reto', 'Crucifixo / Peck deck'] }, { grupo: 'costas', exercicios: ['Puxada na frente', 'Remada baixa'] }, { grupo: 'biceps', exercicios: ['Rosca direta'] }, { grupo: 'triceps', exercicios: ['Tríceps na polia (pulley)'] }] },
+  { id: 'p-cardio-abd', nome: 'Cardio + abdômen', grupos: [{ grupo: 'cardio', exercicios: ['Esteira', 'Bicicleta'] }, { grupo: 'abdomen', exercicios: ['Abdominal supra', 'Prancha', 'Elevação de pernas'] }] },
+];
+const NOMES_DIA = { 0: 'Domingo', 1: 'Segunda', 2: 'Terça', 3: 'Quarta', 4: 'Quinta', 5: 'Sexta', 6: 'Sábado' };
+
 // getDay(): 0 = domingo … 6 = sábado
 const SEMANA = [
   { nome: 'Domingo', grupos: [] },
@@ -91,9 +122,192 @@ const MidiaCard = ({ m, T, ENERGIA, FOGO, podeCurar, onApagar }) => {
   );
 };
 
+/* ═══════════════ Editor: escolher grupos + máquinas de um treino ═══════════════ */
+const EditorTreino = ({ T, ENERGIA, FOGO, EG, titulo, sub, inicial, colecao, onSalvar, onSalvarNaColecao, onDescanso, onCancelar }) => {
+  const [nome, setNome] = useState(inicial?.nome || '');
+  const [sel, setSel] = useState(() => { const m = {}; (inicial?.grupos || []).forEach(g => { m[g.grupo] = [...g.exercicios]; }); return m; }); // grupoId -> [exercícios]
+  const [custom, setCustom] = useState({});
+  const [erro, setErro] = useState('');
+  const campo = { padding: '9px 11px', borderRadius: 10, border: `1.5px solid ${T.border}`, background: T.page || '#fff', color: T.text, fontSize: 13.5, outline: 'none', fontFamily: 'var(--font-body)', boxSizing: 'border-box' };
+  const caixa = { background: T.surface, border: `1px solid ${T.border}`, borderRadius: 16 };
+
+  const alternarGrupo = (id) => setSel(s0 => { const n = { ...s0 }; if (n[id]) delete n[id]; else n[id] = []; return n; });
+  const alternarEx = (gid, ex) => setSel(s0 => { const l = s0[gid] || []; return { ...s0, [gid]: l.includes(ex) ? l.filter(x => x !== ex) : [...l, ex] }; });
+  const adicionarCustom = (gid) => {
+    const t = (custom[gid] || '').trim().replace(/\s+/g, ' ');
+    if (!t) return;
+    setSel(s0 => { const l = s0[gid] || []; return l.some(x => x.toLowerCase() === t.toLowerCase()) ? s0 : { ...s0, [gid]: [...l, t] }; });
+    setCustom(c => ({ ...c, [gid]: '' }));
+  };
+  const carregarDe = (id) => {
+    const t = [...colecao, ...PRESETS].find(x => x.id === id);
+    if (!t) return;
+    const m = {}; t.grupos.forEach(g => { m[g.grupo] = [...g.exercicios]; });
+    setSel(m); if (!nome.trim()) setNome(t.nome || '');
+  };
+  const montar = () => ({ id: inicial?.id || novoId(), nome: nome.trim(), grupos: GRUPOS.filter(g => sel[g.id]).map(g => ({ grupo: g.id, exercicios: sel[g.id] })) });
+  const validar = () => {
+    if (!Object.keys(sel).length) { setErro('Escolha pelo menos um grupo muscular.'); return false; }
+    setErro(''); return true;
+  };
+
+  return (
+    <div className="fit-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '16px 14px 28px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+        <button onClick={onCancelar} className="fit-btn" style={{ width: 36, height: 36, borderRadius: '50%', border: `1.5px solid ${T.border}`, background: 'transparent', color: T.text, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{IcoVoltar}</button>
+        <div>
+          <div style={{ fontFamily: 'var(--font-brand)', fontSize: 18, fontWeight: 800, color: T.text }}>{titulo}</div>
+          {sub && <div style={{ fontSize: 12, color: T.textT }}>{sub}</div>}
+        </div>
+      </div>
+
+      <div style={{ ...caixa, padding: 13, marginBottom: 12 }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <input value={nome} onChange={e => setNome(e.target.value)} placeholder="Nome do treino (ex: Treino A — Peito e tríceps)" style={{ ...campo, flex: '1 1 220px', minWidth: 0 }} />
+          {(colecao.length > 0 || PRESETS.length > 0) && (
+            <select value="" onChange={e => { if (e.target.value) carregarDe(e.target.value); }} style={{ ...campo, flex: '1 1 160px', minWidth: 0, cursor: 'pointer' }}>
+              <option value="">Carregar da coleção…</option>
+              {colecao.length > 0 && <optgroup label="Meus treinos">{colecao.map(t => <option key={t.id} value={t.id}>{t.nome || 'Sem nome'}</option>)}</optgroup>}
+              <optgroup label="Sugestões prontas">{PRESETS.map(t => <option key={t.id} value={t.id}>{t.nome}</option>)}</optgroup>
+            </select>
+          )}
+        </div>
+      </div>
+
+      <div style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: .3, textTransform: 'uppercase', color: T.textT, margin: '14px 2px 8px' }}>1. Quais grupos?</div>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+        {GRUPOS.map(g => {
+          const on = !!sel[g.id];
+          return (
+            <button key={g.id} onClick={() => alternarGrupo(g.id)} className="fit-btn"
+              style={{ padding: '8px 14px', borderRadius: 999, cursor: 'pointer', fontSize: 12.5, fontWeight: 800, border: `1.5px solid ${on ? ENERGIA : T.border}`, background: on ? ENERGIA : 'transparent', color: on ? '#fff' : T.textS }}>{g.label}</button>
+          );
+        })}
+      </div>
+
+      {Object.keys(sel).length > 0 && <div style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: .3, textTransform: 'uppercase', color: T.textT, margin: '4px 2px 8px' }}>2. Quais máquinas / exercícios?</div>}
+      {GRUPOS.filter(g => sel[g.id]).map(g => {
+        const marcados = sel[g.id];
+        const opcoes = [...new Set([...opcoesDoGrupo(g.id), ...marcados])];
+        return (
+          <div key={g.id} style={{ ...caixa, padding: '12px 14px', marginBottom: 12 }}>
+            <div style={{ fontFamily: 'var(--font-brand)', fontSize: 15, fontWeight: 800, color: ENERGIA, marginBottom: 6 }}>{g.label} <span style={{ fontSize: 11.5, fontWeight: 600, color: T.textT }}>· {marcados.length} escolhido{marcados.length !== 1 ? 's' : ''}</span></div>
+            {opcoes.map(ex => {
+              const on = marcados.includes(ex);
+              return (
+                <label key={ex} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', cursor: 'pointer', borderTop: `1px solid ${T.border}` }}>
+                  <input type="checkbox" checked={on} onChange={() => alternarEx(g.id, ex)} style={{ width: 18, height: 18, accentColor: ENERGIA, cursor: 'pointer', flexShrink: 0 }} />
+                  <span style={{ flex: 1, fontSize: 13.5, fontWeight: on ? 800 : 600, color: on ? T.text : T.textS }}>{ex}</span>
+                  {serieDe(g.id, ex) && <span style={{ fontSize: 11.5, color: T.textT }}>{serieDe(g.id, ex)}</span>}
+                </label>
+              );
+            })}
+            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+              <input value={custom[g.id] || ''} onChange={e => setCustom(c => ({ ...c, [g.id]: e.target.value }))} placeholder="Outra máquina / exercício…" onKeyDown={e => { if (e.key === 'Enter') adicionarCustom(g.id); }} style={{ ...campo, flex: 1, minWidth: 0 }} />
+              <button onClick={() => adicionarCustom(g.id)} className="fit-btn" style={{ padding: '9px 14px', borderRadius: 10, border: `1.5px solid ${ENERGIA}`, background: 'transparent', color: ENERGIA, fontWeight: 800, fontSize: 12.5, cursor: 'pointer' }}>Adicionar</button>
+            </div>
+          </div>
+        );
+      })}
+
+      {erro && <div style={{ color: '#DC3232', fontSize: 12.5, margin: '6px 2px 10px' }}>{erro}</div>}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+        <button onClick={() => { if (validar()) onSalvar(montar()); }} className="fit-btn" style={{ flex: '2 1 160px', padding: '12px', borderRadius: 12, border: 'none', background: `linear-gradient(135deg, ${ENERGIA}, ${FOGO})`, color: '#fff', fontWeight: 800, fontSize: 14, cursor: 'pointer', boxShadow: `0 6px 18px ${EG}` }}>Salvar treino</button>
+        {onSalvarNaColecao && (
+          <button onClick={() => { if (!validar()) return; if (!nome.trim()) { setErro('Dê um nome ao treino para guardar na coleção.'); return; } onSalvarNaColecao(montar()); }} className="fit-btn"
+            style={{ flex: '1 1 140px', padding: '12px', borderRadius: 12, border: `1.5px solid ${ENERGIA}`, background: 'transparent', color: ENERGIA, fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>Salvar + guardar na coleção</button>
+        )}
+        {onDescanso && (
+          <button onClick={onDescanso} className="fit-btn" style={{ flex: '1 1 110px', padding: '12px', borderRadius: 12, border: `1.5px solid ${T.border}`, background: 'transparent', color: T.textS, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Dia de descanso</button>
+        )}
+      </div>
+    </div>
+  );
+};
+
+/* ═══════════════ Coleção de treinos (meus + sugestões prontas) ═══════════════ */
+const CartaoTreino = ({ t, pronto, T, ENERGIA, onEditar, onExcluir, onCopiar, onUsarNoDia }) => {
+  const [aberto, setAberto] = useState(false);
+  const [dia, setDia] = useState('');
+  const total = t.grupos.reduce((n, g) => n + g.exercicios.length, 0);
+  const btn = { padding: '7px 13px', borderRadius: 999, border: `1.5px solid ${T.border}`, background: 'transparent', color: T.textS, fontWeight: 700, fontSize: 12, cursor: 'pointer' };
+  return (
+    <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 16, padding: '13px 14px' }}>
+      <button onClick={() => setAberto(a => !a)} className="fit-btn" style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: T.text }}>
+        <div style={{ fontFamily: 'var(--font-brand)', fontSize: 15, fontWeight: 800 }}>{t.nome || 'Sem nome'}</div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', margin: '8px 0 2px' }}>
+          {t.grupos.map(g => <span key={g.grupo} style={{ fontSize: 11, fontWeight: 800, padding: '3px 9px', borderRadius: 999, background: `${ENERGIA}1F`, color: ENERGIA }}>{GRUPO_POR_ID[g.grupo]?.label || g.grupo}</span>)}
+        </div>
+        <div style={{ fontSize: 11.5, color: T.textT }}>{total} exercício{total !== 1 ? 's' : ''} · {aberto ? 'toque para fechar' : 'toque para ver'}</div>
+      </button>
+      {aberto && (
+        <div style={{ marginTop: 10 }}>
+          {t.grupos.map(g => (
+            <div key={g.grupo} style={{ padding: '8px 0', borderTop: `1px solid ${T.border}` }}>
+              <div style={{ fontSize: 12, fontWeight: 800, color: ENERGIA, marginBottom: 4 }}>{GRUPO_POR_ID[g.grupo]?.label}</div>
+              {g.exercicios.length ? g.exercicios.map(ex => (
+                <div key={ex} style={{ display: 'flex', gap: 8, fontSize: 13, color: T.text, padding: '2px 0' }}>
+                  <span style={{ flex: 1 }}>{ex}</span><span style={{ fontSize: 11.5, color: T.textT }}>{serieDe(g.grupo, ex)}</span>
+                </div>
+              )) : <div style={{ fontSize: 12, color: T.textT }}>Nenhuma máquina escolhida.</div>}
+            </div>
+          ))}
+        </div>
+      )}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginTop: 10 }}>
+        <select value={dia} onChange={e => { if (e.target.value !== '') { onUsarNoDia(t, Number(e.target.value)); setDia(''); } }}
+          style={{ ...btn, padding: '7px 10px', background: T.page || 'transparent', color: T.text }}>
+          <option value="">Usar em…</option>
+          {[1, 2, 3, 4, 5, 6, 0].map(i => <option key={i} value={i}>{NOMES_DIA[i]}</option>)}
+        </select>
+        {pronto
+          ? <button onClick={() => onCopiar(t)} className="fit-btn" style={{ ...btn, color: ENERGIA, borderColor: ENERGIA }}>Copiar para meus treinos</button>
+          : <>
+              <button onClick={() => onEditar(t)} className="fit-btn" style={btn}>Editar</button>
+              <button onClick={() => onExcluir(t)} className="fit-btn" style={{ ...btn, color: '#DC3232' }}>Excluir</button>
+            </>}
+      </div>
+    </div>
+  );
+};
+
 /* ═══════════════ Aba Treinos ═══════════════ */
-export const TreinosTab = ({ T, ENERGIA, FOGO, EG, supabase, podeCurar, onAbrirCargas, desk }) => {
-  const [vista, setVista] = useState(null); // null | 'dia' | 'semana' | id do grupo
+export const TreinosTab = ({ T, ENERGIA, FOGO, EG, supabase, podeCurar, onAbrirCargas, desk, name }) => {
+  const [vista, setVista] = useState(null); // null | 'dia' | 'semana' | 'colecao' | id do grupo
+  const [editando, setEditando] = useState(null); // { tipo:'dia', dia } | { tipo:'colecao', id|null }
+
+  /* Meu plano: treino de cada dia da semana + coleção de treinos salvos (privado, 1 documento por pessoa) */
+  const chavePlano = `uniko_fit_plano_${name}`;
+  const [plano, setPlano] = useState(null); // { dias:{ '0'..'6': treino | {descanso:true} }, colecao:[treino] }
+  const [planoLocal, setPlanoLocal] = useState(false);
+  const planoVazio = { dias: {}, colecao: [] };
+  const lerPlanoLocal = () => { try { return JSON.parse(localStorage.getItem(chavePlano) || 'null') || planoVazio; } catch { return planoVazio; } };
+  const carregarPlano = useCallback(async () => {
+    const { data, error } = await supabase.from('uniko_fit_plano').select('dados').eq('player', name).maybeSingle();
+    if (error) { setPlanoLocal(true); setPlano(lerPlanoLocal()); return; }
+    const d = data?.dados && typeof data.dados === 'object' ? { dias: data.dados.dias || {}, colecao: data.dados.colecao || [] } : planoVazio;
+    setPlanoLocal(false); setPlano(d);
+    try { localStorage.setItem(chavePlano, JSON.stringify(d)); } catch { /* sem armazenamento */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supabase, name]);
+  useEffect(() => { carregarPlano(); }, [carregarPlano]);
+  const salvarPlano = async (novo) => {
+    setPlano(novo);
+    try { localStorage.setItem(chavePlano, JSON.stringify(novo)); } catch { /* sem armazenamento */ }
+    if (!planoLocal) {
+      const { error } = await supabase.from('uniko_fit_plano').upsert({ player: name, dados: novo, updated_at: new Date().toISOString() }, { onConflict: 'player' });
+      if (error) setPlanoLocal(true);
+    }
+  };
+  // treino de um dia: o personalizado, se existir; senão a divisão sugerida (null = descanso)
+  const treinoDoDia = (i) => {
+    const t = plano?.dias?.[i];
+    if (t) return t.descanso ? null : { ...t, personalizado: true };
+    const ids = SEMANA[i].grupos;
+    return ids.length ? { nome: null, grupos: ids.map(grupoComTudo), personalizado: false } : null;
+  };
+  const P = plano || planoVazio;
+  const colecao = P.colecao;
   const [midias, setMidias] = useState(null);
   const [semTabela, setSemTabela] = useState(false);
   const [titulo, setTitulo] = useState('');
@@ -125,11 +339,13 @@ export const TreinosTab = ({ T, ENERGIA, FOGO, EG, supabase, podeCurar, onAbrirC
 
   const campo = { padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${T.border}`, background: T.page || '#fff', color: T.text, fontSize: 13.5, outline: 'none', fontFamily: 'var(--font-body)', boxSizing: 'border-box', width: '100%' };
   const caixa = { background: T.surface, border: `1px solid ${T.border}`, borderRadius: 16 };
-  const hoje = SEMANA[new Date().getDay()];
+  const idxHoje = new Date().getDay();
+  const hoje = SEMANA[idxHoje];
+  const treinoHoje = treinoDoDia(idxHoje);
 
-  const Exercicios = ({ grupo }) => (
+  const Exercicios = ({ grupo, itens }) => (
     <div style={{ ...caixa, padding: '12px 14px', marginBottom: 12 }}>
-      {grupo.exercicios.map(([nome, serie], i) => (
+      {(itens || grupo.exercicios).map(([nome, serie], i) => (
         <div key={nome} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderTop: i ? `1px solid ${T.border}` : 'none' }}>
           <div style={{ width: 24, height: 24, borderRadius: 8, background: `${ENERGIA}22`, color: ENERGIA, fontSize: 12, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{i + 1}</div>
           <div style={{ flex: 1, fontSize: 13.5, fontWeight: 700, color: T.text }}>{nome}</div>
@@ -185,6 +401,50 @@ export const TreinosTab = ({ T, ENERGIA, FOGO, EG, supabase, podeCurar, onAbrirC
 
   const MOLDURA = { flex: 1, minHeight: 0, overflowY: 'auto', padding: '16px 14px 28px' };
 
+  /* ── editor (dia da semana ou item da coleção) ── */
+  if (editando) {
+    const ehDia = editando.tipo === 'dia';
+    const atual = ehDia ? plano?.dias?.[editando.dia] : colecao.find(t => t.id === editando.id);
+    const inicial = atual && !atual.descanso ? atual : (ehDia ? treinoDoDia(editando.dia) : null);
+    const fechar = () => setEditando(null);
+    return <EditorTreino key={`${editando.tipo}-${editando.dia ?? editando.id ?? 'novo'}`} T={T} ENERGIA={ENERGIA} FOGO={FOGO} EG={EG}
+      titulo={ehDia ? `Treino de ${NOMES_DIA[editando.dia]}` : (editando.id ? 'Editar treino da coleção' : 'Novo treino da coleção')}
+      sub={ehDia ? 'Escolha os grupos e as máquinas que você vai usar' : 'Monte um treino e guarde para usar quando quiser'}
+      inicial={inicial} colecao={colecao}
+      onSalvar={(t) => {
+        if (ehDia) salvarPlano({ ...P, dias: { ...P.dias, [editando.dia]: t } });
+        else salvarPlano({ ...P, colecao: editando.id ? colecao.map(x => x.id === editando.id ? { ...t, id: editando.id } : x) : [{ ...t, id: novoId() }, ...colecao] });
+        fechar();
+      }}
+      onSalvarNaColecao={ehDia ? (t) => { salvarPlano({ ...P, dias: { ...P.dias, [editando.dia]: t }, colecao: [{ ...t, id: novoId() }, ...colecao] }); fechar(); } : null}
+      onDescanso={ehDia ? () => { salvarPlano({ ...P, dias: { ...P.dias, [editando.dia]: { descanso: true } } }); fechar(); } : null}
+      onCancelar={fechar} />;
+  }
+
+  /* ── coleção de treinos ── */
+  if (vista === 'colecao') {
+    const usarNoDia = (t, dia) => { salvarPlano({ ...P, dias: { ...P.dias, [dia]: { id: novoId(), nome: t.nome, grupos: t.grupos } } }); setVista('semana'); };
+    return <div className="fit-scroll" style={MOLDURA}>
+      {Cabecalho({ titulo: "Coleção de treinos", sub: "Seus treinos salvos e sugestões prontas" })}
+      {planoLocal && <div style={{ fontSize: 11.5, color: T.textT, background: 'rgba(245,158,11,.12)', border: '1px solid rgba(245,158,11,.35)', borderRadius: 10, padding: '8px 11px', marginBottom: 12 }}>Salvando só neste aparelho por enquanto (o banco ainda não foi preparado).</div>}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '2px 2px 10px' }}>
+        <div style={{ flex: 1, fontSize: 11.5, fontWeight: 800, letterSpacing: .3, textTransform: 'uppercase', color: T.textT }}>Meus treinos ({colecao.length})</div>
+        <button onClick={() => setEditando({ tipo: 'colecao', id: null })} className="fit-btn" style={{ padding: '8px 14px', borderRadius: 999, border: 'none', background: ENERGIA, color: '#fff', fontWeight: 800, fontSize: 12.5, cursor: 'pointer' }}>+ Novo treino</button>
+      </div>
+      {plano === null ? <div style={{ textAlign: 'center', padding: 24, color: T.textT, fontSize: 13 }}>Carregando...</div>
+        : !colecao.length ? <div style={{ ...caixa, padding: '22px 16px', textAlign: 'center', color: T.textT, fontSize: 12.5, lineHeight: 1.5, marginBottom: 16 }}>Você ainda não guardou nenhum treino. Crie um novo ou copie uma das sugestões abaixo.</div>
+        : <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
+            {colecao.map(t => <CartaoTreino key={t.id} t={t} T={T} ENERGIA={ENERGIA} onEditar={(x) => setEditando({ tipo: 'colecao', id: x.id })}
+              onExcluir={(x) => { if (window.confirm('Excluir esse treino da coleção?')) salvarPlano({ ...P, colecao: colecao.filter(y => y.id !== x.id) }); }} onUsarNoDia={usarNoDia} />)}
+          </div>}
+      <div style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: .3, textTransform: 'uppercase', color: T.textT, margin: '6px 2px 10px' }}>Sugestões prontas</div>
+      <div style={{ display: 'grid', gridTemplateColumns: desk ? 'repeat(2, 1fr)' : '1fr', gap: 10, alignItems: 'start' }}>
+        {PRESETS.map(t => <CartaoTreino key={t.id} t={t} pronto T={T} ENERGIA={ENERGIA} onUsarNoDia={usarNoDia}
+          onCopiar={(x) => salvarPlano({ ...P, colecao: [{ id: novoId(), nome: x.nome, grupos: x.grupos }, ...colecao] })} />)}
+      </div>
+    </div>;
+  }
+
   /* ── grupo ── */
   if (vista && GRUPO_POR_ID[vista]) {
     const g = GRUPO_POR_ID[vista];
@@ -196,46 +456,63 @@ export const TreinosTab = ({ T, ENERGIA, FOGO, EG, supabase, podeCurar, onAbrirC
 
   /* ── treino do dia ── */
   if (vista === 'dia') {
-    const gs = hoje.grupos.map(id => GRUPO_POR_ID[id]);
+    const t = treinoHoje;
     return <div className="fit-scroll" style={MOLDURA}>
-      {Cabecalho({ titulo: "Treino do dia", sub: `${hoje.nome} · ${gs.length ? gs.map(g => g.label).join(' + ') : 'descanso'}` })}
-      {!gs.length ? (
+      {Cabecalho({ titulo: "Treino do dia", sub: `${hoje.nome} · ${t ? (t.nome || t.grupos.map(g => GRUPO_POR_ID[g.grupo].label).join(' + ')) : 'descanso'}${t?.personalizado ? ' · personalizado' : ''}` })}
+      {!t ? (
         <div style={{ ...caixa, padding: '26px 18px', textAlign: 'center' }}>
           <div style={{ fontFamily: 'var(--font-brand)', fontSize: 16, fontWeight: 800, color: T.text, marginBottom: 6 }}>Dia de descanso</div>
-          <div style={{ fontSize: 13, color: T.textT, lineHeight: 1.55 }}>O músculo cresce enquanto você descansa. Hidrate-se, durma bem e, se quiser se mexer, uma caminhada leve já ajuda. Quer treinar mesmo assim? Escolha um grupo na aba Treinos.</div>
+          <div style={{ fontSize: 13, color: T.textT, lineHeight: 1.55, marginBottom: 14 }}>O músculo cresce enquanto você descansa. Hidrate-se, durma bem e, se quiser se mexer, uma caminhada leve já ajuda. Quer treinar mesmo assim?</div>
+          <button onClick={() => setEditando({ tipo: 'dia', dia: idxHoje })} className="fit-btn" style={{ padding: '10px 18px', borderRadius: 999, border: `1.5px solid ${ENERGIA}`, background: 'transparent', color: ENERGIA, fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>Montar treino de hoje</button>
         </div>
-      ) : gs.map(g => (
-        <div key={g.id} style={{ marginBottom: 22 }}>
-          <div style={{ fontFamily: 'var(--font-brand)', fontSize: 16, fontWeight: 800, color: ENERGIA, marginBottom: 8 }}>{g.label}</div>
-          {Exercicios({ grupo: g })}{Midias({ grupo: g, limite: 2 })}
-          <button onClick={() => setVista(g.id)} className="fit-btn" style={{ padding: '8px 16px', borderRadius: 999, border: `1.5px solid ${ENERGIA}`, background: 'transparent', color: ENERGIA, fontWeight: 800, fontSize: 12.5, cursor: 'pointer' }}>Ver todos de {g.label.toLowerCase()}</button>
-        </div>
-      ))}
+      ) : <>
+        <button onClick={() => setEditando({ tipo: 'dia', dia: idxHoje })} className="fit-btn" style={{ marginBottom: 16, padding: '9px 16px', borderRadius: 999, border: `1.5px solid ${ENERGIA}`, background: 'transparent', color: ENERGIA, fontWeight: 800, fontSize: 12.5, cursor: 'pointer' }}>Personalizar o treino de hoje</button>
+        {t.grupos.map(gi => {
+          const g = GRUPO_POR_ID[gi.grupo];
+          return (
+            <div key={gi.grupo} style={{ marginBottom: 22 }}>
+              <div style={{ fontFamily: 'var(--font-brand)', fontSize: 16, fontWeight: 800, color: ENERGIA, marginBottom: 8 }}>{g.label}</div>
+              {gi.exercicios.length ? Exercicios({ grupo: g, itens: gi.exercicios.map(n => [n, serieDe(gi.grupo, n)]) })
+                : <div style={{ ...caixa, padding: '12px 14px', marginBottom: 12, fontSize: 12.5, color: T.textT }}>Nenhuma máquina escolhida — toque em Personalizar para escolher.</div>}
+              {Midias({ grupo: g, limite: 2 })}
+              <button onClick={() => setVista(g.id)} className="fit-btn" style={{ padding: '8px 16px', borderRadius: 999, border: `1.5px solid ${ENERGIA}`, background: 'transparent', color: ENERGIA, fontWeight: 800, fontSize: 12.5, cursor: 'pointer' }}>Ver todos de {g.label.toLowerCase()}</button>
+            </div>
+          );
+        })}
+      </>}
     </div>;
   }
 
   /* ── treino da semana ── */
   if (vista === 'semana') {
-    const idxHoje = new Date().getDay();
-    // segunda → domingo
-    const ordem = [1, 2, 3, 4, 5, 6, 0];
+    const ordem = [1, 2, 3, 4, 5, 6, 0]; // segunda → domingo
     return <div className="fit-scroll" style={MOLDURA}>
-      {Cabecalho({ titulo: "Treino da semana", sub: "Uma divisão simples — toque num grupo pra ver exercícios e vídeos" })}
+      {Cabecalho({ titulo: "Treino da semana", sub: "Personalize cada dia: escolha os grupos e as máquinas" })}
+      {planoLocal && <div style={{ fontSize: 11.5, color: T.textT, background: 'rgba(245,158,11,.12)', border: '1px solid rgba(245,158,11,.35)', borderRadius: 10, padding: '8px 11px', marginBottom: 12 }}>Salvando só neste aparelho por enquanto (o banco ainda não foi preparado).</div>}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {ordem.map(i => {
-          const d = SEMANA[i]; const ehHoje = i === idxHoje;
+          const t = treinoDoDia(i); const ehHoje = i === idxHoje;
+          const total = t ? t.grupos.reduce((n, g) => n + g.exercicios.length, 0) : 0;
           return (
             <div key={i} style={{ ...caixa, padding: '12px 14px', borderColor: ehHoje ? ENERGIA : T.border, boxShadow: ehHoje ? `0 0 0 1px ${ENERGIA}` : 'none' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: d.grupos.length ? 10 : 0 }}>
-                <div style={{ fontSize: 14, fontWeight: 800, color: T.text }}>{d.nome}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: t ? 4 : 0, flexWrap: 'wrap' }}>
+                <div style={{ fontSize: 14, fontWeight: 800, color: T.text }}>{NOMES_DIA[i]}</div>
                 {ehHoje && <span style={{ fontSize: 10.5, fontWeight: 800, padding: '2px 8px', borderRadius: 999, background: `${ENERGIA}22`, color: ENERGIA }}>HOJE</span>}
-                {!d.grupos.length && <span style={{ fontSize: 12.5, color: T.textT }}>Descanso</span>}
+                {t?.personalizado && <span style={{ fontSize: 10.5, fontWeight: 800, padding: '2px 8px', borderRadius: 999, background: T.surfaceSub, color: T.textS }}>PERSONALIZADO</span>}
+                {!t && <span style={{ fontSize: 12.5, color: T.textT }}>Descanso</span>}
+                <div style={{ flex: 1 }} />
+                <button onClick={() => setEditando({ tipo: 'dia', dia: i })} className="fit-btn" style={{ padding: '6px 13px', borderRadius: 999, border: `1.5px solid ${ENERGIA}`, background: 'transparent', color: ENERGIA, fontWeight: 800, fontSize: 12, cursor: 'pointer' }}>{t?.personalizado || plano?.dias?.[i] ? 'Editar' : 'Personalizar'}</button>
               </div>
-              {d.grupos.length > 0 && <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {d.grupos.map(id => (
-                  <button key={id} onClick={() => setVista(id)} className="fit-btn" style={{ padding: '8px 14px', borderRadius: 999, border: 'none', background: `${ENERGIA}1F`, color: ENERGIA, fontWeight: 800, fontSize: 12.5, cursor: 'pointer' }}>{GRUPO_POR_ID[id].label}</button>
+              {t && t.nome && <div style={{ fontSize: 12, color: T.textT, marginBottom: 6 }}>{t.nome}</div>}
+              {t && <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 6 }}>
+                {t.grupos.map(g => (
+                  <button key={g.grupo} onClick={() => setVista(g.grupo)} className="fit-btn" style={{ padding: '7px 13px', borderRadius: 999, border: 'none', background: `${ENERGIA}1F`, color: ENERGIA, fontWeight: 800, fontSize: 12.5, cursor: 'pointer' }}>{GRUPO_POR_ID[g.grupo].label}</button>
                 ))}
+                <span style={{ alignSelf: 'center', fontSize: 11.5, color: T.textT }}>{total} exercício{total !== 1 ? 's' : ''}</span>
               </div>}
+              {plano?.dias?.[i] && (
+                <button onClick={() => { const d = { ...P.dias }; delete d[i]; salvarPlano({ ...P, dias: d }); }} className="fit-btn" style={{ marginTop: 8, border: 'none', background: 'none', color: T.textT, fontSize: 11.5, cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>Voltar ao treino sugerido</button>
+              )}
             </div>
           );
         })}
@@ -252,10 +529,11 @@ export const TreinosTab = ({ T, ENERGIA, FOGO, EG, supabase, podeCurar, onAbrirC
     </button>
   );
   return <div className="fit-scroll" style={MOLDURA}>
-    <div style={{ display: 'grid', gridTemplateColumns: desk ? 'repeat(3, 1fr)' : '1fr 1fr', gap: 10, marginBottom: 12 }}>
-      {atalho('Treino do dia', `${hoje.nome}: ${hoje.grupos.length ? hoje.grupos.map(id => GRUPO_POR_ID[id].label).join(' + ') : 'descanso'}`, () => setVista('dia'), true)}
-      {atalho('Treino da semana', 'A divisão de segunda a domingo', () => setVista('semana'))}
-      <div style={{ gridColumn: desk ? 'auto' : '1 / -1', display: 'flex' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: desk ? 'repeat(2, 1fr)' : '1fr 1fr', gap: 10, marginBottom: 12 }}>
+      {atalho('Treino do dia', `${hoje.nome}: ${treinoHoje ? (treinoHoje.nome || treinoHoje.grupos.map(g => GRUPO_POR_ID[g.grupo].label).join(' + ')) : 'descanso'}`, () => setVista('dia'), true)}
+      {atalho('Treino da semana', 'Personalize os grupos e as máquinas de cada dia', () => setVista('semana'))}
+      {atalho('Coleção de treinos', `${colecao.length} salvo${colecao.length !== 1 ? 's' : ''} · mais ${PRESETS.length} sugestões prontas`, () => setVista('colecao'))}
+      <div style={{ gridColumn: 'auto', display: 'flex' }}>
         <div style={{ flex: 1, display: 'flex' }}>
           <button onClick={onAbrirCargas} className="fit-btn" style={{ flex: 1, textAlign: 'left', padding: '16px', borderRadius: 16, cursor: 'pointer', border: `1px solid ${ENERGIA}`, background: `${ENERGIA}14`, color: T.text }}>
             <div style={{ fontFamily: 'var(--font-brand)', fontSize: 15.5, fontWeight: 800, color: ENERGIA }}>Progressão de carga</div>
