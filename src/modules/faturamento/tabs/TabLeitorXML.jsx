@@ -13,7 +13,7 @@ const CNPJ_7SERV = '13858769000197';
 // NFSe_1242_SEC_DE_SAUDE_MAC: nº da nota + secretaria (SECRETARIA → SEC) + setor, sem acento/símbolos
 const nomePdfNota = (r) => {
   const parte = (t) => (t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase()
-    .replace(/SECRETARIA/g, 'SEC').replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+    .replace(/\bSECRETARIA\b/g, 'SEC').replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');
   return ['NFSe', r.numero, parte(r.secretaria), parte(r.setor)].filter(Boolean).join('_').slice(0, 120) + '.pdf';
 };
 
