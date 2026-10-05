@@ -78,7 +78,7 @@ async function startCapture(streamId, contactName, test = false) {
 // So no modo teste - nada e salvo no servidor.
 const VAD_TH = 0.012;          // RMS minimo pra contar como voz
 const VAD_HANG_MS = 800;       // silencio que encerra uma frase
-const VAD_PARTIAL_MS = 1200;   // de quanto em quanto tempo atualiza a frase em andamento
+const VAD_PARTIAL_MS = 2500;   // de quanto em quanto tempo atualiza a frase em andamento
 let live = null;
 let lastLive = null; // sessao de teste que acabou de parar (usada no resultado final)
 
