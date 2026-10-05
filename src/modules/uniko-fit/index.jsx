@@ -1986,7 +1986,6 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
   };
 
   const [rankPeriodo, setRankPeriodo] = useState('mes'); // mes | total
-  useEffect(() => { if (rankingData) ensurePhotos(Object.keys(rankingData.total)); }, [rankingData, ensurePhotos]);
   const [rankMes, setRankMes] = useState(null); // 'YYYY-MM' escolhido; null = mês atual
 
   /* ═══════════════════ MEU PESO ═══════════════════ */
@@ -2069,6 +2068,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
     const meses = [...new Set([curMonth, ...Object.keys(porMes)])].sort().reverse();
     return { total, mes: porMes[curMonth] || {}, porMes, meses, curMonth };
   }, [fullFeed]);
+  useEffect(() => { if (rankingData) ensurePhotos(Object.keys(rankingData.total)); }, [rankingData, ensurePhotos]);
 
   const [detalhesPlayer, setDetalhesPlayer] = useState(null); // nome selecionado (null = lista)
   const detalhesLista = useMemo(() => {
