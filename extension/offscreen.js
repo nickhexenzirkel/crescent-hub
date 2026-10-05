@@ -36,7 +36,11 @@ async function startCapture(streamId, contactName) {
   // consegue mostrar o prompt de permissão, precisa ter sido autorizado
   // antes numa página visível — ver popup.html, que pede a permissão na
   // primeira vez que o colaborador abre o popup).
-  micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  // Cancelamento de eco/ruído/ganho automático: sem isso o microfone capta de volta o som
+// da aba que sai nos alto-falantes (eco) e a fala fica embolada/baixa pro Whisper.
+  micStream = await navigator.mediaDevices.getUserMedia({
+    audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
+  });
   console.log('[uniko-call] micStream OK. Montando AudioContext e MediaRecorder...');
 
   audioContext = new AudioContext();
@@ -56,7 +60,8 @@ async function startCapture(streamId, contactName) {
   // alto-falantes normais.
   audioContext.createMediaStreamSource(tabStream).connect(audioContext.destination);
 
-  recorder = new MediaRecorder(dest.stream, { mimeType: 'audio/webm;codecs=opus' });
+  // Bitrate padrão do Opus no MediaRecorder é baixo (~32kbps) e deixa a fala "metálica" — 128kbps.
+  recorder = new MediaRecorder(dest.stream, { mimeType: 'audio/webm;codecs=opus', audioBitsPerSecond: 128000 });
   recorder.ondataavailable = (e) => { console.log('[uniko-call] chunk recebido, bytes:', e.data.size); if (e.data.size > 0) chunks.push(e.data); };
   recorder.onstop = uploadRecording;
   recorder.start();
