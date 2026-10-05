@@ -34,7 +34,7 @@ const BRAND_CSS = `
 /* Parâmetros opcionais (default = cabeçalho do Portal, idêntico ao de sempre): outro módulo pode
    trocar o mascote (`logo`), o tamanho dele e do nome, as cores (`cores`, quando o módulo tem tema
    próprio) e usar `compacto` (legenda ao lado do nome, numa linha só — barras de 50px). */
-export const UnikoBrandArt = ({ legenda, logo = '/UNIKO_LOGO.png', tamanhoLogo = 62, alturaNome = 30, cores, compacto = false, legendaCentrada = false, tamanhoLegenda, vertical = false }) => {
+export const UnikoBrandArt = ({ legenda, logo = '/UNIKO_LOGO.png', tamanhoLogo = 62, alturaNome = 30, cores, compacto = false, legendaCentrada = false, tamanhoLegenda, vertical = false, semLogo = false }) => {
   const cTexto = cores?.texto || T.text;
   const cDestaque = cores?.destaque || T.gold;
   const legendaEl = (
@@ -48,9 +48,9 @@ export const UnikoBrandArt = ({ legenda, logo = '/UNIKO_LOGO.png', tamanhoLogo =
       <style>{BRAND_CSS}</style>
       {/* Logo recortada rente (UNIKO_LOGO.png) — o mascote enche o quadrado. Só
           flutua de leve por transform; nada de sombra ou brilho em volta. */}
-      <img src={logo} alt="Uniko" className="ub-logo" draggable={false}
+      {!semLogo && <img src={logo} alt="Uniko" className="ub-logo" draggable={false}
         style={{ width:tamanhoLogo, height:tamanhoLogo, flexShrink:0, objectFit:'contain', display:'block',
-          animation:'ubFlutua 4.5s ease-in-out infinite' }}/>
+          animation:'ubFlutua 4.5s ease-in-out infinite' }}/>}
       <div style={{ minWidth:0, display:'flex', flexDirection: compacto ? 'row' : 'column', alignItems: (compacto || legendaCentrada) ? 'center' : 'flex-start', gap: compacto ? 8 : 6 }}>
         {/* alignSelf/alignItems no início: esticado na coluna, o SVG centralizava o nome. */}
         <svg viewBox="7 7 473 116" role="img" aria-label="UNIKO"
