@@ -12,7 +12,7 @@
 // Sem servidor próprio: tudo via Supabase (tabela uniko_fit_checkins — coluna
 // `kind` distingue 'checkin' de 'post' — e uniko_fit_chat com `tipo`/`media_url`
 // — rodar supabase_uniko_fit.sql) + bucket de arquivos `uniko-fit-fotos`.
-import { useState, useEffect, useRef, useCallback, useMemo, Fragment } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, useDeferredValue, Fragment } from 'react';
 import { THEMES } from '../../contexts/theme';
 
 /* ── Tema LOCAL do Uniko FIT: escuro roxo, sempre (ago/2026) ─────────────────
@@ -220,6 +220,34 @@ const PHOTO_FILTERS = [
   { id: 'drama',   label: 'Drama',   css: 'contrast(1.35) brightness(.88) saturate(.85)' },
 ];
 
+/* Aplica uma lista de filtros CSS (grayscale/sepia/saturate/contrast/brightness/hue-rotate)
+   direto nos pixels. `ctx.filter` do canvas NÃO funciona no Safari/iPhone (onde quase todo
+   mundo tira a foto): o preview (CSS) mostrava o filtro, mas o arquivo enviado saía
+   sem — daí o "filtro não funciona". Fazendo na mão, sai igual em qualquer navegador. */
+const filtrarPixels = (data, css) => {
+  const ops = [...css.matchAll(/([a-z-]+)\(([-\d.]+)(deg)?\)/g)].map(m => [m[1], parseFloat(m[2])]);
+  const clamp = (v) => (v < 0 ? 0 : v > 255 ? 255 : v);
+  for (const [nome, v] of ops) {
+    let m = null; // matriz 3x3 de cor (linhas R,G,B)
+    if (nome === 'grayscale') { const a = 1 - Math.min(1, v); m = [[.2126 + .7874 * a, .7152 - .7152 * a, .0722 - .0722 * a], [.2126 - .2126 * a, .7152 + .2848 * a, .0722 - .0722 * a], [.2126 - .2126 * a, .7152 - .7152 * a, .0722 + .9278 * a]]; }
+    else if (nome === 'sepia') { const a = 1 - Math.min(1, v); m = [[.393 + .607 * a, .769 - .769 * a, .189 - .189 * a], [.349 - .349 * a, .686 + .314 * a, .168 - .168 * a], [.272 - .272 * a, .534 - .534 * a, .131 + .869 * a]]; }
+    else if (nome === 'saturate') m = [[.213 + .787 * v, .715 - .715 * v, .072 - .072 * v], [.213 - .213 * v, .715 + .285 * v, .072 - .072 * v], [.213 - .213 * v, .715 - .715 * v, .072 + .928 * v]];
+    else if (nome === 'hue-rotate') { const r = v * Math.PI / 180, c = Math.cos(r), n = Math.sin(r); m = [[.213 + c * .787 - n * .213, .715 - c * .715 - n * .715, .072 - c * .072 + n * .928], [.213 - c * .213 + n * .143, .715 + c * .285 + n * .140, .072 - c * .072 - n * .283], [.213 - c * .213 - n * .787, .715 - c * .715 + n * .715, .072 + c * .928 + n * .072]]; }
+    for (let i = 0; i < data.length; i += 4) {
+      const r = data[i], g = data[i + 1], b = data[i + 2];
+      if (m) {
+        data[i] = clamp(m[0][0] * r + m[0][1] * g + m[0][2] * b);
+        data[i + 1] = clamp(m[1][0] * r + m[1][1] * g + m[1][2] * b);
+        data[i + 2] = clamp(m[2][0] * r + m[2][1] * g + m[2][2] * b);
+      } else if (nome === 'contrast') {
+        data[i] = clamp((r - 128) * v + 128); data[i + 1] = clamp((g - 128) * v + 128); data[i + 2] = clamp((b - 128) * v + 128);
+      } else if (nome === 'brightness') {
+        data[i] = clamp(r * v); data[i + 1] = clamp(g * v); data[i + 2] = clamp(b * v);
+      }
+    }
+  }
+};
+
 /* ── Câmera do check-in: só dá pra tirar foto na hora (sem galeria), com
    filtro de cor opcional aplicado antes de confirmar. `facing` alterna
    frontal/traseira; a frontal é espelhada no preview (senão parece "ao
@@ -365,9 +393,12 @@ const CameraCapture = ({ energia, onCapture }) => {
       const canvas = document.createElement('canvas');
       canvas.width = sw; canvas.height = sh;
       const ctx = canvas.getContext('2d');
-      ctx.filter = filtro.css;
       ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
-      ctx.filter = 'none'; // os emojis não devem levar o filtro de cor da foto
+      if (filtro.css !== 'none') { // só a foto leva o filtro — os emojis (abaixo) ficam de fora
+        const px = ctx.getImageData(0, 0, sw, sh);
+        filtrarPixels(px.data, filtro.css);
+        ctx.putImageData(px, 0, 0);
+      }
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       stickers.forEach(st => {
         const fontPx = st.size * img.width;
@@ -468,8 +499,8 @@ const isVideoUrl = (url) => /\.(mp4|webm|mov|m4v|ogv)(\?|$)/i.test(url || '');
 const Sheet = ({ title, onBack, onClose, children }) => {
   const cardBg = T.surface || '#fff';
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(8,6,10,.55)', backdropFilter: 'blur(2px)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-      <div onClick={e => e.stopPropagation()} className="fit-sheet-in" style={{ background: cardBg, width: '100%', maxWidth: 480, borderRadius: '20px 20px 0 0', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 -14px 50px rgba(0,0,0,.35)', border: `1px solid ${T.border}`, borderBottom: 'none' }}>
+    <div onClick={onClose} className="fit-overlay" style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(8,6,10,.55)', backdropFilter: 'blur(2px)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+      <div onClick={e => e.stopPropagation()} className="fit-sheet-in fit-modal" style={{ background: cardBg, width: '100%', maxWidth: 480, borderRadius: '20px 20px 0 0', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 -14px 50px rgba(0,0,0,.35)', border: `1px solid ${T.border}`, borderBottom: 'none' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '13px 8px 13px 14px', borderBottom: `1px solid ${T.border}`, flexShrink: 0 }}>
           {onBack && <button onClick={onBack} style={{ border: 'none', background: 'none', cursor: 'pointer', color: T.textS, padding: 6, display: 'flex' }}>{IcoBack}</button>}
           <div style={{ fontSize: 15, fontWeight: 800, color: T.text, flex: 1 }}>{title}</div>
@@ -1044,7 +1075,42 @@ const CheckinCalendar = ({ items, energia, label = 'Treinou' }) => {
   );
 };
 
+const diaLocalISO = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+// Sequência atual de dias seguidos com check-in (hoje ainda sem treino não quebra a sequência de ontem).
+const calcSequencia = (dias) => {
+  if (!dias?.size) return 0;
+  const d = new Date();
+  if (!dias.has(diaLocalISO(d))) d.setDate(d.getDate() - 1);
+  let n = 0;
+  while (dias.has(diaLocalISO(d))) { n++; d.setDate(d.getDate() - 1); }
+  return n;
+};
+// Segunda a domingo da semana atual, com o dia ('YYYY-MM-DD') e a letra
+const diasDaSemana = () => {
+  const hoje = new Date();
+  const seg = new Date(hoje); seg.setDate(hoje.getDate() - ((hoje.getDay() + 6) % 7));
+  return ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'].map((letra, i) => {
+    const d = new Date(seg); d.setDate(seg.getDate() + i);
+    return { letra, iso: diaLocalISO(d), hoje: diaLocalISO(d) === diaLocalISO(hoje) };
+  });
+};
+
+// Computador (tela larga + mouse): o Uniko FIT troca o layout de celular por
+// barra lateral + coluna central. No celular/tablet nada muda.
+const DESK_MQ = '(min-width: 1000px) and (pointer: fine)';
+const useDesktop = () => {
+  const [desk, setDesk] = useState(() => window.matchMedia(DESK_MQ).matches);
+  useEffect(() => {
+    const mq = window.matchMedia(DESK_MQ);
+    const fn = () => setDesk(mq.matches);
+    mq.addEventListener('change', fn);
+    return () => mq.removeEventListener('change', fn);
+  }, []);
+  return desk;
+};
+
 const UnikoFit = ({ onBack, authUser, userPhoto }) => {
+  const desk = useDesktop();
   // O escuro do módulo vem do `T` local lá em cima — nada de applyTheme aqui:
   // mexer no tema global vazava o escuro pro resto do Portal ao sair.
   const name = myName();
@@ -1128,6 +1194,17 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
 .fit-carrossel { scrollbar-width: none; -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y; }
 .fit-carrossel::-webkit-scrollbar { display: none; }
 .fit-card { scroll-snap-align: start; scroll-snap-stop: always; }
+@media (min-width: 1000px) and (pointer: fine) {
+  .fit-overlay { align-items: center !important; }
+  .fit-modal { border-radius: 20px !important; max-width: 560px !important; border-bottom: 1px solid rgba(128,128,128,.25) !important; box-shadow: 0 24px 70px rgba(0,0,0,.45) !important; }
+  .fit-side-btn:hover { background: rgba(128,128,128,.12) !important; }
+}
+.fit-feed-list { scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.fit-feed-list::-webkit-scrollbar { display: none; }
+.fit-post { transition: box-shadow .3s; }
+@media (min-width: 1000px) and (pointer: fine) {
+  .fit-post:hover { box-shadow: 0 6px 22px rgba(0,0,0,.28) !important; }
+}
 .fit-scroll { scrollbar-width: thin; scrollbar-color: ${ENERGIA}99 rgba(128,128,128,.14); -webkit-overflow-scrolling: touch; }
 .fit-scroll::-webkit-scrollbar { width: 6px; }
 .fit-scroll::-webkit-scrollbar-thumb { background: ${ENERGIA}99; border-radius: 99px; }
@@ -1155,6 +1232,15 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
 
   /* ═══════════════════ FEED "PARA VOCÊ" (check-ins + posts) ═══════════════════ */
   const [feed, setFeed] = useState(null);           // null = carregando
+  // Dias (locais) em que EU fiz check-in — alimenta a faixa "Sua semana" e a sequência
+  const [meusDias, setMeusDias] = useState(null);
+  const carregarMeusDias = useCallback(async () => {
+    const { data } = await supabase.from('uniko_fit_checkins').select('created_at')
+      .eq('player', name).eq('kind', 'checkin').order('created_at', { ascending: false }).limit(200);
+    setMeusDias(new Set((data || []).map(r => diaLocalISO(new Date(r.created_at)))));
+  }, [name]);
+  // recarrega quando o feed recarrega (inclui logo depois de fazer um check-in)
+  useEffect(() => { carregarMeusDias(); }, [carregarMeusDias, feed]);
   const [reacoes, setReacoes] = useState({});        // itemId -> {counts:{emoji:n}, mine:emoji|null}
   const [comentCount, setComentCount] = useState({}); // itemId -> n
 
@@ -1832,6 +1918,9 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
   // instantâneo e não gasta requisição do Supabase a cada letra.
   const [buscaQuery, setBuscaQuery] = useState('');
   const [buscaFiltro, setBuscaFiltro] = useState('tudo'); // tudo | pessoas | fotos | videos | audios
+  const buscaQueryAdiada = useDeferredValue(buscaQuery); // digitar não espera a lista re-filtrar
+  const [buscaLimite, setBuscaLimite] = useState(30); // quantos itens por categoria desenhar ("Mostrar mais" aumenta)
+  useEffect(() => { setBuscaLimite(30); }, [buscaQueryAdiada, buscaFiltro]);
   // Biblioteca de áudios (uniko_fit_audios) — a busca precisa dela porque um
   // áudio pode existir SEM nenhum post usando ele ainda (a pessoa sobe/converte
   // pelo MusicPicker e o áudio entra na biblioteca na hora). Procurar só nos
@@ -1850,7 +1939,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
   // Ignora acento e caixa: "jose" acha "José", "MUSICA" acha "música".
   const normalizar = (s) => (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   const buscaResultados = useMemo(() => {
-    const q = normalizar(buscaQuery.trim());
+    const q = normalizar(buscaQueryAdiada.trim());
     if (!q || !fullFeed || !detalhesLista) return null;
 
     const pessoas = detalhesLista.filter(p => normalizar(p.player).includes(q));
@@ -1866,7 +1955,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
     // alguém sobe/converte, mesmo antes de virar post.
     const audios = (audioLib || []).filter(a => normalizar(a.title).includes(q) || normalizar(a.player).includes(q));
     return { pessoas, fotos, videos, audios, total: pessoas.length + fotos.length + videos.length + audios.length };
-  }, [buscaQuery, fullFeed, detalhesLista, audioLib]);
+  }, [buscaQueryAdiada, fullFeed, detalhesLista, audioLib]);
 
   /* Prévia de um áudio da biblioteca direto no resultado da busca.
      Usa <video> (não <audio>) pelo mesmo motivo do FeedMusic: no Safari/iPhone
@@ -2119,15 +2208,89 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
   // endereço já empurra o conteúdo, então isso vira 0px e não muda nada. Sem
   // isso, o topbar nasce embaixo do relógio/notch (some atrás dele) quando
   // instalado — foi exatamente esse o bug reportado.
+  const SIDE_W = 270;
+  const RIGHT_W = 320;
+  const mostraRanking = desk && topTab === 'paravoce' && typeof window !== 'undefined' && window.innerWidth >= 1380;
+  useEffect(() => { if (mostraRanking && !fullFeed) loadFullFeed(); }, [mostraRanking, fullFeed, loadFullFeed]);
+  const topMes = useMemo(() => {
+    if (!rankingData) return null;
+    return Object.entries(rankingData.mes).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  }, [rankingData]);
+  const sequencia = useMemo(() => calcSequencia(meusDias), [meusDias]);
+  const treinosNoMes = useMemo(() => {
+    if (!meusDias) return 0;
+    const prefixo = diaLocalISO(new Date()).slice(0, 7);
+    return [...meusDias].filter(d => d.startsWith(prefixo)).length;
+  }, [meusDias]);
+  const navegarFeed = useCallback((dir) => {
+    const el = feedScrollRef.current;
+    if (el) el.scrollBy({ top: dir * Math.round(el.clientHeight * 0.85), behavior: 'smooth' });
+  }, []);
+  // ↑ ↓ no teclado rolam o feed (desktop) — ignora quando digitando num campo ou com uma folha aberta
+  useEffect(() => {
+    if (!desk || topTab !== 'paravoce') return undefined;
+    const fn = (e) => {
+      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+      if (sheet || /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || '') || document.activeElement?.isContentEditable) return;
+      e.preventDefault();
+      navegarFeed(e.key === 'ArrowDown' ? 1 : -1);
+    };
+    window.addEventListener('keydown', fn);
+    return () => window.removeEventListener('keydown', fn);
+  }, [desk, topTab, sheet, navegarFeed]);
   const HEADER_H = 'calc(94px + env(safe-area-inset-top, 0px))'; // topbar 50 + abas 44 + notch
   const FOOTER_H = 'calc(60px + env(safe-area-inset-bottom, 0px))';
 
   return (
-    <div className="fit-root" style={{ width: '100%', maxWidth: 480, margin: '0 auto', background: T.page, fontFamily: 'var(--font-body)', position: 'relative', overflow: 'hidden', boxShadow: '0 0 60px rgba(0,0,0,.08)' }}>
+    <div className="fit-root" style={{ width: '100%', maxWidth: desk ? 'none' : 480, margin: '0 auto', background: T.page, fontFamily: 'var(--font-body)', position: 'relative', overflow: 'hidden', boxShadow: desk ? 'none' : '0 0 60px rgba(0,0,0,.08)' }}>
       <style>{FIT_CSS}</style>
 
+      {/* ── DESKTOP: barra lateral (marca + abas + ações) no lugar do cabeçalho e da barra inferior ── */}
+      {desk && (
+        <aside style={{ position: 'fixed', top: 0, left: 0, bottom: 0, width: SIDE_W, zIndex: 60, background: T.topbarBg || cardBg, borderRight: `1px solid ${T.border}`,
+          display: 'flex', flexDirection: 'column', padding: '16px 14px', boxSizing: 'border-box', gap: 4, overflowY: 'auto' }}>
+          <button onClick={onBack} className="fit-btn fit-side-btn" style={{ display: 'flex', alignItems: 'center', gap: 6, alignSelf: 'flex-start', background: 'none', border: 'none', cursor: 'pointer', color: T.textS, fontSize: 13, fontFamily: 'var(--font-body)', padding: '6px 8px', borderRadius: 8 }}>
+            {IcoBack} Módulos
+          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 8px 18px' }}>
+            <img src="/uniko-fit-icon.png" alt="Uniko FIT" style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+            <div style={{ fontSize: 20, fontWeight: 800, color: T.text, fontFamily: 'var(--font-brand)', letterSpacing: '.02em', lineHeight: 1 }}>Uniko FIT</div>
+          </div>
+          {[['paravoce', 'Para Você'], ['batepapo', 'Bate-Papo'], ['buscar', 'Buscar'], ['meuperfil', 'Meu Perfil']].map(([id, label]) => {
+            const on = topTab === id;
+            return (
+              <button key={id} onClick={() => (id === 'paravoce' && on) ? recarregarFeed() : setTopTab(id)} className="fit-btn fit-side-btn"
+                style={{ textAlign: 'left', background: on ? `${ENERGIA}1F` : 'none', border: 'none', cursor: 'pointer', padding: '11px 14px', borderRadius: 12, fontSize: 14.5, fontWeight: 800, fontFamily: 'var(--font-brand)',
+                  color: on ? ENERGIA : T.text, borderLeft: on ? `3px solid ${ENERGIA}` : '3px solid transparent' }}>
+                {label}
+              </button>
+            );
+          })}
+          <div style={{ height: 1, background: T.border, margin: '12px 6px' }} />
+          {BOTTOM_BTNS.map(b => (
+            <button key={b.id} onClick={() => b.id === 'notif' ? abrirNotificacoes() : openSheet(b.id)} className="fit-btn fit-side-btn"
+              style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: 'none', border: 'none', cursor: 'pointer', color: T.text, borderRadius: 12, fontSize: 13.5, fontWeight: 700, fontFamily: 'var(--font-body)' }}>
+              <span style={{ position: 'relative', color: ENERGIA, display: 'flex' }}>
+                {b.icon}
+                {b.id === 'notif' && notifUnreadCount > 0 && (
+                  <span style={{ position: 'absolute', top: -5, right: -7, minWidth: 15, height: 15, padding: '0 3px', borderRadius: '50%', background: '#DC3232', color: '#fff', fontSize: 9, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1.5px solid ${cardBg}` }}>
+                    {notifUnreadCount > 9 ? '9+' : notifUnreadCount}
+                  </span>
+                )}
+              </span>
+              {b.label}
+            </button>
+          ))}
+          <div style={{ flex: 1 }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 8px', borderTop: `1px solid ${T.border}` }}>
+            <AvatarCircle name={userName} photo={userPhoto} size={34} fontSize={12} />
+            <div style={{ fontSize: 13, fontWeight: 700, color: T.text, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{(userName || '').split(' ').slice(0, 2).join(' ')}</div>
+          </div>
+        </aside>
+      )}
+
       {/* ── Cabeçalho fixo: topbar + abas (Para Você / Bate-Papo / Meu Perfil) ── */}
-      <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 480, zIndex: 60,
+      {!desk && <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 480, zIndex: 60,
         paddingTop: 'env(safe-area-inset-top, 0px)', background: T.topbarBg || cardBg }}>
         <div style={{ height: 50, background: T.topbarBg || cardBg, backdropFilter: 'blur(28px)', WebkitBackdropFilter: 'blur(28px)', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', padding: '0 10px 0 6px', gap: 6, boxShadow: `0 1px 16px ${ENERGIA}18`, boxSizing: 'border-box' }}>
           <button onClick={onBack} className="fit-btn" style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', color: T.textS, fontSize: 12.5, fontFamily: 'var(--font-body)', padding: '6px 7px', borderRadius: 7 }}>
@@ -2156,10 +2319,15 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
             );
           })}
         </div>
-      </div>
+      </div>}
 
       {/* ── Conteúdo (rola independente, entre o cabeçalho e a barra fixos) ── */}
-      <div style={{ position: 'absolute', top: HEADER_H, left: 0, right: 0, bottom: FOOTER_H, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      {/* Desktop: coluna centralizada ao lado da barra lateral (feed estreito, estilo TikTok web; demais abas mais largas) */}
+      <div style={desk
+        ? { position: 'absolute', top: 0, bottom: 0, left: SIDE_W, right: mostraRanking ? RIGHT_W : 0, margin: '0 auto', width: topTab === 'paravoce' ? 600 : 780, maxWidth: `calc(100% - ${SIDE_W}px - ${mostraRanking ? RIGHT_W : 0}px)`,
+            display: 'flex', flexDirection: 'column', overflow: 'hidden', background: topTab === 'paravoce' ? 'transparent' : cardBg,
+            borderLeft: topTab === 'paravoce' ? 'none' : `1px solid ${T.border}`, borderRight: topTab === 'paravoce' ? 'none' : `1px solid ${T.border}` }
+        : { position: 'absolute', top: HEADER_H, left: 0, right: 0, bottom: FOOTER_H, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
         {/* ── Aviso pra ativar notificação push no celular — sticky, aparece em qualquer aba até ativar/dispensar ── */}
         {mostrarBannerPush && (
@@ -2192,8 +2360,8 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                   background: `linear-gradient(135deg, ${ENERGIA}, ${FOGO})`, boxShadow: `0 6px 18px ${EG}` }}><span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>{IcoCamera} Fazer check-in</span></button>
             </div>
           ) : (
-            <div ref={feedScrollRef} className="fit-feed" onTouchStart={onFeedTouchStart} onTouchMove={onFeedTouchMove} onTouchEnd={onFeedTouchEnd}
-              style={{ flex: 1, minHeight: 0, overflowY: 'auto', position: 'relative' }}>
+            <div ref={feedScrollRef} className="fit-feed-list" onTouchStart={onFeedTouchStart} onTouchMove={onFeedTouchMove} onTouchEnd={onFeedTouchEnd}
+              style={{ flex: 1, minHeight: 0, overflowY: 'auto', position: 'relative', padding: desk ? '20px 4px 48px' : '10px 10px 24px' }}>
               {(pullY > 0 || refreshing) && (
                 <div style={{ position: 'absolute', top: 8, left: 0, right: 0, display: 'flex', justifyContent: 'center', zIndex: 5, opacity: Math.min((pullY || 40) / 58, 1), transition: refreshing ? 'none' : 'opacity .15s' }}>
                   <div style={{ width: 26, height: 26, borderRadius: '50%', background: cardBg, boxShadow: '0 2px 10px rgba(0,0,0,.25)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -2201,131 +2369,150 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                   </div>
                 </div>
               )}
+              {/* ── Sua semana (estilo GymRats): 7 dias, sequência e atalho pra registrar treino ── */}
+              <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 16, padding: '14px 14px 12px', marginBottom: 14 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                  <div style={{ width: 38, height: 38, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', background: `linear-gradient(135deg, ${ENERGIA}, ${FOGO})` }}>{IcoFlame}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: T.text, fontFamily: 'var(--font-brand)' }}>{sequencia > 0 ? `${sequencia} dia${sequencia !== 1 ? 's' : ''} seguido${sequencia !== 1 ? 's' : ''}` : 'Comece sua sequência'}</div>
+                    <div style={{ fontSize: 11.5, color: T.textT }}>{treinosNoMes} treino{treinosNoMes !== 1 ? 's' : ''} neste mês</div>
+                  </div>
+                  <button onClick={() => openSheet('checkin')} className="fit-btn"
+                    style={{ padding: '9px 14px', borderRadius: 999, border: 'none', cursor: 'pointer', color: '#fff', fontWeight: 800, fontSize: 12.5, background: ENERGIA, whiteSpace: 'nowrap', boxShadow: `0 4px 14px ${EG}` }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>{IcoCamera} Registrar treino</span>
+                  </button>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 4 }}>
+                  {diasDaSemana().map((d, i) => {
+                    const fez = !!meusDias?.has(d.iso);
+                    return (
+                      <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
+                        <div style={{ width: 34, height: 34, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff',
+                          background: fez ? ENERGIA : 'transparent', border: fez ? 'none' : `2px ${d.hoje ? 'solid' : 'dashed'} ${d.hoje ? ENERGIA : T.border}` }}>
+                          {fez ? IcoCheckCircle : null}
+                        </div>
+                        <span style={{ fontSize: 10.5, fontWeight: d.hoje ? 800 : 600, color: d.hoje ? ENERGIA : T.textT }}>{d.letra}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
               {feed.map(post => {
                 const r = reacoes[post.id] || { counts: {}, mine: null };
-                const totalReacoes = Object.values(r.counts).reduce((a, b) => a + b, 0);
                 const souDono = post.player === name;
+                const nomeCurto = post.player.split(' ').slice(0, 2).join(' ');
                 return (
-                  <div key={post.id} ref={el => { if (el) feedItemRefs.current[post.id] = el; }} onClick={() => handlePostTap(post)}
-                    className="fit-card" style={{ position: 'relative', width: '100%', height: '100%', background: '#111',
-                      boxShadow: flashPostId === post.id ? `inset 0 0 0 3px ${ENERGIA}` : 'none', transition: 'box-shadow .3s' }}>
-                    {/* Post com várias mídias (media_urls) vira carrossel; com uma
-                        só continua exatamente como era antes. */}
-                    {(post.media_urls?.length > 1)
-                      ? <FeedCarrossel midias={post.media_urls} muted={post.music_url ? true : feedMuted}
-                          postId={String(post.id)} postAtivo={String(post.id) === postAtivoId} onRatio={reportarRatio}
-                          indice={carrosselIdx[post.id] || 0} onIndice={i => setCarrosselIdx(m => ({ ...m, [post.id]: i }))}
-                          onEl={el => { mediaElRefs.current[String(post.id)] = { ...mediaElRefs.current[String(post.id)], video: el }; }} />
-                      : isVideoUrl(post.photo_url)
-                        ? <FeedVideo src={post.photo_url} muted={post.music_url ? true : feedMuted}
-                            postId={String(post.id)} ativo={String(post.id) === postAtivoId} onRatio={reportarRatio}
-                            onEl={el => { mediaElRefs.current[String(post.id)] = { ...mediaElRefs.current[String(post.id)], video: el }; }}
-                            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
-                        : <img src={post.photo_url} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />}
-                    {/* Tem música escolhida no post (ver postarFoto/MusicPicker) — toca o
-                        trechinho em loop; se o post também é vídeo, o vídeo acima já foi
-                        forçado mudo (`post.music_url ? true : feedMuted`) pra não brigar. */}
-                    {post.music_url && <FeedMusic src={post.music_url} start={post.music_start} duration={post.music_duration} muted={feedMuted}
-                      postId={String(post.id)} ativo={String(post.id) === postAtivoId} onRatio={reportarRatio}
-                      onEl={el => { mediaElRefs.current[String(post.id)] = { ...mediaElRefs.current[String(post.id)], audio: el }; }} />}
-                    <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(0,0,0,.18) 0%, transparent 26%, transparent 55%, rgba(0,0,0,.85) 100%)' }} />
+                  <article key={post.id} ref={el => { if (el) feedItemRefs.current[post.id] = el; }} className="fit-post"
+                    style={{ position: 'relative', background: cardBg, border: `1px solid ${T.border}`, borderRadius: 16, marginBottom: 14, overflow: 'hidden',
+                      boxShadow: flashPostId === post.id ? `0 0 0 3px ${ENERGIA}` : '0 1px 3px rgba(0,0,0,.14)' }}>
+                    {/* cabeçalho: quem fez, quando e o tipo (Treino x Publicação) */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px' }}>
+                      <img src={photos[post.player] || '/UNIKO_NEW.png'} alt="" style={{ width: 42, height: 42, borderRadius: '50%', objectFit: 'cover', border: `2px solid ${post.kind === 'checkin' ? ENERGIA : T.border}`, flexShrink: 0 }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 14, fontWeight: 800, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{nomeCurto}</div>
+                        <div style={{ fontSize: 11.5, color: T.textT }}>{tempoRelativo(post.created_at)}</div>
+                      </div>
+                      {post.kind === 'checkin' && (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 999, background: `${ENERGIA}1F`, color: ENERGIA, fontSize: 11, fontWeight: 800, flexShrink: 0 }}>{IcoCheckCircle} Treino</span>
+                      )}
+                      {souDono && (
+                        <button onClick={e => { e.stopPropagation(); apagarPost(post); }} className="fit-btn" title="Apagar post"
+                          style={{ width: 32, height: 32, borderRadius: '50%', border: 'none', cursor: 'pointer', background: 'rgba(128,128,128,.14)', color: T.textS, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{IcoTrash}</button>
+                      )}
+                    </div>
 
-                    {heartBurst === post.id && (
-                      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
-                        <svg className="fit-heart-burst" width="92" height="92" viewBox="0 0 24 24" fill="#fff" style={{ filter: 'drop-shadow(0 4px 16px rgba(0,0,0,.45))' }}>
-                          <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" />
-                        </svg>
+                    {(post.caption || (post.desafio_pose_id && posesPorId[post.desafio_pose_id])) && (
+                      <div style={{ padding: '0 14px 11px' }}>
+                        {post.desafio_pose_id && posesPorId[post.desafio_pose_id] && (
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 10px', borderRadius: 999, marginBottom: post.caption ? 7 : 0,
+                            background: corDaTagPose(post.desafio_pose_id), color: '#fff', fontSize: 11, fontWeight: 800 }}>
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"/></svg>
+                            {posesPorId[post.desafio_pose_id].texto}
+                          </div>
+                        )}
+                        {post.caption && <div style={{ fontSize: 14.5, lineHeight: 1.45, color: T.text }}>{post.caption}</div>}
                       </div>
                     )}
 
-                    {post.kind === 'checkin' && (
-                      <div style={{ position: 'absolute', top: 12, left: 14, display: 'flex', alignItems: 'center', gap: 5, padding: '5px 11px', borderRadius: 999,
-                        background: `${ENERGIA}E6`, color: '#fff', fontSize: 11, fontWeight: 800 }}>{IcoCheckCircle} Check-in</div>
-                    )}
+                    {/* mídia (duplo toque curte) */}
+                    <div onClick={() => handlePostTap(post)}
+                      style={{ position: 'relative', width: '100%', aspectRatio: '4 / 5', maxHeight: desk ? '74vh' : 'none', background: '#111', overflow: 'hidden' }}>
+                      {(post.media_urls?.length > 1)
+                        ? <FeedCarrossel midias={post.media_urls} muted={post.music_url ? true : feedMuted}
+                            postId={String(post.id)} postAtivo={String(post.id) === postAtivoId} onRatio={reportarRatio}
+                            indice={carrosselIdx[post.id] || 0} onIndice={i => setCarrosselIdx(m => ({ ...m, [post.id]: i }))}
+                            onEl={el => { mediaElRefs.current[String(post.id)] = { ...mediaElRefs.current[String(post.id)], video: el }; }} />
+                        : isVideoUrl(post.photo_url)
+                          ? <FeedVideo src={post.photo_url} muted={post.music_url ? true : feedMuted}
+                              postId={String(post.id)} ativo={String(post.id) === postAtivoId} onRatio={reportarRatio}
+                              onEl={el => { mediaElRefs.current[String(post.id)] = { ...mediaElRefs.current[String(post.id)], video: el }; }}
+                              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+                          : <img src={post.photo_url} alt="" loading="lazy" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />}
+                      {post.music_url && <FeedMusic src={post.music_url} start={post.music_start} duration={post.music_duration} muted={feedMuted}
+                        postId={String(post.id)} ativo={String(post.id) === postAtivoId} onRatio={reportarRatio}
+                        onEl={el => { mediaElRefs.current[String(post.id)] = { ...mediaElRefs.current[String(post.id)], audio: el }; }} />}
 
-                    {souDono && (
-                      <button onClick={e => { e.stopPropagation(); apagarPost(post); }} className="fit-btn" title="Apagar post"
-                        style={{ position: 'absolute', top: 12, right: 14, width: 32, height: 32, borderRadius: '50%', border: 'none', cursor: 'pointer',
-                          background: 'rgba(0,0,0,.45)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{IcoTrash}</button>
-                    )}
-
-                    {(isVideoUrl(post.photo_url) || post.music_url) && (
-                      <button onClick={e => {
-                        e.stopPropagation();
-                        const vaiDesmutar = feedMuted;
-                        setFeedMuted(m => !m);
-                        // Chama play() SÍNCRONO aqui dentro do próprio toque (não num
-                        // useEffect depois) — no Safari/iPhone, autoplay de áudio com
-                        // som só é liberado se a chamada acontecer na pilha do gesto
-                        // de toque de verdade; um efeito rodando após o re-render já
-                        // "perdeu" esse gesto e o navegador recusa. Só o post ATUAL
-                        // (por id, via mediaElRefs) — nada dos outros posts do feed.
-                        if (vaiDesmutar) {
-                          const els = mediaElRefs.current[String(post.id)];
-                          // Se o post tem música, o vídeo continua mudo de propósito
-                          // (só a música toca) — ver o prop `muted` lá em cima.
-                          if (els?.video) { els.video.muted = !!post.music_url; els.video.play().catch(() => {}); }
-                          if (els?.audio) { els.audio.muted = false; els.audio.play().catch(() => {}); }
-                        }
-                      }} className="fit-btn" title={feedMuted ? 'Ativar som' : 'Silenciar'}
-                        style={{ position: 'absolute', top: souDono ? 52 : 12, right: 14, width: 32, height: 32, borderRadius: '50%', border: 'none', cursor: 'pointer',
-                          background: 'rgba(0,0,0,.45)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{feedMuted ? IcoVolOff : IcoVolOn}</button>
-                    )}
-
-                    <div style={{ position: 'absolute', left: 14, right: 68, bottom: 16, color: '#fff' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 7 }}>
-                        <img src={photos[post.player] || '/UNIKO_NEW.png'} alt="" style={{ width: 34, height: 34, borderRadius: '50%', objectFit: 'cover', border: '2px solid #fff' }} />
-                        <div>
-                          <div style={{ fontSize: 13.5, fontWeight: 800 }}>{post.player.split(' ').slice(0, 2).join(' ')}</div>
-                          <div style={{ fontSize: 10.5, opacity: .85 }}>{tempoRelativo(post.created_at)}</div>
-                        </div>
-                      </div>
-                      {post.desafio_pose_id && posesPorId[post.desafio_pose_id] && (
-                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 999, marginBottom: 6,
-                          background: corDaTagPose(post.desafio_pose_id), color: '#fff', fontSize: 11, fontWeight: 800, textShadow: '0 1px 3px rgba(0,0,0,.35)' }}>
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"/></svg>
-                          {posesPorId[post.desafio_pose_id].texto}
+                      {heartBurst === post.id && (
+                        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+                          <svg className="fit-heart-burst" width="92" height="92" viewBox="0 0 24 24" fill="#fff" style={{ filter: 'drop-shadow(0 4px 16px rgba(0,0,0,.45))' }}>
+                            <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" />
+                          </svg>
                         </div>
                       )}
-                      {post.caption && <div style={{ fontSize: 14.5, lineHeight: 1.4, textShadow: '0 1px 4px rgba(0,0,0,.6)' }}>{post.caption}</div>}
+
+                      {(isVideoUrl(post.photo_url) || post.music_url) && (
+                        <button onClick={e => {
+                          e.stopPropagation();
+                          const vaiDesmutar = feedMuted;
+                          setFeedMuted(m => !m);
+                          // play() SÍNCRONO dentro do próprio toque (Safari/iPhone só libera som no gesto de verdade).
+                          if (vaiDesmutar) {
+                            const els = mediaElRefs.current[String(post.id)];
+                            if (els?.video) { els.video.muted = !!post.music_url; els.video.play().catch(() => {}); }
+                            if (els?.audio) { els.audio.muted = false; els.audio.play().catch(() => {}); }
+                          }
+                        }} className="fit-btn" title={feedMuted ? 'Ativar som' : 'Silenciar'}
+                          style={{ position: 'absolute', top: 10, right: 10, width: 34, height: 34, borderRadius: '50%', border: 'none', cursor: 'pointer',
+                            background: 'rgba(0,0,0,.5)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{feedMuted ? IcoVolOff : IcoVolOn}</button>
+                      )}
+
                       {post.music_url && (
-                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 7, fontSize: 12, fontWeight: 700, textShadow: '0 1px 3px rgba(0,0,0,.6)' }}>
-                          <span className="fit-note-spin" style={{ display: 'inline-flex' }}>{IcoMusic}</span>
-                          <span style={{ maxWidth: 200, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{post.music_title || 'Música'}</span>
+                        <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '22px 12px 10px', background: 'linear-gradient(0deg, rgba(0,0,0,.7), transparent)', color: '#fff', pointerEvents: 'none' }}>
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700 }}>
+                            <span className="fit-note-spin" style={{ display: 'inline-flex' }}>{IcoMusic}</span>
+                            <span style={{ maxWidth: 240, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{post.music_title || 'Música'}</span>
+                          </div>
                         </div>
                       )}
                     </div>
 
-                    <div style={{ position: 'absolute', right: 8, top: '62%', transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 13 }}>
+                    {/* ações: reagir (segurar = ver quem curtiu), comentar e compartilhar */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 10px 10px' }}>
                       {REACOES.map(rc => {
                         const ativo = r.mine === (rc.emoji || rc.id);
-                        const emojiKey = rc.emoji || rc.id;
-                        const n = r.counts[emojiKey] || 0;
+                        const n = r.counts[rc.emoji || rc.id] || 0;
                         return (
                           <button key={rc.id} className="fit-btn" title={rc.label} onContextMenu={e => e.preventDefault()}
                             onPointerDown={iniciarSegurarCoracao(post)} onPointerUp={soltarCoracao(post)} onPointerLeave={soltarCoracao(post)}
-                            style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, background: 'none', border: 'none', cursor: 'pointer', touchAction: 'manipulation' }}>
-                            <div className={ativo ? 'fit-pop' : undefined} key={ativo ? `${post.id}-${rc.id}-on` : `${post.id}-${rc.id}-off`}
-                              style={{ width: 46, height: 46, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff',
-                                background: ativo ? `${ENERGIA}E6` : 'rgba(0,0,0,.35)', boxShadow: ativo ? `0 0 0 2px #fff` : 'none' }}>
-                              {rc.img ? <img src={rc.img} alt="" style={{ width: 25, height: 25, objectFit: 'contain' }} /> : rc.svg}
-                            </div>
-                            {n > 0 && <span style={{ fontSize: 12, fontWeight: 800, color: '#fff', textShadow: '0 1px 3px rgba(0,0,0,.6)' }}>{n}</span>}
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '7px 14px', borderRadius: 999, cursor: 'pointer', touchAction: 'manipulation',
+                              border: `1.5px solid ${ativo ? ENERGIA : T.border}`, background: ativo ? `${ENERGIA}1F` : 'transparent', color: ativo ? ENERGIA : T.text, fontWeight: 800, fontSize: 13 }}>
+                            <span className={ativo ? 'fit-pop' : undefined} key={ativo ? `${post.id}-${rc.id}-on` : `${post.id}-${rc.id}-off`} style={{ display: 'flex' }}>
+                              {rc.img ? <img src={rc.img} alt="" style={{ width: 20, height: 20, objectFit: 'contain' }} /> : rc.svg}
+                            </span>
+                            {n > 0 ? n : 'Curtir'}
                           </button>
                         );
                       })}
                       <button className="fit-btn" onClick={e => { e.stopPropagation(); abrirComentarios(post); }} title="Comentários"
-                        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, background: 'none', border: 'none', cursor: 'pointer' }}>
-                        <div style={{ width: 46, height: 46, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', background: 'rgba(0,0,0,.35)' }}>{IcoComment}</div>
-                        <span style={{ fontSize: 12, fontWeight: 800, color: '#fff', textShadow: '0 1px 3px rgba(0,0,0,.6)' }}>{comentCount[post.id] || 0}</span>
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '7px 14px', borderRadius: 999, cursor: 'pointer', border: `1.5px solid ${T.border}`, background: 'transparent', color: T.text, fontWeight: 800, fontSize: 13 }}>
+                        {IcoComment}{comentCount[post.id] || 0}
                       </button>
+                      <div style={{ flex: 1 }} />
                       <button className="fit-btn" onClick={e => { e.stopPropagation(); compartilharNoChat(post); }} title="Compartilhar no Bate-Papo"
-                        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, background: 'none', border: 'none', cursor: 'pointer' }}>
-                        <div style={{ width: 46, height: 46, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', background: 'rgba(0,0,0,.35)' }}>{IcoShare}</div>
-                      </button>
-                      {totalReacoes > 0 && <span style={{ fontSize: 10.5, color: 'rgba(255,255,255,.7)' }}>{totalReacoes}</span>}
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 38, height: 38, borderRadius: '50%', cursor: 'pointer', border: `1.5px solid ${T.border}`, background: 'transparent', color: T.text }}>{IcoShare}</button>
                     </div>
-                  </div>
+                  </article>
                 );
               })}
             </div>
@@ -2504,7 +2691,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                   <div style={{ marginBottom: 20 }}>
                     <SecaoLabel icon={IcoUsers}>Pessoas ({buscaResultados.pessoas.length})</SecaoLabel>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      {buscaResultados.pessoas.map(p => (
+                      {buscaResultados.pessoas.slice(0, buscaLimite).map(p => (
                         <div key={p.player} onClick={() => abrirPerfilDe(p.player)} className="fit-btn"
                           style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 12,
                             background: T.surfaceSub || 'rgba(0,0,0,.03)', border: `1px solid ${T.border}`, cursor: 'pointer' }}>
@@ -2527,14 +2714,14 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                     <div key={cat} style={{ marginBottom: 20 }}>
                       <SecaoLabel icon={icone}>{titulo} ({buscaResultados[cat].length})</SecaoLabel>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        {buscaResultados[cat].map(it => (
+                        {buscaResultados[cat].slice(0, buscaLimite).map(it => (
                           <div key={it.id} onClick={() => irParaFeed(it)} className="fit-btn"
                             style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 8, borderRadius: 12,
                               background: T.surfaceSub || 'rgba(0,0,0,.03)', border: `1px solid ${T.border}`, cursor: 'pointer' }}>
                             <div style={{ width: 46, height: 46, borderRadius: 9, overflow: 'hidden', flexShrink: 0, background: '#111' }}>
                               {isVideoUrl(it.photo_url)
-                                ? <video src={it.photo_url} muted playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                : <img src={it.photo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+                                ? <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', background: `linear-gradient(135deg, ${ENERGIA}, ${FOGO})` }}>{IcoPlay}</div>
+                                : <img src={it.photo_url} alt="" loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
                             </div>
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <div style={{ fontSize: 12.5, fontWeight: 600, color: it.caption ? T.text : T.textD, lineHeight: 1.35,
@@ -2554,7 +2741,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                   <div style={{ marginBottom: 20 }}>
                     <SecaoLabel icon={IcoLib}>Áudios na biblioteca ({buscaResultados.audios.length})</SecaoLabel>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      {buscaResultados.audios.map(a => {
+                      {buscaResultados.audios.slice(0, buscaLimite).map(a => {
                         const tocandoEsse = previewAudioId === a.id;
                         return (
                           <div key={a.id} onClick={() => alternarPreviewAudio(a)} className="fit-btn"
@@ -2577,6 +2764,16 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                     </div>
                   </div>
                 )}
+
+                {(() => {
+                  const maior = Math.max(...['pessoas', 'fotos', 'videos', 'audios'].filter(c => buscaFiltro === 'tudo' || buscaFiltro === c).map(c => buscaResultados[c].length));
+                  return maior > buscaLimite ? (
+                    <button onClick={() => setBuscaLimite(l => l + 30)} className="fit-btn"
+                      style={{ display: 'block', margin: '4px auto 16px', padding: '9px 22px', borderRadius: 999, border: `1.5px solid ${ENERGIA}`, background: 'transparent', color: ENERGIA, fontWeight: 700, fontSize: 12.5, cursor: 'pointer' }}>
+                      Mostrar mais resultados
+                    </button>
+                  ) : null;
+                })()}
 
                 {/* O filtro escolhido pode não ter nada mesmo havendo resultado em outra categoria */}
                 {buscaFiltro !== 'tudo' && buscaResultados[buscaFiltro].length === 0 && (
@@ -2638,7 +2835,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
       </div>
 
       {/* ── Barra inferior fixa: 5 ações (ancorada na tela de verdade, ver comentário do HEADER_H) ── */}
-      <div style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 480, zIndex: 60, display: 'flex', borderTop: `1px solid ${T.border}`, background: cardBg, paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+      {!desk && <div style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 480, zIndex: 60, display: 'flex', borderTop: `1px solid ${T.border}`, background: cardBg, paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
         {BOTTOM_BTNS.map((b, i) => (
           <Fragment key={b.id}>
             {i > 0 && <div style={{ width: 1, alignSelf: 'center', height: 24, background: T.border, flexShrink: 0 }} />}
@@ -2656,7 +2853,31 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
             </button>
           </Fragment>
         ))}
-      </div>
+      </div>}
+
+      {/* ── Desktop: ranking do mês (estilo GymRats) na lateral direita ── */}
+      {mostraRanking && (
+        <aside style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: RIGHT_W, zIndex: 50, padding: '20px 18px', boxSizing: 'border-box', overflowY: 'auto', borderLeft: `1px solid ${T.border}`, background: T.topbarBg || cardBg }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 15, fontWeight: 800, color: T.text, fontFamily: 'var(--font-brand)', marginBottom: 4 }}>
+            <span style={{ color: ENERGIA, display: 'flex' }}>{IcoTrophy}</span> Ranking do mês
+          </div>
+          <div style={{ fontSize: 11.5, color: T.textT, marginBottom: 14 }}>Dias com check-in</div>
+          {!topMes ? (
+            <div style={{ fontSize: 12.5, color: T.textT, padding: '18px 0' }}>Carregando...</div>
+          ) : topMes.length === 0 ? (
+            <div style={{ fontSize: 12.5, color: T.textT, padding: '18px 0' }}>Ninguém treinou ainda este mês — seja o primeiro!</div>
+          ) : topMes.map(([jogador, dias], i) => (
+            <div key={jogador} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0', borderBottom: `1px solid ${T.border}` }}>
+              <div style={{ width: 22, fontSize: 14, fontWeight: 800, color: i === 0 ? ENERGIA : T.textT, textAlign: 'center' }}>{i + 1}</div>
+              <img src={photos[jogador] || '/UNIKO_NEW.png'} alt="" style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+              <div style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 700, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{jogador.split(' ').slice(0, 2).join(' ')}{jogador === name ? ' (você)' : ''}</div>
+              <div style={{ fontSize: 13, fontWeight: 800, color: ENERGIA }}>{dias}</div>
+            </div>
+          ))}
+          <button onClick={() => openSheet('ranking')} className="fit-btn"
+            style={{ width: '100%', marginTop: 14, padding: '10px', borderRadius: 999, border: `1.5px solid ${ENERGIA}`, background: 'transparent', color: ENERGIA, fontWeight: 800, fontSize: 12.5, cursor: 'pointer' }}>Ver ranking completo</button>
+        </aside>
+      )}
 
       {/* ══════════════ SHEETS ══════════════ */}
 
@@ -3081,9 +3302,9 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
 
       {/* ── Comentários (drawer por post do feed) ── */}
       {comentAberto && (
-        <div onClick={fecharComentarios} style={{ position: 'fixed', inset: 0, zIndex: 1100, background: 'rgba(10,6,10,.6)', backdropFilter: 'blur(3px)',
+        <div onClick={fecharComentarios} className="fit-overlay" style={{ position: 'fixed', inset: 0, zIndex: 1100, background: 'rgba(10,6,10,.6)', backdropFilter: 'blur(3px)',
           display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-          <div onClick={e => e.stopPropagation()} className="fit-pop" style={{ background: cardBg, borderRadius: '20px 20px 0 0', border: `1px solid ${T.border}`,
+          <div onClick={e => e.stopPropagation()} className="fit-pop fit-modal" style={{ background: cardBg, borderRadius: '20px 20px 0 0', border: `1px solid ${T.border}`,
             width: '100%', maxWidth: 480, maxHeight: '72vh', display: 'flex', flexDirection: 'column', boxShadow: '0 -12px 40px rgba(0,0,0,.3)' }}>
             <div style={{ padding: '14px 18px', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ fontSize: 14, fontWeight: 800, color: T.text, display: 'flex', alignItems: 'center', gap: 7 }}>{IcoComment} Comentários</div>
@@ -3171,9 +3392,9 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
 
       {/* ── Curtidas (drawer por post — segurar o coração) ── */}
       {curtidasAberto && (
-        <div onClick={() => setCurtidasAberto(null)} style={{ position: 'fixed', inset: 0, zIndex: 1100, background: 'rgba(10,6,10,.6)', backdropFilter: 'blur(3px)',
+        <div onClick={() => setCurtidasAberto(null)} className="fit-overlay" style={{ position: 'fixed', inset: 0, zIndex: 1100, background: 'rgba(10,6,10,.6)', backdropFilter: 'blur(3px)',
           display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-          <div onClick={e => e.stopPropagation()} className="fit-pop" style={{ background: cardBg, borderRadius: '20px 20px 0 0', border: `1px solid ${T.border}`,
+          <div onClick={e => e.stopPropagation()} className="fit-pop fit-modal" style={{ background: cardBg, borderRadius: '20px 20px 0 0', border: `1px solid ${T.border}`,
             width: '100%', maxWidth: 480, maxHeight: '72vh', display: 'flex', flexDirection: 'column', boxShadow: '0 -12px 40px rgba(0,0,0,.3)' }}>
             <div style={{ padding: '14px 18px', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ fontSize: 14, fontWeight: 800, color: T.text, display: 'flex', alignItems: 'center', gap: 6 }}>{IcoHeartSm} Curtidas</div>
