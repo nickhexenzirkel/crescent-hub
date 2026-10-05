@@ -465,28 +465,72 @@ export const PdfEditor = ({ onDoc }) => {
     } catch { fundoRef.current.delete(pg.id); }
   }, []);
 
-  /* ── abrir PDF ── */
+  /* ── abrir PDF(s) ── */
+  const isPdfFile = (f) => /pdf/i.test(f.type) || /\.pdf$/i.test(f.name);
+
+  // Carrega os bytes de um PDF como o documento aberto do editor (zera páginas, anotações e histórico).
+  const abrirBytes = async (src, nome) => {
+    const doc = await loadPdfDoc(src.slice());
+    const dims = await readPageSizes(doc);
+    const pgs = dims.map((d, i) => ({ id: uid(), ref: i, w: d.w, h: d.h }));
+    limparThumbs(poolRef.current);
+    srcRef.current = src;
+    poolRef.current = novoPoolId();
+    setPoolId(poolRef.current);
+    extraidoRef.current = new Set(); fundoRef.current = new Set();
+    extQ.current.fila.length = 0;
+    setPdf(doc); setPages(pgs); setFileName(nome);
+    setAnnos([]); setSelId(null); setFocusId(null);
+    histRef.current = []; setCanUndo(false); setActivePage(0);
+    setPreviewIdx(null);
+  };
+
+  // Junta vários PDFs, na ordem recebida, numa única passada (um único save no final).
+  // Arquivo ilegível/protegido é pulado e listado em `falhas` — os outros seguem.
+  const juntarPdfs = async (files, baseBytes = null) => {
+    const out = baseBytes
+      ? await PDFDocument.load(baseBytes.slice(), { ignoreEncryption: true })
+      : await PDFDocument.create();
+    const antes = out.getPageCount();
+    const falhas = [];
+    for (const f of files) {
+      try {
+        const B = await PDFDocument.load(new Uint8Array(await f.arrayBuffer()), { ignoreEncryption: true });
+        const copied = await out.copyPages(B, B.getPageIndices());
+        copied.forEach(pg => out.addPage(pg));
+      } catch { falhas.push(f.name); }
+    }
+    return { bytes: new Uint8Array(await out.save()), antes, total: out.getPageCount(), falhas };
+  };
+
+  const avisarFalhas = (falhas) => {
+    if (falhas.length) setError(`Não foi possível ler: ${falhas.join(', ')}. Os demais foram carregados.`);
+  };
+
   const openFile = async (file) => {
     if (!file) return;
     setError(''); setBusy(true);
     try {
-      const ab  = await file.arrayBuffer();
-      const src = new Uint8Array(ab);
-      const doc = await loadPdfDoc(src.slice());
-      const dims = await readPageSizes(doc);
-      const pgs = dims.map((d, i) => ({ id: uid(), ref: i, w: d.w, h: d.h }));
-      limparThumbs(poolRef.current);
-      srcRef.current = src;
-      poolRef.current = novoPoolId();
-      setPoolId(poolRef.current);
-      extraidoRef.current = new Set(); fundoRef.current = new Set();
-      extQ.current.fila.length = 0;
-      setPdf(doc); setPages(pgs); setFileName(file.name);
-      setAnnos([]); setSelId(null); setFocusId(null);
-      histRef.current = []; setCanUndo(false); setActivePage(0);
-      setPreviewIdx(null);
+      const src = new Uint8Array(await file.arrayBuffer());
+      await abrirBytes(src, file.name);
     } catch (e) {
       setError('Não foi possível abrir o PDF: ' + (e?.message || 'erro'));
+    } finally { setBusy(false); }
+  };
+
+  // Abre vários PDFs de uma vez: todos viram UM documento (páginas na ordem dos arquivos).
+  const openFiles = async (lista) => {
+    const pdfs = [...(lista || [])].filter(isPdfFile);
+    if (!pdfs.length) { if ((lista || []).length) setError('Nenhum PDF encontrado entre os arquivos soltos.'); return; }
+    if (pdfs.length === 1) { openFile(pdfs[0]); return; }
+    setError(''); setBusy(true);
+    try {
+      const r = await juntarPdfs(pdfs);
+      if (!r.total) throw new Error('nenhum dos PDFs pôde ser lido');
+      await abrirBytes(r.bytes, `${pdfs.length} PDFs.pdf`);
+      avisarFalhas(r.falhas);
+    } catch (e) {
+      setError('Não foi possível abrir os PDFs: ' + (e?.message || 'erro'));
     } finally { setBusy(false); }
   };
 
@@ -533,29 +577,26 @@ export const PdfEditor = ({ onDoc }) => {
     setSelId(null); setFocusId(null);
   }, [pushHistory]);
 
-  /* ── adicionar outro PDF (anexa as páginas ao documento atual) ── */
-  const addPdf = async (file) => {
-    if (!file) return;
-    if (!srcRef.current) { openFile(file); return; }
+  /* ── adicionar outro(s) PDF(s) (anexa as páginas ao documento atual) ── */
+  const addPdfs = async (lista) => {
+    const pdfs = [...(lista || [])].filter(isPdfFile);
+    if (!pdfs.length) { if ((lista || []).length) setError('Nenhum PDF encontrado entre os arquivos soltos.'); return; }
+    if (!srcRef.current) { openFiles(pdfs); return; }
     setError(''); setBusy(true);
     try {
-      const ab = await file.arrayBuffer();
-      const A = await PDFDocument.load(srcRef.current.slice(), { ignoreEncryption: true });
-      const B = await PDFDocument.load(new Uint8Array(ab), { ignoreEncryption: true });
-      const antes = A.getPageCount();
-      const copied = await A.copyPages(B, B.getPageIndices());
-      copied.forEach(pg => A.addPage(pg));
-      const merged = new Uint8Array(await A.save());
-      const doc = await loadPdfDoc(merged.slice());
+      const r = await juntarPdfs(pdfs, srcRef.current);
+      if (r.total === r.antes) throw new Error('nenhum dos PDFs pôde ser lido');
+      const doc = await loadPdfDoc(r.bytes.slice());
       // As páginas novas entram no FIM do pool de origem, então todo `ref` que
       // já existia continua apontando pra mesma página: a ordem montada pelo
       // usuário e as anotações ficam de pé, e as miniaturas em cache valem.
-      const dims = await readPageSizes(doc, antes);
-      const novas = dims.map((d, i) => ({ id: uid(), ref: antes + i, w: d.w, h: d.h }));
-      srcRef.current = merged;
+      const dims = await readPageSizes(doc, r.antes);
+      const novas = dims.map((d, i) => ({ id: uid(), ref: r.antes + i, w: d.w, h: d.h }));
+      srcRef.current = r.bytes;
       pushHistory();
       setPdf(doc);
       setPages(p => [...p, ...novas]);
+      avisarFalhas(r.falhas);
     } catch (e) {
       setError('Não foi possível adicionar o PDF: ' + (e?.message || 'erro'));
     } finally { setBusy(false); }
@@ -862,14 +903,14 @@ export const PdfEditor = ({ onDoc }) => {
         <p style={{fontSize:14,color:T.textS,lineHeight:1.65,marginTop:0,marginBottom:24}}>
           Carregue um PDF para editar o texto existente — clique sobre qualquer texto e altere, mantendo a mesma posição e estilo. Também é possível organizar as páginas (mover e excluir), adicionar texto, imagens e assinaturas.
         </p>
-        <input ref={fileInput} type="file" accept=".pdf" style={{display:'none'}} onChange={e=>openFile(e.target.files[0])}/>
-        <div onClick={()=>fileInput.current?.click()} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault(); openFile(e.dataTransfer.files[0]);}}
+        <input ref={fileInput} type="file" accept=".pdf" multiple style={{display:'none'}} onChange={e=>{ openFiles(e.target.files); e.target.value=''; }}/>
+        <div onClick={()=>fileInput.current?.click()} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault(); openFiles(e.dataTransfer.files);}}
           style={{border:`2px dashed ${T.border}`,borderRadius:14,padding:'48px 32px',textAlign:'center',cursor:'pointer',background:T.surface}}>
           {busy ? <div style={{color:T.textS}}>Abrindo...</div> : (
             <>
               <div style={{fontSize:34,marginBottom:10}}>📄</div>
-              <div style={{fontSize:15,fontWeight:500,color:T.text,marginBottom:6}}>Solte o PDF aqui ou clique para selecionar</div>
-              <div style={{fontSize:13,color:T.textT}}>Formato aceito: <strong style={{color:T.textS}}>.pdf</strong></div>
+              <div style={{fontSize:15,fontWeight:500,color:T.text,marginBottom:6}}>Solte um ou vários PDFs aqui ou clique para selecionar</div>
+              <div style={{fontSize:13,color:T.textT}}>Formato aceito: <strong style={{color:T.textS}}>.pdf</strong> · vários de uma vez viram um só documento</div>
             </>
           )}
         </div>
@@ -893,11 +934,11 @@ export const PdfEditor = ({ onDoc }) => {
         <button style={tbBtn(false)} onClick={()=>fileInput.current?.click()}>
           <I><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></I> Abrir PDF
         </button>
-        <input ref={fileInput} type="file" accept=".pdf" style={{display:'none'}} onChange={e=>{ openFile(e.target.files[0]); e.target.value=''; }}/>
+        <input ref={fileInput} type="file" accept=".pdf" multiple style={{display:'none'}} onChange={e=>{ openFiles(e.target.files); e.target.value=''; }}/>
         <button style={tbBtn(false)} onClick={()=>addInput.current?.click()} disabled={busy}>
           <I><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></I> Adicionar PDF
         </button>
-        <input ref={addInput} type="file" accept=".pdf" style={{display:'none'}} onChange={e=>{ addPdf(e.target.files[0]); e.target.value=''; }}/>
+        <input ref={addInput} type="file" accept=".pdf" multiple style={{display:'none'}} onChange={e=>{ addPdfs(e.target.files); e.target.value=''; }}/>
         <button style={{...tbBtn(false),background:T.gold,color:'#fff',border:'none'}} onClick={salvar} disabled={busy}>
           <I><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></I>
           {busy ? 'Salvando...' : 'Salvar como...'}
@@ -984,13 +1025,12 @@ export const PdfEditor = ({ onDoc }) => {
             if (!e.dataTransfer.types.includes('Files')) return;
             e.preventDefault();
             dragDepthRef.current = 0; setPdfDropHover(false);
-            const f = [...e.dataTransfer.files].find(x => /pdf/i.test(x.type) || /\.pdf$/i.test(x.name));
-            if (f) addPdf(f);
+            addPdfs(e.dataTransfer.files);
           }}>
           {pdfDropHover && (
             <div style={{position:'absolute',inset:8,zIndex:20,borderRadius:10,background:`${T.gold}14`,border:`2px dashed ${T.gold}`,display:'flex',alignItems:'center',justifyContent:'center',pointerEvents:'none'}}>
               <div style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:12,padding:'12px 20px',fontSize:13.5,fontWeight:600,color:T.text,boxShadow:'0 8px 24px rgba(0,0,0,.18)'}}>
-                📄 Solte para adicionar como novas páginas
+                📄 Solte um ou vários PDFs para adicionar como novas páginas
               </div>
             </div>
           )}
