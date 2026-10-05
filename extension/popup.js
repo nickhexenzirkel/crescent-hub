@@ -206,3 +206,32 @@ chrome.runtime.sendMessage({ type: 'UNIKO_CALL_GET_STATE' }).then((res) => {
   if (res?.state !== 'recording' && res?.state !== 'testing') startLocalMicMeter();
 }).catch(() => startLocalMicMeter());
 window.addEventListener('unload', stopLocalMicMeter);
+
+/* ── Últimos atendimentos (histórico local deste navegador) ──────────────── */
+const histEl = $('hist');
+function fmtQuando(ts) {
+  const d = new Date(ts);
+  const hoje = new Date(); const ontem = new Date(Date.now() - 86400000);
+  const hm = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  if (d.toDateString() === hoje.toDateString()) return `hoje ${hm}`;
+  if (d.toDateString() === ontem.toDateString()) return `ontem ${hm}`;
+  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' + hm;
+}
+function fmtDur(a, b) {
+  if (!b) return '';
+  const m = Math.max(1, Math.round((b - a) / 60000));
+  return ` · ${m} min`;
+}
+function renderHist(list) {
+  const items = (list || []).slice(0, 3);
+  if (!items.length) { histEl.innerHTML = '<span class="none">Nenhum atendimento gravado ainda.</span>'; return; }
+  histEl.textContent = '';
+  for (const it of items) {
+    const row = document.createElement('div'); row.className = 'row';
+    const n = document.createElement('span'); n.className = 'n'; n.textContent = it.name; n.title = it.name;
+    const w = document.createElement('span'); w.className = 'w'; w.textContent = fmtQuando(it.at) + fmtDur(it.at, it.endedAt);
+    row.append(n, w); histEl.append(row);
+  }
+}
+chrome.storage.local.get('unikoCallHistory').then(({ unikoCallHistory }) => renderHist(unikoCallHistory)).catch(() => {});
+chrome.storage.onChanged.addListener((ch, area) => { if (area === 'local' && ch.unikoCallHistory) renderHist(ch.unikoCallHistory.newValue); });

@@ -58,6 +58,12 @@
   .foot { display: flex; align-items: center; gap: 8px; font-size: 10.5px; color: var(--sub); }
   .foot .chip { display: inline-flex; align-items: center; gap: 5px; font-weight: 700; color: var(--green-dk); }
   .foot button { width: auto; padding: 4px 9px; font-size: 10.5px; margin-left: auto; }
+  .hist { display: flex; flex-direction: column; gap: 3px; }
+  .hist .row { display: flex; align-items: baseline; gap: 6px; font-size: 11px; }
+  .hist .row .n { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+  .hist .row .w { color: var(--sub); white-space: nowrap; font-size: 10.5px; }
+  .hist .row:first-child .n { color: var(--green-dk); }
+  .hist .none { color: var(--sub); font-size: 11px; }
   .warn { font-size: 10px; line-height: 1.4; color: var(--sub); margin-top: 6px; }
 </style>
 </head>
@@ -79,6 +85,11 @@
     <div class="h"><span class="num">2</span> Gravação</div>
     <button id="toggleBtn" class="primary">Iniciar gravação manual</button>
     <div id="recordingNotice" class="line" style="display:none">⚠️ Fique nesta aba do WhatsApp Web durante a gravação.</div>
+  </div>
+
+  <div class="card">
+    <div class="h">Últimos atendimentos</div>
+    <div id="hist" class="hist"><span class="none">Nenhum atendimento gravado ainda.</span></div>
   </div>
 
   <div class="card">

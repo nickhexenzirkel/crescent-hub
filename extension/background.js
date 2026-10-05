@@ -713,6 +713,7 @@ async function startUnikoCallRecordingWithStream(streamId, contactName) {
     const avisoRecent = !!unikoAvisoAt && Date.now() - unikoAvisoAt < AVISO_RECENT_MS;
     chrome.runtime.sendMessage({ type: 'UNIKO_CALL_START', streamId, contactName, avisoRecent });
     setUnikoCallState('recording');
+    registrarAtendimento(contactName);
   } catch (e) {
     console.error('[uniko-call] falha ao preparar o offscreen document:', e.message);
     unikoCallLastError = 'Não consegui iniciar a gravação: ' + e.message;
@@ -727,21 +728,30 @@ async function stopUnikoCallRecording() {
   unikoCallFinishing = true;
   chrome.runtime.sendMessage({ type: 'UNIKO_CALL_STOP' }).catch(() => {});
   setUnikoCallState('idle');
+  fecharAtendimento();
+}
+
+// Histórico local (neste navegador) dos últimos atendimentos gravados por quem usa a extensão —
+// mostrado no popup. Guarda só nome do contato e horários; não vai pra nenhum servidor.
+async function registrarAtendimento(contactName) {
+  try {
+    const { unikoCallHistory = [] } = await chrome.storage.local.get('unikoCallHistory');
+    unikoCallHistory.unshift({ name: (contactName || '').trim() || 'Contato desconhecido', at: Date.now(), endedAt: null });
+    await chrome.storage.local.set({ unikoCallHistory: unikoCallHistory.slice(0, 20) });
+  } catch (e) { console.warn('[uniko-call] não consegui registrar o atendimento:', e.message); }
+}
+async function fecharAtendimento() {
+  try {
+    const { unikoCallHistory = [] } = await chrome.storage.local.get('unikoCallHistory');
+    if (unikoCallHistory[0] && !unikoCallHistory[0].endedAt) { unikoCallHistory[0].endedAt = Date.now(); await chrome.storage.local.set({ unikoCallHistory }); }
+  } catch { /* histórico é só conveniência */ }
 }
 
 // Chamada detectada sem nenhum clique (polling do content script) — não dá
 // pra iniciar a captura sozinha (ver aviso no topo do bloco), só avisa.
 function avisarChamadaDetectada() {
   if (unikoCallState === 'recording') return; // já gravando manualmente — nada a fazer
-  setUnikoCallState('aguardando');
-  showDesktopNotification(
-    {
-      id: 'uniko-call-detectada',
-      title: 'Chamada do WhatsApp detectada',
-      message: 'Clique no ícone do Uniko Cat-Bot e em "Iniciar gravação manual" pra gravar esta chamada.',
-    },
-    () => {},
-  );
+  setUnikoCallState('aguardando'); // só o selo "!" no ícone — sem notificação na área de trabalho
 }
 
 function limparAvisoChamada() {
@@ -824,10 +834,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       chrome.action.setBadgeText({ text: '✔' }).catch(() => {});
       chrome.action.setBadgeBackgroundColor({ color: '#16a34a' }).catch(() => {});
     }
-    showDesktopNotification(
-      { id: 'uniko-call-aviso-fim', title: 'Aviso prévio concluído', message: 'Pode iniciar a gravação: abra o Uniko Call e clique em “Iniciar gravação”.' },
-      () => {},
-    );
   }
   if (message.type === 'UNIKO_CALL_START_WITH_STREAM') {
     console.log('[uniko-call] background recebeu UNIKO_CALL_START_WITH_STREAM do popup.');
