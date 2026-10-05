@@ -823,6 +823,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // "Parar gravação", e a PRÓXIMA tentativa de gravar (mesma aba) falhava
   // com "Cannot capture a tab with an active stream". Fechar e recriar do
   // zero a cada chamada garante que nunca sobra captura pendurada.
+  // Guarda o resultado do teste de calibração: o popup pode ter fechado enquanto finalizava,
+  // e ao reabrir ele mostra o resultado em vez de ficar sem nada.
+  if (message.type === 'UNIKO_CALL_TEST_RESULT') {
+    chrome.storage.session?.set({ unikoTestResult: { ...message, savedAt: Date.now() } }).catch(() => {});
+  }
   if (message.type === 'UNIKO_CALL_STATE' && message.state !== 'recording') {
     unikoCallFinishing = false;
     setUnikoCallState('idle');

@@ -71,6 +71,14 @@ async function startCapture(streamId, contactName, test = false) {
   chrome.runtime.sendMessage({ type: 'UNIKO_CALL_STATE', state: 'recording' }).catch(() => {});
 }
 
+// Mesma regra do servidor (uniko-call.js): >=2 de 3 grupos de conceito. So pra mostrar o resultado
+// do teste na hora; a decisao de verdade, em ligacoes reais, continua sendo do servidor.
+const CONSENT_GROUPS = [['seguranc'], ['grav'], ['atendiment', 'ligac', 'chamad', 'conversa']];
+function hasConsentNotice(text) {
+  const norm = (text || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9\s]/g, ' ');
+  return CONSENT_GROUPS.filter(g => g.some(st => norm.includes(st))).length >= 2;
+}
+
 // Transcricao "ao vivo" do teste, com deteccao de fala (VAD): captura PCM, separa em
 // frases pelo volume e so manda pro servidor o que tem voz. Silencio nunca e transcrito
 // (era isso que fazia o Whisper inventar/estender texto quando ninguem falava).
@@ -211,19 +219,28 @@ async function uploadRecording() {
   const blob = new Blob(chunks, { type: 'audio/webm' });
   chunks = [];
   if (meta.test) {
-    // Modo calibracao: transcreve SO os trechos com voz (sem silencio) e devolve o resultado pro popup.
+    // Modo calibracao: o texto ja foi sendo transcrito AO VIVO (frases fechadas em lv.committed).
+    // Aqui so falta a ultima frase, se ainda estava em andamento — no maximo 1 requisicao, com
+    // prazo curto, pra o resultado final nunca ficar "Finalizando..." esperando limite de API.
+    const lv = lastLive;
+    const send = (extra) => chrome.runtime.sendMessage({ type: 'UNIKO_CALL_TEST_RESULT', peakTab: peaks.tab, peakMic: peaks.mic, ...extra }).catch(() => {});
+    let text = lv ? lv.committed : '';
+    let error = null;
     try {
-      const lv = lastLive;
-      let data = { text: '', consentGiven: false };
-      if (lv && lv.all.length) {
-        const wavData = await transcribeWav(framesToWav(lv.all, lv.sr));
-        data = wavData;
+      const t0 = Date.now();
+      while (lv && lv.busy && Date.now() - t0 < 8000) await new Promise(r => setTimeout(r, 200)); // espera o envio em curso
+      if (lv && lv.inUtt && lv.utt.length && !lv.busy) {
+        const data = await Promise.race([
+          transcribeWav(framesToWav(lv.utt, lv.sr)),
+          new Promise((_, rej) => setTimeout(() => rej(new Error('a transcricao da ultima frase demorou demais')), 15000)),
+        ]);
+        if (data.error) error = data.error;
+        const last = (data.text || '').trim();
+        if (last) text = (text + ' ' + last).trim();
       }
-      const audioB64 = await new Promise((resolve) => { const fr = new FileReader(); fr.onload = () => resolve(String(fr.result).split(',')[1] || ''); fr.readAsDataURL(blob); });
-      chrome.runtime.sendMessage({ type: 'UNIKO_CALL_TEST_RESULT', ...data, audioB64, peakTab: peaks.tab, peakMic: peaks.mic }).catch(() => {});
-    } catch (e) {
-      chrome.runtime.sendMessage({ type: 'UNIKO_CALL_TEST_RESULT', error: e.message, peakTab: peaks.tab, peakMic: peaks.mic }).catch(() => {});
-    }
+    } catch (e) { error = e.message; }
+    const audioB64 = await new Promise((resolve) => { const fr = new FileReader(); fr.onload = () => resolve(String(fr.result).split(',')[1] || ''); fr.readAsDataURL(blob); });
+    send({ text, consentGiven: hasConsentNotice(text), audioB64, error: text ? null : error });
     chrome.runtime.sendMessage({ type: 'UNIKO_CALL_STATE', state: 'test_done' }).catch(() => {});
     return;
   }

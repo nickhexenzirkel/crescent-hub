@@ -182,7 +182,7 @@ function stopLocalMicMeter() {
   localMic = null;
 }
 
-chrome.runtime.onMessage.addListener((m) => {
+const onPopupMessage = (m) => {
   if (m.type === 'UNIKO_CALL_LEVELS') {
     stopLocalMicMeter(); // o gravador já mede o mic — evita abrir duas vezes
     setBar(micFill, m.mic); setBar(tabFill, m.tab);
@@ -196,6 +196,7 @@ chrome.runtime.onMessage.addListener((m) => {
     liveText.textContent = txt ? `📝 ${txt}` : '🎙️ ouvindo…';
   }
   if (m.type === 'UNIKO_CALL_TEST_RESULT') {
+    clearTimeout(finalizeTimer);
     testRunning = false;
     testBtn.disabled = false; testBtn.textContent = 'Testar áudio e transcrição';
     liveText.className = 'testResult';
@@ -209,10 +210,24 @@ chrome.runtime.onMessage.addListener((m) => {
     lines.push(m.consentGiven ? '✅ O aviso prévio SERIA aceito.' : '❌ O aviso prévio NÃO seria aceito (fale: “Por questões de segurança, essa ligação está sendo gravada”).');
     showResult(m.consentGiven && m.peakMic > 0.05 ? 'ok' : 'bad', lines.join('<br>') + (audioTag ? '<br>🔈 Ouça o que foi gravado:' + audioTag : ''));
   }
-});
+};
+chrome.runtime.onMessage.addListener(onPopupMessage);
 
+let finalizeTimer = null;
 testBtn.addEventListener('click', async () => {
-  if (testRunning) { chrome.runtime.sendMessage({ type: 'UNIKO_CALL_MANUAL_STOP' }); testBtn.disabled = true; testBtn.textContent = 'Finalizando…'; return; }
+  if (testRunning) {
+    chrome.runtime.sendMessage({ type: 'UNIKO_CALL_MANUAL_STOP' });
+    testBtn.disabled = true; testBtn.textContent = 'Finalizando…';
+    // Salvaguarda: se o resultado não chegar em 30s, destrava o botão em vez de ficar preso.
+    clearTimeout(finalizeTimer);
+    finalizeTimer = setTimeout(() => {
+      if (!testRunning) return;
+      testRunning = false; testBtn.disabled = false; testBtn.textContent = 'Testar áudio e transcrição';
+      liveText.className = 'testResult';
+      showResult('bad', 'O resultado final demorou demais. Tente de novo em instantes (pode ser limite de uso da OpenAI).');
+    }, 30000);
+    return;
+  }
   const st = await chrome.runtime.sendMessage({ type: 'UNIKO_CALL_GET_STATE' }).catch(() => null);
   if (st?.state === 'recording' || st?.state === 'testing') { showResult('bad', 'Há uma gravação em andamento — o medidor acima já mostra os níveis ao vivo.'); return; }
   try {
@@ -245,3 +260,10 @@ chrome.runtime.sendMessage({ type: 'UNIKO_CALL_GET_STATE' }).then((res) => {
   if (res?.state !== 'recording' && res?.state !== 'testing') startLocalMicMeter();
 }).catch(() => startLocalMicMeter());
 window.addEventListener('unload', stopLocalMicMeter);
+
+// Popup reaberto depois de um teste (ele fecha sozinho quando perde o foco): mostra o resultado guardado.
+chrome.storage.session?.get('unikoTestResult').then(({ unikoTestResult: r }) => {
+  if (r && Date.now() - r.savedAt < 5 * 60 * 1000 && !testRunning) {
+    onPopupMessage(r);
+  }
+}).catch(() => {});
