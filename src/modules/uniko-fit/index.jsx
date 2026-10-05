@@ -1874,27 +1874,32 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
   };
 
   const [rankPeriodo, setRankPeriodo] = useState('mes'); // mes | total
+  const [rankMes, setRankMes] = useState(null); // 'YYYY-MM' escolhido; null = mês atual
   const rankingData = useMemo(() => {
     if (!fullFeed) return null;
     const now = new Date();
     const curMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     // Conta DIAS distintos com check-in (não linhas cruas) — assim spammar várias
     // fotos no mesmo dia não infla o ranking. "Checkin diário" é o que conta.
-    const diasTotal = {}, diasMes = {};
+    const diasTotal = {}, diasPorMes = {}; // diasPorMes: 'YYYY-MM' -> { jogador: Set(dias) }
     fullFeed.forEach(r => {
       if (r.kind !== 'checkin') return;
       const dia = (r.created_at || '').slice(0, 10);
       if (!diasTotal[r.player]) diasTotal[r.player] = new Set();
       diasTotal[r.player].add(dia);
-      if (dia.slice(0, 7) === curMonth) {
-        if (!diasMes[r.player]) diasMes[r.player] = new Set();
-        diasMes[r.player].add(dia);
-      }
+      const ym = dia.slice(0, 7);
+      const doMes = diasPorMes[ym] || (diasPorMes[ym] = {});
+      (doMes[r.player] || (doMes[r.player] = new Set())).add(dia);
     });
-    const total = {}, mes = {};
-    Object.entries(diasTotal).forEach(([p, s]) => { total[p] = s.size; });
-    Object.entries(diasMes).forEach(([p, s]) => { mes[p] = s.size; });
-    return { total, mes };
+    const total = {}, porMes = {};
+    Object.entries(diasTotal).forEach(([p, st]) => { total[p] = st.size; });
+    Object.entries(diasPorMes).forEach(([ym, jogadores]) => {
+      porMes[ym] = {};
+      Object.entries(jogadores).forEach(([p, st]) => { porMes[ym][p] = st.size; });
+    });
+    // meses com algum treino + o mês atual, do mais novo pro mais antigo
+    const meses = [...new Set([curMonth, ...Object.keys(porMes)])].sort().reverse();
+    return { total, mes: porMes[curMonth] || {}, porMes, meses, curMonth };
   }, [fullFeed]);
 
   const [detalhesPlayer, setDetalhesPlayer] = useState(null); // nome selecionado (null = lista)
@@ -3138,25 +3143,56 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
       {sheet === 'ranking' && (
         <Sheet title="Ranking" onClose={() => setSheet(null)}>
           <div style={{ padding: '16px 16px 24px' }}>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 16, justifyContent: 'center' }}>
-              {[['mes', 'Este mês'], ['total', 'Todos os tempos']].map(([id, label]) => {
-                const sel = rankPeriodo === id;
-                return (
-                  <button key={id} className="fit-btn" onClick={() => setRankPeriodo(id)}
-                    style={{ padding: '7px 16px', borderRadius: 999, cursor: 'pointer', fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-body)',
-                      border: `1.5px solid ${sel ? ENERGIA : T.border}`, background: sel ? `${ENERGIA}16` : 'transparent', color: sel ? ENERGIA : T.textS }}>{label}</button>
-                );
-              })}
-            </div>
+            {(() => {
+              const meses = rankingData?.meses || [];
+              const atual = rankMes || rankingData?.curMonth;
+              const idx = meses.indexOf(atual);
+              const nomeMes = (ym) => {
+                if (!ym) return '';
+                const [y, m] = ym.split('-');
+                const nome = new Date(Number(y), Number(m) - 1, 1).toLocaleDateString('pt-BR', { month: 'long' });
+                return `${nome.charAt(0).toUpperCase()}${nome.slice(1)} de ${y}`;
+              };
+              const seta = (dir, path, desabilitado) => (
+                <button className="fit-btn" disabled={desabilitado} onClick={() => { setRankPeriodo('mes'); setRankMes(meses[idx + dir]); }}
+                  style={{ width: 34, height: 34, borderRadius: '50%', border: `1.5px solid ${T.border}`, background: 'transparent', color: T.text, cursor: desabilitado ? 'default' : 'pointer', opacity: desabilitado ? .3 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d={path} /></svg>
+                </button>
+              );
+              const nesteMes = rankPeriodo === 'mes';
+              return (
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 10 }}>
+                    {seta(1, 'M15 6l-6 6 6 6', !rankingData || idx < 0 || idx >= meses.length - 1)}
+                    <div style={{ minWidth: 170, textAlign: 'center', fontSize: 14, fontWeight: 800, color: nesteMes ? T.text : T.textT, fontFamily: 'var(--font-brand)' }}>
+                      {nesteMes ? nomeMes(atual) : 'Todos os meses'}
+                    </div>
+                    {seta(-1, 'M9 6l6 6-6 6', !rankingData || idx <= 0)}
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+                    {[['mes', 'Por mês'], ['total', 'Todos os tempos']].map(([id, label]) => {
+                      const sel = rankPeriodo === id;
+                      return (
+                        <button key={id} className="fit-btn" onClick={() => setRankPeriodo(id)}
+                          style={{ padding: '7px 16px', borderRadius: 999, cursor: 'pointer', fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-body)',
+                            border: `1.5px solid ${sel ? ENERGIA : T.border}`, background: sel ? `${ENERGIA}16` : 'transparent', color: sel ? ENERGIA : T.textS }}>{label}</button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
 
             {!rankingData ? (
               <div style={{ textAlign: 'center', padding: 40, color: T.textT, fontSize: 13 }}>Carregando ranking...</div>
             ) : (() => {
-              const mapa = rankPeriodo === 'mes' ? rankingData.mes : rankingData.total;
+              const mesSel = rankMes || rankingData.curMonth;
+              const ehAtual = mesSel === rankingData.curMonth;
+              const mapa = rankPeriodo === 'mes' ? (rankingData.porMes[mesSel] || {}) : rankingData.total;
               const lista = Object.entries(mapa).sort((a, b) => b[1] - a[1]);
               if (!lista.length) return (
                 <div style={{ textAlign: 'center', padding: 40, color: T.textT, fontSize: 13 }}>
-                  Ninguém treinou {rankPeriodo === 'mes' ? 'este mês' : 'ainda'}. Bora ser o primeiro!
+                  {rankPeriodo === 'mes' ? (ehAtual ? 'Ninguém treinou este mês. Bora ser o primeiro!' : 'Ninguém treinou neste mês.') : 'Ninguém treinou ainda. Bora ser o primeiro!'}
                 </div>
               );
               const medalha = ['🥇', '🥈', '🥉'];
@@ -3167,7 +3203,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
                     display: 'flex', alignItems: 'center', gap: 12, boxShadow: `0 8px 24px ${EG}`, color: '#fff' }}>
                     <img src={photos[lider[0]] || '/UNIKO_NEW.png'} alt="" style={{ width: 50, height: 50, borderRadius: '50%', objectFit: 'cover', border: '3px solid #fff', flexShrink: 0 }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '.05em', opacity: .9, display: 'flex', alignItems: 'center', gap: 5 }}>{IcoTrophy} {rankPeriodo === 'mes' ? 'ATLETA DO MÊS' : 'MAIOR RATO DE ACADEMIA'}</div>
+                      <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '.05em', opacity: .9, display: 'flex', alignItems: 'center', gap: 5 }}>{IcoTrophy} {rankPeriodo === 'mes' ? (ehAtual ? 'ATLETA DO MÊS' : 'ATLETA DO MÊS (ENCERRADO)') : 'MAIOR RATO DE ACADEMIA'}</div>
                       <div style={{ fontFamily: 'var(--font-brand)', fontSize: 16, fontWeight: 800 }}>{lider[0].split(' ').slice(0, 2).join(' ')}</div>
                     </div>
                     <div style={{ fontSize: 20, fontWeight: 800 }}>{lider[1]}<span style={{ fontSize: 10.5, fontWeight: 600, opacity: .85 }}> dias</span></div>
