@@ -44,7 +44,10 @@ async function startCapture(streamId, contactName, test = false, avisoRecent = f
   });
   console.log('[uniko-call] micStream OK. Montando AudioContext e MediaRecorder...');
 
-  audioContext = new AudioContext();
+  // 48 kHz = taxa nativa do áudio de ligação (WebRTC/tabCapture): evita reamostragem (que gera chiado/falhas)
+  // quando o dispositivo de saída usa outra taxa (ex.: fone Bluetooth). latencyHint 'playback' usa buffers
+  // maiores — menos chance de "estalos" quando a página está ocupada.
+  audioContext = new AudioContext({ sampleRate: 48000, latencyHint: 'playback' });
   // Sem gesto do usuário nesta página, o AudioContext pode nascer "suspended" e o
   // MediaRecorder grava SILÊNCIO (transcrição vazia -> "aviso prévio não dito").
   await audioContext.resume().catch(() => {});
@@ -53,14 +56,22 @@ async function startCapture(streamId, contactName, test = false, avisoRecent = f
   recDest = dest;
   const tabSrc = audioContext.createMediaStreamSource(tabStream);
   const micSrc = audioContext.createMediaStreamSource(micStream);
-  tabSrc.connect(dest);
-  micSrc.connect(dest);
+  // Somar duas vozes no volume cheio estoura 100% e distorce ("grunhidos" na voz de quem está na linha).
+  // Cada fonte entra com ganho 0,8 e um limitador suave segura os picos antes de gravar.
+  const tabGain = audioContext.createGain(); tabGain.gain.value = 0.8;
+  const micGain = audioContext.createGain(); micGain.gain.value = 0.8;
+  const limiter = audioContext.createDynamicsCompressor();
+  limiter.threshold.value = -6; limiter.knee.value = 0; limiter.ratio.value = 20;
+  limiter.attack.value = 0.003; limiter.release.value = 0.1;
+  tabSrc.connect(tabGain).connect(limiter);
+  micSrc.connect(micGain).connect(limiter);
+  limiter.connect(dest);
   startLevelMeter(tabSrc, micSrc);
 
   // chrome.tabCapture "rouba" o áudio da aba pro nosso stream — sem isso o
   // colaborador ficaria SURDO durante a ligação. Reconecta de volta pros
   // alto-falantes normais.
-  audioContext.createMediaStreamSource(tabStream).connect(audioContext.destination);
+  tabSrc.connect(audioContext.destination); // mesma fonte (não cria uma segunda leitura do stream)
 
   // Bitrate padrão do Opus no MediaRecorder é baixo (~32kbps) e deixa a fala "metálica" — 128kbps.
   recorder = new MediaRecorder(dest.stream, { mimeType: 'audio/webm;codecs=opus', audioBitsPerSecond: 128000 });
