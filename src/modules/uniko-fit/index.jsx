@@ -24,7 +24,17 @@ import { THEMES } from '../../contexts/theme';
    Sendo uma constante local, o escuro fica contido aqui: nada fora do módulo
    é tocado, e não há o que restaurar na saída. Só o miolo (max 480px) fica
    escuro; a margem no desktop segue com o tema que a pessoa escolheu. */
-const T = { surfaceW: 'rgba(255,255,255,0.97)', ...THEMES.purpleDark };
+const T = {
+  surfaceW: 'rgba(255,255,255,0.97)', ...THEMES.gray,
+  // Visual claro (set/2026): fundo cinza bem clarinho, cartões brancos, texto grafite e laranja só como detalhe.
+  name: 'Fit Claro', dark: false,
+  page: '#F3F4F6', surface: '#FFFFFF', surfaceSub: 'rgba(17,24,39,0.04)', itemHover: 'rgba(17,24,39,0.06)',
+  border: 'rgba(17,24,39,0.10)', divider: 'rgba(17,24,39,0.06)', surfaceInput: 'rgba(17,24,39,0.04)', inputFocus: '#FFFFFF',
+  gold: '#F97316', goldL: '#FB923C', goldV: '#FDBA74', goldGl: 'rgba(249,115,22,0.10)', goldLine: '#F97316',
+  blue: '#F97316', blueL: '#FB923C', blueGl: 'rgba(249,115,22,0.10)',
+  sidebarBg: 'rgba(255,255,255,0.98)', topbarBg: 'rgba(255,255,255,0.96)',
+  text: '#111827', textS: '#4B5563', textT: '#6B7280', textD: '#9CA3AF',
+};
 import { USER, getAuthUser, supabase, SERVER_URL } from '../../contexts/user';
 import { AvatarCircle } from '../../shared/components';
 import { TreinosTab, CargasPainel } from './treinos';
@@ -500,7 +510,7 @@ const Sheet = ({ title, onBack, onClose, children }) => {
   const cardBg = T.surface || '#fff';
   return (
     <div onClick={onClose} className="fit-overlay" style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(8,6,10,.55)', backdropFilter: 'blur(2px)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-      <div onClick={e => e.stopPropagation()} className="fit-sheet-in fit-modal" style={{ background: cardBg, width: '100%', maxWidth: 480, borderRadius: '20px 20px 0 0', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 -14px 50px rgba(0,0,0,.35)', border: `1px solid ${T.border}`, borderBottom: 'none' }}>
+      <div onClick={e => e.stopPropagation()} className="fit-sheet-in fit-modal" style={{ background: cardBg, width: '100%', maxWidth: 480, borderRadius: '20px 20px 0 0', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 -14px 50px rgba(0,0,0,.18)', border: `1px solid ${T.border}`, borderBottom: 'none' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '13px 8px 13px 14px', borderBottom: `1px solid ${T.border}`, flexShrink: 0 }}>
           {onBack && <button onClick={onBack} style={{ border: 'none', background: 'none', cursor: 'pointer', color: T.textS, padding: 6, display: 'flex' }}>{IcoBack}</button>}
           <div style={{ fontSize: 15, fontWeight: 800, color: T.text, flex: 1 }}>{title}</div>
@@ -1099,8 +1109,8 @@ const diasDaSemana = () => {
    Registros PRIVADOS por pessoa (uniko_fit_peso / uniko_fit_peso_meta, ver supabase_uniko_fit_peso.sql).
    Enquanto o SQL não foi rodado, cai num espelho no localStorage deste aparelho. */
 // mesmas cores do tema do módulo (o componente principal redeclara por dentro — valores idênticos)
-const ENERGIA = '#A855F7';
-const FOGO = '#EC4899';
+const ENERGIA = '#F97316';
+const FOGO = '#EA580C';
 const IcoScale = <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M8 9a4 4 0 018 0"/><line x1="12" y1="9" x2="13.6" y2="7"/></svg>;
 const fmtKg = (n) => n.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const parsePeso = (str) => {
@@ -1263,9 +1273,9 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
   // módulo força `purpleDark` (ver topo do componente), o fundo é sempre o
   // mesmo e dá pra fixar um par só. Roxo vivo + magenta mantém o degradê
   // "energético" que o laranja→rosa tinha, e destaca bem no fundo escuro.
-  const ENERGIA = '#A855F7';
-  const FOGO    = '#EC4899';
-  const EG = 'rgba(168,85,247,.35)';
+  const ENERGIA = '#F97316';
+  const FOGO    = '#EA580C';
+  const EG = 'rgba(249,115,22,.32)';
 
   const FIT_CSS = `
 /* No celular, 100vh conta com a barra de endereço ESCONDIDA — quando ela está
@@ -1299,7 +1309,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
 .fit-card { scroll-snap-align: start; scroll-snap-stop: always; }
 @media (min-width: 1000px) and (pointer: fine) {
   .fit-overlay { align-items: center !important; }
-  .fit-modal { border-radius: 20px !important; max-width: 560px !important; border-bottom: 1px solid rgba(128,128,128,.25) !important; box-shadow: 0 24px 70px rgba(0,0,0,.45) !important; }
+  .fit-modal { border-radius: 20px !important; max-width: 560px !important; border-bottom: 1px solid rgba(128,128,128,.25) !important; box-shadow: 0 24px 70px rgba(0,0,0,.25) !important; }
   .fit-side-btn:hover { background: rgba(128,128,128,.12) !important; }
 }
 .fit-feed-list { scrollbar-width: none; -webkit-overflow-scrolling: touch; }
