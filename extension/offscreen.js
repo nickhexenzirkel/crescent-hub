@@ -65,31 +65,104 @@ async function startCapture(streamId, contactName, test = false) {
   recorder.ondataavailable = (e) => { console.log('[uniko-call] chunk recebido, bytes:', e.data.size); if (e.data.size > 0) chunks.push(e.data); };
   recorder.onstop = uploadRecording;
   // Em modo teste, fatias de 1s permitem transcrever o que ja foi gravado enquanto a pessoa fala.
-  recorder.start(meta.test ? 1000 : undefined);
-  if (meta.test) startLiveTranscription();
+  recorder.start();
+  if (meta.test) startLiveTranscription(tabSrc, micSrc);
   console.log('[uniko-call] MediaRecorder.start() chamado — state agora:', recorder.state);
   chrome.runtime.sendMessage({ type: 'UNIKO_CALL_STATE', state: 'recording' }).catch(() => {});
 }
 
-// Transcricao "ao vivo" do teste: a cada ~3s manda TUDO que foi gravado ate agora (um webm
-// acumulado e valido pq o 1o pedaco traz o cabecalho) pra transcricao de teste e devolve
-// o texto parcial pro popup. So no modo teste - nada e salvo no servidor.
-let liveTimer = null, liveBusy = false, liveSeq = 0;
-function startLiveTranscription() {
-  clearInterval(liveTimer); liveBusy = false; liveSeq = 0;
-  liveTimer = setInterval(async () => {
-    if (liveBusy || !chunks.length) return;
-    liveBusy = true;
-    const seq = ++liveSeq;
-    try {
-      const form = new FormData();
-      form.append('audio', new Blob(chunks, { type: 'audio/webm' }), 'test.webm');
-      const res = await fetch(`${CALL_SERVER}/api/uniko-call/test`, { method: 'POST', headers: { Authorization: `Bearer ${CALL_UPLOAD_TOKEN}` }, body: form });
-      const data = res.ok ? await res.json() : null;
-      if (data && meta.test && recorder && recorder.state === 'recording') chrome.runtime.sendMessage({ type: 'UNIKO_CALL_TEST_PARTIAL', seq, text: data.text || '', consentGiven: !!data.consentGiven }).catch(() => {});
-    } catch { /* proxima rodada tenta de novo */ }
-    liveBusy = false;
-  }, 3000);
+// Transcricao "ao vivo" do teste, com deteccao de fala (VAD): captura PCM, separa em
+// frases pelo volume e so manda pro servidor o que tem voz. Silencio nunca e transcrito
+// (era isso que fazia o Whisper inventar/estender texto quando ninguem falava).
+// A 1a palavra e reconhecida ~1s depois de falada, sem esperar fechar nenhum ciclo.
+// So no modo teste - nada e salvo no servidor.
+const VAD_TH = 0.012;          // RMS minimo pra contar como voz
+const VAD_HANG_MS = 800;       // silencio que encerra uma frase
+const VAD_PARTIAL_MS = 1200;   // de quanto em quanto tempo atualiza a frase em andamento
+let live = null;
+let lastLive = null; // sessao de teste que acabou de parar (usada no resultado final)
+
+function startLiveTranscription(tabSrc, micSrc) {
+  stopLiveTranscription();
+  const sr = audioContext.sampleRate;
+  const proc = audioContext.createScriptProcessor(4096, 1, 1);
+  const mix = audioContext.createGain();
+  tabSrc.connect(mix); micSrc.connect(mix);
+  mix.connect(proc);
+  const mute = audioContext.createGain(); mute.gain.value = 0;
+  proc.connect(mute); mute.connect(audioContext.destination); // precisa estar ligado pra rodar, mudo
+  live = { sr, proc, mix, mute, pre: [], utt: [], all: [], inUtt: false, lastSpeech: 0, lastSend: 0,
+           busy: false, committed: '', seq: 0, timer: 0, peakRms: 0 };
+  proc.onaudioprocess = (e) => {
+    const d = new Float32Array(e.inputBuffer.getChannelData(0)); // copia
+    let sum = 0; for (let k = 0; k < d.length; k++) sum += d[k] * d[k];
+    const rms = Math.sqrt(sum / d.length);
+    const now = Date.now();
+    if (rms > VAD_TH) {
+      live.lastSpeech = now;
+      if (!live.inUtt) { live.inUtt = true; live.utt = live.pre.slice(); live.lastSend = 0; }
+      live.peakRms = Math.max(live.peakRms, rms);
+    }
+    if (live.inUtt) { live.utt.push(d); live.all.push(d); }
+    else { live.pre.push(d); if (live.pre.length > 2) live.pre.shift(); }
+  };
+  live.timer = setInterval(liveTick, 300);
+}
+
+function stopLiveTranscription() {
+  if (!live) return;
+  clearInterval(live.timer);
+  try { live.proc.onaudioprocess = null; live.proc.disconnect(); live.mix.disconnect(); live.mute.disconnect(); } catch { /* ja desconectado */ }
+  live.stopped = true;
+}
+
+function framesToWav(frames, sr) {
+  const n = frames.reduce((a, f) => a + f.length, 0);
+  const ratio = Math.max(1, Math.round(sr / 16000));
+  const outRate = Math.round(sr / ratio);
+  const outLen = Math.floor(n / ratio);
+  const pcm = new Int16Array(outLen);
+  let idx = 0, acc = 0, cnt = 0, o = 0;
+  for (const f of frames) for (let k = 0; k < f.length; k++) {
+    acc += f[k]; cnt++;
+    if (cnt === ratio) { const v = Math.max(-1, Math.min(1, acc / ratio)); if (o < outLen) pcm[o++] = v < 0 ? v * 0x8000 : v * 0x7fff; acc = 0; cnt = 0; }
+    idx++;
+  }
+  const buf = new ArrayBuffer(44 + pcm.length * 2);
+  const v = new DataView(buf);
+  const str = (off, t) => { for (let k = 0; k < t.length; k++) v.setUint8(off + k, t.charCodeAt(k)); };
+  str(0, 'RIFF'); v.setUint32(4, 36 + pcm.length * 2, true); str(8, 'WAVE'); str(12, 'fmt ');
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, outRate, true); v.setUint32(28, outRate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+  str(36, 'data'); v.setUint32(40, pcm.length * 2, true);
+  new Int16Array(buf, 44).set(pcm);
+  return new Blob([buf], { type: 'audio/wav' });
+}
+
+async function transcribeWav(blob) {
+  const form = new FormData();
+  form.append('audio', blob, 'test.wav');
+  const res = await fetch(`${CALL_SERVER}/api/uniko-call/test`, { method: 'POST', headers: { Authorization: `Bearer ${CALL_UPLOAD_TOKEN}` }, body: form });
+  return res.ok ? res.json() : { error: `servidor respondeu ${res.status}` };
+}
+
+async function liveTick() {
+  if (!live || live.busy || !live.inUtt) return;
+  const now = Date.now();
+  const ended = now - live.lastSpeech > VAD_HANG_MS;
+  if (!ended && now - live.lastSend < VAD_PARTIAL_MS) return;
+  const frames = live.utt.slice();
+  if (!frames.length) return;
+  live.busy = true; live.lastSend = now;
+  const seq = ++live.seq;
+  const lv = live;
+  try {
+    const data = await transcribeWav(framesToWav(frames, lv.sr));
+    const text = (data.text || '').trim();
+    if (ended) { if (text) lv.committed = (lv.committed + ' ' + text).trim(); lv.inUtt = false; lv.utt = []; }
+    if (!lv.stopped) chrome.runtime.sendMessage({ type: 'UNIKO_CALL_TEST_PARTIAL', seq, committed: lv.committed, current: ended ? '' : text }).catch(() => {});
+  } catch { /* proxima rodada tenta de novo */ }
+  lv.busy = false;
 }
 
 // Mede o pico de volume da aba e do microfone durante a gravação e loga ao parar —
@@ -114,7 +187,8 @@ function startLevelMeter(tabSrc, micSrc) {
 }
 
 function stopCapture() {
-  clearInterval(levelTimer); clearInterval(liveTimer);
+  clearInterval(levelTimer);
+  const finalLive = live; stopLiveTranscription(); lastLive = finalLive; live = null;
   console.log('[uniko-call] picos de volume — aba:', peaks.tab.toFixed(3), 'microfone:', peaks.mic.toFixed(3), '(0 = mudo)');
   console.log('[uniko-call] stopCapture() chamado — recorder existe?', !!recorder, 'state:', recorder?.state);
   if (recorder && recorder.state !== 'inactive') recorder.stop();
@@ -137,12 +211,14 @@ async function uploadRecording() {
   const blob = new Blob(chunks, { type: 'audio/webm' });
   chunks = [];
   if (meta.test) {
-    // Modo calibração: manda pra transcrição de teste (nada é salvo) e devolve o resultado pro popup.
+    // Modo calibracao: transcreve SO os trechos com voz (sem silencio) e devolve o resultado pro popup.
     try {
-      const form = new FormData();
-      form.append('audio', blob, 'test.webm');
-      const res = await fetch(`${CALL_SERVER}/api/uniko-call/test`, { method: 'POST', headers: { Authorization: `Bearer ${CALL_UPLOAD_TOKEN}` }, body: form });
-      const data = res.ok ? await res.json() : { error: `servidor respondeu ${res.status}` };
+      const lv = lastLive;
+      let data = { text: '', consentGiven: false };
+      if (lv && lv.all.length) {
+        const wavData = await transcribeWav(framesToWav(lv.all, lv.sr));
+        data = wavData;
+      }
       const audioB64 = await new Promise((resolve) => { const fr = new FileReader(); fr.onload = () => resolve(String(fr.result).split(',')[1] || ''); fr.readAsDataURL(blob); });
       chrome.runtime.sendMessage({ type: 'UNIKO_CALL_TEST_RESULT', ...data, audioB64, peakTab: peaks.tab, peakMic: peaks.mic }).catch(() => {});
     } catch (e) {

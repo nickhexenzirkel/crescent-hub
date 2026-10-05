@@ -192,7 +192,8 @@ chrome.runtime.onMessage.addListener((m) => {
   if (m.type === 'UNIKO_CALL_TEST_PARTIAL' && testRunning && m.seq >= liveSeqShown) {
     liveSeqShown = m.seq;
     liveText.className = 'testResult show';
-    liveText.textContent = m.text ? `📝 (parcial) ${m.text}` : '📝 …ouvindo';
+    const txt = [m.committed, m.current].filter(Boolean).join(' ');
+    liveText.textContent = txt ? `📝 ${txt}` : '🎙️ ouvindo…';
   }
   if (m.type === 'UNIKO_CALL_TEST_RESULT') {
     testRunning = false;
@@ -230,7 +231,7 @@ testBtn.addEventListener('click', async () => {
     testRunning = true; liveSeqShown = 0;
     testBtn.textContent = 'Parar teste';
     testResult.className = 'testResult';
-    liveText.className = 'testResult show'; liveText.textContent = '🎙️ Fale: “Por questões de segurança, essa ligação está sendo gravada.” O texto aparece aqui ao vivo.';
+    liveText.className = 'testResult show'; liveText.textContent = '🎙️ Pode falar — o texto aparece aqui assim que você começar. Fale: “Por questões de segurança, essa ligação está sendo gravada.” O texto aparece aqui ao vivo.';
     await chrome.runtime.sendMessage({ type: 'UNIKO_CALL_START_WITH_STREAM', streamId, contactName: null, test: true });
   } catch (e) {
     testRunning = false;
