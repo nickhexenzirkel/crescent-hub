@@ -4,181 +4,101 @@
 <meta charset="utf-8">
 <style>
   :root {
-    --green: #22c55e;
-    --green-dk: #16a34a;
-    --green-gl: rgba(34, 197, 94, 0.14);
-    --ink: #10151a;
-    --ink-sub: #6b7480;
-    --line: #e7eaee;
-    --danger: #e0533d;
-    --amber: #d4a017;
+    --green: #22c55e; --green-dk: #16a34a; --green-gl: rgba(34,197,94,.13);
+    --ink: #10151a; --sub: #6b7480; --line: #e7eaee; --bg2: #f6f7f9;
+    --danger: #e0533d; --amber: #d4a017;
   }
   * { box-sizing: border-box; }
-  body {
-    width: 280px;
-    font-family: -apple-system, "Segoe UI", Arial, sans-serif;
-    padding: 16px;
-    margin: 0;
-    color: var(--ink);
-    background: #fff;
-  }
-  .header {
-    display: flex;
-    align-items: center;
-    gap: 11px;
-    padding: 11px 12px;
-    border-radius: 14px;
-    background: linear-gradient(135deg, var(--green-gl), rgba(34,197,94,0.03));
-    border: 1px solid rgba(34,197,94,0.18);
-    margin-bottom: 14px;
-  }
-  .header img {
-    width: 38px;
-    height: 38px;
-    flex-shrink: 0;
-    object-fit: contain;
-  }
-  .brand { min-width: 0; }
-  .brand .title {
-    font-size: 15px;
-    font-weight: 800;
-    letter-spacing: .01em;
-    color: var(--ink);
-    line-height: 1.15;
-  }
-  .brand .subtitle {
-    font-size: 10.5px;
-    font-weight: 700;
-    letter-spacing: .04em;
-    text-transform: uppercase;
-    color: var(--green-dk);
-    margin-top: 2px;
-  }
-  .status {
-    display: flex;
-    align-items: center;
-    gap: 9px;
-    padding: 10px 12px;
-    border-radius: 11px;
-    background: #f7f8fa;
-    border: 1px solid var(--line);
-    font-size: 12.5px;
-    font-weight: 600;
-    color: var(--ink);
-    margin-bottom: 10px;
-  }
-  .dot {
-    width: 9px;
-    height: 9px;
-    border-radius: 50%;
-    background: #b7bec7;
-    flex-shrink: 0;
-    box-shadow: 0 0 0 3px rgba(0,0,0,.04);
-  }
-  .dot.recording { background: var(--danger); box-shadow: 0 0 0 3px rgba(224,83,61,.15); animation: pulse 1.2s infinite; }
-  .dot.aguardando { background: var(--amber); box-shadow: 0 0 0 3px rgba(212,160,23,.15); animation: pulse 1.2s infinite; }
+  body { width: 360px; margin: 0; padding: 12px; font-family: -apple-system, "Segoe UI", Arial, sans-serif; color: var(--ink); background: #fff; font-size: 12px; }
+  .top { display: flex; align-items: center; gap: 9px; margin-bottom: 10px; }
+  .top img { width: 30px; height: 30px; object-fit: contain; flex-shrink: 0; }
+  .top .name { font-size: 14px; font-weight: 800; letter-spacing: .01em; line-height: 1.1; }
+  .top .name small { display: block; font-size: 9.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--green-dk); margin-top: 1px; }
+  .pill { margin-left: auto; display: flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px; background: var(--bg2); border: 1px solid var(--line); font-size: 11px; font-weight: 700; max-width: 190px; }
+  .pill span#statusText { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #b7bec7; flex-shrink: 0; }
+  .dot.recording { background: var(--danger); animation: pulse 1.2s infinite; }
+  .dot.aguardando { background: var(--amber); animation: pulse 1.2s infinite; }
   @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
-  button {
-    width: 100%;
-    padding: 10px;
-    border-radius: 11px;
-    border: none;
-    font-size: 12.5px;
-    font-weight: 700;
-    cursor: pointer;
-    margin-bottom: 8px;
-    font-family: inherit;
-    transition: transform .08s ease, opacity .12s ease;
-  }
+
+  .card { border: 1px solid var(--line); border-radius: 12px; padding: 9px 11px; margin-bottom: 8px; background: #fff; }
+  .card.step { background: var(--green-gl); border-color: rgba(34,197,94,.3); }
+  .card .h { display: flex; align-items: center; gap: 7px; font-size: 10.5px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--sub); margin-bottom: 7px; }
+  .num { width: 17px; height: 17px; border-radius: 50%; background: var(--green); color: #fff; font-size: 10px; display: inline-flex; align-items: center; justify-content: center; letter-spacing: 0; }
+  button { width: 100%; padding: 9px; border-radius: 10px; border: none; font-size: 12.5px; font-weight: 700; cursor: pointer; font-family: inherit; transition: transform .08s ease, opacity .12s ease; }
   button:active { transform: scale(.98); }
-  .primary { background: linear-gradient(135deg, var(--green), var(--green-dk)); color: #fff; box-shadow: 0 3px 10px rgba(34,197,94,.28); }
-  .danger { background: var(--danger); color: #fff; box-shadow: 0 3px 10px rgba(224,83,61,.25); }
-  .secondary { background: #f1f2f4; color: #333; }
-  .warn {
-    font-size: 10.5px;
-    color: var(--ink-sub);
-    line-height: 1.5;
-    margin-top: 10px;
-    padding-top: 10px;
-    border-top: 1px solid var(--line);
-  }
-  .micOk {
-    display: none;
-    align-items: center;
-    gap: 8px;
-    padding: 9px 11px;
-    border-radius: 11px;
-    background: var(--green-gl);
-    color: var(--green-dk);
-    font-size: 12px;
-    font-weight: 700;
-    margin-bottom: 8px;
-    border: 1px solid rgba(34,197,94,.25);
-  }
-  .recordingNotice {
-    display: none;
-    gap: 8px;
-    padding: 10px 11px;
-    border-radius: 11px;
-    background: rgba(212,160,23,.12);
-    color: #8a6410;
-    font-size: 11.5px;
-    font-weight: 600;
-    line-height: 1.45;
-    margin-bottom: 8px;
-    border: 1px solid rgba(212,160,23,.3);
-  }
-  .recordingNotice.show { display: flex; }
-  .calib { border: 1px solid var(--line); border-radius: 11px; padding: 10px 12px; margin-bottom: 8px; background: #fbfcfd; }
-  .calib .ttl { font-size: 11px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-sub); margin-bottom: 8px; }
-  .meter { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 11.5px; font-weight: 600; }
-  .meter .lbl { width: 92px; flex-shrink: 0; }
-  .meter .bar { flex: 1; height: 8px; border-radius: 4px; background: #e7eaee; overflow: hidden; }
-  .meter .fill { height: 100%; width: 0; background: var(--green); transition: width .12s linear; }
-  .meter .fill.low { background: var(--amber); }
-  .meter .chk { width: 16px; text-align: center; flex-shrink: 0; }
-  .calibHint { font-size: 10.5px; color: var(--ink-sub); line-height: 1.45; margin: 2px 0 8px; }
-  .testResult { display: none; font-size: 11.5px; line-height: 1.5; padding: 8px 10px; border-radius: 9px; margin-top: 8px; background: #f1f2f4; word-break: break-word; }
-  .testResult.show { display: block; }
-  #liveText { background: #fff; border: 1px dashed var(--line); font-style: italic; }
-  audio { width: 100%; margin-top: 6px; height: 32px; }
-  .testResult.ok { background: var(--green-gl); color: var(--green-dk); }
-  .testResult.bad { background: rgba(224,83,61,.12); color: #b3402d; }
-  .aviso { border: 1px solid rgba(34,197,94,.3); background: var(--green-gl); border-radius: 11px; padding: 10px 12px; margin-bottom: 8px; }
-  .aviso .ttl { font-size: 11px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--green-dk); margin-bottom: 6px; }
-  .aviso .st { font-size: 11px; line-height: 1.45; color: var(--ink-sub); margin-top: 6px; }
-  .aviso .st.ok { color: var(--green-dk); font-weight: 700; }
-  .aviso .st.bad { color: #b3402d; font-weight: 700; }
+  button:disabled { opacity: .6; cursor: default; }
+  .primary { background: linear-gradient(135deg, var(--green), var(--green-dk)); color: #fff; box-shadow: 0 3px 9px rgba(34,197,94,.25); }
+  .danger { background: var(--danger); color: #fff; }
+  .secondary { background: #eef0f3; color: #333; }
+  .ready { animation: glow 1.1s infinite; }
+  @keyframes glow { 0%,100% { box-shadow: 0 0 0 0 rgba(34,197,94,.55); } 50% { box-shadow: 0 0 0 6px rgba(34,197,94,0); } }
+  .line { font-size: 11px; line-height: 1.4; color: var(--sub); margin-top: 6px; }
+  .line.ok { color: var(--green-dk); font-weight: 700; }
+  .line.bad { color: #b3402d; font-weight: 700; }
+  .prog { height: 5px; border-radius: 3px; background: #dfe3e8; overflow: hidden; margin-top: 7px; display: none; }
+  .prog.show { display: block; }
+  .prog i { display: block; height: 100%; width: 0; background: var(--green); transition: width .25s linear; }
+
+  .meters { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .meter .l { display: flex; justify-content: space-between; font-size: 10.5px; font-weight: 700; margin-bottom: 3px; }
+  .bar { height: 7px; border-radius: 4px; background: #e7eaee; overflow: hidden; }
+  .fill { height: 100%; width: 0; background: var(--green); transition: width .12s linear; }
+  .fill.low { background: var(--amber); }
+
+  .testHead { display: flex; align-items: center; gap: 8px; }
+  .testHead button { width: auto; flex: 1; padding: 7px 10px; font-size: 11.5px; }
+  .box { display: none; margin-top: 7px; padding: 7px 9px; border-radius: 9px; font-size: 11px; line-height: 1.4; background: #f6f7f9; max-height: 100px; overflow-y: auto; word-break: break-word; }
+  .box.show { display: block; }
+  .box.live { background: #fff; border: 1px dashed var(--line); font-style: italic; }
+  .box.ok { background: var(--green-gl); color: var(--green-dk); }
+  .box.bad { background: rgba(224,83,61,.1); color: #b3402d; }
+  audio { width: 100%; height: 28px; margin-top: 4px; }
+
+  .foot { display: flex; align-items: center; gap: 8px; font-size: 10.5px; color: var(--sub); }
+  .foot .chip { display: inline-flex; align-items: center; gap: 5px; font-weight: 700; color: var(--green-dk); }
+  .foot button { width: auto; padding: 4px 9px; font-size: 10.5px; margin-left: auto; }
+  .warn { font-size: 10px; line-height: 1.4; color: var(--sub); margin-top: 6px; }
 </style>
 </head>
 <body>
-  <div class="header">
+  <div class="top">
     <img src="icon.png" alt="Uniko Call">
-    <div class="brand">
-      <div class="title">UNIKO CALL</div>
-      <div class="subtitle">Extensão</div>
+    <div class="name">UNIKO CALL<small>Extensão</small></div>
+    <div class="pill"><span id="dot" class="dot"></span><span id="statusText">Verificando…</span></div>
+  </div>
+
+  <div class="card step">
+    <div class="h"><span class="num">1</span> Aviso prévio de gravação</div>
+    <button id="avisoBtn" class="primary">🔔 Tocar aviso na ligação</button>
+    <div class="prog" id="avisoProg"><i id="avisoProgBar"></i></div>
+    <div id="avisoStatus" class="line">Verificando…</div>
+  </div>
+
+  <div class="card step">
+    <div class="h"><span class="num">2</span> Gravação</div>
+    <button id="toggleBtn" class="primary">Iniciar gravação manual</button>
+    <div id="recordingNotice" class="line" style="display:none">⚠️ Fique nesta aba do WhatsApp Web durante a gravação.</div>
+  </div>
+
+  <div class="card">
+    <div class="meters">
+      <div class="meter"><div class="l"><span>🎤 Seu microfone</span><span id="micChk"></span></div><div class="bar"><div id="micFill" class="fill"></div></div></div>
+      <div class="meter"><div class="l"><span>🔊 Ligação</span><span id="tabChk"></span></div><div class="bar"><div id="tabFill" class="fill"></div></div></div>
     </div>
+    <div class="testHead" style="margin-top:8px">
+      <button id="testBtn" class="secondary">🎙️ Testar áudio e transcrição</button>
+    </div>
+    <div id="liveText" class="box live"></div>
+    <div id="testResult" class="box"></div>
   </div>
-  <div class="status"><span id="dot" class="dot"></span><span id="statusText">Verificando…</span></div>
-  <div id="micOk" class="micOk">🎤 Microfone autorizado, ativo</div>
-  <div id="recordingNotice" class="recordingNotice">⚠️ Fique nesta aba do WhatsApp Web até falar o aviso prévio ("Por questões de segurança, esta ligação está sendo gravada"). Trocar de aba antes disso pode atrapalhar a captura.</div>
-  <div class="aviso">
-    <div class="ttl">Aviso prévio de gravação</div>
-    <button id="avisoBtn" class="primary" style="margin-bottom:0">🔔 Tocar aviso na ligação</button>
-    <div id="avisoStatus" class="st">Verificando…</div>
+
+  <div class="foot">
+    <span id="micOk" class="chip" style="display:none">🎤 Microfone autorizado</span>
+    <span id="calibHint"></span>
+    <button id="micBtn" class="secondary" style="display:none">Autorizar microfone</button>
   </div>
-  <div class="calib">
-    <div class="ttl">Calibração de áudio</div>
-    <div class="meter"><span class="lbl">🎤 Seu microfone</span><div class="bar"><div id="micFill" class="fill"></div></div><span id="micChk" class="chk"></span></div>
-    <div class="meter"><span class="lbl">🔊 Áudio da ligação</span><div class="bar"><div id="tabFill" class="fill"></div></div><span id="tabChk" class="chk"></span></div>
-    <div id="calibHint" class="calibHint">Fale: a barra do microfone deve mexer. Pra testar tudo (inclusive a transcrição), use o botão abaixo com o WhatsApp Web nesta aba.</div>
-    <button id="testBtn" class="secondary" style="margin-bottom:0">Testar áudio e transcrição</button>
-    <div id="liveText" class="testResult"></div>
-    <div id="testResult" class="testResult"></div>
-  </div>
-  <button id="micBtn" class="secondary">Autorizar microfone</button>
-  <button id="toggleBtn" class="primary">Iniciar gravação manual</button>
-  <p class="warn">Avise sempre a pessoa do outro lado que a ligação está sendo gravada, no início da chamada. O Chrome exige um clique pra autorizar a captura — quando uma chamada é detectada, este ícone avisa (bolinha amarela); clique em "Iniciar gravação manual" pra começar de verdade.</p>
+  <div class="warn">Avise sempre quem está na linha que a ligação é gravada — use o passo 1 e só depois inicie a gravação.</div>
   <script src="popup.js"></script>
 </body>
 </html>

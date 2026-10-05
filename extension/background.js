@@ -804,11 +804,25 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // Botão "Tocar aviso": guarda o horário (service worker pode dormir) e, se já está gravando,
   // manda o gravador misturar o mesmo áudio na gravação e marcar "aviso dado".
   if (message.type === 'UNIKO_CALL_AVISO_PLAYED') {
-    chrome.storage.session?.set({ unikoAvisoAt: Date.now() }).catch(() => {});
-    // Não confia só no estado em memória (o service worker dorme e o perde): vê se há gravador aberto.
-    recorderExists().then((aberto) => {
-      if (aberto || unikoCallState === 'recording' || unikoCallState === 'testing') chrome.runtime.sendMessage({ type: 'UNIKO_CALL_AVISO_INTO_REC' }).catch(() => {});
-    });
+    chrome.storage.session?.set({ unikoAvisoAt: Date.now(), unikoAviso: { phase: 'playing', at: Date.now(), seconds: message.seconds || 10 } }).catch(() => {});
+    chrome.action.setBadgeText({ text: '♪' }).catch(() => {});
+    chrome.action.setBadgeBackgroundColor({ color: '#d4a017' }).catch(() => {});
+    // (O áudio do aviso NÃO é mixado na gravação: o servidor o coloca no INÍCIO do áudio salvo,
+    // antes da conversa — sem sobrepor a voz de ninguém.)
+  }
+  // Aviso terminou de tocar: avisa o atendente que já pode iniciar a gravação.
+  if (message.type === 'UNIKO_CALL_AVISO_ENDED') {
+    chrome.storage.session?.get('unikoAviso').then(({ unikoAviso }) => {
+      chrome.storage.session?.set({ unikoAviso: { ...(unikoAviso || {}), phase: 'ended', at: Date.now() } }).catch(() => {});
+    }).catch(() => {});
+    if (unikoCallState === 'idle') {
+      chrome.action.setBadgeText({ text: '✔' }).catch(() => {});
+      chrome.action.setBadgeBackgroundColor({ color: '#16a34a' }).catch(() => {});
+    }
+    showDesktopNotification(
+      { id: 'uniko-call-aviso-fim', title: 'Aviso prévio concluído', message: 'Pode iniciar a gravação: abra o Uniko Call e clique em “Iniciar gravação”.' },
+      () => {},
+    );
   }
   if (message.type === 'UNIKO_CALL_START_WITH_STREAM') {
     console.log('[uniko-call] background recebeu UNIKO_CALL_START_WITH_STREAM do popup.');

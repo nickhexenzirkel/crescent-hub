@@ -97,6 +97,20 @@ function micCall(type, extra = {}, timeoutMs = 1500) {
   });
 }
 
+// Aviso terminou de tocar na ligação: avisa o background (notificação + estado) e mostra um aviso
+// em cima do WhatsApp Web, pra o atendente saber que já pode iniciar a gravação.
+window.addEventListener('message', (e) => {
+  if (e.source !== window || e.data?.source !== 'uniko-mic' || e.data.type !== 'PLAY_ENDED') return;
+  chrome.runtime.sendMessage({ type: 'UNIKO_CALL_AVISO_ENDED' }).catch(() => {});
+  try {
+    const el = document.createElement('div');
+    el.textContent = '✅ Aviso prévio concluído — clique em “Iniciar gravação” no Uniko Call';
+    el.style.cssText = 'position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:2147483647;background:#16a34a;color:#fff;padding:12px 20px;border-radius:12px;font:700 14px -apple-system,Segoe UI,Arial,sans-serif;box-shadow:0 8px 28px rgba(0,0,0,.35)';
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 9000);
+  } catch { /* sem DOM — só a notificação */ }
+});
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'UNIKO_AVISO_PING') {
     micCall('PING').then((r) => sendResponse({ injected: !!r, active: !!r?.active }));
@@ -110,6 +124,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const buf = await res.arrayBuffer();
         const r = await micCall('PLAY', { buf }, 8000);
         if (!r) return sendResponse({ ok: false, error: 'O script do microfone não respondeu. Dê F5 no WhatsApp Web e tente de novo.' });
+        if (r.ok) chrome.runtime.sendMessage({ type: 'UNIKO_CALL_AVISO_PLAYED', seconds: r.seconds }).catch(() => {});
         sendResponse({ ok: !!r.ok, seconds: r.seconds, error: r.error });
       } catch (e) {
         sendResponse({ ok: false, error: 'Não consegui buscar o áudio do aviso: ' + e.message });
