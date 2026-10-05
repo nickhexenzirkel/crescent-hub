@@ -1,10 +1,15 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import * as XLSX from 'xlsx';
+import JSZip from 'jszip';
+import { baixarNotasISS, detectarExtensao } from '../extensaoNotasEmail.js';
 import { T } from '../../../contexts/theme';
 import { StellarHero } from '../StellarHero';
 import { PainelObservacoesNotas } from './PainelObservacoesNotas';
 
 /* ── GINFES NFS-e Parser ──────────────────────────────── */
+// A "chave" fixa do link do ISS (951862) é da inscrição da 7Serv — só vale para as notas dela.
+const CNPJ_7SERV = '13858769000197';
+
 const GINFES_NS = 'http://www.ginfes.com.br/tipos_v03.xsd';
 
 const getEl = (parent, tag) =>
@@ -222,6 +227,8 @@ export const TabLeitorXML = () => {
   const [search,     setSearch]     = useState('');
   const [filterTipo, setFilterTipo] = useState('todos');
   const [municipios, setMunicipios] = useState(loadMuniCache);
+  const [pdfLote,    setPdfLote]    = useState(null); // { fase:'rodando'|'fim', feitos, total, atual, msg, falhas }
+  const pdfCancelar = useRef(null);
   const [modo,       setModo]       = useState('xml'); // 'xml' = leitor de XML · 'obs' = observações (Finanças + PDFs)
 
   // Resolve nomes de município (IBGE) para os códigos ainda não conhecidos
@@ -264,6 +271,50 @@ export const TabLeitorXML = () => {
       return [...prev, ...all.filter(r => !existing.has(r.chaveAcesso || `${r.filename}_${r.numero}`))];
     });
     setLoading(false);
+  };
+
+  /* Baixa em lote os PDFs das notas lendo número + código de verificação do XML.
+     A extensão abre iss.fortaleza.ce.gov.br/…/consultarNota.seam?codigo=…&chave=951862&numero=…
+     para cada uma e devolve o PDF; no fim tudo vai num .zip. */
+  const baixarPdfs = async () => {
+    const todas = rows.filter(r => !r.error);
+    const elegiveis = todas.filter(r => r.numero && r.codigoVerif && (r.prestadorCNPJ || '').replace(/\D/g,'') === CNPJ_7SERV);
+    if (!elegiveis.length) {
+      setPdfLote({ fase:'fim', msg:'Nenhuma nota da 7Serv com código de verificação neste XML.' });
+      return;
+    }
+    const ext = await detectarExtensao();
+    if (!ext) {
+      setPdfLote({ fase:'fim', msg:'Extensão "Uniko — Notas por e-mail" não encontrada (v1.1.0+). Instale/recarregue em chrome://extensions e dê F5 aqui.' });
+      return;
+    }
+    const zip = new JSZip();
+    setPdfLote({ fase:'rodando', feitos:0, total:elegiveis.length });
+    const job = baixarNotasISS({
+      notas: elegiveis.map(r => ({ numero:r.numero, codigo:r.codigoVerif })),
+      onProgresso: m => setPdfLote(p => ({ ...p, feitos:m.feitos, total:m.total, atual:m.numero })),
+      onArquivo: ({ numero, bytes }) => { zip.file(`NFSe_${numero}.pdf`, bytes); },
+    });
+    pdfCancelar.current = job.cancelar;
+    try {
+      const r = await job.promessa;
+      const ignoradas = todas.length - elegiveis.length;
+      if (r.ok > 0) {
+        const blob = await zip.generateAsync({ type:'blob' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `notas_fiscais_${new Date().toLocaleDateString('pt-BR').replace(/\//g,'-')}.zip`;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+      }
+      setPdfLote({
+        fase:'fim', falhas:r.falhas || [],
+        msg:`${r.ok} PDF(s) baixado(s)${r.cancelado ? ' (cancelado)' : ''}${r.falhas?.length ? ` · ${r.falhas.length} falha(s)` : ''}${ignoradas ? ` · ${ignoradas} nota(s) ignorada(s) (não são da 7Serv / sem código)` : ''}.`,
+      });
+    } catch (e) {
+      setPdfLote({ fase:'fim', msg:e.message });
+    }
+    pdfCancelar.current = null;
   };
 
   const exportXLSX = () => {
@@ -399,11 +450,37 @@ export const TabLeitorXML = () => {
               Exportar Excel
             </button>
 
+            <button onClick={baixarPdfs} disabled={pdfLote?.fase==='rodando'}
+              title="Baixa o PDF de cada nota no ISS Fortaleza (via extensão) usando o código de verificação do XML"
+              style={{padding:'9px 16px',borderRadius:10,border:`1px solid ${T.gold}`,background:T.goldGl,color:T.text,fontSize:13,fontWeight:600,
+                cursor:pdfLote?.fase==='rodando'?'wait':'pointer',fontFamily:'var(--font-body)'}}>
+              Baixar PDFs em lote
+            </button>
+
             <button onClick={()=>setRows([])}
               style={{padding:'9px 14px',borderRadius:10,border:`1px solid ${T.border}`,background:'transparent',color:T.textS,fontSize:13,cursor:'pointer',fontFamily:'var(--font-body)'}}>
               Limpar
             </button>
           </div>
+
+          {pdfLote && (
+            <div style={{background:T.goldGl,border:`1px solid ${T.gold}22`,borderRadius:10,padding:'12px 16px',marginBottom:16,fontSize:13,color:T.textS}}>
+              {pdfLote.fase === 'rodando' ? (
+                <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
+                  <span>Baixando PDFs no ISS… <strong style={{color:T.text}}>{pdfLote.feitos||0}/{pdfLote.total}</strong>{pdfLote.atual ? ` · nota ${pdfLote.atual}` : ''} — deixe a janelinha do ISS aberta.</span>
+                  <button onClick={()=>pdfCancelar.current?.()} style={{padding:'4px 12px',borderRadius:8,border:`1px solid ${T.border}`,background:'transparent',color:T.textS,cursor:'pointer',fontSize:12}}>Cancelar</button>
+                </div>
+              ) : (
+                <>
+                  <div style={{display:'flex',justifyContent:'space-between',gap:12}}>
+                    <span>{pdfLote.msg}</span>
+                    <button onClick={()=>setPdfLote(null)} style={{border:'none',background:'transparent',color:T.textT,cursor:'pointer'}}>✕</button>
+                  </div>
+                  {pdfLote.falhas?.map(f => <div key={f.numero} style={{color:T.danger,marginTop:4}}>Nota {f.numero}: {f.erro}</div>)}
+                </>
+              )}
+            </div>
+          )}
 
           {errors.length > 0 && (
             <div style={{background:'rgba(192,64,80,0.06)',border:'1px solid rgba(192,64,80,0.2)',borderRadius:10,padding:'12px 16px',marginBottom:16}}>

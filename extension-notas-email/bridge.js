@@ -8,7 +8,8 @@ window.addEventListener('message', (event) => {
   // obedecer a script de terceiros.
   if (event.source !== window || event.origin !== window.location.origin) return;
   const type = event.data?.type;
-  if (type !== 'NOTASMAIL_PING' && type !== 'NOTASMAIL_START' && type !== 'NOTASMAIL_CANCEL') return;
+  if (type !== 'NOTASMAIL_PING' && type !== 'NOTASMAIL_START' && type !== 'NOTASMAIL_CANCEL'
+    && type !== 'NOTASMAIL_ISS_START' && type !== 'NOTASMAIL_ISS_CANCEL') return;
   try {
     chrome.runtime.sendMessage(event.data).catch(() => {
       window.postMessage({ type: 'NOTASMAIL_ERROR', message: 'Extensão desconectada — recarregue a página (F5) e tente de novo.' }, window.location.origin);

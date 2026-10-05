@@ -141,3 +141,110 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
     }
   }
 });
+
+// ───────────────────────────────────────────────────────────────────────────
+// Download em lote das NFS-e no ISS Fortaleza (consultarNota.seam).
+// O Uniko manda { numero, codigo } de cada nota (lidos do XML); a extensão abre a
+// consulta pública de cada uma numa janelinha, o iss.js baixa o PDF e devolvemos ao Uniko.
+// A "chave" é sempre a da 7Serv (inscrição 951862); só o Uniko decide quais notas
+// mandar, e aqui só aceitamos números.
+// ───────────────────────────────────────────────────────────────────────────
+const ISS_CHAVE = '951862';
+const ISS_URL = 'https://iss.fortaleza.ce.gov.br/grpfor/pagesPublic/consultarNota.seam';
+const LIMITE_ISS = 500;
+const issJobs = new Map(); // jobId -> { origem, cancelado, tabId, janelaId }
+const issEspera = new Map(); // tabId -> resolve(resultado)
+
+const validarIss = (msg) => {
+  const notas = Array.isArray(msg.notas) ? msg.notas : [];
+  if (!notas.length || notas.length > LIMITE_ISS) return { erro: 'Lista de notas inválida.' };
+  const vistos = new Set();
+  const limpas = [];
+  for (const n of notas) {
+    const numero = String(n?.numero ?? '').trim();
+    const codigo = String(n?.codigo ?? '').trim();
+    if (!/^\d{1,9}$/.test(numero) || !/^\d{4,12}$/.test(codigo)) return { erro: 'Nota ou código de verificação inválido.' };
+    if (vistos.has(numero)) continue;
+    vistos.add(numero);
+    limpas.push({ numero, codigo });
+  }
+  if (typeof msg.jobId !== 'string' || msg.jobId.length > 60) return { erro: 'Trabalho inválido.' };
+  return { notas: limpas };
+};
+
+const baixarUmaNota = (job, { numero, codigo }) =>
+  new Promise((resolve) => {
+    const url = `${ISS_URL}?codigo=${codigo}&chave=${ISS_CHAVE}&numero=${numero}`;
+    const timer = setTimeout(() => {
+      issEspera.delete(job.tabId);
+      resolve({ erro: 'Tempo esgotado esperando o ISS.' });
+    }, 45000);
+    issEspera.set(job.tabId, (r) => {
+      clearTimeout(timer);
+      issEspera.delete(job.tabId);
+      resolve(r);
+    });
+    chrome.tabs.update(job.tabId, { url }).catch((e) => {
+      clearTimeout(timer);
+      issEspera.delete(job.tabId);
+      resolve({ erro: e?.message || 'Não consegui abrir o ISS.' });
+    });
+  });
+
+async function executarIss(jobId, job, notas) {
+  const janela = await chrome.windows.create({
+    url: 'about:blank', type: 'popup', width: 760, height: 520, focused: false,
+  });
+  job.janelaId = janela.id;
+  job.tabId = janela.tabs[0].id;
+  let ok = 0;
+  const falhas = [];
+  for (let i = 0; i < notas.length; i++) {
+    if (job.cancelado) break;
+    const nota = notas[i];
+    await paraUniko(job, { type: 'NOTASMAIL_ISS_PROGRESSO', jobId, feitos: i, total: notas.length, numero: nota.numero });
+    const r = await baixarUmaNota(job, nota);
+    if (r.base64) {
+      ok++;
+      await paraUniko(job, { type: 'NOTASMAIL_ISS_ARQUIVO', jobId, numero: nota.numero, base64: r.base64 });
+    } else {
+      falhas.push({ numero: nota.numero, erro: r.erro || 'Falha desconhecida.' });
+    }
+    await esperar(400);
+  }
+  await chrome.windows.remove(janela.id).catch(() => {});
+  await paraUniko(job, { type: 'NOTASMAIL_ISS_DONE', jobId, cancelado: job.cancelado, ok, falhas });
+  issJobs.delete(jobId);
+}
+
+chrome.runtime.onMessage.addListener((msg, sender) => {
+  const tabId = sender.tab?.id;
+  if (!msg?.type || tabId == null) return;
+
+  // PDF (ou erro) vindo da página do ISS
+  if (msg.type === 'NOTASMAIL_I_RESULTADO') {
+    if (!(sender.tab.url || '').startsWith(ISS_URL)) return;
+    issEspera.get(tabId)?.({ base64: msg.base64, erro: msg.erro });
+    return;
+  }
+
+  if (msg.type === 'NOTASMAIL_ISS_START') {
+    const erro = (message) => chrome.tabs.sendMessage(tabId, { type: 'NOTASMAIL_ERROR', jobId: msg.jobId, message }).catch(() => {});
+    const v = validarIss(msg);
+    if (v.erro) return erro(v.erro);
+    if (issJobs.size) return erro('Já existe um download em andamento.');
+    const job = { origem: tabId, cancelado: false, tabId: null, janelaId: null };
+    issJobs.set(msg.jobId, job);
+    executarIss(msg.jobId, job, v.notas).catch((e) => {
+      paraUniko(job, { type: 'NOTASMAIL_ERROR', jobId: msg.jobId, message: e?.message || 'Falha inesperada.' });
+      if (job.janelaId) chrome.windows.remove(job.janelaId).catch(() => {});
+      issJobs.delete(msg.jobId);
+    });
+  } else if (msg.type === 'NOTASMAIL_ISS_CANCEL') {
+    const job = issJobs.get(msg.jobId);
+    if (job && job.origem === tabId) {
+      job.cancelado = true;
+      issEspera.get(job.tabId)?.({ erro: 'Cancelado.' });
+    }
+  }
+});

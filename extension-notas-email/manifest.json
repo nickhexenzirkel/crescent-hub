@@ -1,15 +1,15 @@
 {
   "manifest_version": 3,
   "name": "Uniko — Notas por e-mail",
-  "version": "1.0.0",
-  "description": "Procura no Gmail (contas que você já deixou abertas no Chrome) os PDFs das notas fiscais que o Controle de Notas do Uniko não achou, e devolve os PDFs para o próprio Uniko ler.",
+  "version": "1.1.0",
+  "description": "Baixa em lote os PDFs das NFS-e no ISS Fortaleza e procura no Gmail (contas que você já deixou abertas no Chrome) os PDFs das notas fiscais que o Controle de Notas do Uniko não achou, e devolve os PDFs para o próprio Uniko ler.",
   "icons": {
     "16": "icon.png",
     "48": "icon.png",
     "128": "icon.png"
   },
   "permissions": ["tabs"],
-  "host_permissions": ["https://mail.google.com/*"],
+  "host_permissions": ["https://mail.google.com/*", "https://iss.fortaleza.ce.gov.br/*"],
   "background": {
     "service_worker": "background.js",
     "type": "module"
@@ -28,6 +28,11 @@
     {
       "matches": ["https://mail.google.com/*"],
       "js": ["gmail.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://iss.fortaleza.ce.gov.br/grpfor/pagesPublic/consultarNota.seam*"],
+      "js": ["iss.js"],
       "run_at": "document_idle"
     }
   ],

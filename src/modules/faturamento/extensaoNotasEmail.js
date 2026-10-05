@@ -73,3 +73,39 @@ export const buscarNoEmail = ({ numeros, contas, onLog, onProgresso, onArquivo }
   const cancelar = () => enviar({ type: 'NOTASMAIL_CANCEL', jobId });
   return { promessa, cancelar };
 };
+
+/**
+ * Baixa em lote os PDFs das NFS-e no ISS Fortaleza (consultarNota.seam). `notas` =
+ * [{ numero, codigo }] (número da nota e código de verificação, lidos do XML); a
+ * extensão completa a "chave" da 7Serv sozinha. `onArquivo({ numero, bytes })` é
+ * chamado a cada PDF. Devolve { promessa, cancelar }; a promessa resolve com
+ * { ok, falhas:[{numero, erro}], cancelado }.
+ */
+export const baixarNotasISS = ({ notas, onProgresso, onArquivo }) => {
+  const jobId = `i${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+  let ouvir;
+  const promessa = new Promise((resolve, reject) => {
+    let fila = Promise.resolve();
+    ouvir = (e) => {
+      if (!daPagina(e)) return;
+      const m = e.data;
+      if (!m?.type?.startsWith('NOTASMAIL_') || m.jobId !== jobId) return;
+      if (m.type === 'NOTASMAIL_ISS_PROGRESSO') onProgresso?.(m);
+      else if (m.type === 'NOTASMAIL_ISS_ARQUIVO')
+        fila = fila.then(() => onArquivo?.({ numero: m.numero, bytes: base64ParaBytes(m.base64) })).catch(() => {});
+      else if (m.type === 'NOTASMAIL_ERROR') {
+        window.removeEventListener('message', ouvir);
+        reject(new Error(m.message || 'Falha na extensão.'));
+      } else if (m.type === 'NOTASMAIL_ISS_DONE') {
+        fila.then(() => {
+          window.removeEventListener('message', ouvir);
+          resolve(m);
+        });
+      }
+    };
+    window.addEventListener('message', ouvir);
+    enviar({ type: 'NOTASMAIL_ISS_START', jobId, notas });
+  });
+  const cancelar = () => enviar({ type: 'NOTASMAIL_ISS_CANCEL', jobId });
+  return { promessa, cancelar };
+};
