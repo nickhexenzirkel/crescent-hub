@@ -2439,7 +2439,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
             {IcoBack} Módulos
           </button>
           <div style={{ padding: '12px 6px 18px' }}>
-            <UnikoBrandArt legenda="FIT" logo="/uniko-fit-icon-v2.png" tamanhoLogo={70} alturaNome={30} cores={{ texto: T.text, destaque: ENERGIA }} />
+            <UnikoBrandArt legenda="FIT" logo="/uniko-fit-icon-v2.png" tamanhoLogo={72} alturaNome={30} legendaCentrada tamanhoLegenda={22} cores={{ texto: T.text, destaque: ENERGIA }} />
           </div>
           {[['paravoce', 'Para Você'], ['treinos', 'Treinos'], ['batepapo', 'Bate-Papo'], ['buscar', 'Buscar'], ['meuperfil', 'Meu Perfil']].map(([id, label]) => {
             const on = topTab === id;
@@ -2482,7 +2482,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
             {IcoBack} Módulos
           </button>
           <div style={{ flex: 1 }} />
-          <UnikoBrandArt legenda="FIT" logo="/uniko-fit-icon-v2.png" tamanhoLogo={46} alturaNome={18} compacto cores={{ texto: T.text, destaque: ENERGIA }} />
+          <UnikoBrandArt legenda="FIT" logo="/uniko-fit-icon-v2.png" tamanhoLogo={46} alturaNome={17} legendaCentrada tamanhoLegenda={14} cores={{ texto: T.text, destaque: ENERGIA }} />
           <div style={{ flex: 1 }} />
           <AvatarCircle name={userName} photo={userPhoto} size={28} fontSize={10} />
         </div>

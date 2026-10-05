@@ -34,11 +34,11 @@ const BRAND_CSS = `
 /* Parâmetros opcionais (default = cabeçalho do Portal, idêntico ao de sempre): outro módulo pode
    trocar o mascote (`logo`), o tamanho dele e do nome, as cores (`cores`, quando o módulo tem tema
    próprio) e usar `compacto` (legenda ao lado do nome, numa linha só — barras de 50px). */
-export const UnikoBrandArt = ({ legenda, logo = '/UNIKO_LOGO.png', tamanhoLogo = 62, alturaNome = 30, cores, compacto = false }) => {
+export const UnikoBrandArt = ({ legenda, logo = '/UNIKO_LOGO.png', tamanhoLogo = 62, alturaNome = 30, cores, compacto = false, legendaCentrada = false, tamanhoLegenda }) => {
   const cTexto = cores?.texto || T.text;
   const cDestaque = cores?.destaque || T.gold;
   const legendaEl = (
-    <div style={{ fontFamily:'var(--font-brand)', fontSize: compacto ? 12 : 10, fontWeight:800, letterSpacing:'.06em',
+    <div style={{ fontFamily:'var(--font-brand)', fontSize: tamanhoLegenda || (compacto ? 12 : 10), fontWeight:800, letterSpacing: legendaCentrada ? '.32em' : '.06em', paddingLeft: legendaCentrada ? '.32em' : 0,
       textTransform:'uppercase', color:cDestaque, lineHeight:1.2, whiteSpace:'nowrap' }}>
       {legenda}
     </div>
@@ -51,7 +51,7 @@ export const UnikoBrandArt = ({ legenda, logo = '/UNIKO_LOGO.png', tamanhoLogo =
       <img src={logo} alt="Uniko" className="ub-logo" draggable={false}
         style={{ width:tamanhoLogo, height:tamanhoLogo, flexShrink:0, objectFit:'contain', display:'block',
           animation:'ubFlutua 4.5s ease-in-out infinite' }}/>
-      <div style={{ minWidth:0, display:'flex', flexDirection: compacto ? 'row' : 'column', alignItems: compacto ? 'center' : 'flex-start', gap: compacto ? 8 : 6 }}>
+      <div style={{ minWidth:0, display:'flex', flexDirection: compacto ? 'row' : 'column', alignItems: (compacto || legendaCentrada) ? 'center' : 'flex-start', gap: compacto ? 8 : 6 }}>
         {/* alignSelf/alignItems no início: esticado na coluna, o SVG centralizava o nome. */}
         <svg viewBox="7 7 473 116" role="img" aria-label="UNIKO"
           style={{ height:alturaNome, width:'auto', display:'block', overflow:'visible', color:cTexto }}>
