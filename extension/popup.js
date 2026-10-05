@@ -34,7 +34,7 @@ function render(state, msg) {
   recordingNotice.className = 'recordingNotice' + (recording ? ' show' : '');
 }
 
-chrome.runtime.sendMessage({ type: 'UNIKO_CALL_GET_STATE' }).then((res) => render(res?.state || 'idle')).catch(() => render('idle'));
+chrome.runtime.sendMessage({ type: 'UNIKO_CALL_GET_STATE' }).then((res) => render(res?.state || 'idle', res?.state !== 'recording' ? res?.error : null)).catch(() => render('idle'));
 
 // Abre numa ABA (não pede aqui no popup) — o Chrome não mostra o prompt de
 // permissão direito numa janela de popup de extensão (fecha rápido demais /
@@ -64,7 +64,16 @@ toggleBtn.addEventListener('click', async () => {
       render('idle', 'Abra o WhatsApp Web nesta aba antes de gravar.');
       return;
     }
-    const streamId = await chrome.tabCapture.getMediaStreamId();
+    let streamId;
+    try {
+      streamId = await chrome.tabCapture.getMediaStreamId();
+    } catch (e) {
+      if (!/active stream/i.test(e.message || '')) throw e;
+      // Sobrou uma captura presa (gravador antigo): fecha e tenta de novo, no mesmo clique.
+      await chrome.runtime.sendMessage({ type: 'UNIKO_CALL_RESET' }).catch(() => {});
+      await new Promise(r => setTimeout(r, 700));
+      streamId = await chrome.tabCapture.getMediaStreamId();
+    }
     console.log('[uniko-call] popup: streamId obtido:', streamId);
     // Pergunta o nome pra TODAS as abas do WhatsApp Web abertas, não só a
     // "aba ativa" — achado ao vivo 24/set/2026: mesmo com a ligação em
@@ -105,7 +114,16 @@ toggleBtn.addEventListener('click', async () => {
     console.log('[uniko-call] popup: mandando UNIKO_CALL_START_WITH_STREAM pro background... contactName=', JSON.stringify(contactName));
     await chrome.runtime.sendMessage({ type: 'UNIKO_CALL_START_WITH_STREAM', streamId, contactName });
     console.log('[uniko-call] popup: mensagem enviada, background confirmou recebimento.');
-    render('recording', contentScriptStale ? 'Gravando (sem nome — dá um F5 na aba do WhatsApp)' : null);
+    // Confirma o estado REAL (não assume que deu certo): espera a gravação subir ou o erro aparecer.
+    render('aguardando', 'Iniciando gravação…');
+    let real = null;
+    for (let i = 0; i < 20; i++) {
+      await new Promise(r => setTimeout(r, 400));
+      real = await chrome.runtime.sendMessage({ type: 'UNIKO_CALL_GET_STATE' }).catch(() => null);
+      if (real?.state === 'recording' || real?.error) break;
+    }
+    if (real?.state === 'recording') render('recording', contentScriptStale ? 'Gravando (sem nome — dá um F5 na aba do WhatsApp)' : null);
+    else render('idle', real?.error || 'A gravação não iniciou. Tente de novo.');
   } catch (e) {
     render('idle', `Falhou: ${e.message}`);
   }

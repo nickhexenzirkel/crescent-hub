@@ -102,6 +102,9 @@ chrome.runtime.onMessage.addListener((message) => {
   console.log('[uniko-call] offscreen recebeu mensagem:', message.type);
   if (message.type === 'UNIKO_CALL_START') startCapture(message.streamId, message.contactName).catch((e) => {
     console.error('[uniko-call] falha ao iniciar captura:', e.name, e.message);
+    // Solta o que já tinha sido aberto (ex.: tab ok mas microfone negado), senão a aba fica "presa".
+    [tabStream, micStream].forEach((s) => s?.getTracks().forEach((t) => t.stop()));
+    tabStream = null; micStream = null;
     chrome.runtime.sendMessage({ type: 'UNIKO_CALL_STATE', state: 'capture_error', error: e.message }).catch(() => {});
   });
   if (message.type === 'UNIKO_CALL_STOP') stopCapture();
