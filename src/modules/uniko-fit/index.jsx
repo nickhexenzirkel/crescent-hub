@@ -27,6 +27,7 @@ import { THEMES } from '../../contexts/theme';
 const T = { surfaceW: 'rgba(255,255,255,0.97)', ...THEMES.purpleDark };
 import { USER, getAuthUser, supabase, fetchPhotoByName, SERVER_URL } from '../../contexts/user';
 import { AvatarCircle } from '../../shared/components';
+import { TreinosTab, CargasPainel } from './treinos';
 import { pushSupported, hasActivePushSubscription, ensurePushSubscription } from '../../utils/pushNotify';
 
 const myName = () => { try { return getAuthUser()?.name || USER.name || 'Colaborador'; } catch { return 'Colaborador'; } };
@@ -1095,6 +1096,109 @@ const diasDaSemana = () => {
   });
 };
 
+/* ═══════════════════ MEU PESO — medidor de evolução (set/2026) ═══════════════════
+   Registros PRIVADOS por pessoa (uniko_fit_peso / uniko_fit_peso_meta, ver supabase_uniko_fit_peso.sql).
+   Enquanto o SQL não foi rodado, cai num espelho no localStorage deste aparelho. */
+// mesmas cores do tema do módulo (o componente principal redeclara por dentro — valores idênticos)
+const ENERGIA = '#A855F7';
+const FOGO = '#EC4899';
+const IcoScale = <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M8 9a4 4 0 018 0"/><line x1="12" y1="9" x2="13.6" y2="7"/></svg>;
+const fmtKg = (n) => n.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const parsePeso = (str) => {
+  const n = parseFloat(String(str).trim().replace(',', '.'));
+  return Number.isFinite(n) && n >= 20 && n <= 400 ? Math.round(n * 10) / 10 : null;
+};
+const fmtDiaMes = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+const fmtDiaCompleto = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
+
+// Mensagem de incentivo conforme o momento da pessoa (sempre positiva, sem cobrança).
+const mensagemPeso = (regs, meta) => {
+  if (!regs.length) return { titulo: 'Vamos começar?', texto: 'Registre seu peso de hoje e acompanhe a evolução por aqui. O primeiro passo é o que mais conta.' };
+  const inicial = regs[0].peso, atual = regs[regs.length - 1].peso;
+  const perdido = inicial - atual;
+  if (meta && regs.length > 1) {
+    const dir = meta < inicial ? 1 : -1; // 1 = quer perder, -1 = quer ganhar
+    if (dir * (atual - meta) <= 0) return { titulo: 'Meta alcançada!', texto: `Você chegou nos ${fmtKg(meta)} kg que planejou. Orgulho do seu esforço — agora é manter e comemorar.` };
+  }
+  if (regs.length === 1) return { titulo: 'Primeiro passo dado!', texto: 'Seu ponto de partida está registrado. Volte a pesar com regularidade (1 ou 2 vezes por semana) e veja a linha do gráfico se mexer.' };
+  const ant = regs[regs.length - 2].peso;
+  const delta = atual - ant;
+  if (meta) {
+    const pct = Math.max(0, Math.min(1, (inicial - atual) / (inicial - meta || 1)));
+    if (pct >= 0.75) return { titulo: 'Reta final!', texto: `Mais de 75% do caminho feito — faltam só ${fmtKg(Math.abs(atual - meta))} kg. Não solte agora!` };
+    if (pct >= 0.5) return { titulo: 'Metade do caminho!', texto: `Você já passou da metade da meta. Quem chega até aqui costuma ir até o fim.` };
+  }
+  if (delta < -0.05) return { titulo: 'Tá funcionando!', texto: `Menos ${fmtKg(Math.abs(delta))} kg desde a última pesagem${perdido >= 1 ? ` e ${fmtKg(perdido)} kg no total` : ''}. Continue com a constância, ela é o segredo.` };
+  if (Math.abs(delta) <= 0.05) return { titulo: 'Peso estável', texto: 'Manter o peso também é conquista. Se o objetivo é perder, que tal um treino a mais esta semana?' };
+  if (perdido >= 1) return { titulo: 'Oscilação é normal', texto: `Subiu ${fmtKg(delta)} kg na última pesagem, mas no total você ainda está ${fmtKg(perdido)} kg abaixo do início. O que vale é a tendência.` };
+  return { titulo: 'Calma, é um processo', texto: 'O peso oscila com água, sono e alimentação. Olhe a tendência de semanas, não o dia — e siga firme nos treinos.' };
+};
+
+// Gráfico de linha da evolução (SVG, sem biblioteca) com a meta tracejada
+const PesoGrafico = ({ regs, meta }) => {
+  const W = 340, H = 200, pl = 38, pr = 14, pt = 16, pb = 28;
+  if (!regs.length) return null;
+  const vals = regs.map(r => r.peso).concat(meta ? [meta] : []);
+  let lo = Math.floor(Math.min(...vals) - 1), hi = Math.ceil(Math.max(...vals) + 1);
+  if (hi - lo < 4) { hi += 2; lo -= 2; }
+  const t0 = new Date(regs[0].data + 'T12:00:00').getTime();
+  const t1 = new Date(regs[regs.length - 1].data + 'T12:00:00').getTime();
+  const x = (r, i) => regs.length === 1 ? (pl + (W - pl - pr) / 2) : pl + ((t1 === t0 ? i / (regs.length - 1) : (new Date(r.data + 'T12:00:00').getTime() - t0) / (t1 - t0))) * (W - pl - pr);
+  const y = (v) => pt + (1 - (v - lo) / (hi - lo)) * (H - pt - pb);
+  const pts = regs.map((r, i) => [x(r, i), y(r.peso)]);
+  const linha = pts.map(([a, b], i) => `${i ? 'L' : 'M'}${a.toFixed(1)},${b.toFixed(1)}`).join(' ');
+  const area = `${linha} L${pts[pts.length - 1][0].toFixed(1)},${H - pb} L${pts[0][0].toFixed(1)},${H - pb} Z`;
+  const ticks = [0, 1, 2, 3].map(i => lo + ((hi - lo) * i) / 3);
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block' }}>
+      <defs>
+        <linearGradient id="fitPesoGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={ENERGIA} stopOpacity=".38" /><stop offset="100%" stopColor={ENERGIA} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      {ticks.map((v, i) => (
+        <g key={i}>
+          <line x1={pl} x2={W - pr} y1={y(v)} y2={y(v)} stroke={T.border} strokeWidth="1" strokeDasharray="3 4" />
+          <text x={pl - 6} y={y(v) + 3.5} textAnchor="end" fontSize="10" fill={T.textT}>{Math.round(v)}</text>
+        </g>
+      ))}
+      {meta ? (
+        <g>
+          <line x1={pl} x2={W - pr} y1={y(meta)} y2={y(meta)} stroke="#16a34a" strokeWidth="1.6" strokeDasharray="6 4" />
+          <text x={W - pr} y={y(meta) - 5} textAnchor="end" fontSize="10" fontWeight="700" fill="#16a34a">Meta {fmtKg(meta)} kg</text>
+        </g>
+      ) : null}
+      {regs.length > 1 && <path d={area} fill="url(#fitPesoGrad)" />}
+      {regs.length > 1 && <path d={linha} fill="none" stroke={ENERGIA} strokeWidth="2.6" strokeLinejoin="round" strokeLinecap="round" />}
+      {pts.map(([a, b], i) => (
+        <circle key={i} cx={a} cy={b} r={i === pts.length - 1 ? 5.5 : 3.4} fill={i === pts.length - 1 ? ENERGIA : T.surface || '#fff'} stroke={ENERGIA} strokeWidth="2" />
+      ))}
+      <text x={pts[pts.length - 1][0]} y={pts[pts.length - 1][1] - 11} textAnchor={pts.length > 1 ? 'end' : 'middle'} fontSize="11" fontWeight="800" fill={T.text}>{fmtKg(regs[regs.length - 1].peso)}</text>
+      <text x={pl} y={H - 8} fontSize="10" fill={T.textT}>{fmtDiaMes(regs[0].data)}</text>
+      {regs.length > 1 && <text x={W - pr} y={H - 8} textAnchor="end" fontSize="10" fill={T.textT}>{fmtDiaMes(regs[regs.length - 1].data)}</text>}
+    </svg>
+  );
+};
+
+// Medidor semicircular do progresso até a meta (0–100%)
+const PesoMedidor = ({ pct, rotulo }) => {
+  const R = 70, len = Math.PI * R, v = Math.max(0, Math.min(1, pct));
+  return (
+    <svg viewBox="0 0 180 112" width="100%" style={{ display: 'block', maxWidth: 240, margin: '0 auto' }}>
+      <defs>
+        <linearGradient id="fitPesoMed" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor={FOGO} /><stop offset="100%" stopColor="#22c55e" />
+        </linearGradient>
+      </defs>
+      <path d="M20 90 A70 70 0 0 1 160 90" fill="none" stroke={T.border} strokeWidth="14" strokeLinecap="round" />
+      <path d="M20 90 A70 70 0 0 1 160 90" fill="none" stroke="url(#fitPesoMed)" strokeWidth="14" strokeLinecap="round"
+        strokeDasharray={`${len * v} ${len}`} style={{ transition: 'stroke-dasharray .8s ease' }} />
+      <text x="90" y="82" textAnchor="middle" fontSize="28" fontWeight="800" fill={T.text} fontFamily="var(--font-brand)">{Math.round(v * 100)}%</text>
+      <text x="90" y="102" textAnchor="middle" fontSize="10.5" fill={T.textT}>{rotulo}</text>
+    </svg>
+  );
+};
+
 // Computador (tela larga + mouse): o Uniko FIT troca o layout de celular por
 // barra lateral + coluna central. No celular/tablet nada muda.
 const DESK_MQ = '(min-width: 1000px) and (pointer: fine)';
@@ -1871,10 +1975,66 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
     setSheet(id);
     if ((id === 'ranking' || id === 'amigos' || id === 'desafios') && !fullFeed) loadFullFeed();
     if (id === 'checkin' || id === 'desafios') verificarCheckinHoje();
+    if (id === 'peso') { setPesoDia(diaLocalISO(new Date())); carregarPeso(); }
   };
 
   const [rankPeriodo, setRankPeriodo] = useState('mes'); // mes | total
   const [rankMes, setRankMes] = useState(null); // 'YYYY-MM' escolhido; null = mês atual
+
+  /* ═══════════════════ MEU PESO ═══════════════════ */
+  const chavePesoLocal = `uniko_fit_peso_${name}`;
+  const [pesoRegs, setPesoRegs] = useState(null);     // [{ data:'YYYY-MM-DD', peso:number }] em ordem de data; null = carregando
+  const [pesoMeta, setPesoMeta] = useState(null);     // number | null
+  const [pesoSoLocal, setPesoSoLocal] = useState(false); // true = banco indisponível (SQL não rodado) → só neste aparelho
+  const [pesoInput, setPesoInput] = useState('');
+  const [pesoDia, setPesoDia] = useState(() => diaLocalISO(new Date()));
+  const [pesoMetaInput, setPesoMetaInput] = useState('');
+  const [pesoErro, setPesoErro] = useState('');
+  const salvarPesoLocal = (regs, meta) => { try { localStorage.setItem(chavePesoLocal, JSON.stringify({ regs, meta })); } catch { /* sem armazenamento */ } };
+  const lerPesoLocal = () => { try { return JSON.parse(localStorage.getItem(chavePesoLocal) || 'null') || { regs: [], meta: null }; } catch { return { regs: [], meta: null }; } };
+  const carregarPeso = useCallback(async () => {
+    const [r, m] = await Promise.all([
+      supabase.from('uniko_fit_peso').select('data,peso').eq('player', name).order('data', { ascending: true }).limit(1000),
+      supabase.from('uniko_fit_peso_meta').select('meta').eq('player', name).maybeSingle(),
+    ]);
+    if (r.error) { // tabela ainda não existe (ou sem permissão): usa o espelho local
+      const l = lerPesoLocal();
+      setPesoSoLocal(true); setPesoRegs(l.regs || []); setPesoMeta(l.meta || null);
+      return;
+    }
+    const regs = (r.data || []).map(x => ({ data: x.data, peso: Number(x.peso) }));
+    const meta = m.data?.meta != null ? Number(m.data.meta) : null;
+    setPesoSoLocal(false); setPesoRegs(regs); setPesoMeta(meta); salvarPesoLocal(regs, meta);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [name]);
+  const registrarPeso = async () => {
+    const peso = parsePeso(pesoInput);
+    if (peso == null) { setPesoErro('Digite um peso válido em kg (ex: 82,5).'); return; }
+    if (!pesoDia || pesoDia > diaLocalISO(new Date())) { setPesoErro('Escolha uma data de hoje ou anterior.'); return; }
+    setPesoErro('');
+    const regs = [...(pesoRegs || []).filter(x => x.data !== pesoDia), { data: pesoDia, peso }].sort((a, b) => a.data.localeCompare(b.data));
+    setPesoRegs(regs); setPesoInput(''); salvarPesoLocal(regs, pesoMeta);
+    if (!pesoSoLocal) {
+      const { error } = await supabase.from('uniko_fit_peso').upsert({ player: name, data: pesoDia, peso }, { onConflict: 'player,data' });
+      if (error) setPesoSoLocal(true);
+    }
+  };
+  const apagarPeso = async (data) => {
+    const regs = (pesoRegs || []).filter(x => x.data !== data);
+    setPesoRegs(regs); salvarPesoLocal(regs, pesoMeta);
+    if (!pesoSoLocal) await supabase.from('uniko_fit_peso').delete().eq('player', name).eq('data', data);
+  };
+  const salvarMetaPeso = async () => {
+    const meta = pesoMetaInput.trim() === '' ? null : parsePeso(pesoMetaInput);
+    if (pesoMetaInput.trim() !== '' && meta == null) { setPesoErro('Meta inválida — digite em kg (ex: 75).'); return; }
+    setPesoErro(''); setPesoMeta(meta); setPesoMetaInput(''); salvarPesoLocal(pesoRegs || [], meta);
+    if (!pesoSoLocal) {
+      const { error } = meta == null
+        ? await supabase.from('uniko_fit_peso_meta').delete().eq('player', name)
+        : await supabase.from('uniko_fit_peso_meta').upsert({ player: name, meta, updated_at: new Date().toISOString() }, { onConflict: 'player' });
+      if (error) setPesoSoLocal(true);
+    }
+  };
   const rankingData = useMemo(() => {
     if (!fullFeed) return null;
     const now = new Date();
@@ -2199,6 +2359,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
     // { id: 'desafios', label: 'Desafios',       icon: IcoTarget },
     { id: 'ranking',  label: 'Ranking',        icon: IcoTrophy },
     { id: 'post',     label: 'Postar no Feed', icon: IcoPost },
+    { id: 'peso',     label: 'Meu Peso',       icon: IcoScale },
     { id: 'notif',    label: 'Notificações',   icon: IcoBell },
     { id: 'amigos',   label: 'Amigos',         icon: IcoInfo },
   ];
@@ -2261,7 +2422,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
             <img src="/uniko-fit-icon.png" alt="Uniko FIT" style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
             <div style={{ fontSize: 20, fontWeight: 800, color: T.text, fontFamily: 'var(--font-brand)', letterSpacing: '.02em', lineHeight: 1 }}>Uniko FIT</div>
           </div>
-          {[['paravoce', 'Para Você'], ['batepapo', 'Bate-Papo'], ['buscar', 'Buscar'], ['meuperfil', 'Meu Perfil']].map(([id, label]) => {
+          {[['paravoce', 'Para Você'], ['treinos', 'Treinos'], ['batepapo', 'Bate-Papo'], ['buscar', 'Buscar'], ['meuperfil', 'Meu Perfil']].map(([id, label]) => {
             const on = topTab === id;
             return (
               <button key={id} onClick={() => (id === 'paravoce' && on) ? recarregarFeed() : setTopTab(id)} className="fit-btn fit-side-btn"
@@ -2311,13 +2472,13 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
 
         {/* Abas centralizadas */}
         {/* gap menor que os 20 originais — com a aba "Buscar" são 4 e precisam caber em tela de celular estreita */}
-        <div style={{ height: 44, boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, background: cardBg, borderBottom: `1px solid ${T.border}` }}>
-          {[['paravoce', 'Para Você'], ['batepapo', 'Bate-Papo'], ['buscar', 'Buscar'], ['meuperfil', 'Meu Perfil']].map(([id, label]) => {
+        <div style={{ height: 44, boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 11, background: cardBg, borderBottom: `1px solid ${T.border}` }}>
+          {[['paravoce', 'Para Você'], ['treinos', 'Treinos'], ['batepapo', 'Bate-Papo'], ['buscar', 'Buscar'], ['meuperfil', 'Meu Perfil']].map(([id, label]) => {
             const on = topTab === id;
             // Clicar de novo na aba Para Você já ativa recarrega o feed, estilo TikTok.
             return (
               <button key={id} onClick={() => (id === 'paravoce' && on) ? recarregarFeed() : setTopTab(id)} className="fit-btn"
-                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '5px 1px 9px', fontSize: 13.5, fontWeight: 800, fontFamily: 'var(--font-brand)', whiteSpace: 'nowrap',
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '5px 1px 9px', fontSize: 13, fontWeight: 800, fontFamily: 'var(--font-brand)', whiteSpace: 'nowrap',
                   color: on ? ENERGIA : T.textT, borderBottom: on ? `3px solid ${ENERGIA}` : '3px solid transparent' }}>
                 {label}
               </button>
@@ -2522,6 +2683,12 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
               })}
             </div>
           )
+        )}
+
+        {/* ── TREINOS (biblioteca por grupo muscular, treino do dia/semana, atalho pra progressão de carga) ── */}
+        {topTab === 'treinos' && (
+          <TreinosTab T={T} ENERGIA={ENERGIA} FOGO={FOGO} EG={EG} supabase={supabase} desk={desk}
+            podeCurar={['admin', 'moderador'].includes(authUser?.role)} onAbrirCargas={() => openSheet('cargas')} />
         )}
 
         {/* ── BATE-PAPO (chat global: texto, emoji, imagem, áudio, avisos de check-in) ── */}
@@ -3223,6 +3390,137 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
               );
             })()}
           </div>
+        </Sheet>
+      )}
+
+      {/* ── Progressão de carga por máquina (privado) ── */}
+      {sheet === 'cargas' && (
+        <Sheet title="Progressão de carga" onClose={() => setSheet(null)}>
+          <CargasPainel T={T} ENERGIA={ENERGIA} FOGO={FOGO} EG={EG} supabase={supabase} name={name} />
+        </Sheet>
+      )}
+
+      {/* ── Meu Peso: medidor + gráfico de evolução + mensagens de incentivo (dados privados) ── */}
+      {sheet === 'peso' && (
+        <Sheet title="Meu Peso" onClose={() => setSheet(null)}>
+          {pesoRegs === null ? (
+            <div style={{ textAlign: 'center', padding: 40, color: T.textT, fontSize: 13 }}>Carregando...</div>
+          ) : (() => {
+            const regs = pesoRegs;
+            const inicial = regs[0]?.peso, atual = regs[regs.length - 1]?.peso;
+            const perdido = regs.length ? inicial - atual : 0;
+            const pct = pesoMeta && regs.length > 1 && inicial !== pesoMeta ? (inicial - atual) / (inicial - pesoMeta) : null;
+            const msg = mensagemPeso(regs, pesoMeta);
+            const caixa = { background: T.surfaceSub || 'rgba(128,128,128,.08)', border: `1px solid ${T.border}`, borderRadius: 14 };
+            const campo = { padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${T.border}`, background: T.page || '#fff', color: T.text, fontSize: 14, outline: 'none', fontFamily: 'var(--font-body)', boxSizing: 'border-box' };
+            return (
+              <div style={{ padding: '16px 16px 26px' }}>
+                {pesoSoLocal && (
+                  <div style={{ fontSize: 11.5, color: T.textT, background: 'rgba(245,158,11,.12)', border: '1px solid rgba(245,158,11,.35)', borderRadius: 10, padding: '8px 11px', marginBottom: 12, lineHeight: 1.45 }}>
+                    Salvando só neste aparelho por enquanto (o banco ainda não foi preparado).
+                  </div>
+                )}
+
+                {/* mensagem de incentivo */}
+                <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: '13px 14px', borderRadius: 14, marginBottom: 14, color: '#fff', background: `linear-gradient(135deg, ${ENERGIA}, ${FOGO})`, boxShadow: `0 8px 22px ${EG}` }}>
+                  <span style={{ display: 'flex', marginTop: 1 }}>{IcoFlame}</span>
+                  <div>
+                    <div style={{ fontFamily: 'var(--font-brand)', fontSize: 15.5, fontWeight: 800, marginBottom: 3 }}>{msg.titulo}</div>
+                    <div style={{ fontSize: 12.5, lineHeight: 1.5, opacity: .96 }}>{msg.texto}</div>
+                  </div>
+                </div>
+
+                {/* registrar */}
+                <div style={{ ...caixa, padding: 13, marginBottom: 14 }}>
+                  <SecaoLabel icon={IcoScale}>Registrar peso</SecaoLabel>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <input value={pesoInput} onChange={e => setPesoInput(e.target.value)} inputMode="decimal" placeholder="Peso em kg (ex: 82,5)"
+                      onKeyDown={e => { if (e.key === 'Enter') registrarPeso(); }} style={{ ...campo, flex: '1 1 140px', minWidth: 0 }} />
+                    <input type="date" value={pesoDia} max={diaLocalISO(new Date())} onChange={e => setPesoDia(e.target.value)} style={{ ...campo, flex: '0 1 150px' }} />
+                    <button onClick={registrarPeso} className="fit-btn"
+                      style={{ padding: '10px 18px', borderRadius: 10, border: 'none', background: ENERGIA, color: '#fff', fontWeight: 800, fontSize: 13.5, cursor: 'pointer' }}>Salvar</button>
+                  </div>
+                  {pesoErro && <div style={{ color: '#DC3232', fontSize: 12, marginTop: 8 }}>{pesoErro}</div>}
+                  <div style={{ fontSize: 11, color: T.textT, marginTop: 8 }}>Só você vê esses dados. Um registro por dia — salvar de novo no mesmo dia substitui o anterior.</div>
+                </div>
+
+                {regs.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '28px 12px', color: T.textT }}>
+                    <div style={{ color: T.textD, display: 'flex', justifyContent: 'center', marginBottom: 8 }}>{IcoScale}</div>
+                    <div style={{ fontSize: 13 }}>Seu gráfico aparece aqui assim que você registrar o primeiro peso.</div>
+                  </div>
+                ) : (
+                  <>
+                    {/* números */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 14 }}>
+                      {[
+                        ['Início', `${fmtKg(inicial)} kg`, T.text],
+                        ['Atual', `${fmtKg(atual)} kg`, T.text],
+                        [perdido > 0.04 ? 'Perdeu' : perdido < -0.04 ? 'Ganhou' : 'Variação', `${perdido > 0.04 ? '−' : perdido < -0.04 ? '+' : ''}${fmtKg(Math.abs(perdido))} kg`, perdido > 0.04 ? '#16a34a' : T.text],
+                      ].map(([rot, val, cor]) => (
+                        <div key={rot} style={{ ...caixa, padding: '11px 6px', textAlign: 'center' }}>
+                          <div style={{ fontSize: 15.5, fontWeight: 800, color: cor, fontFamily: 'var(--font-brand)' }}>{val}</div>
+                          <div style={{ fontSize: 10.5, color: T.textT, marginTop: 2 }}>{rot}</div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* medidor da meta */}
+                    <div style={{ ...caixa, padding: '14px 12px 12px', marginBottom: 14 }}>
+                      {pesoMeta && pct != null ? (
+                        <>
+                          <PesoMedidor pct={pct} rotulo={`rumo aos ${fmtKg(pesoMeta)} kg`} />
+                          <div style={{ textAlign: 'center', fontSize: 12.5, color: T.textS, marginTop: 4 }}>
+                            {Math.abs(atual - pesoMeta) < 0.05 || pct >= 1 ? 'Meta alcançada!' : <>Faltam <b style={{ color: T.text }}>{fmtKg(Math.abs(atual - pesoMeta))} kg</b> para a meta</>}
+                          </div>
+                        </>
+                      ) : (
+                        <div style={{ textAlign: 'center', fontSize: 12.5, color: T.textT, padding: '6px 4px' }}>
+                          {pesoMeta ? 'Registre mais um peso para ver o medidor da meta.' : 'Defina uma meta de peso para ligar o medidor de progresso.'}
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', gap: 8, marginTop: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+                        <input value={pesoMetaInput} onChange={e => setPesoMetaInput(e.target.value)} inputMode="decimal" placeholder={pesoMeta ? `Meta atual: ${fmtKg(pesoMeta)} kg` : 'Meta em kg (ex: 75)'}
+                          onKeyDown={e => { if (e.key === 'Enter') salvarMetaPeso(); }} style={{ ...campo, width: 170, padding: '8px 11px', fontSize: 13 }} />
+                        <button onClick={salvarMetaPeso} className="fit-btn"
+                          style={{ padding: '8px 14px', borderRadius: 10, border: `1.5px solid ${ENERGIA}`, background: 'transparent', color: ENERGIA, fontWeight: 800, fontSize: 12.5, cursor: 'pointer' }}>{pesoMeta ? 'Trocar meta' : 'Definir meta'}</button>
+                        {pesoMeta && (
+                          <button onClick={() => { setPesoMetaInput(''); (async () => { setPesoMeta(null); salvarPesoLocal(pesoRegs || [], null); if (!pesoSoLocal) await supabase.from('uniko_fit_peso_meta').delete().eq('player', name); })(); }} className="fit-btn"
+                            style={{ padding: '8px 12px', borderRadius: 10, border: `1.5px solid ${T.border}`, background: 'transparent', color: T.textS, fontSize: 12.5, cursor: 'pointer' }}>Remover</button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* gráfico */}
+                    <div style={{ ...caixa, padding: '12px 10px 6px', marginBottom: 14 }}>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: T.textS, margin: '0 4px 6px', textTransform: 'uppercase', letterSpacing: .3 }}>Evolução</div>
+                      <PesoGrafico regs={regs} meta={pesoMeta} />
+                    </div>
+
+                    {/* histórico */}
+                    <SecaoLabel icon={IcoLib}>Histórico</SecaoLabel>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {[...regs].reverse().slice(0, 12).map((r) => {
+                        const i = regs.findIndex(x => x.data === r.data);
+                        const d = i > 0 ? r.peso - regs[i - 1].peso : null;
+                        return (
+                          <div key={r.data} style={{ ...caixa, display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 11 }}>
+                            <div style={{ fontSize: 12, color: T.textT, width: 78 }}>{fmtDiaCompleto(r.data)}</div>
+                            <div style={{ flex: 1, fontSize: 14, fontWeight: 800, color: T.text }}>{fmtKg(r.peso)} kg</div>
+                            {d != null && Math.abs(d) >= 0.05 && (
+                              <div style={{ fontSize: 12, fontWeight: 800, color: d < 0 ? '#16a34a' : '#DC3232' }}>{d < 0 ? '↓' : '↑'} {fmtKg(Math.abs(d))}</div>
+                            )}
+                            <button onClick={() => apagarPeso(r.data)} className="fit-btn" title="Apagar registro"
+                              style={{ border: 'none', background: 'none', cursor: 'pointer', color: T.textD, display: 'flex', padding: 4 }}>{IcoTrash}</button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+              </div>
+            );
+          })()}
         </Sheet>
       )}
 
