@@ -122,17 +122,20 @@ const MidiaCard = ({ m, T, ENERGIA, FOGO, podeCurar, onApagar }) => {
   );
 };
 
-/* ═══════════════ Editor: escolher grupos + máquinas de um treino ═══════════════ */
-const EditorTreino = ({ T, ENERGIA, FOGO, EG, titulo, sub, inicial, colecao, onSalvar, onSalvarNaColecao, onDescanso, onCancelar }) => {
+/* ═══════════════ Editor: montar o treino de um dia, em 3 passos ═══════════════ */
+const EditorTreino = ({ T, ENERGIA, FOGO, EG, titulo, inicial, colecao, onSalvar, onSalvarNaColecao, onDescanso, onCancelar }) => {
   const [nome, setNome] = useState(inicial?.nome || '');
-  const [sel, setSel] = useState(() => { const m = {}; (inicial?.grupos || []).forEach(g => { m[g.grupo] = [...g.exercicios]; }); return m; }); // grupoId -> [exercícios]
+  const [sel, setSel] = useState(() => { const m = {}; (inicial?.grupos || []).forEach(g => { m[g.grupo] = [...g.exercicios]; }); return m; }); // grupoId -> [exercícios escolhidos]
   const [custom, setCustom] = useState({});
   const [erro, setErro] = useState('');
-  const campo = { padding: '9px 11px', borderRadius: 10, border: `1.5px solid ${T.border}`, background: T.page || '#fff', color: T.text, fontSize: 13.5, outline: 'none', fontFamily: 'var(--font-body)', boxSizing: 'border-box' };
+  const campo = { padding: '12px 13px', borderRadius: 12, border: `1.5px solid ${T.border}`, background: T.surface, color: T.text, fontSize: 14.5, outline: 'none', fontFamily: 'var(--font-body)', boxSizing: 'border-box' };
   const caixa = { background: T.surface, border: `1px solid ${T.border}`, borderRadius: 16 };
+  const total = Object.values(sel).reduce((n, l) => n + l.length, 0);
 
   const alternarGrupo = (id) => setSel(s0 => { const n = { ...s0 }; if (n[id]) delete n[id]; else n[id] = []; return n; });
   const alternarEx = (gid, ex) => setSel(s0 => { const l = s0[gid] || []; return { ...s0, [gid]: l.includes(ex) ? l.filter(x => x !== ex) : [...l, ex] }; });
+  const marcarTodas = (gid, opcoes) => setSel(s0 => ({ ...s0, [gid]: [...opcoes] }));
+  const limpar = (gid) => setSel(s0 => ({ ...s0, [gid]: [] }));
   const adicionarCustom = (gid) => {
     const t = (custom[gid] || '').trim().replace(/\s+/g, ' ');
     if (!t) return;
@@ -147,118 +150,147 @@ const EditorTreino = ({ T, ENERGIA, FOGO, EG, titulo, sub, inicial, colecao, onS
   };
   const montar = () => ({ id: inicial?.id || novoId(), nome: nome.trim(), grupos: GRUPOS.filter(g => sel[g.id]).map(g => ({ grupo: g.id, exercicios: sel[g.id] })) });
   const validar = () => {
-    if (!Object.keys(sel).length) { setErro('Escolha pelo menos um grupo muscular.'); return false; }
+    if (!Object.keys(sel).length) { setErro('Escolha pelo menos um músculo no passo 1.'); return false; }
+    if (!total) { setErro('Marque pelo menos uma máquina ou exercício no passo 2.'); return false; }
     setErro(''); return true;
   };
+  const Passo = ({ n, children, sub }) => (
+    <div style={{ margin: '20px 2px 10px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span style={{ width: 26, height: 26, borderRadius: '50%', background: ENERGIA, color: '#fff', fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{n}</span>
+        <span style={{ fontFamily: 'var(--font-brand)', fontSize: 16.5, fontWeight: 800, color: T.text }}>{children}</span>
+      </div>
+      {sub && <div style={{ fontSize: 12.5, color: T.textT, margin: '4px 0 0 36px' }}>{sub}</div>}
+    </div>
+  );
 
   return (
-    <div className="fit-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '16px 14px 28px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-        <button onClick={onCancelar} className="fit-btn" style={{ width: 36, height: 36, borderRadius: '50%', border: `1.5px solid ${T.border}`, background: 'transparent', color: T.text, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{IcoVoltar}</button>
-        <div>
-          <div style={{ fontFamily: 'var(--font-brand)', fontSize: 18, fontWeight: 800, color: T.text }}>{titulo}</div>
-          {sub && <div style={{ fontSize: 12, color: T.textT }}>{sub}</div>}
+    <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+      <div className="fit-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '16px 14px 12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <button onClick={onCancelar} className="fit-btn" aria-label="Voltar" style={{ width: 40, height: 40, borderRadius: '50%', border: `1.5px solid ${T.border}`, background: T.surface, color: T.text, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{IcoVoltar}</button>
+          <div style={{ fontFamily: 'var(--font-brand)', fontSize: 19, fontWeight: 800, color: T.text }}>{titulo}</div>
         </div>
-      </div>
 
-      <div style={{ ...caixa, padding: 13, marginBottom: 12 }}>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <input value={nome} onChange={e => setNome(e.target.value)} placeholder="Nome do treino (ex: Treino A — Peito e tríceps)" style={{ ...campo, flex: '1 1 220px', minWidth: 0 }} />
-          {(colecao.length > 0 || PRESETS.length > 0) && (
-            <select value="" onChange={e => { if (e.target.value) carregarDe(e.target.value); }} style={{ ...campo, flex: '1 1 160px', minWidth: 0, cursor: 'pointer' }}>
-              <option value="">Carregar da coleção…</option>
-              {colecao.length > 0 && <optgroup label="Meus treinos">{colecao.map(t => <option key={t.id} value={t.id}>{t.nome || 'Sem nome'}</option>)}</optgroup>}
-              <optgroup label="Sugestões prontas">{PRESETS.map(t => <option key={t.id} value={t.id}>{t.nome}</option>)}</optgroup>
-            </select>
-          )}
+        <div style={{ ...caixa, padding: '10px 12px', marginTop: 14, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 13, color: T.textS, flex: '1 1 150px' }}>Quer ganhar tempo? Comece de um treino pronto:</span>
+          <select value="" onChange={e => { if (e.target.value) carregarDe(e.target.value); }} style={{ ...campo, padding: '9px 10px', fontSize: 13, flex: '1 1 170px', minWidth: 0, cursor: 'pointer' }}>
+            <option value="">Escolher treino…</option>
+            {colecao.length > 0 && <optgroup label="Meus treinos">{colecao.map(t => <option key={t.id} value={t.id}>{t.nome || 'Sem nome'}</option>)}</optgroup>}
+            <optgroup label="Sugestões prontas">{PRESETS.map(t => <option key={t.id} value={t.id}>{t.nome}</option>)}</optgroup>
+          </select>
         </div>
-      </div>
 
-      <div style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: .3, textTransform: 'uppercase', color: T.textT, margin: '14px 2px 8px' }}>1. Quais grupos?</div>
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
-        {GRUPOS.map(g => {
-          const on = !!sel[g.id];
+        <Passo n="1" sub="Toque para marcar. Pode escolher mais de um.">Quais músculos você vai treinar?</Passo>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(112px, 1fr))', gap: 8 }}>
+          {GRUPOS.map(g => {
+            const on = !!sel[g.id];
+            return (
+              <button key={g.id} onClick={() => alternarGrupo(g.id)} className="fit-btn"
+                style={{ minHeight: 46, padding: '8px 10px', borderRadius: 12, cursor: 'pointer', fontSize: 13.5, fontWeight: 800, border: `2px solid ${on ? ENERGIA : T.border}`, background: on ? ENERGIA : T.surface, color: on ? '#fff' : T.text }}>
+                {on ? '✓ ' : ''}{g.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {Object.keys(sel).length > 0 && <Passo n="2" sub="Toque na máquina para marcar. Não achou a sua? Escreva o nome no campo e toque em Adicionar.">Escolha as máquinas e exercícios</Passo>}
+        {GRUPOS.filter(g => sel[g.id]).map(g => {
+          const marcados = sel[g.id];
+          const opcoes = [...new Set([...opcoesDoGrupo(g.id), ...marcados])];
           return (
-            <button key={g.id} onClick={() => alternarGrupo(g.id)} className="fit-btn"
-              style={{ padding: '8px 14px', borderRadius: 999, cursor: 'pointer', fontSize: 12.5, fontWeight: 800, border: `1.5px solid ${on ? ENERGIA : T.border}`, background: on ? ENERGIA : 'transparent', color: on ? '#fff' : T.textS }}>{g.label}</button>
+            <div key={g.id} style={{ ...caixa, padding: '12px 12px 14px', marginBottom: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+                <span style={{ fontFamily: 'var(--font-brand)', fontSize: 16, fontWeight: 800, color: ENERGIA }}>{g.label}</span>
+                <span style={{ fontSize: 12, color: T.textT }}>{marcados.length} marcada{marcados.length !== 1 ? 's' : ''}</span>
+                <div style={{ flex: 1 }} />
+                <button onClick={() => marcarTodas(g.id, opcoes)} className="fit-btn" style={{ border: 'none', background: 'none', color: ENERGIA, fontSize: 12.5, fontWeight: 700, cursor: 'pointer', padding: '4px 6px' }}>Marcar todas</button>
+                <button onClick={() => limpar(g.id)} className="fit-btn" style={{ border: 'none', background: 'none', color: T.textT, fontSize: 12.5, fontWeight: 700, cursor: 'pointer', padding: '4px 6px' }}>Limpar</button>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {opcoes.map(ex => {
+                  const on = marcados.includes(ex);
+                  return (
+                    <button key={ex} onClick={() => alternarEx(g.id, ex)} className="fit-btn"
+                      style={{ display: 'flex', alignItems: 'center', gap: 12, minHeight: 46, padding: '8px 12px', borderRadius: 12, cursor: 'pointer', textAlign: 'left',
+                        border: `1.5px solid ${on ? ENERGIA : T.border}`, background: on ? `${ENERGIA}14` : T.page }}>
+                      <span style={{ width: 22, height: 22, borderRadius: 7, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: on ? ENERGIA : 'transparent', border: `2px solid ${on ? ENERGIA : T.textD}`, color: '#fff', fontSize: 14, fontWeight: 800 }}>{on ? '✓' : ''}</span>
+                      <span style={{ flex: 1, fontSize: 14, fontWeight: on ? 800 : 600, color: T.text }}>{ex}</span>
+                      {serieDe(g.id, ex) && <span style={{ fontSize: 11.5, color: T.textT, whiteSpace: 'nowrap' }}>{serieDe(g.id, ex)}</span>}
+                    </button>
+                  );
+                })}
+              </div>
+              <div style={{ marginTop: 12, padding: 10, borderRadius: 12, border: `1.5px dashed ${ENERGIA}`, background: `${ENERGIA}0D` }}>
+                <div style={{ fontSize: 12.5, fontWeight: 800, color: ENERGIA, marginBottom: 7 }}>+ Minha máquina / exercício (escrever)</div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input value={custom[g.id] || ''} onChange={e => setCustom(c => ({ ...c, [g.id]: e.target.value }))} placeholder="Ex: Remada articulada" onKeyDown={e => { if (e.key === 'Enter') adicionarCustom(g.id); }} style={{ ...campo, flex: 1, minWidth: 0 }} />
+                  <button onClick={() => adicionarCustom(g.id)} className="fit-btn" style={{ padding: '0 18px', borderRadius: 12, border: 'none', background: ENERGIA, color: '#fff', fontWeight: 800, fontSize: 13.5, cursor: 'pointer' }}>Adicionar</button>
+                </div>
+              </div>
+            </div>
           );
         })}
+
+        <Passo n={Object.keys(sel).length > 0 ? '3' : '2'} sub="Só se quiser. Ajuda a achar o treino depois na coleção.">Dê um nome (opcional)</Passo>
+        <input value={nome} onChange={e => setNome(e.target.value)} placeholder="Ex: Treino A — Peito e tríceps" style={{ ...campo, width: '100%' }} />
+        {erro && <div style={{ color: '#DC3232', fontSize: 13, fontWeight: 700, margin: '12px 2px 0' }}>{erro}</div>}
       </div>
 
-      {Object.keys(sel).length > 0 && <div style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: .3, textTransform: 'uppercase', color: T.textT, margin: '4px 2px 8px' }}>2. Quais máquinas / exercícios?</div>}
-      {GRUPOS.filter(g => sel[g.id]).map(g => {
-        const marcados = sel[g.id];
-        const opcoes = [...new Set([...opcoesDoGrupo(g.id), ...marcados])];
-        return (
-          <div key={g.id} style={{ ...caixa, padding: '12px 14px', marginBottom: 12 }}>
-            <div style={{ fontFamily: 'var(--font-brand)', fontSize: 15, fontWeight: 800, color: ENERGIA, marginBottom: 6 }}>{g.label} <span style={{ fontSize: 11.5, fontWeight: 600, color: T.textT }}>· {marcados.length} escolhido{marcados.length !== 1 ? 's' : ''}</span></div>
-            {opcoes.map(ex => {
-              const on = marcados.includes(ex);
-              return (
-                <label key={ex} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', cursor: 'pointer', borderTop: `1px solid ${T.border}` }}>
-                  <input type="checkbox" checked={on} onChange={() => alternarEx(g.id, ex)} style={{ width: 18, height: 18, accentColor: ENERGIA, cursor: 'pointer', flexShrink: 0 }} />
-                  <span style={{ flex: 1, fontSize: 13.5, fontWeight: on ? 800 : 600, color: on ? T.text : T.textS }}>{ex}</span>
-                  {serieDe(g.id, ex) && <span style={{ fontSize: 11.5, color: T.textT }}>{serieDe(g.id, ex)}</span>}
-                </label>
-              );
-            })}
-            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-              <input value={custom[g.id] || ''} onChange={e => setCustom(c => ({ ...c, [g.id]: e.target.value }))} placeholder="Outra máquina / exercício…" onKeyDown={e => { if (e.key === 'Enter') adicionarCustom(g.id); }} style={{ ...campo, flex: 1, minWidth: 0 }} />
-              <button onClick={() => adicionarCustom(g.id)} className="fit-btn" style={{ padding: '9px 14px', borderRadius: 10, border: `1.5px solid ${ENERGIA}`, background: 'transparent', color: ENERGIA, fontWeight: 800, fontSize: 12.5, cursor: 'pointer' }}>Adicionar</button>
-            </div>
-          </div>
-        );
-      })}
-
-      {erro && <div style={{ color: '#DC3232', fontSize: 12.5, margin: '6px 2px 10px' }}>{erro}</div>}
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
-        <button onClick={() => { if (validar()) onSalvar(montar()); }} className="fit-btn" style={{ flex: '2 1 160px', padding: '12px', borderRadius: 12, border: 'none', background: `linear-gradient(135deg, ${ENERGIA}, ${FOGO})`, color: '#fff', fontWeight: 800, fontSize: 14, cursor: 'pointer', boxShadow: `0 6px 18px ${EG}` }}>Salvar treino</button>
-        {onSalvarNaColecao && (
-          <button onClick={() => { if (!validar()) return; if (!nome.trim()) { setErro('Dê um nome ao treino para guardar na coleção.'); return; } onSalvarNaColecao(montar()); }} className="fit-btn"
-            style={{ flex: '1 1 140px', padding: '12px', borderRadius: 12, border: `1.5px solid ${ENERGIA}`, background: 'transparent', color: ENERGIA, fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>Salvar + guardar na coleção</button>
-        )}
-        {onDescanso && (
-          <button onClick={onDescanso} className="fit-btn" style={{ flex: '1 1 110px', padding: '12px', borderRadius: 12, border: `1.5px solid ${T.border}`, background: 'transparent', color: T.textS, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Dia de descanso</button>
-        )}
+      {/* barra de ações sempre visível */}
+      <div style={{ padding: '10px 14px 12px', borderTop: `1px solid ${T.border}`, background: T.surface }}>
+        <button onClick={() => { if (validar()) onSalvar(montar()); }} className="fit-btn"
+          style={{ width: '100%', minHeight: 50, borderRadius: 14, border: 'none', background: `linear-gradient(135deg, ${ENERGIA}, ${FOGO})`, color: '#fff', fontWeight: 800, fontSize: 15.5, cursor: 'pointer', boxShadow: `0 6px 18px ${EG}` }}>
+          Salvar treino{total ? ` · ${total} exercício${total !== 1 ? 's' : ''}` : ''}
+        </button>
+        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+          {onSalvarNaColecao && (
+            <button onClick={() => { if (!validar()) return; if (!nome.trim()) { setErro('Dê um nome ao treino (passo 3) para guardar na coleção.'); return; } onSalvarNaColecao(montar()); }} className="fit-btn"
+              style={{ flex: 1, minHeight: 42, borderRadius: 12, border: `1.5px solid ${ENERGIA}`, background: 'transparent', color: ENERGIA, fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>Salvar e guardar na coleção</button>
+          )}
+          {onDescanso && (
+            <button onClick={onDescanso} className="fit-btn" style={{ flex: 1, minHeight: 42, borderRadius: 12, border: `1.5px solid ${T.border}`, background: 'transparent', color: T.textS, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>Marcar como descanso</button>
+          )}
+        </div>
       </div>
     </div>
   );
 };
 
-/* ═══════════════ Coleção de treinos (meus + sugestões prontas) ═══════════════ */
+/* ═══════════════ Cartão de treino da coleção ═══════════════ */
 const CartaoTreino = ({ t, pronto, T, ENERGIA, onEditar, onExcluir, onCopiar, onUsarNoDia }) => {
   const [aberto, setAberto] = useState(false);
   const [dia, setDia] = useState('');
   const total = t.grupos.reduce((n, g) => n + g.exercicios.length, 0);
-  const btn = { padding: '7px 13px', borderRadius: 999, border: `1.5px solid ${T.border}`, background: 'transparent', color: T.textS, fontWeight: 700, fontSize: 12, cursor: 'pointer' };
+  const btn = { minHeight: 40, padding: '0 14px', borderRadius: 12, border: `1.5px solid ${T.border}`, background: 'transparent', color: T.textS, fontWeight: 700, fontSize: 13, cursor: 'pointer' };
   return (
-    <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 16, padding: '13px 14px' }}>
+    <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 16, padding: '14px' }}>
       <button onClick={() => setAberto(a => !a)} className="fit-btn" style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: T.text }}>
-        <div style={{ fontFamily: 'var(--font-brand)', fontSize: 15, fontWeight: 800 }}>{t.nome || 'Sem nome'}</div>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', margin: '8px 0 2px' }}>
-          {t.grupos.map(g => <span key={g.grupo} style={{ fontSize: 11, fontWeight: 800, padding: '3px 9px', borderRadius: 999, background: `${ENERGIA}1F`, color: ENERGIA }}>{GRUPO_POR_ID[g.grupo]?.label || g.grupo}</span>)}
+        <div style={{ fontFamily: 'var(--font-brand)', fontSize: 16, fontWeight: 800 }}>{t.nome || 'Sem nome'}</div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', margin: '8px 0 4px' }}>
+          {t.grupos.map(g => <span key={g.grupo} style={{ fontSize: 11.5, fontWeight: 800, padding: '3px 10px', borderRadius: 999, background: `${ENERGIA}1F`, color: ENERGIA }}>{GRUPO_POR_ID[g.grupo]?.label || g.grupo}</span>)}
         </div>
-        <div style={{ fontSize: 11.5, color: T.textT }}>{total} exercício{total !== 1 ? 's' : ''} · {aberto ? 'toque para fechar' : 'toque para ver'}</div>
+        <div style={{ fontSize: 12.5, color: T.textT }}>{total} exercício{total !== 1 ? 's' : ''} · {aberto ? 'Toque para fechar' : 'Toque para ver os exercícios'}</div>
       </button>
       {aberto && (
         <div style={{ marginTop: 10 }}>
           {t.grupos.map(g => (
             <div key={g.grupo} style={{ padding: '8px 0', borderTop: `1px solid ${T.border}` }}>
-              <div style={{ fontSize: 12, fontWeight: 800, color: ENERGIA, marginBottom: 4 }}>{GRUPO_POR_ID[g.grupo]?.label}</div>
+              <div style={{ fontSize: 12.5, fontWeight: 800, color: ENERGIA, marginBottom: 4 }}>{GRUPO_POR_ID[g.grupo]?.label}</div>
               {g.exercicios.length ? g.exercicios.map(ex => (
-                <div key={ex} style={{ display: 'flex', gap: 8, fontSize: 13, color: T.text, padding: '2px 0' }}>
-                  <span style={{ flex: 1 }}>{ex}</span><span style={{ fontSize: 11.5, color: T.textT }}>{serieDe(g.grupo, ex)}</span>
+                <div key={ex} style={{ display: 'flex', gap: 8, fontSize: 13.5, color: T.text, padding: '3px 0' }}>
+                  <span style={{ flex: 1 }}>{ex}</span><span style={{ fontSize: 12, color: T.textT }}>{serieDe(g.grupo, ex)}</span>
                 </div>
-              )) : <div style={{ fontSize: 12, color: T.textT }}>Nenhuma máquina escolhida.</div>}
+              )) : <div style={{ fontSize: 12.5, color: T.textT }}>Nenhuma máquina escolhida.</div>}
             </div>
           ))}
         </div>
       )}
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginTop: 10 }}>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginTop: 12 }}>
         <select value={dia} onChange={e => { if (e.target.value !== '') { onUsarNoDia(t, Number(e.target.value)); setDia(''); } }}
-          style={{ ...btn, padding: '7px 10px', background: T.page || 'transparent', color: T.text }}>
-          <option value="">Usar em…</option>
-          {[1, 2, 3, 4, 5, 6, 0].map(i => <option key={i} value={i}>{NOMES_DIA[i]}</option>)}
+          style={{ ...btn, padding: '0 10px', background: ENERGIA, color: '#fff', border: 'none', fontWeight: 800 }}>
+          <option value="">Usar em um dia…</option>
+          {[1, 2, 3, 4, 5, 6, 0].map(i => <option key={i} value={i} style={{ color: '#111' }}>{NOMES_DIA[i]}</option>)}
         </select>
         {pronto
           ? <button onClick={() => onCopiar(t)} className="fit-btn" style={{ ...btn, color: ENERGIA, borderColor: ENERGIA }}>Copiar para meus treinos</button>
@@ -271,10 +303,12 @@ const CartaoTreino = ({ t, pronto, T, ENERGIA, onEditar, onExcluir, onCopiar, on
   );
 };
 
-/* ═══════════════ Aba Treinos ═══════════════ */
+/* ═══════════════ Aba Treinos ═══════════════
+   Quatro abas simples:  Hoje · Semana · Coleção · Exercícios                                   */
 export const TreinosTab = ({ T, ENERGIA, FOGO, EG, supabase, podeCurar, onAbrirCargas, desk, name }) => {
-  const [vista, setVista] = useState(null); // null | 'dia' | 'semana' | 'colecao' | id do grupo
-  const [editando, setEditando] = useState(null); // { tipo:'dia', dia } | { tipo:'colecao', id|null }
+  const [aba, setAba] = useState('hoje');          // hoje | semana | colecao | exercicios
+  const [sub, setSub] = useState(null);            // null | { tipo:'grupo', id } | { tipo:'dia', dia }
+  const [editando, setEditando] = useState(null);  // { tipo:'dia', dia } | { tipo:'colecao', id|null }
 
   /* Meu plano: treino de cada dia da semana + coleção de treinos salvos (privado, 1 documento por pessoa) */
   const chavePlano = `uniko_fit_plano_${name}`;
@@ -291,6 +325,8 @@ export const TreinosTab = ({ T, ENERGIA, FOGO, EG, supabase, podeCurar, onAbrirC
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase, name]);
   useEffect(() => { carregarPlano(); }, [carregarPlano]);
+  const P = plano || planoVazio;
+  const colecao = P.colecao;
   const salvarPlano = async (novo) => {
     setPlano(novo);
     try { localStorage.setItem(chavePlano, JSON.stringify(novo)); } catch { /* sem armazenamento */ }
@@ -301,19 +337,29 @@ export const TreinosTab = ({ T, ENERGIA, FOGO, EG, supabase, podeCurar, onAbrirC
   };
   // treino de um dia: o personalizado, se existir; senão a divisão sugerida (null = descanso)
   const treinoDoDia = (i) => {
-    const t = plano?.dias?.[i];
+    const t = P.dias[i];
     if (t) return t.descanso ? null : { ...t, personalizado: true };
     const ids = SEMANA[i].grupos;
     return ids.length ? { nome: null, grupos: ids.map(grupoComTudo), personalizado: false } : null;
   };
-  const P = plano || planoVazio;
-  const colecao = P.colecao;
+  const resumoDoDia = (t) => t ? (t.nome || t.grupos.map(g => GRUPO_POR_ID[g.grupo].label).join(' + ')) : 'Descanso';
+  const idxHoje = new Date().getDay();
+
+  /* Marcar exercícios feitos hoje (só neste aparelho) */
+  const chaveFeitos = `uniko_fit_feitos_${name}_${new Date().toISOString().slice(0, 10)}`;
+  const [feitos, setFeitos] = useState(() => { try { return JSON.parse(localStorage.getItem(chaveFeitos) || '[]'); } catch { return []; } });
+  const alternarFeito = (k) => setFeitos(f => {
+    const n = f.includes(k) ? f.filter(x => x !== k) : [...f, k];
+    try { localStorage.setItem(chaveFeitos, JSON.stringify(n)); } catch { /* sem armazenamento */ }
+    return n;
+  });
+
+  /* Biblioteca de vídeos/fotos por grupo (curada por Admin/Moderador) */
   const [midias, setMidias] = useState(null);
   const [semTabela, setSemTabela] = useState(false);
   const [titulo, setTitulo] = useState('');
   const [link, setLink] = useState('');
   const [erro, setErro] = useState('');
-
   const carregar = useCallback(async () => {
     const { data, error } = await supabase.from('uniko_fit_treinos_midia').select('id,grupo,titulo,url,created_at')
       .order('created_at', { ascending: false }).limit(500);
@@ -321,7 +367,6 @@ export const TreinosTab = ({ T, ENERGIA, FOGO, EG, supabase, podeCurar, onAbrirC
     setSemTabela(false); setMidias(data || []);
   }, [supabase]);
   useEffect(() => { carregar(); }, [carregar]);
-
   const adicionar = async (grupo) => {
     const info = analisarLink(link);
     if (!info) { setErro('Cole um link completo (começando com https://).'); return; }
@@ -337,38 +382,58 @@ export const TreinosTab = ({ T, ENERGIA, FOGO, EG, supabase, podeCurar, onAbrirC
     carregar();
   };
 
-  const campo = { padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${T.border}`, background: T.page || '#fff', color: T.text, fontSize: 13.5, outline: 'none', fontFamily: 'var(--font-body)', boxSizing: 'border-box', width: '100%' };
+  const campo = { padding: '11px 12px', borderRadius: 10, border: `1.5px solid ${T.border}`, background: T.surface, color: T.text, fontSize: 14, outline: 'none', fontFamily: 'var(--font-body)', boxSizing: 'border-box', width: '100%' };
   const caixa = { background: T.surface, border: `1px solid ${T.border}`, borderRadius: 16 };
-  const idxHoje = new Date().getDay();
-  const hoje = SEMANA[idxHoje];
-  const treinoHoje = treinoDoDia(idxHoje);
+  const MOLDURA = { flex: 1, minHeight: 0, overflowY: 'auto', padding: '14px 14px 28px' };
+  const avisoLocal = planoLocal && (
+    <div style={{ fontSize: 12, color: T.textS, background: 'rgba(245,158,11,.12)', border: '1px solid rgba(245,158,11,.35)', borderRadius: 10, padding: '8px 11px', marginBottom: 12 }}>
+      Salvando só neste aparelho por enquanto (o banco ainda não foi preparado).
+    </div>
+  );
+
+  /* ── pedaços de tela (chamados como função, não como componente, pra não remontar) ── */
+  const Voltar = (rot, aoVoltar) => (
+    <button onClick={aoVoltar} className="fit-btn" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 40, padding: '0 14px 0 10px', borderRadius: 999, border: `1.5px solid ${T.border}`, background: T.surface, color: T.text, fontWeight: 700, fontSize: 13.5, cursor: 'pointer', marginBottom: 14 }}>{IcoVoltar} {rot}</button>
+  );
+
+  const AbasTopo = () => (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6, padding: '12px 14px 0' }}>
+      {[['hoje', 'Hoje'], ['semana', 'Semana'], ['colecao', 'Coleção'], ['exercicios', 'Exercícios']].map(([id, rot]) => {
+        const on = aba === id;
+        return (
+          <button key={id} onClick={() => { setAba(id); setSub(null); setErro(''); }} className="fit-btn"
+            style={{ minHeight: 44, borderRadius: 12, border: `1.5px solid ${on ? ENERGIA : T.border}`, background: on ? ENERGIA : T.surface, color: on ? '#fff' : T.text, fontWeight: 800, fontSize: 13.5, cursor: 'pointer' }}>{rot}</button>
+        );
+      })}
+    </div>
+  );
 
   const Exercicios = ({ grupo, itens }) => (
-    <div style={{ ...caixa, padding: '12px 14px', marginBottom: 12 }}>
+    <div style={{ ...caixa, padding: '10px 14px', marginBottom: 12 }}>
       {(itens || grupo.exercicios).map(([nome, serie], i) => (
-        <div key={nome} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderTop: i ? `1px solid ${T.border}` : 'none' }}>
-          <div style={{ width: 24, height: 24, borderRadius: 8, background: `${ENERGIA}22`, color: ENERGIA, fontSize: 12, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{i + 1}</div>
-          <div style={{ flex: 1, fontSize: 13.5, fontWeight: 700, color: T.text }}>{nome}</div>
-          <div style={{ fontSize: 12, color: T.textT, whiteSpace: 'nowrap' }}>{serie}</div>
+        <div key={nome} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0', borderTop: i ? `1px solid ${T.border}` : 'none' }}>
+          <div style={{ width: 26, height: 26, borderRadius: 8, background: `${ENERGIA}22`, color: ENERGIA, fontSize: 12.5, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{i + 1}</div>
+          <div style={{ flex: 1, fontSize: 14, fontWeight: 700, color: T.text }}>{nome}</div>
+          <div style={{ fontSize: 12.5, color: T.textT, whiteSpace: 'nowrap' }}>{serie}</div>
         </div>
       ))}
     </div>
   );
 
-  const Buscas = ({ grupo }) => (
+  const Buscas = (grupo) => (
     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
       {[['YouTube', `https://www.youtube.com/results?search_query=${encodeURIComponent(`treino de ${grupo.label.toLowerCase()}`)}`], ['TikTok', `https://www.tiktok.com/search?q=${encodeURIComponent(`treino de ${grupo.label.toLowerCase()}`)}`]].map(([rot, href]) => (
         <a key={rot} href={href} target="_blank" rel="noopener noreferrer"
-          style={{ padding: '8px 14px', borderRadius: 999, border: `1.5px solid ${T.border}`, color: T.textS, fontSize: 12.5, fontWeight: 700, textDecoration: 'none' }}>Buscar no {rot} ↗</a>
+          style={{ padding: '10px 16px', borderRadius: 999, border: `1.5px solid ${T.border}`, background: T.surface, color: T.textS, fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>Buscar no {rot} ↗</a>
       ))}
     </div>
   );
 
-  const Midias = ({ grupo, limite }) => {
-    const lista = (midias || []).filter(m => m.grupo === grupo.id).slice(0, limite || 100);
+  const Midias = (grupo) => {
+    const lista = (midias || []).filter(m => m.grupo === grupo.id);
     if (midias === null) return <div style={{ textAlign: 'center', padding: 24, color: T.textT, fontSize: 13 }}>Carregando...</div>;
     if (!lista.length) return (
-      <div style={{ ...caixa, padding: '22px 16px', textAlign: 'center', color: T.textT, fontSize: 12.5, lineHeight: 1.5, marginBottom: 12 }}>
+      <div style={{ ...caixa, padding: '22px 16px', textAlign: 'center', color: T.textT, fontSize: 13, lineHeight: 1.5, marginBottom: 12 }}>
         {semTabela ? 'A biblioteca de vídeos ainda não foi preparada (falta rodar o SQL).' : `Ainda não há vídeos ou fotos de ${grupo.label.toLowerCase()} por aqui.${podeCurar ? ' Adicione o primeiro abaixo.' : ' Em breve!'}`}
       </div>
     );
@@ -377,39 +442,91 @@ export const TreinosTab = ({ T, ENERGIA, FOGO, EG, supabase, podeCurar, onAbrirC
     </div>;
   };
 
-  const FormAdicionar = ({ grupo }) => !podeCurar ? null : (
+  const FormAdicionar = (grupo) => !podeCurar ? null : (
     <div style={{ ...caixa, padding: 14, marginBottom: 16 }}>
-      <div style={{ fontSize: 12, fontWeight: 800, color: T.textS, textTransform: 'uppercase', letterSpacing: .3, marginBottom: 10 }}>Adicionar em {grupo.label}</div>
+      <div style={{ fontSize: 13.5, fontWeight: 800, color: T.text, marginBottom: 10 }}>Adicionar vídeo ou foto em {grupo.label}</div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         <input value={titulo} onChange={e => setTitulo(e.target.value)} placeholder="Título (ex: Supino reto — execução correta)" style={campo} />
         <input value={link} onChange={e => setLink(e.target.value)} placeholder="Link do YouTube, TikTok, foto ou vídeo (https://…)" style={campo} />
-        <button onClick={() => adicionar(grupo.id)} className="fit-btn" style={{ padding: '10px', borderRadius: 10, border: 'none', background: ENERGIA, color: '#fff', fontWeight: 800, fontSize: 13.5, cursor: 'pointer' }}>Adicionar</button>
-        {erro && <div style={{ color: '#DC3232', fontSize: 12 }}>{erro}</div>}
+        <button onClick={() => adicionar(grupo.id)} className="fit-btn" style={{ minHeight: 44, borderRadius: 10, border: 'none', background: ENERGIA, color: '#fff', fontWeight: 800, fontSize: 14, cursor: 'pointer' }}>Adicionar</button>
+        {erro && <div style={{ color: '#DC3232', fontSize: 12.5 }}>{erro}</div>}
       </div>
     </div>
   );
 
-  const Cabecalho = ({ titulo: t, sub }) => (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-      <button onClick={() => { setVista(null); setErro(''); }} className="fit-btn" style={{ width: 36, height: 36, borderRadius: '50%', border: `1.5px solid ${T.border}`, background: 'transparent', color: T.text, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{IcoVoltar}</button>
-      <div>
-        <div style={{ fontFamily: 'var(--font-brand)', fontSize: 18, fontWeight: 800, color: T.text }}>{t}</div>
-        {sub && <div style={{ fontSize: 12, color: T.textT }}>{sub}</div>}
-      </div>
-    </div>
-  );
+  /* Detalhe de um dia (aba Hoje ou ao tocar num dia da Semana) */
+  const DiaDetalhe = (dia) => {
+    const t = treinoDoDia(dia);
+    const ehHoje = dia === idxHoje;
+    const chaves = t ? t.grupos.flatMap(g => g.exercicios.map(ex => `${g.grupo}|${ex}`)) : [];
+    const feitosHoje = chaves.filter(k => feitos.includes(k)).length;
+    const pct = chaves.length ? Math.round((feitosHoje / chaves.length) * 100) : 0;
+    return (
+      <>
+        <div style={{ borderRadius: 18, padding: '16px 16px 14px', marginBottom: 14, color: '#fff', background: `linear-gradient(135deg, ${ENERGIA}, ${FOGO})`, boxShadow: `0 8px 22px ${EG}` }}>
+          <div style={{ fontSize: 12.5, fontWeight: 700, opacity: .9 }}>{ehHoje ? 'HOJE' : 'TREINO DE'} · {NOMES_DIA[dia].toUpperCase()}</div>
+          <div style={{ fontFamily: 'var(--font-brand)', fontSize: 22, fontWeight: 800, margin: '3px 0 2px' }}>{resumoDoDia(t)}</div>
+          {t && <div style={{ fontSize: 13, opacity: .95 }}>{chaves.length} exercício{chaves.length !== 1 ? 's' : ''}{t.personalizado ? ' · montado por você' : ' · sugestão do Uniko'}</div>}
+          {t && ehHoje && chaves.length > 0 && (
+            <div style={{ marginTop: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, fontWeight: 700, marginBottom: 5 }}><span>{feitosHoje} de {chaves.length} feitos</span><span>{pct}%</span></div>
+              <div style={{ height: 8, borderRadius: 99, background: 'rgba(255,255,255,.3)', overflow: 'hidden' }}><div style={{ width: `${pct}%`, height: '100%', background: '#fff', transition: 'width .3s' }} /></div>
+            </div>
+          )}
+          <button onClick={() => setEditando({ tipo: 'dia', dia })} className="fit-btn" style={{ marginTop: 14, minHeight: 42, padding: '0 18px', borderRadius: 12, border: '2px solid rgba(255,255,255,.9)', background: 'rgba(255,255,255,.16)', color: '#fff', fontWeight: 800, fontSize: 13.5, cursor: 'pointer' }}>
+            {t ? 'Mudar grupos e máquinas' : 'Montar um treino'}
+          </button>
+        </div>
 
-  const MOLDURA = { flex: 1, minHeight: 0, overflowY: 'auto', padding: '16px 14px 28px' };
+        {!t ? (
+          <div style={{ ...caixa, padding: '24px 18px', textAlign: 'center' }}>
+            <div style={{ fontFamily: 'var(--font-brand)', fontSize: 17, fontWeight: 800, color: T.text, marginBottom: 6 }}>Dia de descanso</div>
+            <div style={{ fontSize: 13.5, color: T.textT, lineHeight: 1.55 }}>O músculo cresce enquanto você descansa. Hidrate-se e durma bem. Se quiser treinar mesmo assim, toque em “Montar um treino”.</div>
+          </div>
+        ) : t.grupos.map(gi => {
+          const g = GRUPO_POR_ID[gi.grupo];
+          return (
+            <div key={gi.grupo} style={{ ...caixa, padding: '12px 14px', marginBottom: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                <span style={{ fontFamily: 'var(--font-brand)', fontSize: 16.5, fontWeight: 800, color: ENERGIA, flex: 1 }}>{g.label}</span>
+                <button onClick={() => { setAba('exercicios'); setSub({ tipo: 'grupo', id: g.id }); }} className="fit-btn" style={{ border: 'none', background: 'none', color: T.textS, fontSize: 12.5, fontWeight: 700, cursor: 'pointer', padding: '6px 4px' }}>Vídeos e dicas ›</button>
+              </div>
+              {!gi.exercicios.length && <div style={{ fontSize: 13, color: T.textT, padding: '6px 0 4px' }}>Nenhuma máquina escolhida. Toque em “Mudar grupos e máquinas”.</div>}
+              {gi.exercicios.map((ex, i) => {
+                const k = `${gi.grupo}|${ex}`; const ok = feitos.includes(k);
+                return (
+                  <div key={ex} style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 52, borderTop: `1px solid ${T.border}` }}>
+                    {ehHoje ? (
+                      <button onClick={() => alternarFeito(k)} className="fit-btn" aria-label={ok ? 'Desmarcar' : 'Marcar como feito'}
+                        style={{ width: 30, height: 30, borderRadius: '50%', flexShrink: 0, cursor: 'pointer', border: `2px solid ${ok ? '#16a34a' : T.textD}`, background: ok ? '#16a34a' : 'transparent', color: '#fff', fontSize: 15, fontWeight: 800 }}>{ok ? '✓' : ''}</button>
+                    ) : (
+                      <span style={{ width: 26, height: 26, borderRadius: 8, background: `${ENERGIA}22`, color: ENERGIA, fontSize: 12.5, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{i + 1}</span>
+                    )}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 14.5, fontWeight: 700, color: ok ? T.textT : T.text, textDecoration: ok ? 'line-through' : 'none' }}>{ex}</div>
+                      {serieDe(gi.grupo, ex) && <div style={{ fontSize: 12, color: T.textT }}>{serieDe(gi.grupo, ex)}</div>}
+                    </div>
+                    <button onClick={() => onAbrirCargas(ex)} className="fit-btn" style={{ flexShrink: 0, minHeight: 34, padding: '0 12px', borderRadius: 999, border: `1.5px solid ${T.border}`, background: T.page, color: T.textS, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Anotar carga</button>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })}
+      </>
+    );
+  };
 
-  /* ── editor (dia da semana ou item da coleção) ── */
+  /* ═══════════ ROTEAMENTO ═══════════ */
+
+  /* editor */
   if (editando) {
     const ehDia = editando.tipo === 'dia';
-    const atual = ehDia ? plano?.dias?.[editando.dia] : colecao.find(t => t.id === editando.id);
+    const atual = ehDia ? P.dias[editando.dia] : colecao.find(t => t.id === editando.id);
     const inicial = atual && !atual.descanso ? atual : (ehDia ? treinoDoDia(editando.dia) : null);
     const fechar = () => setEditando(null);
     return <EditorTreino key={`${editando.tipo}-${editando.dia ?? editando.id ?? 'novo'}`} T={T} ENERGIA={ENERGIA} FOGO={FOGO} EG={EG}
-      titulo={ehDia ? `Treino de ${NOMES_DIA[editando.dia]}` : (editando.id ? 'Editar treino da coleção' : 'Novo treino da coleção')}
-      sub={ehDia ? 'Escolha os grupos e as máquinas que você vai usar' : 'Monte um treino e guarde para usar quando quiser'}
+      titulo={ehDia ? `Treino de ${NOMES_DIA[editando.dia]}` : (editando.id ? 'Editar treino' : 'Novo treino')}
       inicial={inicial} colecao={colecao}
       onSalvar={(t) => {
         if (ehDia) salvarPlano({ ...P, dias: { ...P.dias, [editando.dia]: t } });
@@ -421,143 +538,109 @@ export const TreinosTab = ({ T, ENERGIA, FOGO, EG, supabase, podeCurar, onAbrirC
       onCancelar={fechar} />;
   }
 
-  /* ── coleção de treinos ── */
-  if (vista === 'colecao') {
-    const usarNoDia = (t, dia) => { salvarPlano({ ...P, dias: { ...P.dias, [dia]: { id: novoId(), nome: t.nome, grupos: t.grupos } } }); setVista('semana'); };
-    return <div className="fit-scroll" style={MOLDURA}>
-      {Cabecalho({ titulo: "Coleção de treinos", sub: "Seus treinos salvos e sugestões prontas" })}
-      {planoLocal && <div style={{ fontSize: 11.5, color: T.textT, background: 'rgba(245,158,11,.12)', border: '1px solid rgba(245,158,11,.35)', borderRadius: 10, padding: '8px 11px', marginBottom: 12 }}>Salvando só neste aparelho por enquanto (o banco ainda não foi preparado).</div>}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '2px 2px 10px' }}>
-        <div style={{ flex: 1, fontSize: 11.5, fontWeight: 800, letterSpacing: .3, textTransform: 'uppercase', color: T.textT }}>Meus treinos ({colecao.length})</div>
-        <button onClick={() => setEditando({ tipo: 'colecao', id: null })} className="fit-btn" style={{ padding: '8px 14px', borderRadius: 999, border: 'none', background: ENERGIA, color: '#fff', fontWeight: 800, fontSize: 12.5, cursor: 'pointer' }}>+ Novo treino</button>
+  const Moldura = (filhos) => (
+    <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+      {AbasTopo()}
+      <div className="fit-scroll" style={MOLDURA}>{avisoLocal}{filhos}</div>
+    </div>
+  );
+
+  /* sub-páginas: grupo muscular ou um dia específico */
+  if (sub?.tipo === 'grupo' && GRUPO_POR_ID[sub.id]) {
+    const g = GRUPO_POR_ID[sub.id];
+    return Moldura(<>
+      {Voltar('Voltar', () => setSub(null))}
+      <div style={{ fontFamily: 'var(--font-brand)', fontSize: 22, fontWeight: 800, color: T.text, marginBottom: 12 }}>{g.label}</div>
+      <div style={{ fontSize: 13.5, fontWeight: 800, color: T.textS, margin: '0 2px 8px' }}>Exercícios sugeridos</div>
+      {Exercicios({ grupo: g })}
+      <div style={{ fontSize: 13.5, fontWeight: 800, color: T.textS, margin: '14px 2px 8px' }}>Vídeos e fotos</div>
+      {Midias(g)}{Buscas(g)}{FormAdicionar(g)}
+    </>);
+  }
+  if (sub?.tipo === 'dia') {
+    return Moldura(<>{Voltar('Semana', () => setSub(null))}{DiaDetalhe(sub.dia)}</>);
+  }
+
+  /* HOJE */
+  if (aba === 'hoje') {
+    return Moldura(<>
+      {DiaDetalhe(idxHoje)}
+      <button onClick={() => onAbrirCargas('')} className="fit-btn" style={{ display: 'block', width: '100%', textAlign: 'left', padding: '14px 16px', borderRadius: 16, cursor: 'pointer', border: `1.5px solid ${ENERGIA}`, background: `${ENERGIA}10`, color: T.text }}>
+        <div style={{ fontFamily: 'var(--font-brand)', fontSize: 15.5, fontWeight: 800, color: ENERGIA }}>Progressão de carga</div>
+        <div style={{ fontSize: 13, color: T.textS, marginTop: 3 }}>Anote quanto de peso usou em cada máquina e veja sua evolução.</div>
+      </button>
+    </>);
+  }
+
+  /* SEMANA */
+  if (aba === 'semana') {
+    return Moldura(<>
+      <div style={{ fontSize: 13.5, color: T.textS, margin: '0 2px 12px', lineHeight: 1.5 }}>Toque em um dia para ver o treino. Use <b style={{ color: T.text }}>Personalizar</b> para escolher os grupos e as máquinas de cada dia.</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {[1, 2, 3, 4, 5, 6, 0].map(i => {
+          const t = treinoDoDia(i); const ehHoje = i === idxHoje;
+          const total = t ? t.grupos.reduce((n, g) => n + g.exercicios.length, 0) : 0;
+          return (
+            <div key={i} style={{ ...caixa, padding: '12px 12px 12px 14px', display: 'flex', alignItems: 'center', gap: 10, borderColor: ehHoje ? ENERGIA : T.border, boxShadow: ehHoje ? `0 0 0 1px ${ENERGIA}` : 'none' }}>
+              <button onClick={() => setSub({ tipo: 'dia', dia: i })} className="fit-btn" style={{ flex: 1, minWidth: 0, textAlign: 'left', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: T.text }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 15, fontWeight: 800 }}>{NOMES_DIA[i]}</span>
+                  {ehHoje && <span style={{ fontSize: 10.5, fontWeight: 800, padding: '2px 8px', borderRadius: 999, background: ENERGIA, color: '#fff' }}>HOJE</span>}
+                </div>
+                <div style={{ fontSize: 13.5, color: t ? T.textS : T.textT, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{resumoDoDia(t)}</div>
+                {t && <div style={{ fontSize: 12, color: T.textT, marginTop: 1 }}>{total} exercício{total !== 1 ? 's' : ''}{t.personalizado ? ' · seu treino' : ' · sugestão'}</div>}
+              </button>
+              <button onClick={() => setEditando({ tipo: 'dia', dia: i })} className="fit-btn" style={{ flexShrink: 0, minHeight: 40, padding: '0 14px', borderRadius: 12, border: `1.5px solid ${ENERGIA}`, background: 'transparent', color: ENERGIA, fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>{P.dias[i] ? 'Editar' : 'Personalizar'}</button>
+            </div>
+          );
+        })}
+      </div>
+      {Object.keys(P.dias).length > 0 && (
+        <button onClick={() => { if (window.confirm('Voltar todos os dias para o treino sugerido?')) salvarPlano({ ...P, dias: {} }); }} className="fit-btn"
+          style={{ marginTop: 14, border: 'none', background: 'none', color: T.textT, fontSize: 12.5, cursor: 'pointer', textDecoration: 'underline' }}>Voltar tudo para o treino sugerido</button>
+      )}
+    </>);
+  }
+
+  /* COLEÇÃO */
+  if (aba === 'colecao') {
+    const usarNoDia = (t, dia) => { salvarPlano({ ...P, dias: { ...P.dias, [dia]: { id: novoId(), nome: t.nome, grupos: t.grupos } } }); setAba('semana'); };
+    return Moldura(<>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '0 2px 10px' }}>
+        <div style={{ flex: 1, fontFamily: 'var(--font-brand)', fontSize: 17, fontWeight: 800, color: T.text }}>Meus treinos ({colecao.length})</div>
+        <button onClick={() => setEditando({ tipo: 'colecao', id: null })} className="fit-btn" style={{ minHeight: 40, padding: '0 16px', borderRadius: 12, border: 'none', background: ENERGIA, color: '#fff', fontWeight: 800, fontSize: 13.5, cursor: 'pointer' }}>+ Novo treino</button>
       </div>
       {plano === null ? <div style={{ textAlign: 'center', padding: 24, color: T.textT, fontSize: 13 }}>Carregando...</div>
-        : !colecao.length ? <div style={{ ...caixa, padding: '22px 16px', textAlign: 'center', color: T.textT, fontSize: 12.5, lineHeight: 1.5, marginBottom: 16 }}>Você ainda não guardou nenhum treino. Crie um novo ou copie uma das sugestões abaixo.</div>
+        : !colecao.length ? <div style={{ ...caixa, padding: '22px 16px', textAlign: 'center', color: T.textT, fontSize: 13.5, lineHeight: 1.5, marginBottom: 18 }}>Você ainda não guardou nenhum treino. Toque em “+ Novo treino” ou copie uma das sugestões abaixo.</div>
         : <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
             {colecao.map(t => <CartaoTreino key={t.id} t={t} T={T} ENERGIA={ENERGIA} onEditar={(x) => setEditando({ tipo: 'colecao', id: x.id })}
               onExcluir={(x) => { if (window.confirm('Excluir esse treino da coleção?')) salvarPlano({ ...P, colecao: colecao.filter(y => y.id !== x.id) }); }} onUsarNoDia={usarNoDia} />)}
           </div>}
-      <div style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: .3, textTransform: 'uppercase', color: T.textT, margin: '6px 2px 10px' }}>Sugestões prontas</div>
+      <div style={{ fontFamily: 'var(--font-brand)', fontSize: 17, fontWeight: 800, color: T.text, margin: '6px 2px 10px' }}>Sugestões prontas</div>
       <div style={{ display: 'grid', gridTemplateColumns: desk ? 'repeat(2, 1fr)' : '1fr', gap: 10, alignItems: 'start' }}>
         {PRESETS.map(t => <CartaoTreino key={t.id} t={t} pronto T={T} ENERGIA={ENERGIA} onUsarNoDia={usarNoDia}
           onCopiar={(x) => salvarPlano({ ...P, colecao: [{ id: novoId(), nome: x.nome, grupos: x.grupos }, ...colecao] })} />)}
       </div>
-    </div>;
+    </>);
   }
 
-  /* ── grupo ── */
-  if (vista && GRUPO_POR_ID[vista]) {
-    const g = GRUPO_POR_ID[vista];
-    return <div className="fit-scroll" style={MOLDURA}>
-      {Cabecalho({ titulo: g.label, sub: "Exercícios sugeridos, vídeos e fotos" })}
-      {Exercicios({ grupo: g })}{Buscas({ grupo: g })}{Midias({ grupo: g })}{FormAdicionar({ grupo: g })}
-    </div>;
-  }
-
-  /* ── treino do dia ── */
-  if (vista === 'dia') {
-    const t = treinoHoje;
-    return <div className="fit-scroll" style={MOLDURA}>
-      {Cabecalho({ titulo: "Treino do dia", sub: `${hoje.nome} · ${t ? (t.nome || t.grupos.map(g => GRUPO_POR_ID[g.grupo].label).join(' + ')) : 'descanso'}${t?.personalizado ? ' · personalizado' : ''}` })}
-      {!t ? (
-        <div style={{ ...caixa, padding: '26px 18px', textAlign: 'center' }}>
-          <div style={{ fontFamily: 'var(--font-brand)', fontSize: 16, fontWeight: 800, color: T.text, marginBottom: 6 }}>Dia de descanso</div>
-          <div style={{ fontSize: 13, color: T.textT, lineHeight: 1.55, marginBottom: 14 }}>O músculo cresce enquanto você descansa. Hidrate-se, durma bem e, se quiser se mexer, uma caminhada leve já ajuda. Quer treinar mesmo assim?</div>
-          <button onClick={() => setEditando({ tipo: 'dia', dia: idxHoje })} className="fit-btn" style={{ padding: '10px 18px', borderRadius: 999, border: `1.5px solid ${ENERGIA}`, background: 'transparent', color: ENERGIA, fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>Montar treino de hoje</button>
-        </div>
-      ) : <>
-        <button onClick={() => setEditando({ tipo: 'dia', dia: idxHoje })} className="fit-btn" style={{ marginBottom: 16, padding: '9px 16px', borderRadius: 999, border: `1.5px solid ${ENERGIA}`, background: 'transparent', color: ENERGIA, fontWeight: 800, fontSize: 12.5, cursor: 'pointer' }}>Personalizar o treino de hoje</button>
-        {t.grupos.map(gi => {
-          const g = GRUPO_POR_ID[gi.grupo];
-          return (
-            <div key={gi.grupo} style={{ marginBottom: 22 }}>
-              <div style={{ fontFamily: 'var(--font-brand)', fontSize: 16, fontWeight: 800, color: ENERGIA, marginBottom: 8 }}>{g.label}</div>
-              {gi.exercicios.length ? Exercicios({ grupo: g, itens: gi.exercicios.map(n => [n, serieDe(gi.grupo, n)]) })
-                : <div style={{ ...caixa, padding: '12px 14px', marginBottom: 12, fontSize: 12.5, color: T.textT }}>Nenhuma máquina escolhida — toque em Personalizar para escolher.</div>}
-              {Midias({ grupo: g, limite: 2 })}
-              <button onClick={() => setVista(g.id)} className="fit-btn" style={{ padding: '8px 16px', borderRadius: 999, border: `1.5px solid ${ENERGIA}`, background: 'transparent', color: ENERGIA, fontWeight: 800, fontSize: 12.5, cursor: 'pointer' }}>Ver todos de {g.label.toLowerCase()}</button>
-            </div>
-          );
-        })}
-      </>}
-    </div>;
-  }
-
-  /* ── treino da semana ── */
-  if (vista === 'semana') {
-    const ordem = [1, 2, 3, 4, 5, 6, 0]; // segunda → domingo
-    return <div className="fit-scroll" style={MOLDURA}>
-      {Cabecalho({ titulo: "Treino da semana", sub: "Personalize cada dia: escolha os grupos e as máquinas" })}
-      {planoLocal && <div style={{ fontSize: 11.5, color: T.textT, background: 'rgba(245,158,11,.12)', border: '1px solid rgba(245,158,11,.35)', borderRadius: 10, padding: '8px 11px', marginBottom: 12 }}>Salvando só neste aparelho por enquanto (o banco ainda não foi preparado).</div>}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {ordem.map(i => {
-          const t = treinoDoDia(i); const ehHoje = i === idxHoje;
-          const total = t ? t.grupos.reduce((n, g) => n + g.exercicios.length, 0) : 0;
-          return (
-            <div key={i} style={{ ...caixa, padding: '12px 14px', borderColor: ehHoje ? ENERGIA : T.border, boxShadow: ehHoje ? `0 0 0 1px ${ENERGIA}` : 'none' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: t ? 4 : 0, flexWrap: 'wrap' }}>
-                <div style={{ fontSize: 14, fontWeight: 800, color: T.text }}>{NOMES_DIA[i]}</div>
-                {ehHoje && <span style={{ fontSize: 10.5, fontWeight: 800, padding: '2px 8px', borderRadius: 999, background: `${ENERGIA}22`, color: ENERGIA }}>HOJE</span>}
-                {t?.personalizado && <span style={{ fontSize: 10.5, fontWeight: 800, padding: '2px 8px', borderRadius: 999, background: T.surfaceSub, color: T.textS }}>PERSONALIZADO</span>}
-                {!t && <span style={{ fontSize: 12.5, color: T.textT }}>Descanso</span>}
-                <div style={{ flex: 1 }} />
-                <button onClick={() => setEditando({ tipo: 'dia', dia: i })} className="fit-btn" style={{ padding: '6px 13px', borderRadius: 999, border: `1.5px solid ${ENERGIA}`, background: 'transparent', color: ENERGIA, fontWeight: 800, fontSize: 12, cursor: 'pointer' }}>{t?.personalizado || plano?.dias?.[i] ? 'Editar' : 'Personalizar'}</button>
-              </div>
-              {t && t.nome && <div style={{ fontSize: 12, color: T.textT, marginBottom: 6 }}>{t.nome}</div>}
-              {t && <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 6 }}>
-                {t.grupos.map(g => (
-                  <button key={g.grupo} onClick={() => setVista(g.grupo)} className="fit-btn" style={{ padding: '7px 13px', borderRadius: 999, border: 'none', background: `${ENERGIA}1F`, color: ENERGIA, fontWeight: 800, fontSize: 12.5, cursor: 'pointer' }}>{GRUPO_POR_ID[g.grupo].label}</button>
-                ))}
-                <span style={{ alignSelf: 'center', fontSize: 11.5, color: T.textT }}>{total} exercício{total !== 1 ? 's' : ''}</span>
-              </div>}
-              {plano?.dias?.[i] && (
-                <button onClick={() => { const d = { ...P.dias }; delete d[i]; salvarPlano({ ...P, dias: d }); }} className="fit-btn" style={{ marginTop: 8, border: 'none', background: 'none', color: T.textT, fontSize: 11.5, cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>Voltar ao treino sugerido</button>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>;
-  }
-
-  /* ── início da aba ── */
-  const atalho = (rot, sub, onClick, destaque) => (
-    <button onClick={onClick} className="fit-btn" style={{ textAlign: 'left', padding: '16px 16px', borderRadius: 16, cursor: 'pointer', border: destaque ? 'none' : `1px solid ${T.border}`, color: destaque ? '#fff' : T.text,
-      background: destaque ? `linear-gradient(135deg, ${ENERGIA}, ${FOGO})` : T.surface, boxShadow: destaque ? `0 8px 22px ${EG}` : 'none' }}>
-      <div style={{ fontFamily: 'var(--font-brand)', fontSize: 15.5, fontWeight: 800 }}>{rot}</div>
-      <div style={{ fontSize: 12, opacity: destaque ? .92 : .7, marginTop: 3 }}>{sub}</div>
-    </button>
-  );
-  return <div className="fit-scroll" style={MOLDURA}>
-    <div style={{ display: 'grid', gridTemplateColumns: desk ? 'repeat(2, 1fr)' : '1fr 1fr', gap: 10, marginBottom: 12 }}>
-      {atalho('Treino do dia', `${hoje.nome}: ${treinoHoje ? (treinoHoje.nome || treinoHoje.grupos.map(g => GRUPO_POR_ID[g.grupo].label).join(' + ')) : 'descanso'}`, () => setVista('dia'), true)}
-      {atalho('Treino da semana', 'Personalize os grupos e as máquinas de cada dia', () => setVista('semana'))}
-      {atalho('Coleção de treinos', `${colecao.length} salvo${colecao.length !== 1 ? 's' : ''} · mais ${PRESETS.length} sugestões prontas`, () => setVista('colecao'))}
-      <div style={{ gridColumn: 'auto', display: 'flex' }}>
-        <div style={{ flex: 1, display: 'flex' }}>
-          <button onClick={onAbrirCargas} className="fit-btn" style={{ flex: 1, textAlign: 'left', padding: '16px', borderRadius: 16, cursor: 'pointer', border: `1px solid ${ENERGIA}`, background: `${ENERGIA}14`, color: T.text }}>
-            <div style={{ fontFamily: 'var(--font-brand)', fontSize: 15.5, fontWeight: 800, color: ENERGIA }}>Progressão de carga</div>
-            <div style={{ fontSize: 12, opacity: .75, marginTop: 3 }}>Registre o peso de cada máquina e veja sua evolução</div>
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <div style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: .3, textTransform: 'uppercase', color: T.textT, margin: '18px 2px 10px' }}>Por grupo muscular</div>
+  /* EXERCÍCIOS (biblioteca por grupo muscular) */
+  return Moldura(<>
+    <div style={{ fontSize: 13.5, color: T.textS, margin: '0 2px 12px', lineHeight: 1.5 }}>Escolha um músculo para ver os exercícios, vídeos e fotos.</div>
     <div style={{ display: 'grid', gridTemplateColumns: desk ? 'repeat(4, 1fr)' : 'repeat(2, 1fr)', gap: 10 }}>
       {GRUPOS.map(g => {
         const n = (midias || []).filter(m => m.grupo === g.id).length;
         return (
-          <button key={g.id} onClick={() => setVista(g.id)} className="fit-btn"
-            style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 8, padding: '14px', borderRadius: 16, cursor: 'pointer', border: `1px solid ${T.border}`, background: T.surface, color: T.text, textAlign: 'left' }}>
+          <button key={g.id} onClick={() => setSub({ tipo: 'grupo', id: g.id })} className="fit-btn"
+            style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6, minHeight: 92, padding: '14px', borderRadius: 16, cursor: 'pointer', border: `1px solid ${T.border}`, background: T.surface, color: T.text, textAlign: 'left' }}>
             <span style={{ color: ENERGIA, display: 'flex' }}>{IcoHalter}</span>
-            <span style={{ fontFamily: 'var(--font-brand)', fontSize: 14.5, fontWeight: 800 }}>{g.label}</span>
-            <span style={{ fontSize: 11, color: T.textT }}>{n > 0 ? `${n} conteúdo${n !== 1 ? 's' : ''}` : `${g.exercicios.length} exercícios`}</span>
+            <span style={{ fontFamily: 'var(--font-brand)', fontSize: 15.5, fontWeight: 800 }}>{g.label}</span>
+            <span style={{ fontSize: 12, color: T.textT }}>{n > 0 ? `${n} vídeo${n !== 1 ? 's' : ''}/foto${n !== 1 ? 's' : ''}` : `${g.exercicios.length} exercícios`}</span>
           </button>
         );
       })}
     </div>
-  </div>;
+  </>);
 };
 
 /* ═══════════════ Progressão de carga ═══════════════ */
@@ -595,12 +678,12 @@ const GraficoCarga = ({ regs, T, ENERGIA }) => {
   );
 };
 
-export const CargasPainel = ({ T, ENERGIA, FOGO, EG, supabase, name }) => {
+export const CargasPainel = ({ T, ENERGIA, FOGO, EG, supabase, name, exercicioInicial }) => {
   const chaveLocal = `uniko_fit_cargas_${name}`;
   const [regs, setRegs] = useState(null);       // [{ exercicio, data, carga, reps }]
   const [soLocal, setSoLocal] = useState(false);
-  const [sel, setSel] = useState(null);          // exercício aberto
-  const [exercicio, setExercicio] = useState('');
+  const [sel, setSel] = useState(exercicioInicial || null); // exercício aberto
+  const [exercicio, setExercicio] = useState(exercicioInicial || '');
   const [carga, setCarga] = useState('');
   const [reps, setReps] = useState('');
   const [dia, setDia] = useState(diaHoje());

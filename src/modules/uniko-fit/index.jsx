@@ -1996,6 +1996,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
   };
 
   const [rankPeriodo, setRankPeriodo] = useState('mes'); // mes | total
+  const [cargasPrefill, setCargasPrefill] = useState(''); // máquina pré-preenchida ao abrir "Anotar carga" pelo treino
   const [rankMes, setRankMes] = useState(null); // 'YYYY-MM' escolhido; null = mês atual
 
   /* ═══════════════════ MEU PESO ═══════════════════ */
@@ -2705,7 +2706,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
         {/* ── TREINOS (biblioteca por grupo muscular, treino do dia/semana, atalho pra progressão de carga) ── */}
         {topTab === 'treinos' && (
           <TreinosTab T={T} ENERGIA={ENERGIA} FOGO={FOGO} EG={EG} supabase={supabase} desk={desk} name={name}
-            podeCurar={['admin', 'moderador'].includes(authUser?.role)} onAbrirCargas={() => openSheet('cargas')} />
+            podeCurar={['admin', 'moderador'].includes(authUser?.role)} onAbrirCargas={(ex) => { setCargasPrefill(ex || ''); openSheet('cargas'); }} />
         )}
 
         {/* ── BATE-PAPO (chat global: texto, emoji, imagem, áudio, avisos de check-in) ── */}
@@ -3413,7 +3414,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
       {/* ── Progressão de carga por máquina (privado) ── */}
       {sheet === 'cargas' && (
         <Sheet title="Progressão de carga" onClose={() => setSheet(null)}>
-          <CargasPainel T={T} ENERGIA={ENERGIA} FOGO={FOGO} EG={EG} supabase={supabase} name={name} />
+          <CargasPainel key={cargasPrefill} exercicioInicial={cargasPrefill} T={T} ENERGIA={ENERGIA} FOGO={FOGO} EG={EG} supabase={supabase} name={name} />
         </Sheet>
       )}
 
