@@ -25,7 +25,7 @@ import { THEMES } from '../../contexts/theme';
    é tocado, e não há o que restaurar na saída. Só o miolo (max 480px) fica
    escuro; a margem no desktop segue com o tema que a pessoa escolheu. */
 const T = { surfaceW: 'rgba(255,255,255,0.97)', ...THEMES.purpleDark };
-import { USER, getAuthUser, supabase, fetchPhotoByName, SERVER_URL } from '../../contexts/user';
+import { USER, getAuthUser, supabase, SERVER_URL } from '../../contexts/user';
 import { AvatarCircle } from '../../shared/components';
 import { TreinosTab, CargasPainel } from './treinos';
 import { pushSupported, hasActivePushSubscription, ensurePushSubscription } from '../../utils/pushNotify';
@@ -176,7 +176,6 @@ const horaCurta = (iso) => { try { return new Date(iso).toLocaleTimeString('pt-B
 
 /* ── Ícones ── */
 const IcoBack   = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="15 18 9 12 15 6" /></svg>;
-const IcoFit    = <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="8" width="4" height="8" rx="1.3" /><rect x="18" y="8" width="4" height="8" rx="1.3" /><line x1="6" y1="12" x2="18" y2="12" /></svg>;
 const IcoCamera = <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>;
 const IcoTrophy = <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M8 21h8M12 17v4M7 4h10v4a5 5 0 01-10 0V4z"/><path d="M17 6h2a2 2 0 01-2 4M7 6H5a2 2 0 002 4"/></svg>;
 const IcoPost   = <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="4"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>;
@@ -1330,8 +1329,16 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
   const ensurePhotos = useCallback(async (nomes) => {
     const faltam = [...new Set(nomes)].filter(n => n && !(n in photosRef.current));
     if (!faltam.length) return;
-    const pairs = await Promise.all(faltam.map(async n => [n, await fetchPhotoByName(n).catch(() => null)]));
-    setPhotos(prev => { const next = { ...prev }; pairs.forEach(([n, p]) => { next[n] = p || null; }); return next; });
+    const achadas = {}; const resolvidos = new Set();
+    for (let i = 0; i < faltam.length; i += 12) {
+      const lote = faltam.slice(i, i + 12);
+      const { data, error } = await supabase.from('profile_photos').select('employee_name,photo').in('employee_name', lote);
+      if (error) continue; // falhou: não registra, tenta de novo na próxima vez
+      (data || []).forEach(r => { if (r.photo) achadas[r.employee_name] = r.photo; });
+      lote.forEach(n => resolvidos.add(n));
+    }
+    if (!resolvidos.size) return;
+    setPhotos(prev => { const next = { ...prev }; resolvidos.forEach(n => { next[n] = achadas[n] || null; }); return next; });
   }, []);
 
   /* ═══════════════════ FEED "PARA VOCÊ" (check-ins + posts) ═══════════════════ */
@@ -1979,6 +1986,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
   };
 
   const [rankPeriodo, setRankPeriodo] = useState('mes'); // mes | total
+  useEffect(() => { if (rankingData) ensurePhotos(Object.keys(rankingData.total)); }, [rankingData, ensurePhotos]);
   const [rankMes, setRankMes] = useState(null); // 'YYYY-MM' escolhido; null = mês atual
 
   /* ═══════════════════ MEU PESO ═══════════════════ */
@@ -2419,8 +2427,8 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
             {IcoBack} Módulos
           </button>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 8px 18px' }}>
-            <img src="/uniko-fit-icon.png" alt="Uniko FIT" style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
-            <div style={{ fontSize: 20, fontWeight: 800, color: T.text, fontFamily: 'var(--font-brand)', letterSpacing: '.02em', lineHeight: 1 }}>Uniko FIT</div>
+            <img src="/uniko-fit-icon.png" alt="Uniko FIT" style={{ width: 64, height: 64, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+            <div style={{ fontSize: 22, fontWeight: 800, color: T.text, fontFamily: 'var(--font-brand)', letterSpacing: '.02em', lineHeight: 1 }}>Uniko FIT</div>
           </div>
           {[['paravoce', 'Para Você'], ['treinos', 'Treinos'], ['batepapo', 'Bate-Papo'], ['buscar', 'Buscar'], ['meuperfil', 'Meu Perfil']].map(([id, label]) => {
             const on = topTab === id;
@@ -2463,10 +2471,9 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
             {IcoBack} Módulos
           </button>
           <div style={{ flex: 1 }} />
-          <span style={{ color: ENERGIA, display: 'flex' }}>{IcoFit}</span>
           <span style={{ fontSize: 17, fontWeight: 800, color: T.text, fontFamily: 'var(--font-brand)', letterSpacing: '.02em' }}>Uniko FIT</span>
+          <img src="/uniko-fit-icon.png" alt="Uniko FIT" style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
           <div style={{ flex: 1 }} />
-          <img src="/uniko-fit-icon.png" alt="Uniko FIT" style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
           <AvatarCircle name={userName} photo={userPhoto} size={28} fontSize={10} />
         </div>
 
