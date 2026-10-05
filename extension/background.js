@@ -697,7 +697,7 @@ async function ensureOffscreenDocument() {
 
 // streamId já vem PRONTO (obtido no clique, dentro de popup.js) — aqui só
 // prepara o offscreen document e repassa pra gravação de verdade começar.
-async function startUnikoCallRecordingWithStream(streamId, contactName, test = false) {
+async function startUnikoCallRecordingWithStream(streamId, contactName) {
   console.log('[uniko-call] background: startUnikoCallRecordingWithStream — streamId:', streamId, 'contactName:', JSON.stringify(contactName), 'state atual:', unikoCallState);
   if (unikoCallState === 'recording') { console.log('[uniko-call] background: já estava "recording" — ignorando.'); return; }
   unikoCallLastError = null;
@@ -710,9 +710,9 @@ async function startUnikoCallRecordingWithStream(streamId, contactName, test = f
     await ensureOffscreenDocument();
     console.log('[uniko-call] background: offscreen document garantido, mandando UNIKO_CALL_START...');
     const { unikoAvisoAt } = (await chrome.storage.session?.get('unikoAvisoAt').catch(() => ({}))) || {};
-    const avisoRecent = !test && !!unikoAvisoAt && Date.now() - unikoAvisoAt < AVISO_RECENT_MS;
-    chrome.runtime.sendMessage({ type: 'UNIKO_CALL_START', streamId, contactName, test, avisoRecent });
-    setUnikoCallState(test ? 'testing' : 'recording');
+    const avisoRecent = !!unikoAvisoAt && Date.now() - unikoAvisoAt < AVISO_RECENT_MS;
+    chrome.runtime.sendMessage({ type: 'UNIKO_CALL_START', streamId, contactName, avisoRecent });
+    setUnikoCallState('recording');
   } catch (e) {
     console.error('[uniko-call] falha ao preparar o offscreen document:', e.message);
     unikoCallLastError = 'Não consegui iniciar a gravação: ' + e.message;
@@ -723,7 +723,7 @@ async function startUnikoCallRecordingWithStream(streamId, contactName, test = f
 
 async function stopUnikoCallRecording() {
   // Estado em memória pode ter sido perdido (service worker dormiu) com o gravador ainda vivo.
-  if (unikoCallState !== 'recording' && unikoCallState !== 'testing' && !(await recorderExists())) return;
+  if (unikoCallState !== 'recording' && !(await recorderExists())) return;
   unikoCallFinishing = true;
   chrome.runtime.sendMessage({ type: 'UNIKO_CALL_STOP' }).catch(() => {});
   setUnikoCallState('idle');
@@ -831,7 +831,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
   if (message.type === 'UNIKO_CALL_START_WITH_STREAM') {
     console.log('[uniko-call] background recebeu UNIKO_CALL_START_WITH_STREAM do popup.');
-    startUnikoCallRecordingWithStream(message.streamId, message.contactName, !!message.test);
+    startUnikoCallRecordingWithStream(message.streamId, message.contactName);
   }
   // Libera uma captura presa (gravador antigo ainda aberto) pra permitir nova gravação.
   if (message.type === 'UNIKO_CALL_RESET') { closeRecorder(); setUnikoCallState('idle'); sendResponse({ ok: true }); }
@@ -854,11 +854,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // "Parar gravação", e a PRÓXIMA tentativa de gravar (mesma aba) falhava
   // com "Cannot capture a tab with an active stream". Fechar e recriar do
   // zero a cada chamada garante que nunca sobra captura pendurada.
-  // Guarda o resultado do teste de calibração: o popup pode ter fechado enquanto finalizava,
-  // e ao reabrir ele mostra o resultado em vez de ficar sem nada.
-  if (message.type === 'UNIKO_CALL_TEST_RESULT') {
-    chrome.storage.session?.set({ unikoTestResult: { ...message, savedAt: Date.now() } }).catch(() => {});
-  }
   if (message.type === 'UNIKO_CALL_STATE' && message.state !== 'recording') {
     unikoCallFinishing = false;
     setUnikoCallState('idle');
