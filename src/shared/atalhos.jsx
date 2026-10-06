@@ -64,6 +64,8 @@ export const useSalasConexao = () => {
 // aparecendo na tela de módulos mesmo o Portal em si travando a aba.
 export const catalogoAtalhos = (authUser, salas = [], tabRestrictions = {}) => {
   const isAdmin = authUser?.role === 'admin';
+  // "Fale com a Alexa": só admin, moderador e DJ Uniko (igual à Central Alexa).
+  const podeFalarComAlexa = ['admin', 'moderador', 'dj'].includes(authUser?.role);
   const permitido = (moduloId, abaId) => {
     const lista = tabRestrictions[moduloId];
     return !lista?.length || lista.includes(abaId);
@@ -72,7 +74,7 @@ export const catalogoAtalhos = (authUser, salas = [], tabRestrictions = {}) => {
     { modulo:'colaborador', nome:'Portal do Colaborador',
       abas: NAV_PORTAL.filter(n => (!n.adminOnly || isAdmin) && permitido('colaborador', n.id)) },
     { modulo:'mercado-estelar', nome:'Prisma Store', abas: ABAS_PRISMA },
-    { modulo:'alexa', nome:'Central Alexa', abas: ABAS_ALEXA.filter(t => !t.adminOnly || isAdmin) },
+    { modulo:'alexa', nome:'Central Alexa', abas: ABAS_ALEXA.filter(t => (!t.adminOnly || isAdmin) && (t.id !== 'alexa' || podeFalarComAlexa)) },
     { modulo:'faturamento', nome:'Oficina Estelar',
       abas: NAV_OFICINA.filter(n => n.id !== 'inicio'
         && (n.tabGate ? canSeeTab(n.id, authUser, isAdmin) : (!n.adminOnly || isAdmin))

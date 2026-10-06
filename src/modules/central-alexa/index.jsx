@@ -1839,6 +1839,13 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
   const isDJ = auth?.role === 'dj';
   const canPlayer = isAdmin || isDJ;           // play/pause + dispositivo
   const canVolume = canControl || isDJ;        // volume
+  // Quem tem algum controle especial vê só os ícones; o colaborador comum vê os botões com texto.
+  const temControles = canControl || canPlayer || canVolume;
+  // "Fale com a Alexa" (aba Alexa): só moderador, administrador e quem tem o card DJ Uniko.
+  const canAlexa = canControl || isDJ;
+  const abaVisivel = (t) => (!t.adminOnly || isAdmin) && (t.id !== 'alexa' || canAlexa);
+  // Se alguém cair na aba por atalho/URL sem permissão, volta pro Festival.
+  useEffect(() => { if (tab === 'alexa' && !canAlexa) setTab('festival'); }, [tab, canAlexa]); // eslint-disable-line
   const ALEXA_LIMIT  = 2;
   const ALEXA_WINDOW = 60 * 60 * 1000; // 1 hora
   const getAlexaRequests = () => {
@@ -2194,7 +2201,7 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
           )}
         </div>
       )}
-      <div style={{flex:isMobile?"none":"7 1 0",minWidth:0,display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr 1fr",gap:isMobile?14:16}}>
+      <div style={{flex:isMobile?"none":"7 1 0",minWidth:0,display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(3, minmax(0, 1fr))",gap:isMobile?14:16}}>
       {/* Top Músicas */}
       <div className="ca-card" style={{borderRadius:16,background:cardBg,border:`1px solid ${T.border}`,padding:"20px",boxShadow:T.sh}}>
         <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16}}>
@@ -3410,7 +3417,7 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
             .ca-tab.on{color:#fff;font-weight:700;background:linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc);box-shadow:0 4px 16px ${T.goldLine}66,inset 0 1px 0 rgba(255,255,255,.25)}
             .ca-tab.on:hover{color:#fff;background:linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)}
           `}</style>
-          {TAB_DEFS.filter(t => !t.adminOnly || isAdmin).map(({id,label,icon})=>(
+          {TAB_DEFS.filter(abaVisivel).map(({id,label,icon})=>(
             <button key={id} onClick={()=>changeTab(id)} className={`ca-tab${tab===id?" on":""}`}
               style={{color:tab===id?undefined:T.textS,fontWeight:tab===id?700:500}}>{icon}{label}</button>
           ))}
@@ -3419,7 +3426,7 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
         <Logo size={28}/>
       </div>
 
-      <div style={{maxWidth:(!isMobile&&tab==="festival")?1320:1200,margin:"0 auto",padding:isMobile?"12px":(tab==="festival"?"36px 24px 0":"24px"),
+      <div style={{maxWidth:(!isMobile&&tab==="festival")?1320:(!isMobile&&tab==="maquina")?1380:1200,margin:"0 auto",padding:isMobile?"12px":(tab==="festival"?"36px 24px 0":"24px"),
         paddingBottom:isMobile?`calc(${MOBILE_NAV_H + (cur?78:14)}px + env(safe-area-inset-bottom,0px))`:(tab==="festival"?84:24),
         position:"relative",zIndex:2}}>
         {/* ══════════ FESTIVAL TAB ══════════ */}
@@ -3915,13 +3922,13 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
                         ? (currentSong && clipVideoId ? "Ocultar videoclipe"
                             : (currentSong ? "Sem clipe pra esta música" : "Mostrar videoclipe"))
                         : "Mostrar videoclipe"}
-                      style={{height:34,padding:"0 12px",gap:6,fontSize:12,fontWeight:700,whiteSpace:"nowrap",borderRadius:10,
+                      style={{height:34,...(temControles?{width:34,padding:0}:{padding:"0 12px",gap:6}),fontSize:12,fontWeight:700,whiteSpace:"nowrap",borderRadius:10,
                         border:`1px solid ${videoEnabled ? T.gold+'66' : T.border}`,
                         background:videoEnabled ? T.goldGl : "transparent",
                         cursor:"pointer",color:videoEnabled ? T.gold : T.textS,
                         display:"flex",alignItems:"center",justifyContent:"center",outline:"none",transition:"all .15s"}}>
                       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
-                      {videoEnabled ? "Ocultar Clipe" : "Ver Clipe"}
+                      {!temControles && (videoEnabled ? "Ocultar Clipe" : "Ver Clipe")}
                     </button>
 {canControl && (
                         <button onClick={handleNext} disabled={!spotifyOk||queue.length<2} title="Pular música"
@@ -3953,9 +3960,9 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
                     )}
                     {/* Tela cheia estilo Apple Music */}
                     <button onClick={toggleFull} title="Expandir (tela cheia)"
-                      style={{height:34,padding:"0 12px",gap:6,fontSize:12,fontWeight:700,whiteSpace:"nowrap",borderRadius:10,border:`1px solid ${T.border}`,background:"transparent",cursor:"pointer",color:T.textS,display:"flex",alignItems:"center",justifyContent:"center",outline:"none",transition:"all .15s"}}>
+                      style={{height:34,...(temControles?{width:34,padding:0}:{padding:"0 12px",gap:6}),fontSize:12,fontWeight:700,whiteSpace:"nowrap",borderRadius:10,border:`1px solid ${T.border}`,background:"transparent",cursor:"pointer",color:T.textS,display:"flex",alignItems:"center",justifyContent:"center",outline:"none",transition:"all .15s"}}>
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
-                      Expandir Tela
+                      {!temControles && "Expandir Tela"}
                     </button>
                     </div>
                     {/* Seletor de dispositivo */}
@@ -4638,7 +4645,7 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
         )}
 
         {/* ══════════ ALEXA TAB ══════════ */}
-        {tab==="alexa"&&(
+        {tab==="alexa"&&canAlexa&&(
           <div style={{display:"flex",flexDirection:isMobile?"column":"row",gap:isMobile?14:20,alignItems:"flex-start",maxWidth:900,margin:"0 auto"}}>
             {/* Chat interface */}
             <div style={{flex:1,display:"flex",flexDirection:"column",gap:16}}>
@@ -5002,7 +5009,7 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
           paddingBottom:"env(safe-area-inset-bottom, 0px)",
           background: isDark ? "rgba(14,11,8,.97)" : "rgba(255,255,255,.98)", backdropFilter:"blur(18px)", WebkitBackdropFilter:"blur(18px)",
           borderTop:`1px solid ${T.border}`, boxShadow:"0 -4px 18px rgba(0,0,0,.10)" }}>
-          {TAB_DEFS.filter(t => !t.adminOnly || isAdmin).map(({id,label,icon})=>{
+          {TAB_DEFS.filter(abaVisivel).map(({id,label,icon})=>{
             const on = tab===id;
             return (
               <button key={id} onClick={()=>changeTab(id)} style={{
