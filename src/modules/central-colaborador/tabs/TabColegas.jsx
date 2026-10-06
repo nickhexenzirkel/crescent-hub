@@ -244,6 +244,7 @@ const SETORES = [
   { id:'suporte_tecnico', label:'Suporte Técnico', cor:'#E08030' },
   { id:'contratual',      label:'Contratual',      cor:'#C0307A' },
   { id:'distribuicao',    label:'Distribuição',    cor:'#14A3A3' },
+  { id:'telemetria',      label:'Telemetria',      cor:'#5B60D0' },
   { id:'pos_venda',       label:'Pós Venda',       cor:'#D9468F' },
   { id:'diretor',         label:'Diretor',         cor:'#B8860B' },
   { id:'outros',          label:'Outros',          cor:'#6B7280' },
