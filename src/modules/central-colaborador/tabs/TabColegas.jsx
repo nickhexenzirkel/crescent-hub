@@ -3,6 +3,7 @@ import { T } from '../../../contexts/theme';
 import { USER, supabase as _supabase, SERVER_URL, getAuthUser, fetchPhotoByName } from '../../../contexts/user';
 import { Card, StarDivider, SHead, AvatarCircle, Tag } from '../../../shared/components';
 import { fetchCapturesFor, getUniko } from '../../../shared/captureUniko';
+import { loadRoletaConfig } from '../../../shared/roletaSorte';
 import { getAssistantSkin, skinRemoteKey } from '../../../shared/assistantSkin';
 import dokoTecnico    from '../../../assets/DodocoTecnico.jpg';
 import dokoCozinheiro from '../../../assets/DodocoCozinheiro.jpg';
@@ -234,6 +235,43 @@ const GiftModal = ({ show, onClose, selected, photos, isAdmin, availTrophies, re
   );
 };
 
+// Tags de setor dos colegas. Quem é admin/moderador marca no perfil do colega; ficam num JSON
+// { nomeDoColega: [idsDeSetor] } na tabela `settings` (chave `colegas_setores`) — sem SQL novo.
+const SETORES = [
+  { id:'faturamento',     label:'Faturamento',     cor:'#2E8DD4' },
+  { id:'gestao',          label:'Gestão',          cor:'#8B5FE8' },
+  { id:'financeiro',      label:'Financeiro',      cor:'#28A870' },
+  { id:'suporte_tecnico', label:'Suporte Técnico', cor:'#E08030' },
+  { id:'contratual',      label:'Contratual',      cor:'#C0307A' },
+  { id:'distribuicao',    label:'Distribuição',    cor:'#14A3A3' },
+  { id:'pos_venda',       label:'Pós Venda',       cor:'#D9468F' },
+  { id:'diretor',         label:'Diretor',         cor:'#B8860B' },
+  { id:'outros',          label:'Outros',          cor:'#6B7280' },
+];
+const SETORES_KEY = 'colegas_setores';
+const SetorTag = ({ setor, ativo = true, onClick, small = false }) => (
+  <span onClick={onClick}
+    style={{ display:'inline-flex', alignItems:'center', gap:4, padding: small ? '2px 8px' : '5px 12px', borderRadius:999,
+      fontSize: small ? 10 : 12, fontWeight:700, whiteSpace:'nowrap', cursor: onClick ? 'pointer' : 'default', userSelect:'none',
+      color: ativo ? setor.cor : T.textD,
+      background: ativo ? `color-mix(in srgb, ${setor.cor} 14%, transparent)` : 'transparent',
+      border: `1px solid ${ativo ? `color-mix(in srgb, ${setor.cor} 45%, transparent)` : T.border}`,
+      transition:'all .15s' }}>
+    {setor.label}
+  </span>
+);
+
+const _norm = (t) => String(t || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().replace(/\s+/g, ' ').trim();
+const _fmtData = (iso) => { try { return new Date(iso).toLocaleDateString('pt-BR'); } catch { return ''; } };
+// Tira o "Comprou “…”" do texto do histórico e devolve só o nome do prêmio.
+const _nomePremio = (descr) => String(descr || '').replace(/^Comprou\s*[“"]?/i, '').replace(/[”"]\s*$/, '').trim() || 'Prêmio';
+// A Roleta guarda o ganhador como texto livre (nome, número...) — bate pelo nome completo ou o nome de exibição.
+const _ganhouRoleta = (label, emp) => {
+  const l = _norm(label); if (!l) return false;
+  const alvos = [_norm(emp.name), _norm(nomeExibido(emp.name))].filter(Boolean);
+  return alvos.some(a => a === l || (l.includes(' ') && (a.includes(l) || l.includes(a))));
+};
+
 const TabColegas = () => {
   useNomesExibicao();
   const auth     = getAuthUser();
@@ -254,6 +292,59 @@ const TabColegas = () => {
     fetchCapturesFor(selected.name).then(list => { if (alive) setColCollection(list); });
     return () => { alive = false; };
   }, [selected]);
+  // Prismas, prêmios resgatados e vitórias na Roleta do colega selecionado.
+  const [colExtra, setColExtra] = useState(null); // null = carregando | { comum, premium, compras:[], roleta:[], temCarteira }
+  useEffect(() => {
+    if (!selected?.name) { setColExtra(null); return; }
+    let alive = true;
+    setColExtra(null);
+    (async () => {
+      const emp = selected;
+      let comum = 0, premium = 0, temCarteira = false, compras = [], roleta = [];
+      try {
+        const { data } = await _supabase.from('mercado_state').select('data').eq('player', emp.name).maybeSingle();
+        if (data?.data) { comum = Number(data.data.comum) || 0; premium = Number(data.data.premium) || 0; temCarteira = true; }
+      } catch {}
+      try {
+        const { data } = await _supabase.from('mercado_history').select('*')
+          .eq('player', emp.name).in('kind', ['compra', 'compra_uniko']).order('created_at', { ascending: false }).limit(40);
+        compras = data || [];
+        const ids = [...new Set(compras.map(h => h.item_id).filter(Boolean))];
+        if (ids.length) {
+          const { data: its } = await _supabase.from('mercado_items').select('id,name,images,emoji').in('id', ids);
+          const mp = Object.fromEntries((its || []).map(i => [i.id, i]));
+          compras = compras.map(h => ({ ...h, _item: mp[h.item_id] || null }));
+        }
+      } catch {}
+      try {
+        const cfg = await loadRoletaConfig();
+        roleta = (cfg?.history || []).filter(h => _ganhouRoleta(h.label, emp));
+      } catch {}
+      if (alive) setColExtra({ comum, premium, compras, roleta, temCarteira });
+    })();
+    return () => { alive = false; };
+  }, [selected]);
+  const [setores,     setSetores]    = useState({});   // { [nome]: [idSetor] }
+  const [filtroSetor, setFiltroSetor] = useState([]);   // ids de setor selecionados no filtro
+  const podeEditarSetor = isAdmin || auth?.role === 'moderador';
+  const toggleSetor = async (nome, id) => {
+    const atual = setores[nome] || [];
+    const novo = atual.includes(id) ? atual.filter(x => x !== id) : [...atual, id];
+    const anterior = setores;
+    const next = { ...setores, [nome]: novo };
+    if (!novo.length) delete next[nome];
+    setSetores(next);
+    try {
+      // Relê antes de gravar pra não sobrescrever o que outra pessoa marcou nesse meio-tempo.
+      const { data } = await _supabase.from('settings').select('value').eq('key', SETORES_KEY).maybeSingle();
+      const remoto = data?.value ? (typeof data.value === 'string' ? JSON.parse(data.value) : data.value) : {};
+      const merged = { ...remoto, [nome]: novo };
+      if (!novo.length) delete merged[nome];
+      const { error } = await _supabase.from('settings').upsert({ key: SETORES_KEY, value: JSON.stringify(merged) }, { onConflict: 'key' });
+      if (error) throw error;
+      setSetores(merged);
+    } catch { setSetores(anterior); }
+  };
   const [search,      setSearch]     = useState('');
 
   /* gift state */
@@ -277,6 +368,12 @@ const TabColegas = () => {
 
       const names = list.map(e => e.name);
       if (!names.length) { setLoading(false); return; }
+
+      try {
+        const { data } = await _supabase.from('settings').select('value').eq('key', SETORES_KEY).maybeSingle();
+        const v = data?.value ? (typeof data.value === 'string' ? JSON.parse(data.value) : data.value) : {};
+        setSetores(v && typeof v === 'object' ? v : {});
+      } catch {}
 
       const [photoRes, trophyRes, dokoRes, skinRes] = await Promise.all([
         Promise.all(names.map(async n => [n, await fetchPhotoByName(n)])),
@@ -395,8 +492,88 @@ const TabColegas = () => {
               {temNomeEscolhido(emp.name) && <div style={{ fontSize:12, color:T.textT, marginTop:2 }}>{emp.name}</div>}
               <div style={{ fontSize:13, color:T.textT, marginTop:3 }}>{emp.cargo || emp.role || 'Colaborador'}</div>
               {emp.admission && <div style={{ fontSize:11, color:T.textD, marginTop:4 }}>Admissão: {emp.admission}</div>}
+              {/* Setores — todos veem; admin/moderador clicam pra marcar/desmarcar */}
+              <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginTop:10 }}>
+                {podeEditarSetor
+                  ? SETORES.map(st => <SetorTag key={st.id} setor={st} ativo={(setores[emp.name] || []).includes(st.id)} onClick={() => toggleSetor(emp.name, st.id)}/>)
+                  : SETORES.filter(st => (setores[emp.name] || []).includes(st.id)).map(st => <SetorTag key={st.id} setor={st}/>)}
+              </div>
+              {podeEditarSetor && <div style={{ fontSize:10.5, color:T.textD, marginTop:5 }}>Clique nos setores para marcar ou desmarcar.</div>}
             </div>
           </div>
+        </Card>
+
+        {/* Prismas, prêmios resgatados e Roleta da Sorte do colega */}
+        <Card style={{ padding:'20px 24px', marginBottom:14 }} elevated>
+          <div style={{ fontSize:15, fontWeight:700, color:T.text, marginBottom:12 }}>💎 Prismas</div>
+          {colExtra == null ? (
+            <div style={{ fontSize:13, color:T.textT }}>Carregando...</div>
+          ) : (
+            <div style={{ display:'flex', gap:12, flexWrap:'wrap' }}>
+              {[{ k:'comum', label:'Prisma Comum', img:'/PrismaComum.png' }, { k:'premium', label:'Prisma Premium', img:'/PrismaPremium.png' }].map(c => (
+                <div key={c.k} style={{ flex:'1 1 180px', display:'flex', alignItems:'center', gap:12, padding:'12px 16px', borderRadius:14,
+                  border:`1px solid ${T.border}`, background: T.dark ? 'rgba(255,255,255,0.04)' : T.goldGl }}>
+                  <img src={c.img} alt={c.label} onError={e => { e.target.style.display='none'; }} style={{ width:38, height:38, objectFit:'contain' }}/>
+                  <div>
+                    <div style={{ fontSize:22, fontWeight:800, color:T.text, lineHeight:1.1 }}>{(colExtra[c.k] || 0).toLocaleString('pt-BR')}</div>
+                    <div style={{ fontSize:11.5, color:T.textT }}>{c.label}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+
+        <Card style={{ padding:'20px 24px', marginBottom:14 }} elevated>
+          <div style={{ fontSize:15, fontWeight:700, color:T.text, marginBottom:4 }}>🎁 Prêmios resgatados</div>
+          <div style={{ fontSize:12, color:T.textT, marginBottom:12 }}>
+            {colExtra == null ? 'Carregando...' : colExtra.compras.length === 0 ? 'Ainda não resgatou nenhum prêmio da Prisma Store.'
+              : `${colExtra.compras.length} prêmio${colExtra.compras.length===1?'':'s'} na Prisma Store`}
+          </div>
+          {colExtra && colExtra.compras.length > 0 && (
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(210px,1fr))', gap:10 }}>
+              {colExtra.compras.map((h, i) => {
+                const it = h._item;
+                const capa = it?.images?.[0];
+                return (
+                  <div key={h.id || i} style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 12px', borderRadius:12, border:`1px solid ${T.border}`,
+                    background: T.dark ? 'rgba(255,255,255,0.03)' : '#fff' }}>
+                    <div style={{ width:44, height:44, borderRadius:10, overflow:'hidden', flexShrink:0, background:T.goldGl, display:'flex', alignItems:'center', justifyContent:'center', fontSize:22 }}>
+                      {capa ? <img src={capa} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }}/> : (it?.emoji || '🎁')}
+                    </div>
+                    <div style={{ minWidth:0 }}>
+                      <div style={{ fontSize:12.5, fontWeight:700, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={it?.name || _nomePremio(h.descr)}>{it?.name || _nomePremio(h.descr)}</div>
+                      <div style={{ fontSize:11, color:T.textT }}>{_fmtData(h.created_at)}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Card>
+
+        <Card style={{ padding:'20px 24px', marginBottom:14 }} elevated>
+          <div style={{ fontSize:15, fontWeight:700, color:T.text, marginBottom:4 }}>🎡 Roleta da Sorte</div>
+          <div style={{ fontSize:12, color:T.textT, marginBottom:colExtra && colExtra.roleta.length ? 12 : 0 }}>
+            {colExtra == null ? 'Carregando...' : colExtra.roleta.length === 0 ? 'Nunca foi sorteado na Roleta da Sorte.'
+              : `Ganhou ${colExtra.roleta.length} sorteio${colExtra.roleta.length===1?'':'s'}`}
+          </div>
+          {colExtra && colExtra.roleta.length > 0 && (
+            <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+              {colExtra.roleta.map((h, i) => (
+                <div key={h.id || i} style={{ display:'flex', alignItems:'center', gap:10, padding:'9px 12px', borderRadius:12, border:`1px solid ${T.border}`,
+                  background: T.dark ? 'rgba(255,255,255,0.03)' : '#fff' }}>
+                  <div style={{ width:40, height:40, borderRadius:10, overflow:'hidden', flexShrink:0, background:T.goldGl, display:'flex', alignItems:'center', justifyContent:'center', fontSize:20 }}>
+                    {h.photoUrl ? <img src={h.photoUrl} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }}/> : '🏆'}
+                  </div>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontSize:12.5, fontWeight:700, color:T.text }}>Sorteado na Roleta da Sorte</div>
+                    <div style={{ fontSize:11, color:T.textT }}>{_fmtData(h.at)}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </Card>
 
         {/* Coleção de Unikos do colega */}
@@ -447,7 +624,9 @@ const TabColegas = () => {
   }
 
   /* ── LIST VIEW ────────────────────────────────────────────── */
-  const filtered = employees.filter(e => !search || `${e.name} ${nomeExibido(e.name)}`.toLowerCase().includes(search.toLowerCase()));
+  const filtered = employees.filter(e =>
+    (!search || `${e.name} ${nomeExibido(e.name)}`.toLowerCase().includes(search.toLowerCase())) &&
+    (!filtroSetor.length || filtroSetor.some(id => (setores[e.name] || []).includes(id))));
 
   return (
     <div className="fi" style={{ fontFamily:'var(--font-body)' }}>
@@ -471,6 +650,18 @@ const TabColegas = () => {
           <Ico size={13} d={<><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></>}/>
           Atualizar
         </button>
+      </div>
+
+      {/* Filtro por setor */}
+      <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center', marginBottom:16 }}>
+        <span style={{ fontSize:11, fontWeight:700, color:T.textD, textTransform:'uppercase', letterSpacing:'.07em' }}>Setor</span>
+        {SETORES.map(st => (
+          <SetorTag key={st.id} setor={st} ativo={filtroSetor.includes(st.id)}
+            onClick={() => setFiltroSetor(f => f.includes(st.id) ? f.filter(x => x !== st.id) : [...f, st.id])}/>
+        ))}
+        {filtroSetor.length > 0 && (
+          <button onClick={() => setFiltroSetor([])} style={{ background:'none', border:'none', color:T.textD, cursor:'pointer', fontSize:12, textDecoration:'underline' }}>limpar</button>
+        )}
       </div>
 
       {loading ? (
@@ -526,6 +717,11 @@ const TabColegas = () => {
                   overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                   {emp.cargo || emp.role || 'Colaborador'}
                 </div>
+                {(setores[emp.name] || []).length > 0 && (
+                  <div style={{ display:'flex', gap:4, flexWrap:'wrap', justifyContent:'center', marginTop:8 }}>
+                    {SETORES.filter(st => (setores[emp.name] || []).includes(st.id)).map(st => <SetorTag key={st.id} setor={st} small/>)}
+                  </div>
+                )}
               </div>
             );
           })}
