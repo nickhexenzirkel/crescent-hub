@@ -2,7 +2,7 @@
 // do comercial (só os dele) e pela aba do Dashboard RH (todos os comerciais).
 import { useMemo, useState } from 'react';
 import { T } from '../../contexts/theme';
-import { CATEGORIAS, corCategoria, brl, fmtData, urlAnexo } from './api';
+import { CATEGORIAS, STATUS_PRESTACAO, corCategoria, brl, fmtData, urlAnexo } from './api';
 
 const card = { background: T.surface, border: `1px solid ${T.border}`, borderRadius: 14, padding: 16 };
 const sel = { padding: '8px 10px', borderRadius: 8, border: `1.5px solid ${T.border}`, background: T.surface, color: T.text, fontSize: 13, fontFamily: 'var(--font-body)', outline: 'none' };
@@ -81,22 +81,39 @@ function Anexos({ anexos }) {
   );
 }
 
-export default function PrestacoesPainel({ rows, mostrarFuncionario = false, onExcluir, podeExcluir }) {
+/* Selo de situação (Em análise / Aprovada / Rejeitada) + a observação do RH, quando houver. */
+function SituacaoPrestacao({ r }) {
+  const st = STATUS_PRESTACAO[r.status] || STATUS_PRESTACAO.pendente;
+  return (
+    <>
+      <span style={{ fontSize: 11, fontWeight: 800, color: '#fff', background: st.cor, borderRadius: 999, padding: '2px 9px' }}>{st.rot}</span>
+      {r.status !== 'pendente' && r.observacao_rh && (
+        <div style={{ marginTop: 8, padding: '8px 10px', borderRadius: 8, borderLeft: `3px solid ${st.cor}`, background: T.goldGl, fontSize: 13, color: T.text, whiteSpace: 'pre-wrap' }}>
+          <b style={{ color: st.cor }}>Observação do RH{r.avaliada_por ? ` (${r.avaliada_por})` : ''}:</b> {r.observacao_rh}
+        </div>
+      )}
+    </>
+  );
+}
+
+export default function PrestacoesPainel({ rows, mostrarFuncionario = false, onExcluir, podeExcluir, onAvaliar }) {
   const [cat, setCat] = useState('');
   const [de, setDe] = useState('');
   const [ate, setAte] = useState('');
   const [busca, setBusca] = useState('');
+  const [situacao, setSituacao] = useState('');
 
   const filtradas = useMemo(() => {
     const q = busca.trim().toLowerCase();
     return rows.filter(r => {
       if (cat && r.categoria !== cat) return false;
+      if (situacao && (r.status || 'pendente') !== situacao) return false;
       if (de && r.data_gasto < de) return false;
       if (ate && r.data_gasto > ate) return false;
       if (q && !`${r.motivo} ${r.descricao || ''} ${r.employee_name || ''}`.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [rows, cat, de, ate, busca]);
+  }, [rows, cat, situacao, de, ate, busca]);
 
   const stats = useMemo(() => {
     const total = filtradas.reduce((s, r) => s + Number(r.valor), 0);
@@ -166,6 +183,10 @@ export default function PrestacoesPainel({ rows, mostrarFuncionario = false, onE
             <option value="">Todas as categorias</option>
             {CATEGORIAS.map(c => <option key={c.id} value={c.id}>{c.id}</option>)}
           </select>
+          <select value={situacao} onChange={e => setSituacao(e.target.value)} style={sel}>
+            <option value="">Todas as situações</option>
+            {Object.entries(STATUS_PRESTACAO).map(([id, st]) => <option key={id} value={id}>{st.rot}</option>)}
+          </select>
           <input type="date" value={de} onChange={e => setDe(e.target.value)} style={sel} title="De" />
           <input type="date" value={ate} onChange={e => setAte(e.target.value)} style={sel} title="Até" />
         </div>
@@ -178,6 +199,7 @@ export default function PrestacoesPainel({ rows, mostrarFuncionario = false, onE
                 <div style={{ display: 'flex', gap: 10, alignItems: 'baseline', flexWrap: 'wrap' }}>
                   <b style={{ color: T.text, fontSize: 14 }}>{r.motivo}</b>
                   <span style={{ fontSize: 11.5, fontWeight: 700, color: corCategoria(r.categoria) }}>{r.categoria}</span>
+                  <SituacaoPrestacao r={r} />
                   <span style={{ marginLeft: 'auto', fontWeight: 800, color: T.text, fontSize: 15 }}>{brl(r.valor)}</span>
                 </div>
                 <div style={{ fontSize: 12, color: T.textS, marginTop: 2 }}>
@@ -185,6 +207,18 @@ export default function PrestacoesPainel({ rows, mostrarFuncionario = false, onE
                 </div>
                 {r.descricao && <div style={{ fontSize: 13, color: T.text, marginTop: 6, whiteSpace: 'pre-wrap' }}>{r.descricao}</div>}
                 <Anexos anexos={r.anexos} />
+                {onAvaliar && (
+                  <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+                    <button onClick={() => onAvaliar(r, 'aprovada')} disabled={r.status === 'aprovada'}
+                      style={{ padding: '6px 14px', borderRadius: 8, border: 'none', background: STATUS_PRESTACAO.aprovada.cor, color: '#fff', fontWeight: 700, fontSize: 12.5, cursor: r.status === 'aprovada' ? 'default' : 'pointer', opacity: r.status === 'aprovada' ? 0.45 : 1, fontFamily: 'var(--font-body)' }}>
+                      ✓ Aprovar
+                    </button>
+                    <button onClick={() => onAvaliar(r, 'rejeitada')} disabled={r.status === 'rejeitada'}
+                      style={{ padding: '6px 14px', borderRadius: 8, border: 'none', background: STATUS_PRESTACAO.rejeitada.cor, color: '#fff', fontWeight: 700, fontSize: 12.5, cursor: r.status === 'rejeitada' ? 'default' : 'pointer', opacity: r.status === 'rejeitada' ? 0.45 : 1, fontFamily: 'var(--font-body)' }}>
+                      ✕ Rejeitar
+                    </button>
+                  </div>
+                )}
                 {podeExcluir?.(r) && (
                   <button onClick={() => onExcluir?.(r)} style={{ marginTop: 8, background: 'transparent', border: 'none', color: T.danger || '#C04050', fontSize: 12, cursor: 'pointer', padding: 0, fontFamily: 'var(--font-body)' }}>Excluir</button>
                 )}

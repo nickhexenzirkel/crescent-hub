@@ -257,6 +257,18 @@ const itemAbono = (j) => (j.texto && j.abonado !== false ? {
   id: `pj:${j.cpf}:${j.data}`, tipo: 'justificativa', subtipo: 'abonada', quando: j.updated_at,
   titulo: `RH abonou seu ponto de ${diaTxt(j.data)}`, sub: j.texto, destino: ['colaborador', 'ponto'],
 } : null);
+/* Prestação de contas que o RH aprovou/rejeitou. O id carrega o status: se o RH mudar
+   de ideia, vira um aviso NOVO (o antigo sai do mapa, ver `sair` em consultar). A
+   observação do RH vai no aviso — é o motivo da rejeição. */
+const itemPrestacao = (r) => {
+  if (r.status !== 'aprovada' && r.status !== 'rejeitada') return null;   // pendente: foi a própria pessoa que lançou
+  const ok = r.status === 'aprovada';
+  const valor = Number(r.valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  return { id: `pc:${r.id}:${r.status}`, tipo: 'prestacao', subtipo: ok ? 'aprovada' : 'recusada', quando: r.avaliada_em || r.created_at, ruim: !ok,
+    titulo: `Prestação de contas ${ok ? 'aprovada' : 'rejeitada'}: ${r.motivo || 'gasto'}`,
+    sub: r.observacao_rh ? `RH: ${r.observacao_rh}` : `${valor} · ${ok ? 'aprovada pelo RH' : 'rejeitada pelo RH'}`,
+    destino: ['prestacao-contas'] };
+};
 const itemAtualizacao = (r) => (r.active === false ? null : {
   id: `at:${r.id}`, tipo: 'atualizacao', subtipo: 'sistema', quando: r.created_at,
   titulo: r.titulo || 'Atualização do Uniko', sub: r.descricao || (r.imagem_url ? 'Toque pra ver a novidade' : 'Novidade no sistema'),
@@ -308,7 +320,7 @@ export const useCaixaEntrada = (authUser) => {
   const consultar = useCallback(async (de, ate, limite) => {
     if (!nome) return;
     const faixa = (q, col) => { q = q.gte(col, de); if (ate) q = q.lt(col, ate); return q.order(col, { ascending: false }).limit(limite); };
-    const [bh, ph, gi, ev, ps, at, nt, cm, cls, fr, fc, fch] = await Promise.all([
+    const [bh, ph, gi, ev, ps, at, nt, cm, cls, fr, fc, fch, pc] = await Promise.all([
       faixa(supabase.from('banco_horas').select('id,data,descricao,horas_calculadas,status,created_at,updated_at').eq('created_by', nome), 'updated_at'),
       faixa(supabase.from('mercado_history').select('id,kind,descr,comum,premium,created_at').eq('player', nome).in('kind', ['envio', 'presente', 'admin']), 'created_at'),
       faixa(supabase.from('game_invites').select('id,from_name,to_name,game,room_id,room_name,created_at').eq('to_name', nome), 'created_at'),
@@ -322,6 +334,10 @@ export const useCaixaEntrada = (authUser) => {
       faixa(supabase.from('uniko_fit_reactions').select('id,player,emoji,created_at,uniko_fit_checkins(player)'), 'created_at'),
       faixa(supabase.from('uniko_fit_comments').select('id,player,texto,created_at,uniko_fit_checkins(player)'), 'created_at'),
       faixa(supabase.from('uniko_fit_chat').select('id,player,texto,tipo,created_at').neq('tipo', 'checkin'), 'created_at'),
+      // Prestações de contas já decididas pelo RH (a RLS só deixa ver as próprias).
+      faixa((cpf ? supabase.from('prestacoes_contas').select('id,motivo,valor,status,observacao_rh,avaliada_em,created_at').eq('employee_cpf', cpf)
+                 : supabase.from('prestacoes_contas').select('id,motivo,valor,status,observacao_rh,avaliada_em,created_at').eq('employee_name', nome))
+        .in('status', ['aprovada', 'rejeitada']), 'avaliada_em'),
     ].map(q => q.then(r => r.data || [], () => [])));
 
     /* Abonos do ponto: pelo id de ponto que as solicitações usam (PIS) e pelo
@@ -336,6 +352,7 @@ export const useCaixaEntrada = (authUser) => {
     const diasDeSolicitacao = new Set(ps.filter(x => x.status !== 'pendente').map(x => x.data_ref));
     const idsAtuais = new Set(ps.map(x => itemSolicitacao(x, abonos).id));
     // Convite de coluna do Trello: só mostra enquanto "pendente" — aceito/recusado sai sozinho.
+    const idsPc = new Set(pc.map(itemPrestacao).filter(Boolean).map(i => i.id));
     const idsClsPendentes = new Set(cls.filter(x => x.status === 'pendente').map(x => `cls:${x.id}`));
 
     juntar([...bh.map(itemBanco), ...ph.map(itemPrisma), ...gi.map(itemConvite),
@@ -351,10 +368,12 @@ export const useCaixaEntrada = (authUser) => {
       // curtidas em fotos alheias, com o nome de quem realmente postou.
       ...fr.filter(r => r.uniko_fit_checkins?.player === nome).map(itemFitCurtida),
       ...fc.filter(r => r.uniko_fit_checkins?.player === nome).map(itemFitComentario),
-      ...fch.filter(x => x.player !== nome).map(itemFitChat)],
+      ...fch.filter(x => x.player !== nome).map(itemFitChat),
+      ...pc.map(itemPrestacao)],
     // Registro desta faixa que mudou de estado ou sumiu: a versão velha sai do
     // mapa (solicitação de ponto resolvida/recusada, convite de coluna decidido).
-    (it) => ((it.id.startsWith('ps:') && !idsAtuais.has(it.id)) || (it.id.startsWith('cls:') && !idsClsPendentes.has(it.id)))
+    (it) => ((it.id.startsWith('ps:') && !idsAtuais.has(it.id)) || (it.id.startsWith('cls:') && !idsClsPendentes.has(it.id))
+        || (it.id.startsWith('pc:') && !idsPc.has(it.id)))
       && String(it.quando) >= de && (!ate || String(it.quando) < ate));
   }, [nome, cpf, juntar]);
 
@@ -404,6 +423,10 @@ export const useCaixaEntrada = (authUser) => {
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'conexao_list_shares' }, () => buscar())
       // Uniko Fit: reação/comentário dependem de saber o DONO do check-in (join
       // que o payload do realtime não traz) — refaz a consulta, é barata.
+      // Prestação de contas decidida pelo RH: refaz a consulta (se o RH mudar de
+      // ideia, o aviso velho precisa sair e o novo entrar).
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'prestacoes_contas' },
+        ({ new: r }) => { if (r && ((cpf && r.employee_cpf === cpf) || r.employee_name === nome)) buscar(); })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'uniko_fit_reactions' }, () => buscar())
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'uniko_fit_comments' }, () => buscar())
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'uniko_fit_chat' },

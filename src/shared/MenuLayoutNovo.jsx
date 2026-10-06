@@ -555,6 +555,7 @@ const TIPO_CAIXA = {
   convite: { cor:'#FF9F0A', icone:<><rect x="2.5" y="7" width="19" height="11" rx="5.5"/><line x1="7.5" y1="10.5" x2="7.5" y2="14.5"/><line x1="5.5" y1="12.5" x2="9.5" y2="12.5"/><circle cx="15.5" cy="11.5" r=".9" fill="currentColor"/><circle cx="17.5" cy="13.5" r=".9" fill="currentColor"/></> },
   evento:  { cor:'#FF375F', icone:<><rect x="3" y="4" width="18" height="17" rx="2.5"/><line x1="16" y1="2.5" x2="16" y2="6"/><line x1="8" y1="2.5" x2="8" y2="6"/><line x1="3" y1="9.5" x2="21" y2="9.5"/></> },
   justificativa: { cor:'#30B0C7', icone:<><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15l2 2 4-4"/></> },
+  prestacao:     { cor:'#2FA36B', icone:<><rect x="3" y="6" width="18" height="13" rx="2.5"/><path d="M3 10h18"/><path d="M7 15h4"/></> },
   atualizacao:   { cor:'#5E5CE6', icone:<><path d="M21 12a9 9 0 11-3-6.7"/><polyline points="21 3 21 9 15 9"/></> },
   aviso:         { cor:'#FF9500', icone:<><path d="M3 11v2a1 1 0 001 1h3l5 4V6L7 10H4a1 1 0 00-1 1z"/><path d="M16 9a4 4 0 010 6"/><path d="M19 6a8 8 0 010 12"/></> },
 };
@@ -600,6 +601,7 @@ const CATEGORIAS_CAIXA = [
   { id:'convite', rot:'Convites',       subs:[{ id:'paint', rot:'Uniko Paint' }, { id:'stop', rot:'Uniko Stop!' }] },
   { id:'evento',  rot:'Agenda',         subs:null },   // subcategorias = os tipos de evento que existirem
   { id:'justificativa', rot:'Justificativas', subs:[{ id:'andamento', rot:'Em análise' }, { id:'aprovada', rot:'Aprovadas' }, { id:'resolvida', rot:'Resolvidas' }, { id:'abonada', rot:'Abonadas pelo RH' }] },
+  { id:'prestacao',     rot:'Prestações de contas', subs:[{ id:'aprovada', rot:'Aprovadas' }, { id:'recusada', rot:'Rejeitadas' }] },
   { id:'atualizacao',   rot:'Atualizações',   subs:[] },   // sem subcategoria
   { id:'aviso',         rot:'Avisos do RH',   subs:[{ id:'urgente', rot:'Urgentes' }, { id:'lembrete', rot:'Lembretes' }, { id:'comunicado', rot:'Comunicados' }] },
 ];

@@ -56,3 +56,24 @@ export async function excluirPrestacao(p) {
   const paths = (p.anexos || []).map(a => a.path).filter(Boolean);
   if (paths.length) await supabase.storage.from(BUCKET).remove(paths).catch(() => {});
 }
+
+export const STATUS_PRESTACAO = {
+  pendente:  { rot: 'Em análise', cor: '#C4A23B' },
+  aprovada:  { rot: 'Aprovada',   cor: '#2FA36B' },
+  rejeitada: { rot: 'Rejeitada',  cor: '#C94F4F' },
+};
+
+// RH: aprova ou rejeita uma prestação, com observação opcional (o motivo da
+// rejeição, por exemplo). O comercial é avisado na Caixa de Entrada, que lê
+// estas mesmas colunas (ver useCaixaEntrada em shared/menuWidgets.js).
+export async function avaliarPrestacao(id, status, observacao, avaliador) {
+  const campos = {
+    status,
+    observacao_rh: (observacao || '').trim() || null,
+    avaliada_por: avaliador || null,
+    avaliada_em: new Date().toISOString(),
+  };
+  const { data, error } = await supabase.from(TABLE).update(campos).eq('id', id).select().single();
+  if (error) throw new Error(error.message);
+  return data;
+}
