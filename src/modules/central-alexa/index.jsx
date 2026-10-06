@@ -3883,7 +3883,7 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
                       <span style={{fontSize:11,fontWeight:700,color:T.textD,textTransform:"uppercase",letterSpacing:".1em"}}>Tocando agora</span>
                     </div>
                     {/* Capa + vinil girando */}
-                    <div style={{position:"relative",width:"100%",maxWidth:330,aspectRatio:"1.5 / 1"}}>
+                    <div style={{position:"relative",width:"100%",maxWidth:330,aspectRatio:"1.5 / 1",marginBottom:12}}>
                       <div style={{position:"absolute",height:"88%",aspectRatio:"1 / 1",borderRadius:"50%",right:0,top:"6%",
                         background:"conic-gradient(from 0deg,rgba(255,255,255,0) 0deg,rgba(255,255,255,0.20) 28deg,rgba(255,255,255,0) 70deg,rgba(255,255,255,0) 180deg,rgba(255,255,255,0.20) 208deg,rgba(255,255,255,0) 250deg),repeating-radial-gradient(circle at center,#0b0b10 0 3px,#17171f 3px 4px)",
                         boxShadow:`0 6px 28px ${festColors?.[0]||T.gold}55, inset 0 0 0 2px rgba(255,255,255,0.05)`,
