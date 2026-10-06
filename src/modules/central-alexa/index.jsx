@@ -2,7 +2,7 @@
 import { createPortal } from 'react-dom';
 import { T } from '../../contexts/theme';
 import { SERVER_URL, supabase as _supabase, USER, getAuthUser, fetchPhotoByName } from '../../contexts/user';
-import { BrandLogo, StarDivider, UnikoIcon, Logo, Tag, AvatarCircle } from '../../shared/components';
+import { BrandLogo, StarDivider, UnikoIcon, Logo, AvatarCircle } from '../../shared/components';
 import { bolhaGradiente } from '../../shared/bolhas';
 import UnikoMascot from './UnikoMascot';
 import OceanScene, { MushroomCoral, TubeCoral, BubbleCoral } from '../../shared/oceanScene';
@@ -3400,7 +3400,6 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
         <div style={{width:1,height:20,background:T.border}}/>
         <UnikoIcon size={32}/>
         <span style={{fontSize:14,fontWeight:700,color:T.text,fontFamily:"var(--font-brand)",letterSpacing:".04em"}}>Central Alexa</span>
-        <Tag color={T.gold}>Novo</Tag>
         <div style={{flex:1}}/>
         {!isMobile && (
         <div style={{position:"absolute",left:"50%",top:"50%",transform:"translate(-50%,-50%)",display:"flex",alignItems:"center",gap:6}}>
@@ -3416,14 +3415,6 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
               style={{color:tab===id?undefined:T.textS,fontWeight:tab===id?700:500}}>{icon}{label}</button>
           ))}
         </div>
-        )}
-        {isPlaying&&cur&&!isMobile&&(
-          <div style={{display:"flex",alignItems:"center",gap:8,padding:"5px 14px",borderRadius:9,background:T.goldGl,border:`1px solid ${T.goldLine}44`}}>
-            <div style={{display:"flex",alignItems:"flex-end",gap:2,height:20}}>
-              {[1,2,3,4,5].map(i=><div key={i} style={{width:3,borderRadius:2,background:T.gold,animation:`alexaEq${(i%5)+1} ${0.5+i*0.07}s ease-in-out infinite alternate`,minHeight:4,maxHeight:22}}/>)}
-            </div>
-            <span style={{fontSize:12,fontWeight:600,color:T.gold,maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{cur.title} — {cur.artist}</span>
-          </div>
         )}
         <Logo size={28}/>
       </div>
@@ -3630,6 +3621,7 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
                         colors={festColors}
                         size={isMobile?150:230}
                         songSkin={songSkin}
+                        claro={!isMobile && !isDark}
                       />
                     </div>
                   </div>
@@ -3731,7 +3723,7 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
             </div>
 
             {/* Right: Search bar + Queue */}
-            <div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",gap:isMobile?16:10,order:isMobile?1:0,width:isMobile?"100%":undefined,...(isMobile?{}:{minHeight:0})}}>
+            <div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",gap:isMobile?16:18,order:isMobile?1:0,width:isMobile?"100%":undefined,...(isMobile?{}:{minHeight:0})}}>
 
               {/* Server error message */}
               {serverMsg&&(
@@ -3748,11 +3740,6 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
                 <div style={{position:"absolute",width:100,height:100,borderRadius:"50%",background:bolhaGradiente(T.gold),opacity:0.16,top:"-20px",right:"10%",animation:"hdrBlob1 5s ease-in-out infinite"}}/>
                 <div style={{fontSize:11,fontWeight:700,color:T.textD,textTransform:"uppercase",letterSpacing:".10em",marginBottom:isMobile?12:6,position:"relative",zIndex:1,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}}>
                   <span>Pesquisar música</span>
-                  {!isMobile && (
-                    <span style={{display:"inline-flex",alignItems:"center",gap:6,textTransform:"none",letterSpacing:0,fontWeight:500}}>
-                      <span style={{fontSize:11,fontWeight:600,color:T.gold,padding:"2px 9px",borderRadius:6,background:T.goldGl,border:`1px solid ${T.goldLine}33`}}>{myName}</span>
-                    </span>
-                  )}
                 </div>
                 <div style={{position:"relative",zIndex:2}}>
                   <div style={{

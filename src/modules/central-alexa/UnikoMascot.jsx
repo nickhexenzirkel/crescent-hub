@@ -110,7 +110,8 @@ const SIZE_MULT_BY_SKIN = {
 };
 
 // songSkin: skin do DJ da música atual (vem do Supabase via index.jsx)
-const UnikoMascot = ({ track, colors = null, size = 160, songSkin = 'default' }) => {
+// claro: o card em volta é claro (tema claro) — o balão dos Unikos da Oficina deixa de ser escuro.
+const UnikoMascot = ({ track, colors = null, size = 160, songSkin = 'default', claro = false }) => {
   const isSpecial = songSkin !== 'default';
   const isVamp = songSkin === 'vampire-robot', isSea = songSkin === 'uniko-sereia';
   const skin      = getAssistantSkin(songSkin);
@@ -235,14 +236,15 @@ const UnikoMascot = ({ track, colors = null, size = 160, songSkin = 'default' })
             textAlign:            'center',
             lineHeight:           1.45,
           } : customAccent ? {
-            background:           'rgba(6,6,10,0.85)',
+            background:           claro ? 'rgba(255,255,255,0.94)' : 'rgba(6,6,10,0.85)',
             backdropFilter:       'blur(10px)',
             WebkitBackdropFilter: 'blur(10px)',
-            border:               `1px solid ${customAccent}55`,
+            border:               `1px solid color-mix(in srgb, ${customAccent} ${claro ? 55 : 33}%, transparent)`,
+            boxShadow:            claro ? '0 2px 12px rgba(0,0,0,0.10)' : undefined,
             borderRadius:         '14px 14px 14px 4px',
             padding:              `${Math.round(9*bubbleScale)}px ${Math.round(14*bubbleScale)}px`,
             fontSize:             Math.round(13*bubbleScale*10)/10,
-            color:                '#fff',
+            color:                claro ? '#1c1c28' : '#fff',
             maxWidth:             Math.round((size + 48)*bubbleScale),
             textAlign:            'center',
             lineHeight:           1.45,
