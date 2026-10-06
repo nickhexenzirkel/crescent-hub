@@ -32,7 +32,7 @@ const CENARIO = "url('/uniko-palavras-cenario.jpg') center / cover no-repeat";
 const MASCOTE_BRAVO = '/uniko-palavras-bravo.png';   // com raiva: dúvida, vida perdida, eliminação
 const VIDAS = 2;                // padrão; o host escolhe de 1 a MAX_VIDAS no lobby
 const MAX_VIDAS = 5;
-const NOVA_MS = 7_000;              // a letra recém-jogada fica à mostra por 7s, depois vira "?"
+const NOVA_MS = 7_000;              // cada letra fica à mostra por 7s a partir do momento em que é jogada, depois vira "?"
 const VER_MS = 5_000;               // quanto tempo as letras ficam à mostra ao espiar
 const CHANCES_VER = 2;              // espiadas por jogador, por rodada
 const MIN_FORMOU = 3;           // só dá pra chamar "formou palavra" com 3+ letras na mesa
@@ -267,7 +267,7 @@ const CardVez = ({ titulo, sub, quem, photo, cor, tempo, vidas, total, souEu, fa
 );
 
 /* Cartão da PALAVRA: letras grandes (coloridas por quem jogou) + a letra que a última pessoa escolheu. */
-const CardPalavra = ({ letras, ordem, mostrar, novaIdx, cardBg }) => {
+const CardPalavra = ({ letras, ordem, mostrar, aVista, cardBg }) => {
   const corDe = (n) => CORES[Math.max(0, ordem.indexOf(n)) % CORES.length];
   const ult = letras[letras.length - 1];
   const tile = (x, i, grande) => (
@@ -275,7 +275,7 @@ const CardPalavra = ({ letras, ordem, mostrar, novaIdx, cardBg }) => {
       style={{ width: grande ? 'clamp(54px, 10vh, 84px)' : 'clamp(32px, 5.6vh, 48px)', aspectRatio: '1', borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center',
         background: corDe(x.by), color: '#fff', fontFamily: 'var(--font-brand)', fontWeight: 900, fontSize: grande ? 'clamp(30px, 6vh, 48px)' : 'clamp(18px, 3.4vh, 28px)',
         border: '3px solid rgba(255,255,255,.85)', boxShadow: `0 4px 14px ${corDe(x.by)}88` }}>
-      {mostrar || i === novaIdx ? x.l.toUpperCase() : '?'}
+      {mostrar || aVista(i) ? x.l.toUpperCase() : '?'}
     </div>
   );
   return (
@@ -700,16 +700,25 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
       ausente: !players.some(p => p.name === n) }));
 
   const btnBase = { border: 'none', borderRadius: 12, fontWeight: 800, fontSize: 14, cursor: 'pointer', color: '#fff', padding: '11px 20px' };
-  /* Letra RECÉM-JOGADA: aparece pra todos por NOVA_MS e depois vira "?" (marca o instante em que
-     a letra chegou a ESTE cliente, então relógios diferentes não desencontram o tempo). */
-  const [nova, setNova] = useState({ i: -1, ate: 0 });
+  /* Cada letra tem o SEU relógio de NOVA_MS: começa quando ela chega a ESTE cliente (relógios
+     diferentes não desencontram o tempo) e, passado o prazo, ela vira "?". Letras jogadas em
+     sequência rápida ficam à vista ao mesmo tempo. Ex.: jogadas em até 7s uma da outra →
+     "? G U A" (a 1ª já sumiu); com o tempo todas voltam a "?". */
+  const [ates, setAtes] = useState([]);                 // ates[i] = instante em que a letra i volta a "?"
   const antLen = useRef(null);
   useEffect(() => {
     const n = letras.length;
-    if (antLen.current !== null && n > antLen.current) queueMicrotask(() => setNova({ i: n - 1, ate: nowMs() + NOVA_MS }));
+    const ant = antLen.current;
     antLen.current = n;
+    if (ant === null) return;                           // 1ª leitura (entrou no meio): nada à vista
+    if (n < ant || n === 0) { queueMicrotask(() => setAtes([])); return; }   // nova rodada
+    if (n > ant) queueMicrotask(() => setAtes(a => {
+      const novo = a.slice(0, ant);
+      for (let k = ant; k < n; k++) novo[k] = nowMs() + NOVA_MS;
+      return novo;
+    }));
   }, [letras.length]);
-  const novaIdx = now < nova.ate ? nova.i : -1;
+  const aVista = (i) => now < (ates[i] || 0);
 
   /* Letras OCULTAS: só aparecem ao espiar (2x por rodada), no fim da rodada, ou quando
      a votação precisa delas (formou palavra / depois que o acusado disse a palavra). */
@@ -717,7 +726,7 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
   const mostrar = revelaTudo || now < verAte;
   const restantes = CHANCES_VER - (state?.olhadas?.[name] || 0);
   const verSecs = Math.max(0, Math.ceil((verAte - now) / 1000));
-  const fragV = letras.map((x, i) => (mostrar || i === novaIdx ? x.l.toUpperCase() : '•')).join(' ');
+  const fragV = letras.map((x, i) => (mostrar || aVista(i) ? x.l.toUpperCase() : '•')).join(' ');
   const podeEspiar = (fase === 'jogando' || fase === 'duvida') && letras.length > 0 && !revelaTudo && (state?.vidas?.[name] || 0) > 0;
   const botaoEspiar = podeEspiar && (
     <button className="up-btn" onClick={espiar} disabled={restantes <= 0 || mostrar}
@@ -788,7 +797,7 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
           Cada um tem <b style={{ color: T.text }}>{vidasIni} {vidasIni === 1 ? 'vida' : 'vidas'}</b>. Acrescente uma letra por vez formando uma palavra —
           quem <b style={{ color: T.text }}>completar</b> uma palavra (a partir de {MIN_FORMOU} letras) perde uma vida, e quem for pego{' '}
           <b style={{ color: T.text }}>blefando</b> também. Na sua vez, você pode <b style={{ color: T.text }}>duvidar</b> de quem jogou antes.
-          As letras ficam <b style={{ color: T.text }}>ocultas</b> — a nova aparece por {NOVA_MS / 1000}s e vira “?”, então decore! Você pode espiar {CHANCES_VER}x por rodada. Não tem dicionário: <b style={{ color: T.text }}>a turma vota</b> (1 minuto, maioria decide)!
+          As letras ficam <b style={{ color: T.text }}>ocultas</b> — cada letra aparece por {NOVA_MS / 1000}s depois de jogada e vira “?”, então decore! Você pode espiar {CHANCES_VER}x por rodada. Não tem dicionário: <b style={{ color: T.text }}>a turma vota</b> (1 minuto, maioria decide)!
         </div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
           <span style={{ fontSize: 12, fontWeight: 800, color: T.textT }}>Vidas por jogador:</span>
@@ -992,7 +1001,7 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
           {!state ? <div style={{ textAlign: 'center', fontSize: 13, color: T.textT }}>Carregando sala...</div> : (
             <>
               {cartaoVez}
-              {(fase === 'jogando' || fase === 'duvida') && <CardPalavra letras={letras} ordem={ordem} mostrar={mostrar} novaIdx={novaIdx} cardBg={cardBg} />}
+              {(fase === 'jogando' || fase === 'duvida') && <CardPalavra letras={letras} ordem={ordem} mostrar={mostrar} aVista={aVista} cardBg={cardBg} />}
               <div style={{ background: cardBg, border: `2px solid ${T.border}`, borderRadius: 18, padding: 'clamp(10px, 1.8vh, 16px)', boxShadow: T.sh, flexShrink: 0 }}>{painel()}</div>
             </>
           )}
