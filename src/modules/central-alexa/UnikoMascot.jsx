@@ -121,6 +121,8 @@ const UnikoMascot = ({ track, colors = null, size = 160, songSkin = 'default' })
   const lines     = LINES_BY_SKIN[songSkin] || DJ_LINES;
   const bubbleClass = isVamp ? 'vamp-bubble' : isSea ? 'sea-bubble' : 'normal-bubble';
   const imgSize   = Math.round(size * (SIZE_MULT_BY_SKIN[songSkin] || 1));
+  // Desktop (size grande) ganha um balão maior; no celular fica como era.
+  const bubbleScale = size >= 200 ? 1.2 : 1;
 
   const [line,          setLine]          = useState(() => rand(lines));
   const [showBubble,    setShowBubble]    = useState(true);
@@ -214,10 +216,10 @@ const UnikoMascot = ({ track, colors = null, size = 160, songSkin = 'default' })
             WebkitBackdropFilter: 'blur(10px)',
             border:               '1px solid #c41e3a55',
             borderRadius:         '14px 14px 14px 4px',
-            padding:              '9px 14px',
-            fontSize:             13,
+            padding:              `${Math.round(9*bubbleScale)}px ${Math.round(14*bubbleScale)}px`,
+            fontSize:             Math.round(13*bubbleScale*10)/10,
             color:                '#eab8c4',
-            maxWidth:             size + 48,
+            maxWidth:             Math.round((size + 48)*bubbleScale),
             textAlign:            'center',
             lineHeight:           1.45,
           } : songSkin === 'uniko-sereia' ? {
@@ -226,10 +228,10 @@ const UnikoMascot = ({ track, colors = null, size = 160, songSkin = 'default' })
             WebkitBackdropFilter: 'blur(10px)',
             border:               '1px solid #2dd4bf55',
             borderRadius:         '14px 14px 14px 4px',
-            padding:              '9px 14px',
-            fontSize:             13,
+            padding:              `${Math.round(9*bubbleScale)}px ${Math.round(14*bubbleScale)}px`,
+            fontSize:             Math.round(13*bubbleScale*10)/10,
             color:                '#c9fbff',
-            maxWidth:             size + 48,
+            maxWidth:             Math.round((size + 48)*bubbleScale),
             textAlign:            'center',
             lineHeight:           1.45,
           } : customAccent ? {
@@ -238,10 +240,10 @@ const UnikoMascot = ({ track, colors = null, size = 160, songSkin = 'default' })
             WebkitBackdropFilter: 'blur(10px)',
             border:               `1px solid ${customAccent}55`,
             borderRadius:         '14px 14px 14px 4px',
-            padding:              '9px 14px',
-            fontSize:             13,
+            padding:              `${Math.round(9*bubbleScale)}px ${Math.round(14*bubbleScale)}px`,
+            fontSize:             Math.round(13*bubbleScale*10)/10,
             color:                '#fff',
-            maxWidth:             size + 48,
+            maxWidth:             Math.round((size + 48)*bubbleScale),
             textAlign:            'center',
             lineHeight:           1.45,
           } : {
@@ -250,10 +252,10 @@ const UnikoMascot = ({ track, colors = null, size = 160, songSkin = 'default' })
             WebkitBackdropFilter: 'blur(10px)',
             border:               '1px solid rgba(255,255,255,0.16)',
             borderRadius:         '14px 14px 14px 4px',
-            padding:              '9px 14px',
-            fontSize:             13,
+            padding:              `${Math.round(9*bubbleScale)}px ${Math.round(14*bubbleScale)}px`,
+            fontSize:             Math.round(13*bubbleScale*10)/10,
             color:                'inherit',
-            maxWidth:             size + 48,
+            maxWidth:             Math.round((size + 48)*bubbleScale),
             textAlign:            'center',
             lineHeight:           1.45,
           }}

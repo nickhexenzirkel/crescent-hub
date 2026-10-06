@@ -93,6 +93,40 @@ const BarraProgresso = ({ progressMs, durationMs, cores, onSeek, escuro = false,
   );
 };
 
+// Porcentagem de volume editável: digita um número (0–100) e confirma com Enter ou ao sair do campo.
+// Enquanto a pessoa digita mantém um rascunho local; fora disso mostra o volume real.
+const VolumeInput = ({ volume, onCommit, disabled, saving }) => {
+  const [rascunho, setRascunho] = useState(null);   // null = não está editando
+  const confirmar = () => {
+    if (rascunho === null) return;
+    const n = parseInt(rascunho, 10);
+    if (!Number.isNaN(n)) onCommit(Math.min(100, Math.max(0, n)));
+    setRascunho(null);
+  };
+  return (
+    <span style={{display:'inline-flex',alignItems:'center',justifyContent:'flex-end',gap:1,minWidth:42,
+      fontSize:11,color:T.textD,opacity:saving?0.5:(disabled?0.4:1)}}>
+      <input
+        value={rascunho ?? String(volume)}
+        disabled={disabled}
+        inputMode="numeric"
+        maxLength={3}
+        title="Digite o volume (0–100) e aperte Enter"
+        onFocus={e => { setRascunho(String(volume)); e.target.select(); }}
+        onChange={e => setRascunho(e.target.value.replace(/\D/g, '').slice(0, 3))}
+        onBlur={confirmar}
+        onKeyDown={e => {
+          if (e.key === 'Enter') { e.preventDefault(); confirmar(); e.target.blur(); }
+          else if (e.key === 'Escape') { setRascunho(null); e.target.blur(); }
+        }}
+        style={{width:28,textAlign:'right',background:'transparent',border:'none',borderBottom:`1px dashed ${T.border}`,
+          outline:'none',padding:'1px 0',fontSize:11,color:T.text,fontFamily:'inherit',fontVariantNumeric:'tabular-nums'}}
+      />
+      <span>%</span>
+    </span>
+  );
+};
+
 // Adivinha o gênero pelo primeiro nome (heurística PT-BR) → 'f' | 'm'
 const FEMALE_NAMES = new Set(['beatriz','isabel','isabela','raquel','rute','ruth','ester','esther','ines','lais','lays','iris','nicole','jaqueline','jacqueline','caroline','carol','rachel','denise','eloise','heloise','karen','karin','miriam','mirian','carmen','carmem','solange','mercedes','yasmin','yasmim','jasmin','liz','mabel','isis','cris','noemi','noemy','sarah','sara','hannah','deborah','debora','judith','lilian','marylin','sharon','estefani','estefany','gabrielly','emily','kimberly','ester','agnes','dulce','flor','pilar']);
 const MALE_NAMES   = new Set(['joshua','josua','luca','juca','nicola','elias','matias','mathias','tobias','jonas','lucas','thomas','tomas','dimas','andre','andres','felipe','filipe','henrique','jorge','jaime','jose','isaque','isaac','levi','kawan','noah','dante','vicente','clemente','enrique','aristoteles','socrates']);
@@ -1479,6 +1513,8 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
 
   // ── Letra sincronizada (LRCLIB) ──────────────────────────
   const [showLyrics, setShowLyrics]     = useState(false);
+  const [fullOpen, setFullOpen]         = useState(false);   // tela cheia estilo Apple Music (desktop)
+  const fsLyricsRef = useRef(null);
   const [lyrics, setLyrics]             = useState([]);       // [{time, text}]
   const [lyricsLoading, setLyricsLoading] = useState(false);
   const [lyricsError, setLyricsError]   = useState(false);
@@ -2441,6 +2477,36 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
     // longa a tela ficaria no topo até a linha seguinte trocar.
   }, [activeLine, lyrics, lyricsLoading, lyricsError, telaPlayer]);
 
+  // ── Tela cheia (desktop) ─────────────────────────────────
+  const toggleFull = () => {
+    if (fullOpen) {
+      setFullOpen(false);
+      if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+    } else {
+      setFullOpen(true);
+      document.documentElement.requestFullscreen?.().catch(() => {});
+    }
+  };
+  useEffect(() => {
+    if (!fullOpen) return;
+    // Esc / sair da tela cheia do navegador também fecha o modo expandido.
+    const onFs  = () => { if (!document.fullscreenElement) setFullOpen(false); };
+    const onKey = (e) => { if (e.key === 'Escape') setFullOpen(false); };
+    document.addEventListener('fullscreenchange', onFs);
+    window.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('fullscreenchange', onFs); window.removeEventListener('keydown', onKey); };
+  }, [fullOpen]);
+  useEffect(() => () => { if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {}); }, []);
+  // Mantém a linha atual da letra na altura de leitura (um pouco acima do meio).
+  useEffect(() => {
+    if (!fullOpen) return;
+    const cont = fsLyricsRef.current;
+    if (!cont) return;
+    const el = cont.querySelector(`[data-fline="${activeLine}"]`);
+    if (!el) return;
+    cont.scrollTo({ top: el.offsetTop - cont.clientHeight * 0.38 + el.offsetHeight / 2, behavior: 'smooth' });
+  }, [fullOpen, activeLine, lyrics, lyricsLoading]);
+
   // ── Ações do Festival ────────────────────────────────────
   const handleSearch = (val) => {
     setVoiceVal(val);
@@ -2769,6 +2835,32 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
      Em vez de espalhar ternários por 59 usos de cor, o card inteiro lê de uma
      paleta local: `C`. Fora do player ela É o tema, então nada muda; dentro,
      vira a versão clara-sobre-escuro. */
+  // Borda interna pulsante nas cores do Uniko (theme.border) — desktop. Usada nos cards
+  // de busca, fila e "Tocando agora" (o card do Uniko tem a sua própria, com blobs e título).
+  const pulseBorda = (radius = 18) => {
+    if (isMobile) return null;
+    const arr = unikoDaSkin(songSkin)?.theme?.border;
+    const base = (Array.isArray(arr) && arr.length >= 4)
+      ? [arr[1], arr[2], arr[3], arr[3]]
+      : [T.gold, T.gold, T.gold, T.gold];
+    // Embranquece: mistura cada cor com branco (só uma pitada da cor do Uniko).
+    const pct = [38, 30, 24, 34];
+    const c = base.map((col, i) => `color-mix(in srgb, ${col} ${pct[i]}%, white)`);
+    return (
+      <>
+        <style>{`
+          @keyframes caOuterPulse{
+            0%,100%{box-shadow:0 0 0 .5px var(--c1),0 0 0 1px var(--c2),0 0 0 1.5px var(--c3),0 0 4px 1px var(--c4);opacity:.45}
+            50%{box-shadow:0 0 0 .5px var(--c1),0 0 0 1px var(--c2),0 0 0 1.5px var(--c3),0 0 8px 2px var(--c4);opacity:.85}
+          }
+        `}</style>
+        <div style={{position:'absolute',inset:0,borderRadius:radius,pointerEvents:'none',zIndex:3,filter:'blur(1.5px)',
+          '--c1':c[0],'--c2':c[1],'--c3':c[2],'--c4':c[3],
+          animation:'caOuterPulse 2.6s ease-in-out infinite'}}/>
+      </>
+    );
+  };
+
   const renderQueueCard = (opts = {}) => {
     const C = opts.sobreEscuro ? {
       text:   '#FFFFFF',
@@ -2916,7 +3008,7 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
                                         onExpand={setExpandedPhoto}
                                       />
                                   }
-                                  <span style={{fontSize:11,color:C.textT,maxWidth:70,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                                  <span style={{fontSize:isMobile?11:13,fontWeight:isMobile?400:500,color:isMobile?C.textT:C.text,maxWidth:isMobile?70:112,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                                     {isSystem ? 'Uniko' : s.requested_by}
                                   </span>
                                 </div>
@@ -3310,6 +3402,21 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
         <span style={{fontSize:14,fontWeight:700,color:T.text,fontFamily:"var(--font-brand)",letterSpacing:".04em"}}>Central Alexa</span>
         <Tag color={T.gold}>Novo</Tag>
         <div style={{flex:1}}/>
+        {!isMobile && (
+        <div style={{position:"absolute",left:"50%",top:"50%",transform:"translate(-50%,-50%)",display:"flex",alignItems:"center",gap:6}}>
+          <style>{`
+            .ca-tab{position:relative;display:flex;align-items:center;gap:8px;flex-shrink:0;padding:9px 20px;border-radius:999px;border:1px solid transparent;background:transparent;cursor:pointer;outline:none;font-family:var(--font-body);font-size:13px;letter-spacing:.01em;transition:background .2s,color .2s,box-shadow .2s,transform .15s}
+            .ca-tab:hover{background:${T.goldGl};color:${T.gold}}
+            .ca-tab:active{transform:scale(.97)}
+            .ca-tab.on{color:#fff;font-weight:700;background:linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc);box-shadow:0 4px 16px ${T.goldLine}66,inset 0 1px 0 rgba(255,255,255,.25)}
+            .ca-tab.on:hover{color:#fff;background:linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)}
+          `}</style>
+          {TAB_DEFS.filter(t => !t.adminOnly || isAdmin).map(({id,label,icon})=>(
+            <button key={id} onClick={()=>changeTab(id)} className={`ca-tab${tab===id?" on":""}`}
+              style={{color:tab===id?undefined:T.textS,fontWeight:tab===id?700:500}}>{icon}{label}</button>
+          ))}
+        </div>
+        )}
         {isPlaying&&cur&&!isMobile&&(
           <div style={{display:"flex",alignItems:"center",gap:8,padding:"5px 14px",borderRadius:9,background:T.goldGl,border:`1px solid ${T.goldLine}44`}}>
             <div style={{display:"flex",alignItems:"flex-end",gap:2,height:20}}>
@@ -3321,27 +3428,9 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
         <Logo size={28}/>
       </div>
 
-      <div style={{maxWidth:1200,margin:"0 auto",padding:isMobile?"12px":"24px",
-        paddingBottom:isMobile?`calc(${MOBILE_NAV_H + (cur?78:14)}px + env(safe-area-inset-bottom,0px))`:24,
+      <div style={{maxWidth:(!isMobile&&tab==="festival")?1320:1200,margin:"0 auto",padding:isMobile?"12px":(tab==="festival"?"36px 24px 0":"24px"),
+        paddingBottom:isMobile?`calc(${MOBILE_NAV_H + (cur?78:14)}px + env(safe-area-inset-bottom,0px))`:(tab==="festival"?84:24),
         position:"relative",zIndex:2}}>
-        {!isMobile && (
-        <div style={{display:"flex",gap:6,marginBottom:20,padding:4,
-          width:"fit-content",overflowX:"visible",
-          background:isDark?`${T.surface}cc`:(T.surfaceW||"rgba(255,255,255,0.70)"),
-          backdropFilter:"blur(14px)",WebkitBackdropFilter:"blur(14px)",
-          border:`1px solid ${T.border}`,borderRadius:13,boxShadow:T.sh}}>
-          {TAB_DEFS.filter(t => !t.adminOnly || isAdmin).map(({id,label,icon})=>(
-            <button key={id} onClick={()=>changeTab(id)} style={{
-              display:"flex",alignItems:"center",gap:6,flexShrink:0,
-              padding:"9px 18px",borderRadius:9,cursor:"pointer",outline:"none",
-              fontFamily:"var(--font-body)",fontSize:13,fontWeight:tab===id?700:400,
-              background:tab===id?T.goldGl:"transparent",color:tab===id?T.gold:T.textS,
-              border:`1.5px solid ${tab===id?T.goldLine+"55":T.border}`,transition:"all .15s"
-            }}>{icon}{label}</button>
-          ))}
-        </div>
-        )}
-
         {/* ══════════ FESTIVAL TAB ══════════ */}
         {tab==="festival"&&(
           <div style={{position:"relative",zIndex:1}}>
@@ -3359,16 +3448,21 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
               }}
             />
           )}
-          <div style={{display:"flex",flexDirection:isMobile?"column":"row",gap:isMobile?14:20,alignItems:"flex-start",position:"relative",zIndex:1}}>
+          <div style={{display:"flex",flexDirection:isMobile?"column":"row",gap:isMobile?14:20,alignItems:isMobile?"flex-start":"stretch",position:"relative",zIndex:1,
+            ...(isMobile?{}:{height:"calc(100vh - 236px)",minHeight:410,maxHeight:530})}}>
 
             {/* Left: UnikoWave + Player */}
-            <div style={{width:isMobile?"100%":360,flexShrink:0,display:"flex",flexDirection:"column",flexWrap:"nowrap",gap:isMobile?12:16,order:isMobile?2:0}}>
+            <div style={{width:isMobile?"100%":"26%",maxWidth:isMobile?undefined:400,minWidth:isMobile?undefined:270,flexShrink:0,display:"flex",flexDirection:"column",flexWrap:"nowrap",gap:isMobile?12:10,order:isMobile?2:0,
+              ...(isMobile?{}:{position:"relative",minHeight:0})}}>
               {(() => {
                 const isVampCard = songSkin === 'vampire-robot';
                 const isSeaCard  = songSkin === 'uniko-sereia';
                 // Qualquer outra skin não-padrão (UNIKO Comum ou um Uniko da Oficina) ganha
                 // borda/glow na cor que o admin escolheu ao criar (getUniko cobre os dois).
-                const isCustomCard = songSkin !== 'default' && !isVampCard && !isSeaCard;
+                // No desktop o card dos Unikos da Oficina/Comum segue o tema da página (branco no
+                // tema claro, etc.), igual aos outros cards — sem a cor/cenário próprios do Uniko.
+                // No celular continua temático.
+                const isCustomCard = isMobile && songSkin !== 'default' && !isVampCard && !isSeaCard;
                 const isThemedCard = isVampCard || isSeaCard || isCustomCard;
                 const skin = isThemedCard ? getAssistantSkin(songSkin) : null;
                 const uni  = isCustomCard ? unikoDaSkin(songSkin) : null;
@@ -3377,9 +3471,13 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
                 // qualquer skin não-padrão (vamp/sereia/Oficina). Quando existe,
                 // SUBSTITUI o cenário animado codado do card (só o `!cardBgVideo`
                 // dos blocos de cena abaixo cuida disso).
-                const cardBgVideo = unikoDaSkin(songSkin)?.bgVideoUrl || '';
+                // O vídeo de fundo agora vale SÓ pro fundo da página (CentralBgVideo, lá em
+                // cima). O card do assistente fica sempre normal — com o fundo e o cenário
+                // da própria skin —, não mais transparente por cima do vídeo.
+                const cardBgVideo = '';
                 return (
-                <div style={{ position:'relative' }}>
+                <div style={isMobile?{ position:'relative' }:{ position:'relative', flex:'1 1 0', minHeight:0, display:'flex', flexDirection:'column' }}>
+                  {pulseBorda(20)}
                   {isVampCard && <style>{VAMP_CARD_CSS}</style>}
                   {isSeaCard && <style>{SEA_CARD_CSS}</style>}
 
@@ -3396,9 +3494,45 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
                     // continuam contidas (a CosmosScene de fundo tem seu PRÓPRIO
                     // overflow:hidden logo abaixo, então ela não vaza mesmo com isso).
                     overflow: songSkin === 'destruidora-de-mundos-dh0x' ? 'visible' : 'hidden',
-                    width:isMobile?"auto":undefined,flex:isMobile?"0 0 auto":undefined,
+                    ...(isMobile?{width:"auto",flex:"0 0 auto"}:{flex:"1 1 0",minHeight:0,display:"flex",alignItems:"center",justifyContent:"center"}),
                     transition:"background .5s, border .5s",
                   }}>
+
+                    {/* Borda interna pulsante, grossa, em 4 camadas nas cores do Uniko
+                        (theme.border do próprio Uniko; sem skin, usa o dourado/azul do tema).
+                        Só no desktop — no celular o card já tem borda temática. */}
+                    {!isMobile && (() => {
+                      const arr = unikoDaSkin(songSkin)?.theme?.border;
+                      const c = (Array.isArray(arr) && arr.length >= 4)
+                        ? [arr[1], arr[2], arr[3], arr[3]]
+                        : [`${T.gold}aa`, `${T.gold}88`, `${T.gold}66`, `${T.gold}44`];
+                      return (
+                        <>
+                          <style>{`
+                            @keyframes caBlobA{from{transform:translate(0,0) scale(1)}to{transform:translate(50px,40px) scale(1.2)}}
+                            @keyframes caBlobB{from{transform:translate(0,0) scale(1.1)}to{transform:translate(-50px,-30px) scale(.9)}}
+                          `}</style>
+                          {/* Blobs internos, desfocados, nas cores do Uniko */}
+                          <div style={{position:'absolute',inset:0,borderRadius:20,overflow:'hidden',pointerEvents:'none',zIndex:1}}>
+                            <div style={{position:'absolute',width:230,height:230,borderRadius:'50%',top:-50,left:-60,background:c[1],opacity:.18,filter:'blur(38px)',animation:'caBlobA 9s ease-in-out infinite alternate'}}/>
+                            <div style={{position:'absolute',width:210,height:210,borderRadius:'50%',bottom:40,right:-70,background:c[2],opacity:.16,filter:'blur(38px)',animation:'caBlobB 11s ease-in-out infinite alternate'}}/>
+                            <div style={{position:'absolute',width:170,height:170,borderRadius:'50%',top:'42%',left:'30%',background:c[3],opacity:.14,filter:'blur(34px)',animation:'caBlobA 13s ease-in-out infinite alternate-reverse'}}/>
+                            <div style={{position:'absolute',width:150,height:150,borderRadius:'50%',top:'8%',right:'-30px',background:c[2],opacity:.17,filter:'blur(32px)',animation:'caBlobB 10s ease-in-out infinite alternate-reverse'}}/>
+                            <div style={{position:'absolute',width:190,height:190,borderRadius:'50%',bottom:'-50px',left:'-40px',background:c[1],opacity:.17,filter:'blur(36px)',animation:'caBlobA 12s ease-in-out infinite alternate'}}/>
+                            <div style={{position:'absolute',width:120,height:120,borderRadius:'50%',top:'22%',left:'8%',background:c[3],opacity:.16,filter:'blur(28px)',animation:'caBlobB 8s ease-in-out infinite alternate'}}/>
+                            <div style={{position:'absolute',width:140,height:140,borderRadius:'50%',bottom:'24%',right:'12%',background:c[1],opacity:.15,filter:'blur(30px)',animation:'caBlobA 14s ease-in-out infinite alternate-reverse'}}/>
+                            <div style={{position:'absolute',width:100,height:100,borderRadius:'50%',top:'60%',left:'14%',background:c[2],opacity:.15,filter:'blur(26px)',animation:'caBlobB 9s ease-in-out infinite alternate-reverse'}}/>
+                          </div>
+                          {/* Título: nome do Uniko de quem está tocando — faixa simples colada no rodapé do card */}
+                          <div style={{position:'absolute',left:9,right:9,bottom:9,padding:'10px 12px',textAlign:'center',pointerEvents:'none',zIndex:4,
+                            borderRadius:'0 0 12px 12px',borderTop:`1px solid ${c[1]}55`,background:`${c[1]}1f`,
+                            color:T.text,fontSize:13,fontWeight:700,letterSpacing:'.12em',textTransform:'uppercase',
+                            overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                            {songSkin === 'default' ? 'UNIKO' : (unikoDaSkin(songSkin)?.name || getAssistantSkin(songSkin)?.name || 'UNIKO')}
+                          </div>
+                        </>
+                      );
+                    })()}
 
                     {/* Quando há vídeo do Uniko o card fica transparente (background
                         já é 'transparent' acima) pra deixar o vídeo de tela cheia —
@@ -3494,7 +3628,7 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
                       <UnikoMascot
                         track={currentSong ? { name: currentSong.title, artist: currentSong.artist } : null}
                         colors={festColors}
-                        size={isMobile?150:160}
+                        size={isMobile?150:230}
                         songSkin={songSkin}
                       />
                     </div>
@@ -3594,183 +3728,10 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
                   dentro da tela cheia do player (botão "Ver letra"), que é onde
                   a pessoa está quando quer acompanhar; aqui embaixo do cenário
                   ela só empurrava o resto da tela pra baixo. */}
-              {!isMobile && (
-              <div style={{width:"100%",display:"flex",flexDirection:"column",gap:10}}>
-              {/* Prévia da letra — linha sincronizada, sempre visível */}
-              <div style={{
-                borderRadius:16, overflow:"hidden", position:"relative", height:150,
-                boxShadow:`0 6px 24px ${festColors?.[0]||T.gold}33, 0 0 0 1px ${festColors?.[0]||T.gold}33`,
-                border:`1px solid ${festColors?.[0]||T.gold}44`,
-              }}>
-                <div style={{position:"absolute",inset:0,zIndex:0,overflow:"hidden"}}>
-                  <div style={{position:"absolute",inset:0,background:isDark
-                    ? `linear-gradient(160deg,${festColors?.[0]||"#1a0533"}cc,${festColors?.[1]||"#0a1a40"}cc,${festColors?.[2]||"#001a20"}cc)`
-                    : `linear-gradient(160deg,${festColors?.[0]||"#6600cc"}33,${festColors?.[1]||"#003399"}22,${festColors?.[2]||"#003322"}22)`}}/>
-                  <div style={{position:"absolute",width:160,height:160,borderRadius:"50%",
-                    background:bolhaGradiente(festColors?.[0]||"#ff6b6b"),opacity:0.85,
-                    top:"-40px",left:"-30px",animation:"lyricsBlob1 7s ease-in-out infinite alternate"}}/>
-                  <div style={{position:"absolute",width:140,height:140,borderRadius:"50%",
-                    background:bolhaGradiente(festColors?.[1]||"#4ecdc4"),opacity:0.8,
-                    bottom:"-30px",right:"-20px",animation:"lyricsBlob2 9s ease-in-out infinite alternate"}}/>
-                  <div style={{position:"absolute",inset:0,background:"linear-gradient(to bottom,rgba(0,0,0,0.3) 0%,transparent 40%,transparent 60%,rgba(0,0,0,0.35) 100%)"}}/>
-                </div>
-                <div style={{position:"relative",zIndex:1,height:"100%",display:"flex",flexDirection:"column",padding:"10px 14px 12px"}}>
-                  <div style={{display:"flex",alignItems:"center",gap:7,flexShrink:0}}>
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
-                    <span style={{fontSize:9.5,fontWeight:700,color:"rgba(255,255,255,0.85)",textTransform:"uppercase",letterSpacing:".1em"}}>Letra</span>
-                  </div>
-                  <div style={{flex:1,position:"relative",width:"100%",overflow:"hidden",
-                    WebkitMaskImage:"linear-gradient(to bottom,transparent,#000 22%,#000 78%,transparent)",
-                    maskImage:"linear-gradient(to bottom,transparent,#000 22%,#000 78%,transparent)"}}>
-                    {lyricsLoading ? (
-                      <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
-                        <span style={{fontSize:11.5,color:"rgba(255,255,255,0.6)"}}>Buscando letra...</span>
-                      </div>
-                    ) : lyricsError || !lyrics.length ? (
-                      <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
-                        <span style={{fontSize:11.5,color:"rgba(255,255,255,0.5)"}}>Letra não encontrada</span>
-                      </div>
-                    ) : (
-                      // Mini-karaokê: TODAS as linhas no DOM (não só 3 que trocam de
-                      // texto) — assim cada uma transiciona de estilo pelo CSS e o
-                      // container desliza suave, igualzinho à letra inteira. Os
-                      // espaçadores de 50% deixam a 1ª/última linha centralizarem.
-                      <div ref={lyricsPreviewRef} style={{position:"absolute",inset:0,overflow:"hidden"}}>
-                        <div style={{height:"50%"}}/>
-                        {lyrics.map((line,i)=>(
-                          <div key={i} data-pline={i} style={{
-                            padding:"3px 12px",textAlign:"center",
-                            fontSize:i===activeLine?16:11,
-                            fontWeight:i===activeLine?800:400,
-                            color:i===activeLine?"#fff":(i<activeLine?"rgba(255,255,255,0.3)":"rgba(255,255,255,0.5)"),
-                            lineHeight:1.3,
-                            textShadow:i===activeLine?`0 0 24px rgba(255,255,255,0.85), 0 0 10px ${festColors?.[0]||"#fff"}cc`:"none",
-                            transition:"all .35s ease",
-                          }}>{line.text||"♪"}</div>
-                        ))}
-                        <div style={{height:"50%"}}/>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Ver letra inteira — expande o painel completo */}
-              <button onClick={()=>setShowLyrics(v=>!v)}
-                style={{display:"flex",alignItems:"center",justifyContent:"center",gap:7,padding:"10px 0",borderRadius:12,
-                  border:`1.5px solid ${showLyrics ? T.gold : (isDark?"rgba(255,255,255,0.2)":"rgba(0,0,0,0.18)")}`,
-                  background:showLyrics
-                    ? `linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`
-                    : (isDark?"rgba(255,255,255,0.09)":"rgba(0,0,0,0.07)"),
-                  color:showLyrics?"#fff":(isDark?"rgba(255,255,255,0.85)":"rgba(0,0,0,0.75)"),
-                  cursor:"pointer",fontSize:12,fontWeight:700,outline:"none",transition:"all .2s",width:"100%",
-                  boxShadow:showLyrics?`0 4px 16px ${T.goldLine}55`:"none",
-                  letterSpacing:".02em"}}>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">{showLyrics
-                  ? <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7"/>
-                  : <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>}</svg>
-                {showLyrics ? "Fechar letra inteira" : "Ver letra inteira"}
-              </button>
-
-              {/* Painel de Letra completo */}
-              {showLyrics && (
-                <div style={{
-                  borderRadius:20,
-                  overflow:"hidden",
-                  position:"relative",
-                  height:isMobile?"min(620px, 62vh)":620,
-                  boxShadow:`0 8px 40px ${festColors?.[0]||T.gold}44, 0 0 0 1px ${festColors?.[0]||T.gold}33`,
-                  border:`1px solid ${festColors?.[0]||T.gold}44`,
-                }}>
-                  {/* ── Fundo animado com blobs das cores do álbum ── */}
-                  <div style={{position:"absolute",inset:0,zIndex:0,overflow:"hidden",borderRadius:20}}>
-                    {/* Base escura */}
-                    <div style={{position:"absolute",inset:0,background:isDark
-                      ? `linear-gradient(160deg,${festColors?.[0]||"#1a0533"}cc,${festColors?.[1]||"#0a1a40"}cc,${festColors?.[2]||"#001a20"}cc)`
-                      : `linear-gradient(160deg,${festColors?.[0]||"#6600cc"}33,${festColors?.[1]||"#003399"}22,${festColors?.[2]||"#003322"}22)`,
-                      backdropFilter:"blur(0px)"}}/>
-                    {/* Blob 1 */}
-                    <div style={{position:"absolute",width:200,height:200,borderRadius:"50%",
-                      background:bolhaGradiente(festColors?.[0]||"#ff6b6b"),opacity:0.95,
-                      top:"-30px",left:"-40px",animation:"lyricsBlob1 7s ease-in-out infinite alternate"}}/>
-                    {/* Blob 2 */}
-                    <div style={{position:"absolute",width:180,height:180,borderRadius:"50%",
-                      background:bolhaGradiente(festColors?.[1]||"#4ecdc4"),opacity:0.9,
-                      bottom:"10%",right:"-20px",animation:"lyricsBlob2 9s ease-in-out infinite alternate"}}/>
-                    {/* Blob 3 */}
-                    <div style={{position:"absolute",width:150,height:150,borderRadius:"50%",
-                      background:bolhaGradiente(festColors?.[2]||"#45b7d1"),opacity:0.85,
-                      top:"40%",left:"30%",animation:"lyricsBlob3 11s ease-in-out infinite alternate"}}/>
-                    {/* Blob 4 — extra intensidade */}
-                    <div style={{position:"absolute",width:120,height:120,borderRadius:"50%",
-                      background:bolhaGradiente(festColors?.[0]||"#f093fb"),opacity:0.75,
-                      bottom:"30%",left:"-10px",animation:"lyricsBlob1 8s ease-in-out infinite alternate-reverse"}}/>
-                    {/* Overlay escuro no topo e base para legibilidade */}
-                    <div style={{position:"absolute",inset:0,background:"linear-gradient(to bottom,rgba(0,0,0,0.25) 0%,transparent 20%,transparent 80%,rgba(0,0,0,0.35) 100%)"}}/>
-                  </div>
-
-                  {/* Header da letra */}
-                  <div style={{position:"relative",zIndex:1,padding:"16px 18px 10px",borderBottom:"1px solid rgba(255,255,255,0.12)"}}>
-                    <div style={{display:"flex",alignItems:"center",gap:8}}>
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="white" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                      <span style={{fontSize:10,fontWeight:700,color:"rgba(255,255,255,0.9)",textTransform:"uppercase",letterSpacing:".1em"}}>Letra</span>
-                    </div>
-                    {currentSong && (
-                      <div style={{marginTop:4,fontSize:12,fontWeight:600,color:"rgba(255,255,255,0.7)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                        {currentSong.title} — {currentSong.artist}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Conteúdo */}
-                  <div ref={lyricsRef}
-                    style={{position:"relative",zIndex:1,height:"calc(100% - 68px)",overflowY:"auto",padding:"0 20px",
-                      msOverflowStyle:"none",scrollbarWidth:"none"}}>
-                    {lyricsLoading ? (
-                      <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100%",gap:12}}>
-                        <div style={{width:28,height:28,borderRadius:"50%",border:"2.5px solid rgba(255,255,255,0.8)",borderTopColor:"transparent",animation:"spin 0.7s linear infinite"}}/>
-                        <span style={{fontSize:12,color:"rgba(255,255,255,0.7)"}}>Buscando letra...</span>
-                      </div>
-                    ) : lyricsError || !lyrics.length ? (
-                      <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100%",gap:8}}>
-                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="1.5" strokeLinecap="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
-                        <span style={{fontSize:12,color:"rgba(255,255,255,0.5)"}}>Letra não encontrada</span>
-                      </div>
-                    ) : (
-                      <div style={{display:"flex",flexDirection:"column",gap:2,paddingBottom:80}}>
-                        <div style={{height:100}}/>
-                        {lyrics.map((line, i) => (
-                          <div key={i} data-line={i}
-                            style={{
-                              padding:"4px 0",
-                              fontSize: i===activeLine ? 19 : 15,
-                              fontWeight: i===activeLine ? 800 : 400,
-                              color: i===activeLine
-                                ? "#fff"
-                                : i < activeLine
-                                  ? "rgba(255,255,255,0.28)"
-                                  : "rgba(255,255,255,0.55)",
-                              lineHeight: 1.45,
-                              transition:"all .35s ease",
-                              letterSpacing: i===activeLine ? ".01em" : "normal",
-                              textShadow: i===activeLine
-                                ? `0 0 30px rgba(255,255,255,0.9), 0 0 12px ${festColors?.[0]||"#fff"}cc`
-                                : "none",
-                            }}>
-                            {line.text}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-            )}
             </div>
 
             {/* Right: Search bar + Queue */}
-            <div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",gap:16,order:isMobile?1:0,width:isMobile?"100%":undefined}}>
+            <div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",gap:isMobile?16:10,order:isMobile?1:0,width:isMobile?"100%":undefined,...(isMobile?{}:{minHeight:0})}}>
 
               {/* Server error message */}
               {serverMsg&&(
@@ -3779,14 +3740,24 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
                 </div>
               )}
 
+              <div style={isMobile?{display:"contents"}:{display:"flex",flexDirection:"column",flexShrink:0}}>
               {/* Search Bar */}
-              <div className="ca-card" style={{borderRadius:18,background:cardBg,border:`1px solid ${T.border}`,padding:"20px 24px",boxShadow:T.shM,position:"relative",overflow:"visible",zIndex:10}}>
+              <div className="ca-card" style={{borderRadius:18,background:cardBg,border:`1px solid ${T.border}`,padding:isMobile?"20px 24px":"10px 14px 12px",boxShadow:T.shM,position:"relative",overflow:"visible",zIndex:10,
+                ...(isMobile?{}:{flex:"0 0 auto",minWidth:0,display:"flex",flexDirection:"column",justifyContent:"center"})}}>
+                {pulseBorda(18)}
                 <div style={{position:"absolute",width:100,height:100,borderRadius:"50%",background:bolhaGradiente(T.gold),opacity:0.16,top:"-20px",right:"10%",animation:"hdrBlob1 5s ease-in-out infinite"}}/>
-                <div style={{fontSize:11,fontWeight:700,color:T.textD,textTransform:"uppercase",letterSpacing:".10em",marginBottom:12,position:"relative",zIndex:1}}>Pesquisar música</div>
+                <div style={{fontSize:11,fontWeight:700,color:T.textD,textTransform:"uppercase",letterSpacing:".10em",marginBottom:isMobile?12:6,position:"relative",zIndex:1,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}}>
+                  <span>Pesquisar música</span>
+                  {!isMobile && (
+                    <span style={{display:"inline-flex",alignItems:"center",gap:6,textTransform:"none",letterSpacing:0,fontWeight:500}}>
+                      <span style={{fontSize:11,fontWeight:600,color:T.gold,padding:"2px 9px",borderRadius:6,background:T.goldGl,border:`1px solid ${T.goldLine}33`}}>{myName}</span>
+                    </span>
+                  )}
+                </div>
                 <div style={{position:"relative",zIndex:2}}>
                   <div style={{
                     display:"flex",alignItems:"center",gap:12,
-                    padding:"14px 18px",borderRadius:14,
+                    padding:isMobile?"14px 18px":"7px 14px",borderRadius:14,
                     border:`2px solid ${voiceFocus?T.gold:T.border}`,
                     background:isDark?T.surfaceSub||"rgba(255,255,255,0.04)":T.surface||"white",
                     boxShadow:voiceFocus?`0 0 0 4px ${T.goldLine}33,0 0 24px ${T.gold}22`:"0 2px 8px rgba(0,0,0,0.04)",
@@ -3870,7 +3841,7 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
                 </div>
 
                 {/* Name display — usa nome real do usuário logado */}
-                <div style={{marginTop:12,display:"flex",alignItems:"center",gap:8,position:"relative",zIndex:1}}>
+                <div style={{marginTop:12,display:isMobile?"flex":"none",alignItems:"center",gap:8,position:"relative",zIndex:1}}>
                   <span style={{fontSize:11,color:T.textD}}>Pedindo como:</span>
                   <div style={{display:"flex",alignItems:"center",gap:5,padding:"3px 10px",borderRadius:6,background:T.goldGl,border:`1px solid ${T.goldLine}33`}}>
                     <span style={{fontSize:11,fontWeight:600,color:T.gold}}>{myName}</span>
@@ -3878,11 +3849,257 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
                 </div>
               </div>
 
+              </div>
+
               {/* Fila — só no desktop. No celular ela vive dentro da tela cheia
                   do player, no botão "Ver fila" embaixo dos controles; repetida
                   aqui, era o que fazia a tela virar rolagem sem fim. */}
-              {!isMobile && renderQueueCard()}
+              {!isMobile && (
+                <div style={{flex:1,minHeight:0,position:"relative"}}>
+                {pulseBorda(16)}
+                <div className="ca-fila-scroll" style={{height:"100%",overflowY:"auto",overflowX:"hidden",borderRadius:16,background:cardBg}}>
+                  <style>{`
+                    .ca-fila-scroll>div{min-height:100%;box-sizing:border-box}
+                    @supports not selector(::-webkit-scrollbar){.ca-fila-scroll{scrollbar-width:auto;scrollbar-color:${T.gold} ${T.gold}22}}
+                    .ca-fila-scroll::-webkit-scrollbar{width:12px}
+                    .ca-fila-scroll::-webkit-scrollbar-track{background:transparent;margin:0}
+                    .ca-fila-scroll::-webkit-scrollbar-thumb{background:${T.gold}cc;border-radius:999px;border:3px solid transparent;background-clip:padding-box;transition:background .2s}
+                    .ca-fila-scroll::-webkit-scrollbar-thumb:hover{background:${T.gold};background-clip:padding-box;border:3px solid transparent}
+                  `}</style>
+                  {renderQueueCard()}
+                </div>
+                </div>
+              )}
             </div>
+
+            {/* Coluna da direita (desktop): player com vinil. Ao abrir a letra, o card
+                da letra cobre este player (absolute inset 0); ao fechar, ele reaparece. */}
+            {!isMobile && (
+            <div style={{flex:"0 0 30%",minWidth:300,maxWidth:440,position:"relative",display:"flex",flexDirection:"column",minHeight:0}}>
+              {pulseBorda(20)}
+              <div className="ca-card" style={{flex:1,minHeight:0,borderRadius:20,background:cardBg,border:`1px solid ${T.border}`,padding:"14px 20px",boxShadow:T.shM,position:"relative",overflow:"hidden",display:"flex",flexDirection:"column",justifyContent:"center"}}>
+                <style>{`@keyframes caVinylSpin{to{transform:rotate(360deg)}}`}</style>
+                <div style={{position:"absolute",width:340,height:340,borderRadius:"50%",background:bolhaGradiente(festColors?.[0]||T.gold),opacity:0.16,top:-80,left:-60,pointerEvents:"none",transition:"background 1.5s ease"}}/>
+                {cur ? (
+                  <div style={{position:"relative",zIndex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:10}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8,alignSelf:"flex-start"}}>
+                      <div style={{display:"flex",alignItems:"flex-end",gap:2,height:14}}>
+                        {[1,2,3,4].map(i=><div key={i} style={{width:3,borderRadius:2,background:T.gold,minHeight:4,maxHeight:16,animation:isPlaying?`alexaEq${(i%5)+1} ${0.5+i*0.07}s ease-in-out infinite alternate`:undefined,height:isPlaying?undefined:6}}/>)}
+                      </div>
+                      <span style={{fontSize:11,fontWeight:700,color:T.textD,textTransform:"uppercase",letterSpacing:".1em"}}>Tocando agora</span>
+                    </div>
+                    {/* Capa + vinil girando */}
+                    <div style={{position:"relative",width:"100%",maxWidth:330,aspectRatio:"1.5 / 1"}}>
+                      <div style={{position:"absolute",height:"88%",aspectRatio:"1 / 1",borderRadius:"50%",right:0,top:"6%",
+                        background:"conic-gradient(from 0deg,rgba(255,255,255,0) 0deg,rgba(255,255,255,0.20) 28deg,rgba(255,255,255,0) 70deg,rgba(255,255,255,0) 180deg,rgba(255,255,255,0.20) 208deg,rgba(255,255,255,0) 250deg),repeating-radial-gradient(circle at center,#0b0b10 0 3px,#17171f 3px 4px)",
+                        boxShadow:`0 6px 28px ${festColors?.[0]||T.gold}55, inset 0 0 0 2px rgba(255,255,255,0.05)`,
+                        animation:"caVinylSpin 3.2s linear infinite",animationPlayState:isPlaying?"running":"paused"}}>
+                        <div style={{position:"absolute",inset:"34%",borderRadius:"50%",background:`radial-gradient(circle,${festColors?.[0]||T.gold},${festColors?.[1]||T.goldL||T.gold})`}}>
+                          <div style={{position:"absolute",top:"10%",left:"46%",width:"8%",height:"22%",borderRadius:2,background:"rgba(255,255,255,0.75)"}}/>
+                          <div style={{position:"absolute",inset:"40%",borderRadius:"50%",background:"#0b0b10"}}/>
+                        </div>
+                      </div>
+                      <div style={{position:"absolute",left:0,top:0,height:"100%",aspectRatio:"1 / 1",borderRadius:14,overflow:"hidden",boxShadow:"0 10px 30px rgba(0,0,0,0.45)",border:`1px solid ${T.border}`,background:T.goldGl,display:"flex",alignItems:"center",justifyContent:"center",fontSize:48}}>
+                        {cur.album_art ? <img src={cur.album_art} alt="" style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/> : "🎵"}
+                      </div>
+                    </div>
+                    <div style={{width:"100%",textAlign:"center",minWidth:0}}>
+                      <div style={{fontSize:18,fontWeight:800,color:T.text,lineHeight:1.2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{cur.title}</div>
+                      <div style={{fontSize:12.5,color:T.textS,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{cur.artist}</div>
+                    </div>
+                    {cur.duration_ms > 0 && (
+                      <div style={{width:"100%"}}>
+                        <BarraProgresso progressMs={progressMs} durationMs={cur.duration_ms}
+                          cores={festColors} onSeek={isAdmin ? seekTo : undefined} />
+                      </div>
+                    )}
+                    <div style={{display:"flex",alignItems:"center",justifyContent:"center",flexWrap:"wrap",gap:7}}>
+                      {canPlayer && (
+                        <button onClick={handlePlayPause} disabled={!spotifyOk}
+                          style={{width:44,height:44,borderRadius:"50%",border:"none",background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,cursor:spotifyOk?"pointer":"not-allowed",color:"white",display:"flex",alignItems:"center",justifyContent:"center",outline:"none",boxShadow:`0 4px 18px ${T.goldLine}66`,opacity:spotifyOk?1:0.5}}>
+                          {isPlaying
+                            ? <svg width="18" height="18" viewBox="0 0 24 24" fill="white" stroke="none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                            : <svg width="18" height="18" viewBox="0 0 24 24" fill="white" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>}
+                        </button>
+                      )}
+                      {/* Toggle do videoclipe — visível a todos (preferência local) */}
+                    <button onClick={toggleVideo}
+                      title={videoEnabled
+                        ? (currentSong && clipVideoId ? "Ocultar videoclipe"
+                            : (currentSong ? "Sem clipe pra esta música" : "Mostrar videoclipe"))
+                        : "Mostrar videoclipe"}
+                      style={{width:34,height:34,borderRadius:10,
+                        border:`1px solid ${videoEnabled ? T.gold+'66' : T.border}`,
+                        background:videoEnabled ? T.goldGl : "transparent",
+                        cursor:"pointer",color:videoEnabled ? T.gold : T.textS,
+                        display:"flex",alignItems:"center",justifyContent:"center",outline:"none",transition:"all .15s"}}>
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+                    </button>
+{canControl && (
+                        <button onClick={handleNext} disabled={!spotifyOk||queue.length<2} title="Pular música"
+                          style={{width:34,height:34,borderRadius:"50%",border:`1px solid ${T.border}`,background:"transparent",cursor:(spotifyOk&&queue.length>=2)?"pointer":"not-allowed",color:T.textS,display:"flex",alignItems:"center",justifyContent:"center",outline:"none",opacity:(spotifyOk&&queue.length>=2)?1:0.4}}>
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
+                        </button>
+                      )}
+                    {isAdmin && (
+                    <button onClick={handleToggleAutoplay}
+                      title={autoplayEnabled
+                        ? "Desativar autoplay (Admin) — hoje ele toca músicas das playlists da aba Playlist"
+                        : "Ativar autoplay (Admin) — toca músicas das playlists da aba Playlist quando a fila esvazia"}
+                      style={{width:34,height:34,borderRadius:10,
+                        border:`1px solid ${autoplayEnabled ? T.gold+'66' : T.border}`,
+                        background:autoplayEnabled ? T.goldGl : "transparent",
+                        cursor:"pointer",color:autoplayEnabled ? T.gold : T.textS,
+                        display:"flex",alignItems:"center",justifyContent:"center",outline:"none",transition:"all .15s"}}>
+                      {autoplayEnabled
+                        ? <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polygon points="5 3 19 12 5 21 5 3"/><polyline points="19 3 19 21"/></svg>
+                        : <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v6m0-6L5 3m4 6l10 6m0 0l4 3M19 3v5"/></svg>
+                      }
+                    </button>
+                    )}
+                    {canPlayer && (
+                    <button onClick={handleLoadDevices} disabled={!spotifyOk} title="Selecionar dispositivo"
+                      style={{width:34,height:34,borderRadius:10,border:`1px solid ${T.border}`,background:"transparent",cursor:spotifyOk?"pointer":"not-allowed",color:T.textS,display:"flex",alignItems:"center",justifyContent:"center",outline:"none",opacity:spotifyOk?1:0.4}}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                    </button>
+                    )}
+                    {/* Tela cheia estilo Apple Music */}
+                    <button onClick={toggleFull} title="Expandir (tela cheia)"
+                      style={{width:34,height:34,borderRadius:10,border:`1px solid ${T.border}`,background:"transparent",cursor:"pointer",color:T.textS,display:"flex",alignItems:"center",justifyContent:"center",outline:"none",transition:"all .15s"}}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+                    </button>
+                    </div>
+                    {/* Seletor de dispositivo */}
+                    {showDevices&&(
+                      <div style={{width:"100%",padding:10,borderRadius:14,background:isDark?T.surface:"white",border:`1px solid ${T.border}`,boxShadow:T.shL}}>
+                        <div style={{fontSize:10,fontWeight:600,color:T.textD,textTransform:"uppercase",letterSpacing:".08em",marginBottom:6}}>Dispositivos</div>
+                        {devices.length===0
+                          ? <div style={{fontSize:11,color:T.textT}}>Nenhum dispositivo ativo no Spotify</div>
+                          : devices.map(d=>(
+                              <div key={d.id} onClick={()=>selectDevice(d.id)}
+                                style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",borderRadius:8,cursor:"pointer",background:d.is_active?T.goldGl:"transparent",border:`1px solid ${d.is_active?T.goldLine+"44":T.border}`,marginBottom:4}}>
+                                <span style={{fontSize:13}}>{d.type==='Speaker'?'🔊':d.type==='Computer'?'💻':'📱'}</span>
+                                <span style={{fontSize:12,fontWeight:d.is_active?700:400,color:d.is_active?T.gold:T.text,flex:1}}>{d.name}</span>
+                                {d.is_active&&<span style={{fontSize:9,color:T.gold,fontWeight:700}}>ATIVO</span>}
+                              </div>
+                            ))
+                        }
+                        <button onClick={()=>setShowDevices(false)} style={{width:"100%",marginTop:4,padding:"5px",borderRadius:7,border:`1px solid ${T.border}`,background:"transparent",cursor:"pointer",color:T.textD,fontSize:11,outline:"none"}}>Fechar</button>
+                      </div>
+                    )}
+                    {currentSong?.requested_by && (
+                      <div style={{display:"inline-flex",alignItems:"center",gap:8,padding:"5px 12px 5px 5px",borderRadius:999,background:T.goldGl,border:`1px solid ${T.goldLine}33`,maxWidth:"100%"}}>
+                        <AvatarCircle name={currentSong.requested_by}
+                          photo={currentSong.requested_by===myName ? myPhoto : photoCache[currentSong.requested_by]}
+                          size={24} fontSize={10} rounded="50%" />
+                        <span style={{fontSize:11.5,color:T.textS,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                          Adicionada por <b style={{color:T.gold,fontWeight:700}}>{currentSong.requested_by}</b>
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div style={{fontSize:13,color:T.textT,textAlign:"center",padding:"36px 0",position:"relative",zIndex:1}}>
+                    <div style={{fontSize:32,marginBottom:8}}>🎵</div>Nenhuma música tocando
+                  </div>
+                )}
+              </div>
+            {showLyrics && (
+  <div style={{
+    borderRadius:20,
+    overflow:"hidden",
+    position:"absolute",inset:0,zIndex:5,background:"#0d0b14",
+    height:undefined,
+    boxShadow:`0 8px 40px ${festColors?.[0]||T.gold}44, 0 0 0 1px ${festColors?.[0]||T.gold}33`,
+    border:`1px solid ${festColors?.[0]||T.gold}44`,
+  }}>
+    {/* ── Fundo animado com blobs das cores do álbum ── */}
+    <div style={{position:"absolute",inset:0,zIndex:0,overflow:"hidden",borderRadius:20}}>
+      {/* Base escura */}
+      <div style={{position:"absolute",inset:0,background:isDark
+        ? `linear-gradient(160deg,${festColors?.[0]||"#1a0533"}cc,${festColors?.[1]||"#0a1a40"}cc,${festColors?.[2]||"#001a20"}cc)`
+        : `linear-gradient(160deg,${festColors?.[0]||"#6600cc"}33,${festColors?.[1]||"#003399"}22,${festColors?.[2]||"#003322"}22)`,
+        backdropFilter:"blur(0px)"}}/>
+      {/* Blob 1 */}
+      <div style={{position:"absolute",width:200,height:200,borderRadius:"50%",
+        background:bolhaGradiente(festColors?.[0]||"#ff6b6b"),opacity:0.95,
+        top:"-30px",left:"-40px",animation:"lyricsBlob1 7s ease-in-out infinite alternate"}}/>
+      {/* Blob 2 */}
+      <div style={{position:"absolute",width:180,height:180,borderRadius:"50%",
+        background:bolhaGradiente(festColors?.[1]||"#4ecdc4"),opacity:0.9,
+        bottom:"10%",right:"-20px",animation:"lyricsBlob2 9s ease-in-out infinite alternate"}}/>
+      {/* Blob 3 */}
+      <div style={{position:"absolute",width:150,height:150,borderRadius:"50%",
+        background:bolhaGradiente(festColors?.[2]||"#45b7d1"),opacity:0.85,
+        top:"40%",left:"30%",animation:"lyricsBlob3 11s ease-in-out infinite alternate"}}/>
+      {/* Blob 4 — extra intensidade */}
+      <div style={{position:"absolute",width:120,height:120,borderRadius:"50%",
+        background:bolhaGradiente(festColors?.[0]||"#f093fb"),opacity:0.75,
+        bottom:"30%",left:"-10px",animation:"lyricsBlob1 8s ease-in-out infinite alternate-reverse"}}/>
+      {/* Overlay escuro no topo e base para legibilidade */}
+      <div style={{position:"absolute",inset:0,background:"linear-gradient(to bottom,rgba(0,0,0,0.25) 0%,transparent 20%,transparent 80%,rgba(0,0,0,0.35) 100%)"}}/>
+    </div>
+
+    {/* Header da letra */}
+    <div style={{position:"relative",zIndex:1,padding:"16px 18px 10px",borderBottom:"1px solid rgba(255,255,255,0.12)"}}>
+      <button onClick={()=>setShowLyrics(false)} title="Fechar letra"
+        style={{position:"absolute",top:10,right:12,width:28,height:28,borderRadius:"50%",border:"1px solid rgba(255,255,255,0.35)",background:"rgba(0,0,0,0.25)",color:"#fff",cursor:"pointer",fontSize:16,lineHeight:1,outline:"none"}}>×</button>
+      <div style={{display:"flex",alignItems:"center",gap:8}}>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="white" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        <span style={{fontSize:10,fontWeight:700,color:"rgba(255,255,255,0.9)",textTransform:"uppercase",letterSpacing:".1em"}}>Letra</span>
+      </div>
+      {currentSong && (
+        <div style={{marginTop:4,fontSize:12,fontWeight:600,color:"rgba(255,255,255,0.7)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+          {currentSong.title} — {currentSong.artist}
+        </div>
+      )}
+    </div>
+
+    {/* Conteúdo */}
+    <div ref={lyricsRef}
+      style={{position:"relative",zIndex:1,height:"calc(100% - 68px)",overflowY:"auto",padding:"0 20px",
+        msOverflowStyle:"none",scrollbarWidth:"none"}}>
+      {lyricsLoading ? (
+        <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:undefined,gap:12}}>
+          <div style={{width:28,height:28,borderRadius:"50%",border:"2.5px solid rgba(255,255,255,0.8)",borderTopColor:"transparent",animation:"spin 0.7s linear infinite"}}/>
+          <span style={{fontSize:12,color:"rgba(255,255,255,0.7)"}}>Buscando letra...</span>
+        </div>
+      ) : lyricsError || !lyrics.length ? (
+        <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:undefined,gap:8}}>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="1.5" strokeLinecap="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+          <span style={{fontSize:12,color:"rgba(255,255,255,0.5)"}}>Letra não encontrada</span>
+        </div>
+      ) : (
+        <div style={{display:"flex",flexDirection:"column",gap:2,paddingBottom:80}}>
+          <div style={{height:100}}/>
+          {lyrics.map((line, i) => (
+            <div key={i} data-line={i}
+              style={{
+                padding:"4px 0",
+                fontSize: i===activeLine ? 19 : 15,
+                fontWeight: i===activeLine ? 800 : 400,
+                color: i===activeLine
+                  ? "#fff"
+                  : i < activeLine
+                    ? "rgba(255,255,255,0.28)"
+                    : "rgba(255,255,255,0.55)",
+                lineHeight: 1.45,
+                transition:"all .35s ease",
+                letterSpacing: i===activeLine ? ".01em" : "normal",
+                textShadow: i===activeLine
+                  ? `0 0 30px rgba(255,255,255,0.9), 0 0 12px ${festColors?.[0]||"#fff"}cc`
+                  : "none",
+              }}>
+              {line.text}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  </div>
+)}
+            </div>
+            )}
 
             {/* Right: Tocando Agora — no celular o play/pause, pular, capa e barra
                 de progresso já vivem no mini-player fixo + na tela cheia "Tocando
@@ -3891,7 +4108,7 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
                 No celular só sobra o que É exclusivo de admin e não existe em
                 nenhum dos dois: conectar Spotify, autoplay e escolher dispositivo. */}
             {(!isMobile || isAdmin || isDJ) && (
-            <div style={{width:isMobile?"100%":300,flexShrink:0,order:isMobile?3:0}}>
+            <div style={isMobile?{width:"100%",flexShrink:0,order:3}:{position:"fixed",bottom:10,left:"50%",transform:"translateX(-50%)",width:"min(1272px, calc(100vw - 300px))",zIndex:300}}>
               {isMobile ? (
                 <div className="ca-card" style={{borderRadius:16,background:cardBg,border:`1px solid ${T.border}`,padding:"14px 16px",boxShadow:T.sh}}>
                   {spotifyChecked&&!spotifyOk&&(
@@ -3945,10 +4162,9 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
                   )}
                 </div>
               ) : (
-              <div className="ca-card" style={{borderRadius:16,background:cardBg,border:`1px solid ${T.border}`,padding:"16px 20px",boxShadow:T.sh}}>
-                {/* Spotify connect banner — só mostra após verificar */}
+              <div className="ca-card" style={{borderRadius:20,background:cardBg,border:`1px solid ${T.border}`,padding:"8px 18px",boxShadow:T.shL,backdropFilter:"blur(22px)",WebkitBackdropFilter:"blur(22px)",position:"relative"}}>
                 {spotifyChecked&&!spotifyOk&&(
-                  <div style={{marginBottom:12,padding:"10px 14px",borderRadius:10,background:`rgba(192,64,80,0.06)`,border:`1px solid rgba(192,64,80,0.2)`,display:"flex",alignItems:"center",gap:8}}>
+                  <div style={{marginBottom:10,padding:"7px 12px",borderRadius:10,background:`rgba(192,64,80,0.06)`,border:`1px solid rgba(192,64,80,0.2)`,display:"flex",alignItems:"center",gap:8}}>
                     <span style={{fontSize:11}}>⚠️</span>
                     <span style={{fontSize:11,color:"#C04050",flex:1}}>Spotify desconectado</span>
                     <a href={`${SERVER_URL}/login`} target="_blank" rel="noreferrer"
@@ -3957,137 +4173,95 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
                     </a>
                   </div>
                 )}
-                <div style={{fontSize:11,color:T.textD,fontWeight:600,textTransform:"uppercase",letterSpacing:".08em",marginBottom:10}}>▶ Tocando Agora</div>
-                {cur
-                  ? <>
-                      {cur.album_art&&(
-                        <div style={{width:"100%",aspectRatio:"1/1",borderRadius:12,overflow:"hidden",marginBottom:12,boxShadow:`0 8px 24px rgba(0,0,0,0.2)`}}>
-                          <img src={cur.album_art} alt="" style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>
-                        </div>
-                      )}
-                      <div style={{fontSize:16,fontWeight:700,color:T.text,marginBottom:3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{cur.title}</div>
-                      <div style={{fontSize:13,color:T.textS,marginBottom:12,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{cur.artist}</div>
-                      {/* ── Barra de progresso — arrastável só pro admin ── */}
-                      {cur.duration_ms > 0 && (
-                        <div style={{marginBottom:10}}>
-                          <BarraProgresso progressMs={progressMs} durationMs={cur.duration_ms}
-                            cores={festColors} onSeek={isAdmin ? seekTo : undefined} />
-                          {isAdmin && seekMsg && (
-                            <div style={{fontSize:10.5,color:"#E63946",fontWeight:700,marginTop:4}}>{seekMsg}</div>
-                          )}
-                        </div>
-                      )}
-                    </>
-                  : <div style={{fontSize:13,color:T.textT,marginBottom:12,textAlign:"center",padding:"24px 0"}}>
-                      <div style={{fontSize:32,marginBottom:8}}>🎵</div>
-                      Nenhuma música tocando
+                <div style={{display:"flex",alignItems:"center",gap:16}}>
+                  {/* Capa + título */}
+                  <div style={{display:"flex",alignItems:"center",gap:10,width:180,flexShrink:0,minWidth:0}}>
+                    {cur?.album_art
+                      ? <img src={cur.album_art} alt="" style={{width:40,height:40,borderRadius:8,objectFit:"cover",flexShrink:0,boxShadow:"0 4px 14px rgba(0,0,0,0.25)"}}/>
+                      : <div style={{width:40,height:40,borderRadius:8,background:T.goldGl,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>🎵</div>}
+                    <div style={{minWidth:0}}>
+                      <div style={{fontSize:14,fontWeight:700,color:T.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{cur ? cur.title : "Nenhuma música tocando"}</div>
+                      <div style={{fontSize:12,color:T.textS,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{cur ? cur.artist : "—"}</div>
                     </div>
-                }
-                {/* Controls — play/pause: admin e DJ Uniko */}
-                <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:12,marginBottom:10}}>
-                  {canPlayer
-                    ? <button onClick={handlePlayPause} disabled={!spotifyOk}
-                        style={{width:46,height:46,borderRadius:12,border:"none",
-                          background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,
-                          cursor:spotifyOk?"pointer":"not-allowed",color:"white",
-                          display:"flex",alignItems:"center",justifyContent:"center",
-                          outline:"none",boxShadow:`0 4px 16px ${T.goldLine}55`,opacity:spotifyOk?1:0.5}}>
-                        {isPlaying
-                          ? <svg width="16" height="16" viewBox="0 0 24 24" fill="white" stroke="none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
-                          : <svg width="16" height="16" viewBox="0 0 24 24" fill="white" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>}
-                      </button>
-                    : /* Colaborador: exibe indicador de status sem botão */
-                      <div style={{width:46,height:46,borderRadius:12,background:isPlaying?`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`:`${T.border}`,display:"flex",alignItems:"center",justifyContent:"center",opacity:0.5}}>
-                        {isPlaying
-                          ? <svg width="16" height="16" viewBox="0 0 24 24" fill="white" stroke="none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
-                          : <svg width="16" height="16" viewBox="0 0 24 24" fill={T.textD} stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>}
-                      </div>
-                  }
-                  {/* Toggle do videoclipe — visível a todos (preferência local) */}
-                  <button onClick={toggleVideo}
-                    title={videoEnabled
-                      ? (currentSong && clipVideoId ? "Ocultar videoclipe"
-                          : (currentSong ? "Sem clipe pra esta música" : "Mostrar videoclipe"))
-                      : "Mostrar videoclipe"}
-                    style={{width:36,height:36,borderRadius:9,
-                      border:`1px solid ${videoEnabled ? T.gold+'66' : T.border}`,
-                      background:videoEnabled ? T.goldGl : "transparent",
-                      cursor:"pointer",color:videoEnabled ? T.gold : T.textS,
-                      display:"flex",alignItems:"center",justifyContent:"center",outline:"none",
-                      transition:"all .15s"}}>
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
-                  </button>
-                  {canControl && (
-                  <button onClick={handleNext} disabled={!spotifyOk||queue.length<2}
-                    title="Pular música"
-                    style={{width:36,height:36,borderRadius:9,border:`1px solid ${T.border}`,background:"transparent",cursor:(spotifyOk&&queue.length>=2)?"pointer":"not-allowed",color:T.textS,display:"flex",alignItems:"center",justifyContent:"center",outline:"none",opacity:(spotifyOk&&queue.length>=2)?1:0.4}}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
-                  </button>
-                  )}
-                  {isAdmin && (
-                  <button onClick={handleToggleAutoplay}
-                    title={autoplayEnabled
-                      ? "Desativar autoplay (Admin) — hoje ele toca músicas das playlists da aba Playlist"
-                      : "Ativar autoplay (Admin) — toca músicas das playlists da aba Playlist quando a fila esvazia"}
-                    style={{width:36,height:36,borderRadius:9,
-                      border:`1px solid ${autoplayEnabled ? T.gold+'66' : T.border}`,
-                      background:autoplayEnabled ? T.goldGl : "transparent",
-                      cursor:"pointer",color:autoplayEnabled ? T.gold : T.textS,
-                      display:"flex",alignItems:"center",justifyContent:"center",outline:"none",
-                      transition:"all .15s"}}>
-                    {autoplayEnabled
-                      ? <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polygon points="5 3 19 12 5 21 5 3"/><polyline points="19 3 19 21"/></svg>
-                      : <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v6m0-6L5 3m4 6l10 6m0 0l4 3M19 3v5"/></svg>
+                  </div>
+                  {/* Progresso — arrastável só pro admin */}
+                  <div style={{flex:1,minWidth:0}}>
+                    {cur?.duration_ms > 0 && (
+                      <>
+                        <BarraProgresso progressMs={progressMs} durationMs={cur.duration_ms}
+                          cores={festColors} onSeek={isAdmin ? seekTo : undefined} />
+                        {isAdmin && seekMsg && (
+                          <div style={{fontSize:10.5,color:"#E63946",fontWeight:700,marginTop:4}}>{seekMsg}</div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                  {/* Controles */}
+                  <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
+                    {canPlayer
+                      ? <button onClick={handlePlayPause} disabled={!spotifyOk}
+                          style={{width:40,height:40,borderRadius:"50%",border:"none",
+                            background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`,
+                            cursor:spotifyOk?"pointer":"not-allowed",color:"white",
+                            display:"flex",alignItems:"center",justifyContent:"center",
+                            outline:"none",boxShadow:`0 4px 16px ${T.goldLine}55`,opacity:spotifyOk?1:0.5}}>
+                          {isPlaying
+                            ? <svg width="16" height="16" viewBox="0 0 24 24" fill="white" stroke="none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                            : <svg width="16" height="16" viewBox="0 0 24 24" fill="white" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>}
+                        </button>
+                      : <div style={{width:40,height:40,borderRadius:"50%",background:isPlaying?`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`:`${T.border}`,display:"flex",alignItems:"center",justifyContent:"center",opacity:0.5}}>
+                          {isPlaying
+                            ? <svg width="16" height="16" viewBox="0 0 24 24" fill="white" stroke="none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                            : <svg width="16" height="16" viewBox="0 0 24 24" fill={T.textD} stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>}
+                        </div>
                     }
-                  </button>
-                  )}
-                  {canPlayer && (
-                  <button onClick={handleLoadDevices} disabled={!spotifyOk} title="Selecionar dispositivo"
-                    style={{width:36,height:36,borderRadius:9,border:`1px solid ${T.border}`,background:"transparent",cursor:spotifyOk?"pointer":"not-allowed",color:T.textS,display:"flex",alignItems:"center",justifyContent:"center",outline:"none",opacity:spotifyOk?1:0.4}}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-                  </button>
+                    {canControl && (
+                    <button onClick={handleNext} disabled={!spotifyOk||queue.length<2}
+                      title="Pular música"
+                      style={{width:32,height:32,borderRadius:9,border:`1px solid ${T.border}`,background:"transparent",cursor:(spotifyOk&&queue.length>=2)?"pointer":"not-allowed",color:T.textS,display:"flex",alignItems:"center",justifyContent:"center",outline:"none",opacity:(spotifyOk&&queue.length>=2)?1:0.4}}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
+                    </button>
+                    )}
+                                        {/* Letra — abre sobre a coluna do Uniko */}
+                    <button onClick={()=>setShowLyrics(v=>!v)} title={showLyrics?"Fechar letra":"Ver letra"}
+                      style={{height:32,padding:"0 11px",borderRadius:9,
+                        border:`1px solid ${showLyrics ? T.gold+'66' : T.border}`,
+                        background:showLyrics ? T.goldGl : "transparent",
+                        cursor:"pointer",color:showLyrics ? T.gold : T.textS,
+                        display:"flex",alignItems:"center",gap:6,fontSize:12,fontWeight:700,outline:"none",transition:"all .15s"}}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+                      Letra
+                    </button>
+                  </div>
+                  {/* Volume — admin, moderador e DJ Uniko */}
+                  {canVolume && (
+                    <div style={{display:"flex",alignItems:"center",gap:6,width:170,flexShrink:0}}>
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={volume===0?"#C04050":T.textD} strokeWidth="2" strokeLinecap="round"
+                        onClick={()=>handleVolume(volume===0?50:0)} style={{cursor:"pointer",flexShrink:0}}>
+                        {volume===0
+                          ? <><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></>
+                          : volume<50
+                            ? <><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></>
+                            : <><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></>
+                        }
+                      </svg>
+                      <button onClick={()=>handleVolume(Math.max(0,volume-1))} disabled={!spotifyOk||volume<=0} title="Diminuir 1%"
+                        style={{width:20,height:20,borderRadius:6,border:`1px solid ${T.border}`,background:"transparent",color:T.textS,cursor:(spotifyOk&&volume>0)?"pointer":"not-allowed",opacity:(spotifyOk&&volume>0)?1:0.4,display:"flex",alignItems:"center",justifyContent:"center",padding:0,outline:"none",flexShrink:0}}>
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                      </button>
+                      <input type="range" min="0" max="100" value={volume}
+                        onChange={e=>handleVolume(Number(e.target.value))}
+                        disabled={!spotifyOk}
+                        style={{flex:1,minWidth:0,accentColor:T.gold,height:3,cursor:spotifyOk?"pointer":"not-allowed",opacity:spotifyOk?1:0.4}}
+                      />
+                      <button onClick={()=>handleVolume(Math.min(100,volume+1))} disabled={!spotifyOk||volume>=100} title="Aumentar 1%"
+                        style={{width:20,height:20,borderRadius:6,border:`1px solid ${T.border}`,background:"transparent",color:T.textS,cursor:(spotifyOk&&volume<100)?"pointer":"not-allowed",opacity:(spotifyOk&&volume<100)?1:0.4,display:"flex",alignItems:"center",justifyContent:"center",padding:0,outline:"none",flexShrink:0}}>
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                      </button>
+                      <VolumeInput volume={volume} onCommit={handleVolume} disabled={!spotifyOk} saving={volumeSaving} />
+                    </div>
                   )}
                 </div>
-                {/* Volume — admin, moderador e DJ Uniko */}
-                {canVolume && (
-                  <div style={{display:"flex",alignItems:"center",gap:8,paddingTop:8,borderTop:`1px solid ${T.border}22`}}>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={volume===0?"#C04050":T.textD} strokeWidth="2" strokeLinecap="round"
-                      onClick={()=>handleVolume(volume===0?50:0)} style={{cursor:"pointer",flexShrink:0}}>
-                      {volume===0
-                        ? <><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></>
-                        : volume<50
-                          ? <><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></>
-                          : <><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></>
-                      }
-                    </svg>
-                    <input type="range" min="0" max="100" value={volume}
-                      onChange={e=>handleVolume(Number(e.target.value))}
-                      disabled={!spotifyOk}
-                      style={{flex:1,accentColor:T.gold,height:3,cursor:spotifyOk?"pointer":"not-allowed",opacity:spotifyOk?1:0.4}}
-                    />
-                    <span style={{fontSize:10,color:T.textD,minWidth:24,textAlign:"right",opacity:volumeSaving?0.5:1}}>
-                      {volume}%
-                    </span>
-                  </div>
-                )}
-                {/* Device selector */}
-                {showDevices&&(
-                  <div style={{borderTop:`1px solid ${T.border}`,paddingTop:10,marginTop:4}}>
-                    <div style={{fontSize:10,fontWeight:600,color:T.textD,textTransform:"uppercase",letterSpacing:".08em",marginBottom:6}}>Dispositivos</div>
-                    {devices.length===0
-                      ? <div style={{fontSize:11,color:T.textT}}>Nenhum dispositivo ativo no Spotify</div>
-                      : devices.map(d=>(
-                          <div key={d.id} onClick={()=>selectDevice(d.id)}
-                            style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",borderRadius:8,cursor:"pointer",background:d.is_active?T.goldGl:"transparent",border:`1px solid ${d.is_active?T.goldLine+"44":T.border}`,marginBottom:4}}>
-                            <span style={{fontSize:13}}>{d.type==='Speaker'?'🔊':d.type==='Computer'?'💻':'📱'}</span>
-                            <span style={{fontSize:12,fontWeight:d.is_active?700:400,color:d.is_active?T.gold:T.text,flex:1}}>{d.name}</span>
-                            {d.is_active&&<span style={{fontSize:9,color:T.gold,fontWeight:700}}>ATIVO</span>}
-                          </div>
-                        ))
-                    }
-                    <button onClick={()=>setShowDevices(false)} style={{width:"100%",marginTop:4,padding:"5px",borderRadius:7,border:`1px solid ${T.border}`,background:"transparent",cursor:"pointer",color:T.textD,fontSize:11,outline:"none"}}>Fechar</button>
-                  </div>
-                )}
               </div>
               )}
             </div>
@@ -4642,13 +4816,119 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
 
       </div>
 
-      {/* ── Rodapé Criado por Nicolas Andrade ── */}
+      {/* ── Rodapé Criado por Nicolas Andrade ── (no desktop da aba Festival ele ficava por trás da barra do player) */}
+      {(isMobile || tab!=="festival") && (
       <div style={{textAlign:"center",padding:"24px 0 20px",borderTop:`1px solid ${T.border}`,marginTop:4,display:"flex",alignItems:"center",justifyContent:"center",gap:10,opacity:.38,position:"relative",zIndex:2}}>
         <Logo size={20}/>
         <span style={{fontFamily:"var(--font-body)",fontSize:11,color:T.textT}}>
           Criado por <span style={{fontFamily:"var(--font-brand)",fontSize:11,fontWeight:600,color:T.gold}}>Nicolas Andrade</span>
         </span>
       </div>
+      )}
+
+      {/* ── Tela cheia (desktop) — estilo Apple Music: capa + controles à esquerda, letra grande à direita ── */}
+      {!isMobile && fullOpen && (
+        <div style={{position:'fixed',inset:0,zIndex:5000,overflow:'hidden',background:'#07070d',color:'#fff',animation:'fadeIn .25s ease'}}>
+          {/* fundo: capa borrada + degradê com as cores do álbum */}
+          {cur?.album_art && (
+            <img src={cur.album_art} alt="" aria-hidden
+              style={{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'cover',filter:'blur(90px) saturate(1.4) brightness(.55)',transform:'scale(1.4)',opacity:.9,pointerEvents:'none'}}/>
+          )}
+          <div style={{position:'absolute',inset:0,pointerEvents:'none',
+            background:`linear-gradient(135deg,${festColors?.[0]||'#1a0533'}66,transparent 55%,${festColors?.[1]||'#0a1a40'}66)`}}/>
+          <div style={{position:'absolute',inset:0,pointerEvents:'none',background:'rgba(0,0,0,.28)'}}/>
+
+          {/* fechar */}
+          <button onClick={toggleFull} title="Sair da tela cheia (Esc)"
+            style={{position:'absolute',top:22,left:24,zIndex:3,width:40,height:40,borderRadius:'50%',border:'none',background:'rgba(255,255,255,.12)',color:'#fff',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',outline:'none',backdropFilter:'blur(10px)',WebkitBackdropFilter:'blur(10px)'}}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+
+          <div style={{position:'relative',zIndex:2,height:'100%',display:'flex',alignItems:'center',gap:'6vw',padding:'0 7vw'}}>
+            {/* Esquerda: capa + controles */}
+            <div style={{flex:'0 0 auto',width:'min(34vw, 58vh)',minWidth:300}}>
+              <div style={{width:'100%',aspectRatio:'1 / 1',borderRadius:14,overflow:'hidden',background:'rgba(255,255,255,.08)',boxShadow:'0 24px 70px rgba(0,0,0,.55)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:80}}>
+                {cur?.album_art ? <img src={cur.album_art} alt="" style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}}/> : '🎵'}
+              </div>
+              <div style={{marginTop:18,minWidth:0}}>
+                <div style={{fontSize:20,fontWeight:700,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{cur ? cur.title : 'Nenhuma música tocando'}</div>
+                <div style={{fontSize:15,color:'rgba(255,255,255,.62)',marginTop:2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{cur?.artist || ''}</div>
+              </div>
+              {cur?.duration_ms > 0 && (
+                <div style={{marginTop:10}}>
+                  <BarraProgresso progressMs={progressMs} durationMs={cur.duration_ms} cores={['#ffffff','#ffffff']} escuro
+                    onSeek={isAdmin ? seekTo : undefined} />
+                </div>
+              )}
+              <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:26,marginTop:8}}>
+                {canPlayer && (
+                  <button onClick={handlePlayPause} disabled={!spotifyOk}
+                    style={{width:60,height:60,borderRadius:'50%',border:'none',background:'transparent',color:'#fff',cursor:spotifyOk?'pointer':'not-allowed',display:'flex',alignItems:'center',justifyContent:'center',outline:'none',opacity:spotifyOk?1:.5}}>
+                    {isPlaying
+                      ? <svg width="34" height="34" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
+                      : <svg width="34" height="34" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 3 20 12 6 21 6 3"/></svg>}
+                  </button>
+                )}
+                {canControl && (
+                  <button onClick={handleNext} disabled={!spotifyOk||queue.length<2} title="Pular música"
+                    style={{width:48,height:48,borderRadius:'50%',border:'none',background:'transparent',color:'#fff',cursor:(spotifyOk&&queue.length>=2)?'pointer':'not-allowed',display:'flex',alignItems:'center',justifyContent:'center',outline:'none',opacity:(spotifyOk&&queue.length>=2)?1:.4}}>
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><polygon points="4 4 14 12 4 20 4 4"/><rect x="16" y="4" width="3.5" height="16" rx="1"/></svg>
+                  </button>
+                )}
+              </div>
+              {canVolume && (
+                <div style={{display:'flex',alignItems:'center',gap:12,marginTop:10}}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.7)" strokeWidth="2" strokeLinecap="round" style={{flexShrink:0}}><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+                  <button onClick={()=>handleVolume(Math.max(0,volume-1))} disabled={!spotifyOk||volume<=0} title="Diminuir 1%"
+                    style={{width:24,height:24,borderRadius:'50%',border:'1px solid rgba(255,255,255,.3)',background:'transparent',color:'#fff',cursor:(spotifyOk&&volume>0)?'pointer':'not-allowed',opacity:(spotifyOk&&volume>0)?1:.4,display:'flex',alignItems:'center',justifyContent:'center',padding:0,outline:'none',flexShrink:0}}>
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  </button>
+                  <input type="range" min="0" max="100" value={volume} disabled={!spotifyOk}
+                    onChange={e=>handleVolume(Number(e.target.value))}
+                    style={{flex:1,accentColor:'#fff',height:3,cursor:spotifyOk?'pointer':'not-allowed',opacity:spotifyOk?1:.4}}/>
+                  <button onClick={()=>handleVolume(Math.min(100,volume+1))} disabled={!spotifyOk||volume>=100} title="Aumentar 1%"
+                    style={{width:24,height:24,borderRadius:'50%',border:'1px solid rgba(255,255,255,.3)',background:'transparent',color:'#fff',cursor:(spotifyOk&&volume<100)?'pointer':'not-allowed',opacity:(spotifyOk&&volume<100)?1:.4,display:'flex',alignItems:'center',justifyContent:'center',padding:0,outline:'none',flexShrink:0}}>
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  </button>
+                  <span style={{fontSize:12,color:'rgba(255,255,255,.6)',minWidth:34,textAlign:'right'}}>{volume}%</span>
+                </div>
+              )}
+            </div>
+
+            {/* Direita: letra grande, a linha atual em destaque e as outras desfocadas */}
+            <div style={{flex:1,minWidth:0,height:'78vh',position:'relative'}}>
+              <div ref={fsLyricsRef}
+                style={{position:'absolute',inset:0,overflowY:'auto',scrollbarWidth:'none',msOverflowStyle:'none',
+                  WebkitMaskImage:'linear-gradient(to bottom,transparent,#000 14%,#000 80%,transparent)',
+                  maskImage:'linear-gradient(to bottom,transparent,#000 14%,#000 80%,transparent)'}}>
+                {lyricsLoading ? (
+                  <div style={{height:'100%',display:'flex',alignItems:'center',fontSize:22,color:'rgba(255,255,255,.55)'}}>Buscando letra...</div>
+                ) : lyricsError || !lyrics.length ? (
+                  <div style={{height:'100%',display:'flex',alignItems:'center',fontSize:22,color:'rgba(255,255,255,.55)'}}>Letra não encontrada para esta música</div>
+                ) : (
+                  <div style={{position:'relative',padding:'30vh 0'}}>
+                    {lyrics.map((line,i)=>{
+                      const ativa = i===activeLine;
+                      const dist = Math.abs(i-activeLine);
+                      return (
+                        <div key={i} data-fline={i}
+                          style={{padding:'10px 0',fontSize:'clamp(26px, 2.9vw, 44px)',fontWeight:800,lineHeight:1.25,letterSpacing:'-.01em',
+                            color:ativa?'#fff':'rgba(255,255,255,.45)',
+                            opacity:ativa?1:Math.max(.25,.7-dist*.12),
+                            filter:ativa?'none':`blur(${Math.min(2.5,.6+dist*.35)}px)`,
+                            transform:ativa?'scale(1)':'scale(.96)',transformOrigin:'left center',
+                            transition:'all .45s ease'}}>
+                          {line.text || '♪'}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Modal de foto expandida (clique numa foto da fila) ── */}
       {expandedPhoto && (
