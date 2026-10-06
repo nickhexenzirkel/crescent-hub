@@ -2850,13 +2850,13 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
       <>
         <style>{`
           @keyframes caOuterPulse{
-            0%,100%{box-shadow:0 0 0 .5px var(--c1),0 0 0 1px var(--c2),0 0 0 1.5px var(--c3),0 0 4px 1px var(--c4);opacity:.45}
-            50%{box-shadow:0 0 0 .5px var(--c1),0 0 0 1px var(--c2),0 0 0 1.5px var(--c3),0 0 8px 2px var(--c4);opacity:.85}
+            0%,100%{box-shadow:0 0 0 .5px var(--c1),0 0 0 1px var(--c2),0 0 0 1.5px var(--c3),0 0 4px 1px var(--c4);opacity:.5}
+            50%{box-shadow:0 0 0 .5px var(--c1),0 0 0 1px var(--c2),0 0 0 1.5px var(--c3),0 0 8px 2px var(--c4);opacity:.8}
           }
         `}</style>
         <div style={{position:'absolute',inset:0,borderRadius:radius,pointerEvents:'none',zIndex:3,filter:'blur(1.5px)',
           '--c1':c[0],'--c2':c[1],'--c3':c[2],'--c4':c[3],
-          animation:'caOuterPulse 2.6s ease-in-out infinite'}}/>
+          animation:'caOuterPulse 6s cubic-bezier(.45,0,.55,1) infinite'}}/>
       </>
     );
   };
@@ -3915,12 +3915,13 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
                         ? (currentSong && clipVideoId ? "Ocultar videoclipe"
                             : (currentSong ? "Sem clipe pra esta música" : "Mostrar videoclipe"))
                         : "Mostrar videoclipe"}
-                      style={{width:34,height:34,borderRadius:10,
+                      style={{height:34,padding:"0 12px",gap:6,fontSize:12,fontWeight:700,whiteSpace:"nowrap",borderRadius:10,
                         border:`1px solid ${videoEnabled ? T.gold+'66' : T.border}`,
                         background:videoEnabled ? T.goldGl : "transparent",
                         cursor:"pointer",color:videoEnabled ? T.gold : T.textS,
                         display:"flex",alignItems:"center",justifyContent:"center",outline:"none",transition:"all .15s"}}>
                       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+                      {videoEnabled ? "Ocultar Clipe" : "Ver Clipe"}
                     </button>
 {canControl && (
                         <button onClick={handleNext} disabled={!spotifyOk||queue.length<2} title="Pular música"
@@ -3952,8 +3953,9 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
                     )}
                     {/* Tela cheia estilo Apple Music */}
                     <button onClick={toggleFull} title="Expandir (tela cheia)"
-                      style={{width:34,height:34,borderRadius:10,border:`1px solid ${T.border}`,background:"transparent",cursor:"pointer",color:T.textS,display:"flex",alignItems:"center",justifyContent:"center",outline:"none",transition:"all .15s"}}>
+                      style={{height:34,padding:"0 12px",gap:6,fontSize:12,fontWeight:700,whiteSpace:"nowrap",borderRadius:10,border:`1px solid ${T.border}`,background:"transparent",cursor:"pointer",color:T.textS,display:"flex",alignItems:"center",justifyContent:"center",outline:"none",transition:"all .15s"}}>
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+                      Expandir Tela
                     </button>
                     </div>
                     {/* Seletor de dispositivo */}
@@ -4196,11 +4198,7 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
                             ? <svg width="16" height="16" viewBox="0 0 24 24" fill="white" stroke="none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
                             : <svg width="16" height="16" viewBox="0 0 24 24" fill="white" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>}
                         </button>
-                      : <div style={{width:40,height:40,borderRadius:"50%",background:isPlaying?`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`:`${T.border}`,display:"flex",alignItems:"center",justifyContent:"center",opacity:0.5}}>
-                          {isPlaying
-                            ? <svg width="16" height="16" viewBox="0 0 24 24" fill="white" stroke="none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
-                            : <svg width="16" height="16" viewBox="0 0 24 24" fill={T.textD} stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>}
-                        </div>
+                      : null
                     }
                     {canControl && (
                     <button onClick={handleNext} disabled={!spotifyOk||queue.length<2}
