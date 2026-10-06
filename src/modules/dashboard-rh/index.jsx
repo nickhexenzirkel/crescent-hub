@@ -270,7 +270,7 @@ const SearchPicker = ({ value, onPick, options, placeholder, isDark, minWidth = 
    DASHBOARD RH — PAINEL ADMINISTRATIVO
 ══════════════════════════════════════════════════ */
 const ADMIN_PW = 'ColumbinaCleyNick50';
-const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
+const DashboardRH = ({onBack, adminName='Administrador', role='admin', initialTab=null}) => {
   // Dark mode detection (same pattern as PontoEletronico)
   const isDark   = !!T.page;
   const cardBg   = isDark ? T.surface : (T.surfaceW||'rgba(255,255,255,0.85)');
@@ -299,7 +299,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
   // lembretes, máquina do tempo, capture, oficina, permissões) continuam
   // exclusivas do Administrador.
   const MODERADOR_TABS = ['funcionarios','gerenciar','prestacoes','infopessoal','atualizacoes','contracheques','maquina','banco','justificativas','vinculo','calendario','comunicados','feedback'];
-  const [tab, setTab]         = useState(isModerador ? MODERADOR_TABS[0] : 'funcionarios');
+  const [tab, setTab]         = useState(initialTab && (!isModerador || MODERADOR_TABS.includes(initialTab)) ? initialTab : (isModerador ? MODERADOR_TABS[0] : 'funcionarios'));
   const [users, setUsers]     = useState([]);
   const [showNewUser, setShowNewUser] = useState(false);
   const [newUser, setNewUser]         = useState({name:'',email:'',role:'colaborador',dept:'',pw:'',pw2:''});

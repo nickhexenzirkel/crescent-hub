@@ -269,6 +269,15 @@ const itemPrestacao = (r) => {
     sub: r.observacao_rh ? `RH: ${r.observacao_rh}` : `${valor} · ${ok ? 'aprovada pelo RH' : 'rejeitada pelo RH'}`,
     destino: ['prestacao-contas'] };
 };
+/* Feedback enviado por um colaborador (aba Feedback do Portal). Só chega na caixa do ADMIN, e só
+   enquanto não foi lido no Dashboard RH (marcar como lido faz o aviso sair — ver `sair` em consultar).
+   Feedback anônimo continua anônimo: o nome não aparece no aviso. */
+const itemFeedback = (r) => (r.read ? null : {
+  id: `fb:${r.id}`, tipo: 'feedback', subtipo: r.category || 'Sugestão', quando: r.created_at,
+  titulo: `Novo feedback · ${r.category || 'Sugestão'}${r.anonymous ? ' (anônimo)' : r.employee_name ? ' de ' + nomeChamado(r.employee_name) : ''}`,
+  sub: String(r.message || '').replace(/\s+/g, ' ').trim().slice(0, 140) || 'Toque pra ler',
+  destino: ['dashboard', 'feedback'],
+});
 const itemAtualizacao = (r) => (r.active === false ? null : {
   id: `at:${r.id}`, tipo: 'atualizacao', subtipo: 'sistema', quando: r.created_at,
   titulo: r.titulo || 'Atualização do Uniko', sub: r.descricao || (r.imagem_url ? 'Toque pra ver a novidade' : 'Novidade no sistema'),
@@ -320,7 +329,7 @@ export const useCaixaEntrada = (authUser) => {
   const consultar = useCallback(async (de, ate, limite) => {
     if (!nome) return;
     const faixa = (q, col) => { q = q.gte(col, de); if (ate) q = q.lt(col, ate); return q.order(col, { ascending: false }).limit(limite); };
-    const [bh, ph, gi, ev, ps, at, nt, cm, cls, fr, fc, fch, pc] = await Promise.all([
+    const [bh, ph, gi, ev, ps, at, nt, cm, cls, fr, fc, fch, pc, fb] = await Promise.all([
       faixa(supabase.from('banco_horas').select('id,data,descricao,horas_calculadas,status,created_at,updated_at').eq('created_by', nome), 'updated_at'),
       faixa(supabase.from('mercado_history').select('id,kind,descr,comum,premium,created_at').eq('player', nome).in('kind', ['envio', 'presente', 'admin']), 'created_at'),
       faixa(supabase.from('game_invites').select('id,from_name,to_name,game,room_id,room_name,created_at').eq('to_name', nome), 'created_at'),
@@ -338,6 +347,10 @@ export const useCaixaEntrada = (authUser) => {
       faixa((cpf ? supabase.from('prestacoes_contas').select('id,motivo,valor,status,observacao_rh,avaliada_em,created_at').eq('employee_cpf', cpf)
                  : supabase.from('prestacoes_contas').select('id,motivo,valor,status,observacao_rh,avaliada_em,created_at').eq('employee_name', nome))
         .in('status', ['aprovada', 'rejeitada']), 'avaliada_em'),
+      // Feedbacks ainda não lidos — só pro admin (os demais não precisam nem consultar).
+      authUser?.role === 'admin'
+        ? faixa(supabase.from('feedbacks').select('id,employee_name,category,message,anonymous,read,created_at').eq('read', false), 'created_at')
+        : Promise.resolve({ data: [] }),
     ].map(q => q.then(r => r.data || [], () => [])));
 
     /* Abonos do ponto: pelo id de ponto que as solicitações usam (PIS) e pelo
@@ -353,6 +366,7 @@ export const useCaixaEntrada = (authUser) => {
     const idsAtuais = new Set(ps.map(x => itemSolicitacao(x, abonos).id));
     // Convite de coluna do Trello: só mostra enquanto "pendente" — aceito/recusado sai sozinho.
     const idsPc = new Set(pc.map(itemPrestacao).filter(Boolean).map(i => i.id));
+    const idsFb = new Set(fb.map(x => `fb:${x.id}`));
     const idsClsPendentes = new Set(cls.filter(x => x.status === 'pendente').map(x => `cls:${x.id}`));
 
     juntar([...bh.map(itemBanco), ...ph.map(itemPrisma), ...gi.map(itemConvite),
@@ -369,13 +383,13 @@ export const useCaixaEntrada = (authUser) => {
       ...fr.filter(r => r.uniko_fit_checkins?.player === nome).map(itemFitCurtida),
       ...fc.filter(r => r.uniko_fit_checkins?.player === nome).map(itemFitComentario),
       ...fch.filter(x => x.player !== nome).map(itemFitChat),
-      ...pc.map(itemPrestacao)],
+      ...pc.map(itemPrestacao), ...fb.map(itemFeedback)],
     // Registro desta faixa que mudou de estado ou sumiu: a versão velha sai do
     // mapa (solicitação de ponto resolvida/recusada, convite de coluna decidido).
     (it) => ((it.id.startsWith('ps:') && !idsAtuais.has(it.id)) || (it.id.startsWith('cls:') && !idsClsPendentes.has(it.id))
-        || (it.id.startsWith('pc:') && !idsPc.has(it.id)))
+        || (it.id.startsWith('pc:') && !idsPc.has(it.id)) || (it.id.startsWith('fb:') && !idsFb.has(it.id)))
       && String(it.quando) >= de && (!ate || String(it.quando) < ate));
-  }, [nome, cpf, juntar]);
+  }, [nome, cpf, juntar, authUser?.role]);
 
   // Até onde já foi carregado pra trás (ISO). Começa nos 60 dias automáticos.
   const [desde, setDesde] = useState(() => new Date(Date.now() - CAIXA_DIAS * 864e5).toISOString());
@@ -409,6 +423,8 @@ export const useCaixaEntrada = (authUser) => {
       // consulta. É barato e só roda quando alguém mexe no ponto.
       .on('postgres_changes', { event: '*', schema: 'public', table: 'ponto_solicitacoes' }, () => buscar())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'ponto_justificativas' }, () => buscar())
+      // Feedback novo (ou marcado como lido/apagado no Dashboard) → só o admin refaz a consulta.
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'feedbacks' }, () => { if (authUser?.role === 'admin') buscar(); })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'atualizacoes' },
         ({ new: r }) => { if (r) juntar([itemAtualizacao(r)]); })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' },
