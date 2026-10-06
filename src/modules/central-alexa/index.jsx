@@ -3628,7 +3628,7 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
                         colors={festColors}
                         size={isMobile?150:230}
                         songSkin={songSkin}
-                        claro={!isMobile && !isDark}
+                        claro={!isMobile && !T.dark}
                       />
                     </div>
                   </div>
