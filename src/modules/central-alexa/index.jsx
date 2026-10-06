@@ -1820,6 +1820,7 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
   }, []);
   const closeMsgVideo = useCallback(() => setMsgVideoOpen(false), []); // estável p/ o memo do modal
   const [selMonthIdx, setSelMonthIdx]   = useState(0);
+  const [selYearIdx, setSelYearIdx]     = useState(0);
   const [collageSize, setCollageSize]   = useState(5);
   const [collageBusy, setCollageBusy]   = useState(false);
   const [collagePeriod, setCollagePeriod] = useState('semana'); // semana | mes | ano | tudo
@@ -2027,8 +2028,38 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
       };
     });
 
+    // Por ano: soma os meses de cada ano (mesmas views mensais, nada de SQL novo). Só entram os
+    // plays que as views já aceitam (horário comercial, sem admin, sem robô).
+    const yS = {}, yA = {}, yD = {}, yT = {};
+    (monthlyRes.data||[]).forEach(r => {
+      const y = String(r.month).slice(0,4);
+      const k = r.spotify_id || `${r.title}|${r.artist}`;
+      yS[y] = yS[y] || {};
+      const e = yS[y][k] = yS[y][k] || { spotify_id:r.spotify_id, title:r.title, artist:r.artist, album_art:r.album_art, count:0 };
+      e.count += r.plays;
+      yA[y] = yA[y] || {};
+      (r.artist||'').split(', ').forEach(a => { if (a) yA[y][a] = (yA[y][a]||0) + r.plays; });
+      yT[y] = (yT[y]||0) + r.plays;
+    });
+    Object.entries(monthDjMap).forEach(([mk, arr]) => {
+      const y = String(mk).slice(0,4);
+      yD[y] = yD[y] || {};
+      arr.forEach(d => { yD[y][d.name] = (yD[y][d.name]||0) + d.count; });
+    });
+    const years = Object.keys(yT).sort().reverse().map(y => {
+      const yDjs = Object.entries(yD[y]||{}).map(([name,count]) => ({ name, count })).sort((a,b)=>b.count-a.count);
+      return {
+        key: y, label: y,
+        topSongs: Object.values(yS[y]).sort((a,b)=>b.count-a.count).slice(0,10),
+        topArtists: Object.entries(yA[y]).sort((a,b)=>b[1]-a[1]).slice(0,10),
+        djs: yDjs.slice(0,10), djTotal: yDjs.reduce((a,d)=>a+d.count,0),
+        total: yT[y], periodStart: null,
+      };
+    });
+
     setSelMonthIdx(0);
-    setMaquinaData({ topSongs, topArtists, total, resetAt, periodStart, djs, djTotal, months });
+    setSelYearIdx(0);
+    setMaquinaData({ topSongs, topArtists, total, resetAt, periodStart, djs, djTotal, months, years });
     setMaquinaLoading(false);
 
     // Carrega fotos dos DJs (ranking geral + de todos os meses)
@@ -4452,6 +4483,7 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
                 {[
                   {id:'geral',     label:'Visão Geral'},
                   {id:'mensal',    label:'Por Mês'},
+                  {id:'anual',     label:'Por Ano'},
                   {id:'semaninha', label:'Semaninha'},
                 ].map(v=>{
                   const on = maquinaView===v.id;
@@ -4534,6 +4566,30 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
                                 ? renderMaquinaAccumulating(selMonth.periodStart)
                                 : renderTopCards(selMonth);
                             })()}
+                          </>
+                    )}
+
+                    {/* ── POR ANO ── */}
+                    {maquinaView==='anual' && (
+                      !(maquinaData.years?.length)
+                        ? <div style={{textAlign:"center",padding:40,color:T.textT,fontSize:13}}>Sem histórico anual ainda.</div>
+                        : <>
+                            <div style={{display:"flex",gap:8,overflowX:"auto",paddingBottom:6,marginBottom:16}}>
+                              {maquinaData.years.map((y,i)=>{
+                                const on = i===selYearIdx;
+                                return (
+                                  <button key={y.key} onClick={()=>setSelYearIdx(i)}
+                                    style={{flexShrink:0,padding:'8px 18px',borderRadius:11,cursor:'pointer',fontFamily:'var(--font-body)',
+                                      fontSize:13,fontWeight:700,transition:'all .15s',textAlign:'left',
+                                      border:`1.5px solid ${on?T.gold:T.border}`,
+                                      background:on?T.goldGl:cardBg,color:on?T.gold:T.textS}}>
+                                    <div>{y.label}{i===0 && <span style={{marginLeft:6,fontSize:9,opacity:.85,fontWeight:800,letterSpacing:'.06em'}}>· ATUAL</span>}</div>
+                                    <div style={{fontSize:10,fontWeight:600,opacity:.7,marginTop:1}}>{y.total} plays</div>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            {renderTopCards(maquinaData.years[selYearIdx] || maquinaData.years[0])}
                           </>
                     )}
 
