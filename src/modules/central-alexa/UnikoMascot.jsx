@@ -1,7 +1,7 @@
 // src/modules/central-alexa/UnikoMascot.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import { getAssistantSkin } from '../../shared/assistantSkin';
-import { getUniko } from '../../shared/captureUniko';
+import { getUniko, getUnikoFalas } from '../../shared/captureUniko';
 import { getContentOffset } from '../../shared/imageContentOffset';
 
 const DEFAULT_IMG = '/UNIKO_ALEXACENTRAL.png';
@@ -119,7 +119,11 @@ const UnikoMascot = ({ track, colors = null, size = 160, songSkin = 'default', c
   // o admin escolheu (getUniko cobre fixos E os criados na Oficina) como tema genérico.
   const uni       = (isSpecial && !isVamp && !isSea) ? getUniko(songSkin) : null;
   const customAccent = uni?.theme?.accent || null;
-  const lines     = LINES_BY_SKIN[songSkin] || DJ_LINES;
+  // Falas escritas pelo admin na Oficina (até 10) têm prioridade; sem elas, usa as padrão.
+  const falasAdmin = getUnikoFalas(songSkin);
+  const lines     = falasAdmin.length ? falasAdmin : (LINES_BY_SKIN[songSkin] || DJ_LINES);
+  const linesRef  = useRef(lines);
+  linesRef.current = lines;   // o ciclo de fala (setInterval) lê sempre a lista mais nova
   const bubbleClass = isVamp ? 'vamp-bubble' : isSea ? 'sea-bubble' : 'normal-bubble';
   const imgSize   = Math.round(size * (SIZE_MULT_BY_SKIN[songSkin] || 1));
   // Desktop (size grande) ganha um balão maior; no celular fica como era.
@@ -173,7 +177,7 @@ const UnikoMascot = ({ track, colors = null, size = 160, songSkin = 'default', c
     const SHOW_MS = 6500, CYCLE_MS = 20000;
     let hideT;
     const speak = () => {
-      setLine(rand(lines));
+      setLine(rand(linesRef.current));
       setShowBubble(true);
       clearTimeout(hideT);
       hideT = setTimeout(() => setShowBubble(false), SHOW_MS);

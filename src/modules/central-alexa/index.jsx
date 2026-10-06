@@ -11,7 +11,7 @@ import SakuraScene from '../../shared/sakuraScene';
 import FairyScene from '../../shared/fairyScene';
 import OliviaScene from '../../shared/oliviaScene';
 import { getActiveAssistantSkinId, getAssistantSkin, onAssistantSkinChange, skinRemoteKey } from '../../shared/assistantSkin';
-import { getUniko, loadUnikoBgVideos } from '../../shared/captureUniko';
+import { getUniko, loadUnikoBgVideos, loadUnikoFalas } from '../../shared/captureUniko';
 import { loadMensagemEspecial, MSG_ESPECIAL_FALLBACK } from '../../shared/mensagemEspecial';
 import { useIsMobile } from '../../hooks/useIsMobile';
 
@@ -1810,7 +1810,7 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
   const [, setBgVideoTick] = useState(0);
   useEffect(() => {
     let alive = true;
-    const refresh = () => loadUnikoBgVideos().then(() => { if (alive) setBgVideoTick(t => t + 1); });
+    const refresh = () => Promise.all([loadUnikoBgVideos(), loadUnikoFalas()]).then(() => { if (alive) setBgVideoTick(t => t + 1); });
     refresh();
     const ch = _supabase.channel('uniko-bg-videos')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'uniko_bg_videos' }, refresh)

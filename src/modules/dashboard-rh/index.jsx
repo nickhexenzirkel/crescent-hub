@@ -13,6 +13,7 @@ import {
   getUniko, loadCustomUnikos, saveCustomUniko, deleteCustomUniko, deriveUnikoTheme, getCustomUnikoRaw,
   giftUnikoToPlayer, themeWithScene, loadRewardOverrides, saveRewardOverride,
   loadUnikoBgVideos, saveUnikoBgVideo, getUnikoBgVideo,
+  loadUnikoFalas, saveUnikoFalas, getUnikoFalas, MAX_FALAS, MAX_FALA_CHARS,
   loadCategoriaTags, getCategoriaTags, saveCategoriaTag, deleteCategoriaTag,
   loadUnikoCategorias, saveUnikoCategorias, getUnikoCategorias,
   loadCaptureSchedule, saveCaptureSchedule, nextOccurrence, activeOccurrence,
@@ -1067,6 +1068,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
   const [oficinaMsg, setOficinaMsg]         = useState('');
   const [oficinaBlinkPreview, setOficinaBlinkPreview] = useState(false); // alterna aberto/fechado no preview
   const [oficinaEditingId, setOficinaEditingId] = useState(null); // null = criando novo; id = editando um já existente
+  const [oficinaFalas, setOficinaFalas]       = useState([]);       // falas do balão (até 10 frases)
   const [oficinaBgVideo, setOficinaBgVideo] = useState('');       // vídeo de fundo do Uniko (Central Alexa)
   const [oficinaBgVidUp, setOficinaBgVidUp] = useState(false);    // upload do vídeo em andamento
 
@@ -1084,7 +1086,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
   // Vídeo de fundo por Uniko (aplica em memória; tick força re-render).
   const [bgVidUploading, setBgVidUploading] = useState(null); // uniko_id em upload
   const [bgVidMsg, setBgVidMsg] = useState('');
-  useEffect(() => { if (tab === 'capture') loadUnikoBgVideos().then(() => setRewardTick(t => t + 1)); }, [tab]);
+  useEffect(() => { if (tab === 'capture') { loadUnikoBgVideos().then(() => setRewardTick(t => t + 1)); loadUnikoFalas(); } }, [tab]);
   const subirBgVideo = async (unikoId, file) => {
     if (!file) return;
     if (!file.type.startsWith('video/')) { setBgVidMsg('Escolha um arquivo de vídeo.'); setTimeout(()=>setBgVidMsg(''),4000); return; }
@@ -1504,6 +1506,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
     setOficinaForm({ name: '', tagline: '', accent: '#6C5CE7', rewardComum: 100, rewardPremium: 100, iconSize: 84 });
     setOficinaFrames({ main: null, notif: null, alert: null, closed: null, capture: null, prismaComum: null, prismaPremium: null, alexa: null, wave: null, scene: null });
     setOficinaBgVideo('');
+    setOficinaFalas([]);
   };
   // Vídeo de fundo (Central Alexa) direto na Oficina — sobe pro bucket
   // uniko-videos e só guarda a URL no estado; persiste de verdade no "Salvar".
@@ -1539,6 +1542,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
       scene: row.img_scene,
     });
     setOficinaBgVideo(getUnikoBgVideo(id) || '');
+    setOficinaFalas(getUnikoFalas(id));
     setOficinaMsg('');
   };
   const saveOficina = async () => {
@@ -1561,6 +1565,8 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
       });
       // Vídeo de fundo (Central Alexa): grava/limpa pra ESTE Uniko (id novo ou editado).
       await saveUnikoBgVideo(newId, oficinaBgVideo || '');
+      // Falas do balão (até 10 frases) deste Uniko.
+      await saveUnikoFalas(newId, oficinaFalas);
       setOficinaMsg(oficinaEditingId ? '✅ Alterações salvas!' : '✅ Uniko adicionado à Biblioteca!');
       resetOficinaForm();
       await loadOficinaLib();
@@ -4362,6 +4368,32 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin'}) => {
                       onChange={e=>setOficinaForm(f=>({...f,iconSize:e.target.value}))}
                       style={{width:'100%',accentColor:oficinaForm.accent,cursor:'pointer'}}/>
                   </div>
+                </div>
+
+                {/* Falas do balão (até 10 frases) */}
+                <div>
+                  <label style={{fontSize:12,fontWeight:600,color:T.textD,display:'block',marginBottom:6}}>
+                    Falas do balão <span style={{fontWeight:500,color:T.textT}}>— até {MAX_FALAS} frases; ele sorteia uma a cada vez que fala ({oficinaFalas.filter(f=>f.trim()).length}/{MAX_FALAS})</span>
+                  </label>
+                  <div style={{display:'flex',flexDirection:'column',gap:8}}>
+                    {oficinaFalas.map((f,i)=>(
+                      <div key={i} style={{display:'flex',gap:8,alignItems:'center'}}>
+                        <span style={{width:22,textAlign:'right',fontSize:12,fontWeight:700,color:T.textD,flexShrink:0}}>{i+1}</span>
+                        <input value={f} maxLength={MAX_FALA_CHARS}
+                          onChange={e=>setOficinaFalas(arr=>arr.map((x,j)=>j===i?e.target.value:x))}
+                          placeholder="Ex.: Bora colocar aquela música massa!"
+                          style={{flex:1,padding:'9px 12px',borderRadius:10,border:`1px solid ${T.border}`,background:isDark?(T.surfaceSub||'rgba(255,255,255,0.06)'):'#fff',color:T.text,fontSize:13,outline:'none',fontFamily:'inherit'}}/>
+                        <button type="button" onClick={()=>setOficinaFalas(arr=>arr.filter((_,j)=>j!==i))} title="Remover frase"
+                          style={{width:32,height:32,borderRadius:8,border:`1px solid ${T.border}`,background:'transparent',color:T.textD,cursor:'pointer',fontSize:16,lineHeight:1,flexShrink:0}}>×</button>
+                      </div>
+                    ))}
+                  </div>
+                  <button type="button" disabled={oficinaFalas.length>=MAX_FALAS}
+                    onClick={()=>setOficinaFalas(arr=>[...arr,''])}
+                    style={{marginTop:oficinaFalas.length?10:0,padding:'8px 14px',borderRadius:10,border:`1px dashed ${T.border}`,background:'transparent',color:oficinaFalas.length>=MAX_FALAS?T.textT:T.gold,cursor:oficinaFalas.length>=MAX_FALAS?'not-allowed':'pointer',fontSize:12.5,fontWeight:700}}>
+                    {oficinaFalas.length>=MAX_FALAS ? `Limite de ${MAX_FALAS} frases atingido` : '+ Adicionar frase'}
+                  </button>
+                  {oficinaFalas.length===0 && <div style={{fontSize:11.5,color:T.textT,marginTop:6}}>Sem frases próprias, o Uniko usa as falas padrão.</div>}
                 </div>
 
                 {/* Frames */}

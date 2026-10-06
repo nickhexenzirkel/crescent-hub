@@ -789,6 +789,33 @@ export async function saveUnikoBgVideo(unikoId, url) {
 }
 export const getUnikoBgVideo = (id) => _bgVideoCache[id] || '';
 
+/* ── Falas do Uniko (balão de fala da Central Alexa) — o admin escreve até 10 frases por
+   Uniko na Oficina (Dashboard RH). Ficam num único JSON { unikoId: [frases] } na tabela
+   `settings` (chave `uniko_falas`), então NÃO precisa de SQL novo; vale pros fixos E pros da
+   Oficina. Sem frases salvas, o Uniko continua usando as falas padrão dele. ── */
+export const FALAS_KEY = 'uniko_falas';
+export const MAX_FALAS = 10;
+export const MAX_FALA_CHARS = 120;
+let _falasCache = {}; // uniko_id -> [frase,...]
+export async function loadUnikoFalas() {
+  try {
+    const { data } = await _supabase.from('settings').select('value').eq('key', FALAS_KEY).maybeSingle();
+    const v = data?.value;
+    const obj = v ? (typeof v === 'string' ? JSON.parse(v) : v) : {};
+    _falasCache = (obj && typeof obj === 'object') ? obj : {};
+  } catch (e) { console.error('[capture-uniko] loadUnikoFalas falhou:', e); }
+}
+export const getUnikoFalas = (id) => (Array.isArray(_falasCache[id]) ? _falasCache[id] : []);
+export async function saveUnikoFalas(unikoId, falas) {
+  const clean = (Array.isArray(falas) ? falas : [])
+    .map(f => String(f || '').trim().slice(0, MAX_FALA_CHARS)).filter(Boolean).slice(0, MAX_FALAS);
+  await loadUnikoFalas(); // evita sobrescrever o que outro Uniko salvou nesse meio-tempo
+  if (clean.length) _falasCache[unikoId] = clean; else delete _falasCache[unikoId];
+  const { error } = await _supabase.from('settings').upsert(
+    { key: FALAS_KEY, value: JSON.stringify(_falasCache) }, { onConflict: 'key' });
+  if (error) throw error;
+}
+
 /* ── Categorias/tags de Uniko (Frutas, Seres Místicos, Desenho Animado...) ──
    Duas peças: o CATÁLOGO de tags (lista global, admin cria/apaga) e a
    ATRIBUIÇÃO por Uniko (quais tags cada um tem). Mesma ideia do vídeo de
