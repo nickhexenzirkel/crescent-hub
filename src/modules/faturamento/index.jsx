@@ -8,13 +8,14 @@ import { TabPdfEditor, TabPdfOrganizar, TabPdfMesclar, TabCartaCorrecao } from '
 import { TabAssinatura } from './tabs/TabAssinatura';
 import { TabOficioEmissao } from './tabs/TabOficioEmissao';
 import { TabEmpenho } from './tabs/TabEmpenho';
+import { TabBaixarOS } from './tabs/TabBaixarOS';
 import { TabHistoricoAssinatura } from './tabs/TabHistoricoAssinatura';
 import { refletirAbaNaUrl } from './rotaFerramenta';
 
 // 'xml'/'assinatura' têm gate PRÓPRIO (admin OU CPF liberado) — ver canSeeTab em Sidebar.jsx.
 // 'carta' e 'oficio-emissao' são liberadas pra todos (07/10/2026).
 const GATED_TABS = new Set(['xml', 'assinatura']);
-const ADMIN_TABS = new Set(['historico-assinatura']);
+const ADMIN_TABS = new Set(['historico-assinatura', 'baixar-os']);
 
 // Abas que certos CARGOS não podem ver, mesmo sem recorte de abas configurado no Gerenciar
 // Permissões (07/10/2026: Carta de Correção e Ofício de Emissão foram liberadas pra todos,
@@ -90,6 +91,7 @@ const FaturamentoPortal = ({ onBack, authUser, initialTab, restrictedTabs, cargo
       case 'carta':       return <TabCartaCorrecao/>;
       case 'oficio-emissao': return <TabOficioEmissao/>;
       case 'empenho':        return <TabEmpenho/>;
+      case 'baixar-os':      return <TabBaixarOS/>;
       case 'inicio':
       default:            return <TabInicio setTab={safeSetTab} isAdmin={isAdmin} authUser={authUser} hidden={hiddenTabs}/>;
     }

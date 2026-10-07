@@ -117,6 +117,20 @@ const FEATURES = [
     ),
   },
   {
+    id: 'baixar-os',
+    color: '#0E8FA8',
+    bg: 'rgba(14,143,168,0.10)',
+    adminOnly: true,
+    title: 'Baixar Ordens de Serviço',
+    desc: 'Envie a planilha de manutenção e o robô baixa da Wowlet o PDF de cada ordem, organizado em pastas por secretaria e setor.',
+    steps: ['Envie a planilha', 'Informe o login da Wowlet', 'Baixe o zip com as pastas'],
+    icon: (c) => (
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 3v12"/><polyline points="7 11 12 16 17 11"/><path d="M5 21h14"/>
+      </svg>
+    ),
+  },
+  {
     id: 'oficio-emissao',
     color: '#C0307A',
     bg: 'rgba(192,48,122,0.10)',
