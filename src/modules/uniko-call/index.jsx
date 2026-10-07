@@ -13,9 +13,10 @@ import { SEM_SETOR, setorInfo, callMs, totalLabel, callsLabel } from './callUtil
 import CallDashboard from './Dashboard';
 import { UnikoBrandArt } from '../../shared/UnikoBrand';
 import { StarDivider } from '../../shared/components';
+import { bolhaGradiente } from '../../shared/bolhas';
 
-// Verde do mascote do Uniko Call (headset de luzes verdes) — subtítulo e star divider do cabeçalho.
-const CALL_GREEN_DK = '#16a34a';
+// Verde do mascote do Uniko Call (headset de luzes verdes) — subtítulo, blobs e star divider do cabeçalho.
+const CALL_GREEN = '#22c55e', CALL_GREEN_DK = '#16a34a';
 
 // Recorta um trecho em volta da 1ª ocorrência do termo (mesmo padrão do
 // Uniko Security) — a transcrição de uma chamada pode ser longa, mostrar
@@ -511,6 +512,10 @@ const UnikoCall = ({ onBack }) => {
             {/* Cabeçalho da sidebar — mesmo UNIKO em SVG + mascote do Portal do Colaborador (shared/UnikoBrand.jsx),
                 com star divider, na cor verde do mascote. */}
             <div style={{ flexShrink: 0, position: 'relative', overflow: 'hidden', padding: '20px 16px 12px', borderBottom: '1px solid rgba(34,197,94,0.14)' }}>
+              <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none' }}>
+                <div style={{ position: 'absolute', width: 210, height: 210, borderRadius: '50%', background: bolhaGradiente(CALL_GREEN + '55'), top: '-80px', left: '-70px', animation: 'brandBlob1 6s ease-in-out infinite' }} />
+                <div style={{ position: 'absolute', width: 180, height: 180, borderRadius: '50%', background: bolhaGradiente(CALL_GREEN_DK + '44'), top: '-55px', right: '-60px', animation: 'brandBlob2 8s ease-in-out infinite' }} />
+              </div>
               <div style={{ position: 'relative', zIndex: 1, display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
                 <UnikoBrandArt legenda="CALL" logo="/UNIKO_CALL.png" tamanhoLogo={72} alturaNome={28} vertical legendaCentrada tamanhoLegenda={13} cores={{ texto: T.text, destaque: CALL_GREEN_DK }} />
               </div>
