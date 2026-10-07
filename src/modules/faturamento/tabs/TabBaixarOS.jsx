@@ -102,7 +102,10 @@ export const TabBaixarOS = () => {
     setErro(''); setFim(null); setLogs([]); setEstados({});
     let raiz;
     try { raiz = await window.showDirectoryPicker({ mode: 'readwrite', id: 'uniko-ordens-servico' }); }
-    catch { return; } // cancelou a escolha da pasta
+    catch (e) {
+      if (e?.name !== 'AbortError') setErro('O Chrome não deixa gravar nessa pasta (Downloads, Documentos, Desktop e a raiz do OneDrive são bloqueadas). Na janela de escolha, clique em "Nova pasta", crie uma como "Ordens de Servico" e escolha ela.');
+      return; // cancelou ou pasta bloqueada
+    }
     const porOs = Object.fromEntries(itens.map((i) => [i.os, i]));
     setRodando(true);
     const job = baixarOrdensServico({
@@ -171,7 +174,7 @@ export const TabBaixarOS = () => {
           </div>
         </div>
         <div style={{ fontSize: 12.5, color: T.textT, marginTop: 8 }}>
-          Antes de iniciar, esteja logado na Wowlet neste Chrome. Ao clicar em iniciar você escolhe a pasta onde os PDFs serão gravados.
+          Antes de iniciar, esteja logado na Wowlet neste Chrome. Ao clicar em iniciar você escolhe a pasta onde os PDFs serão gravados — use uma pasta NOVA (ex.: crie "Ordens de Servico"); o Chrome bloqueia Downloads, Documentos, Desktop e a raiz do OneDrive.
         </div>
 
         {itens.length > 0 && (
