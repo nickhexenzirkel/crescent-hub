@@ -295,7 +295,7 @@ const COMPRESSAO_MINIMA = 0.75;
  * Parágrafo justificado. `y` é a linha de base da 1ª linha (coord. pdf-lib).
  * `indente` afasta só a 1ª linha. Devolve a linha de base da última linha.
  */
-const paragrafo = (page, segs, { x, y, largura, entrelinha, size, indente = 0, espaco }) => {
+const paragrafo = (page, segs, { x, y, largura, entrelinha, size, indente = 0, espaco, justificar = true }) => {
   const palavras = palavrasDe(segs, size);
   const esp = espaco ?? segs[0].f.widthOfTextAtSize(' ', size);
   const linhas = [];
@@ -310,7 +310,7 @@ const paragrafo = (page, segs, { x, y, largura, entrelinha, size, indente = 0, e
 
   linhas.forEach((ln, i) => {
     const ultima = i === linhas.length - 1;
-    const gap = !ultima && ln.palavras.length > 1 ? (ln.larg - ln.soma) / (ln.palavras.length - 1) : esp;
+    const gap = justificar && !ultima && ln.palavras.length > 1 ? (ln.larg - ln.soma) / (ln.palavras.length - 1) : esp;
     let px = x + (i === 0 ? indente : 0);
     const py = y - i * entrelinha;
     for (const p of ln.palavras) {
@@ -448,7 +448,10 @@ export const gerarPiaui = async ({ numeroNota, secretaria, valorLiquido, tipo, p
   linha([B('CONTATO: '), R('financeiro@7beneficios.com.br')], 367.9);
 
   // Sem prefixo: a linha é exatamente o que foi digitado (ex.: "À SECRETARIA MUNICIPAL DE SAÚDE - FUNDO ...").
-  linha([B(secretaria.trim(), VAR)], 423.1, { indente: 37.3 });
+  // Nome comprido quebra em mais linhas (sem justificar, é título): tudo que vem abaixo desce o mesmo tanto,
+  // pra nunca ficar um texto por cima do outro.
+  const fimSecretaria = linha([B(secretaria.trim(), VAR)], 423.1, { indente: 37.3, justificar: false });
+  const extra = topo(423.1) - fimSecretaria; // pontos que a secretaria ocupou além da 1ª linha
 
   const extenso = reaisPorExtenso(valorLiquido).replace(/,\s*/g, ' ').toUpperCase();
   linha([
@@ -456,17 +459,17 @@ export const gerarPiaui = async ({ numeroNota, secretaria, valorLiquido, tipo, p
     B('R$ '), B(`${formatarReais(valorLiquido)} `, VAR), B(`(${extenso}`, VAR), B(')'),
     R(', CNPJ 13.858.769/0001-97, referente ao faturamento de '), R(tipo, VAR),
     R(' do período de '), B(periodoCurto(periodo), VAR), R('.'),
-  ], 450.7, { indente: 37.3 });
+  ], 450.7 + extra, { indente: 37.3 });
 
-  linha([R('Vencimento em: '), B(`${vencimento}.`, VAR)], 519.7, { indente: 37.3 });
+  linha([R('Vencimento em: '), B(`${vencimento}.`, VAR)], 519.7 + extra, { indente: 37.3 });
 
   if (comRubrica) {
     const rubrica = await doc.embedPng(await baixar(rubricaUrl));
     const rw = 160.8, rh = rw * (rubrica.height / rubrica.width);
-    p.drawImage(rubrica, { x: 77.8, y: topo(592) + 2, width: rw, height: rh });
+    p.drawImage(rubrica, { x: 77.8, y: topo(592 + extra) + 2, width: rw, height: rh });
   }
-  linha([B('7SERV GESTÃO DE BENEFÍCIOS LTDA')], 602.5);
-  linha([B(SIGNATARIO.nome.toUpperCase())], 616.3);
-  linha([B(`CPF Nº ${SIGNATARIO.cpf}`)], 630.2);
+  linha([B('7SERV GESTÃO DE BENEFÍCIOS LTDA')], 602.5 + extra);
+  linha([B(SIGNATARIO.nome.toUpperCase())], 616.3 + extra);
+  linha([B(`CPF Nº ${SIGNATARIO.cpf}`)], 630.2 + extra);
   return doc.save();
 };
