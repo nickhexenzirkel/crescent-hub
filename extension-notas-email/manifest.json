@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Uniko — Notas por e-mail",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "Baixa as Ordens de Serviço da Wowlet em PDF, baixa em lote os PDFs das NFS-e no ISS Fortaleza e procura no Gmail (contas que você já deixou abertas no Chrome) os PDFs das notas fiscais que o Controle de Notas do Uniko não achou, e devolve os PDFs para o próprio Uniko ler.",
   "icons": {
     "16": "icon.png",

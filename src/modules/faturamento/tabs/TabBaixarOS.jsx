@@ -13,7 +13,7 @@ import { baixarOrdensServico, detectarExtensao } from '../extensaoNotasEmail';
    Secretaria / Setor / OS_<id>.pdf. Nada passa pelo servidor.
 ═══════════════════════════════════════════════════════════════ */
 
-const VERSAO_MIN = [1, 4, 0];
+const VERSAO_MIN = [1, 4, 1];
 const versaoOk = (v) => {
   const p = String(v || '0').split('.').map(Number);
   for (let i = 0; i < 3; i++) { if ((p[i] || 0) > VERSAO_MIN[i]) return true; if ((p[i] || 0) < VERSAO_MIN[i]) return false; }
