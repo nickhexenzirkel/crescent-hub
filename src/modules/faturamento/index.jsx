@@ -7,6 +7,7 @@ import { TabLeitorXML } from './tabs/TabLeitorXML';
 import { TabPdfEditor, TabPdfOrganizar, TabPdfMesclar, TabCartaCorrecao } from './tabs/TabOficinaEstelar';
 import { TabAssinatura } from './tabs/TabAssinatura';
 import { TabOficioEmissao } from './tabs/TabOficioEmissao';
+import { TabEmpenho } from './tabs/TabEmpenho';
 import { TabHistoricoAssinatura } from './tabs/TabHistoricoAssinatura';
 import { refletirAbaNaUrl } from './rotaFerramenta';
 
@@ -21,6 +22,7 @@ const ADMIN_TABS = new Set(['historico-assinatura']);
 const TABS_BLOQUEADAS_POR_CARGO = {
   'carta':          ['comercial', 'pos venda'],
   'oficio-emissao': ['comercial', 'pos venda'],
+  'empenho':        ['comercial', 'pos venda'],
 };
 const nomeCargo = (s) => (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 
@@ -87,6 +89,7 @@ const FaturamentoPortal = ({ onBack, authUser, initialTab, restrictedTabs, cargo
       case 'pdf-mesclar':   return <TabPdfMesclar/>;
       case 'carta':       return <TabCartaCorrecao/>;
       case 'oficio-emissao': return <TabOficioEmissao/>;
+      case 'empenho':        return <TabEmpenho/>;
       case 'inicio':
       default:            return <TabInicio setTab={safeSetTab} isAdmin={isAdmin} authUser={authUser} hidden={hiddenTabs}/>;
     }

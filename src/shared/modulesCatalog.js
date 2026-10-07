@@ -56,5 +56,6 @@ export const MODULE_TABS_CATALOG = {
     { id: 'historico-assinatura', label: 'Histórico de Assinatura' },
     { id: 'carta', label: 'Carta de Correção' },
     { id: 'oficio-emissao', label: 'Ofício de Emissão' },
+    { id: 'empenho', label: 'Leitura de Empenho' },
   ],
 };

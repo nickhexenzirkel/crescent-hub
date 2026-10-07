@@ -104,6 +104,19 @@ const FEATURES = [
     ),
   },
   {
+    id: 'empenho',
+    color: '#5B60D0',
+    bg: 'rgba(91,96,208,0.10)',
+    title: 'Leitura de Empenho',
+    desc: 'Arraste as Notas de Empenho (inclusive escaneadas) e baixe uma planilha com a secretaria, o número e o valor empenhado de cada uma.',
+    steps: ['Solte os PDFs dos empenhos', 'O sistema lê cada um (OCR se for imagem)', 'Baixe a planilha'],
+    icon: (c) => (
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="9" x2="9" y2="21"/>
+      </svg>
+    ),
+  },
+  {
     id: 'oficio-emissao',
     color: '#C0307A',
     bg: 'rgba(192,48,122,0.10)',

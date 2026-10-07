@@ -175,7 +175,7 @@ const extrairDesconto = (norm, reembolso, somaIr, liquido) => {
 };
 
 /** Reconstrói as quebras de linha a partir do Y de cada fragmento (pdf.js entrega pedaços soltos). */
-const itemsParaTexto = (items) => {
+export const itemsParaTexto = (items) => {
   let out = '', lastY = null;
   for (const it of items) {
     const y = it.transform?.[5];
