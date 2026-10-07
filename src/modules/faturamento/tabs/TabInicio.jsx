@@ -104,6 +104,20 @@ const FEATURES = [
       </svg>
     ),
   },
+  {
+    id: 'oficio-emissao',
+    color: '#C0307A',
+    bg: 'rgba(192,48,122,0.10)',
+    tabGate: true,
+    title: 'Ofício de Emissão',
+    desc: 'Arraste as notas fiscais e gere o ofício de solicitação de pagamento de cada uma, no modelo Eusébio ou Juazeiro do Piauí.',
+    steps: ['Solte as notas fiscais', 'Escolha o modelo', 'Baixe os ofícios'],
+    icon: (c) => (
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/>
+      </svg>
+    ),
+  },
 ];
 
 export const TabInicio = ({ setTab, isAdmin, authUser }) => {

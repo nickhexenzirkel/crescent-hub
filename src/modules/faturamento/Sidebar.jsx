@@ -20,6 +20,7 @@ const TAB_CPF_WHITELIST = {
   xml: ['09538288327', '09027334358', '07526901329', '08454360310'],
   carta: ['08454360310'],
   assinatura: ['08454360310'],
+  'oficio-emissao': ['08454360310'],
 };
 const cpfDigits = (c) => (c || '').replace(/\D/g, '');
 const canSeeTab = (tabId, authUser, isAdmin) => isAdmin || (TAB_CPF_WHITELIST[tabId] || []).includes(cpfDigits(authUser?.cpf));
@@ -70,6 +71,12 @@ const NAV = [
     label: 'Carta de Correção',
     tabGate: true,
     icon: <I><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></I>,
+  },
+  {
+    id: 'oficio-emissao',
+    label: 'Ofício de Emissão',
+    tabGate: true,
+    icon: <I><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></I>,
   },
 ];
 
@@ -166,7 +173,7 @@ const Sidebar = ({ tab, setTab, onBack, isAdmin, authUser, only }) => {
 // 'inicio' — vira a 1ª aba liberada. Default mantém o comportamento de sempre.
 const TopBar = ({ tab, onBack, homeTab = 'inicio' }) => {
   const isMobile = useIsMobile();
-  const nm = { inicio:'Início', xml:'Controle de Notas', assinatura:'Assinatura Automática', 'historico-assinatura':'Histórico de Assinatura', 'pdf-editor':'Editor de PDF', 'pdf-organizar':'Organizar PDF', 'pdf-mesclar':'Mesclar PDF', carta:'Carta de Correção' };
+  const nm = { inicio:'Início', xml:'Controle de Notas', assinatura:'Assinatura Automática', 'historico-assinatura':'Histórico de Assinatura', 'pdf-editor':'Editor de PDF', 'pdf-organizar':'Organizar PDF', 'pdf-mesclar':'Mesclar PDF', carta:'Carta de Correção', 'oficio-emissao':'Ofício de Emissão' };
   if (tab === homeTab) return null;
   return (
     <div style={{
