@@ -60,33 +60,18 @@ const comandos = {
     captcha: /desafio de verifica/i.test(document.body.innerText),
   }),
 
-  // 1º clique na gravação = Razão Social; 2º = Nome Fantasia (o foco fica nele para o background digitar).
-  WOW_CLICAR_CAMPOS: async () => {
-    let razao = porRotulo('Razao Social');
-    let fantasia = porRotulo('Nome Fantasia');
-    let via = 'rótulos';
-    if (!fantasia) {
-      const lista = comRotulo();
-      razao = lista[2]; fantasia = lista[3]; via = 'ordem dos campos (gravação)';
-      if (!fantasia) {
-        return { ok: false, erro: 'Não achei o campo Nome Fantasia.', campos: [...document.querySelectorAll('input,select')].filter(visivel).map((c) => `${c.tagName}[${c.name || c.id || ''}|${c.placeholder || ''}]`) };
-      }
-    }
-    if (razao) { clicarReal(razao); await esperar(700); }
-    clicarReal(fantasia); fantasia.focus();
-    await esperar(500);
-    const foco = document.activeElement;
-    if (foco && 'value' in foco) { foco.value = ''; foco.dispatchEvent(new Event('input', { bubbles: true })); }
-    return { ok: true, via, foco: `${foco?.tagName}[${foco?.name || foco?.id || ''}]` };
-  },
-
-  WOW_OPCOES: ({ termo }) => ({ ok: true, textos: opcoesDe(termo).slice(0, 12).map((o) => o.textContent.trim().replace(/\s+/g, ' ')) }),
-
-  WOW_CLICAR_OPCAO: ({ termo, idx }) => {
-    const o = opcoesDe(termo)[idx];
-    if (!o) return { ok: false, erro: 'Opção sumiu da lista.' };
-    clicarReal(o);
-    return { ok: true };
+  // Lê as opções do select "Nome Fantasia" e devolve a que abre o nome do credenciado da planilha
+  // (a mais longa que seja começo do nome; senão a mais longa contida nele).
+  WOW_OPCAO_FANTASIA: ({ nome }) => {
+    const sel = document.querySelector('select[name="business_name"]');
+    if (!sel) return { ok: false, erro: 'Filtro Nome Fantasia não encontrado em /providers.' };
+    const n = norm(nome);
+    const ops = [...sel.options].map((o) => o.value).filter((v) => v && v !== '********');
+    const comeco = ops.filter((v) => n.startsWith(norm(v)));
+    const dentro = ops.filter((v) => norm(v).length >= 3 && n.includes(norm(v)));
+    const lista = (comeco.length ? comeco : dentro).sort((a, b) => b.length - a.length);
+    if (!lista.length) return { ok: false, erro: `Nenhum nome fantasia do filtro bate com "${nome}".` };
+    return { ok: true, valor: lista[0], candidatas: lista.length };
   },
 
   WOW_BUSCAR: () => {

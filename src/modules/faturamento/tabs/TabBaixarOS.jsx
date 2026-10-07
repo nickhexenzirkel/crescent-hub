@@ -61,16 +61,6 @@ async function lerPlanilha(file) {
 const COR = { fila: '#8A8A8A', baixando: '#C98A1B', ok: '#1A9C70', erro: '#C04050' };
 const TXT = { fila: 'Na fila', baixando: 'Baixando…', ok: '✓ Salva', erro: 'Falhou' };
 
-/** Grava Secretaria/Setor/OS_<id>.pdf dentro da pasta escolhida. */
-async function gravar(raiz, it, bytes) {
-  const d1 = await raiz.getDirectoryHandle(pasta(it.secretaria), { create: true });
-  const d2 = await d1.getDirectoryHandle(pasta(it.setor), { create: true });
-  const f = await d2.getFileHandle(`OS_${it.os}.pdf`, { create: true });
-  const w = await f.createWritable();
-  await w.write(bytes);
-  await w.close();
-}
-
 export const TabBaixarOS = () => {
   const [itens, setItens] = useState([]);
   const [arquivo, setArquivo] = useState('');
@@ -100,22 +90,11 @@ export const TabBaixarOS = () => {
 
   const iniciar = async () => {
     setErro(''); setFim(null); setLogs([]); setEstados({});
-    let raiz;
-    try { raiz = await window.showDirectoryPicker({ mode: 'readwrite', id: 'uniko-ordens-servico' }); }
-    catch (e) {
-      if (e?.name !== 'AbortError') setErro('O Chrome não deixa gravar nessa pasta (Downloads, Documentos, Desktop e a raiz do OneDrive são bloqueadas). Na janela de escolha, clique em "Nova pasta", crie uma como "Ordens de Servico" e escolha ela.');
-      return; // cancelou ou pasta bloqueada
-    }
-    const porOs = Object.fromEntries(itens.map((i) => [i.os, i]));
     setRodando(true);
     const job = baixarOrdensServico({
-      itens: itens.map(({ os, credenciado }) => ({ os, credenciado })),
+      itens: itens.map(({ os, credenciado, secretaria, setor }) => ({ os, credenciado, secretaria, setor })),
       onLog: addLog,
       onItem: (m) => setEstados((e) => ({ ...e, [m.os]: { estado: m.estado, msg: m.msg } })),
-      onArquivo: async ({ os, bytes }) => {
-        await gravar(raiz, porOs[os] || { os }, bytes);
-        addLog(`OS ${os}: salva na pasta → ${pasta(porOs[os]?.secretaria)}\\${pasta(porOs[os]?.setor)}`);
-      },
     });
     jobRef.current = job;
     try { setFim(await job.promessa); }
@@ -174,7 +153,7 @@ export const TabBaixarOS = () => {
           </div>
         </div>
         <div style={{ fontSize: 12.5, color: T.textT, marginTop: 8 }}>
-          Antes de iniciar, esteja logado na Wowlet neste Chrome. Ao clicar em iniciar você escolhe a pasta onde os PDFs serão gravados — use uma pasta NOVA (ex.: crie "Ordens de Servico"); o Chrome bloqueia Downloads, Documentos, Desktop e a raiz do OneDrive.
+          Antes de iniciar, esteja logado na Wowlet neste Chrome. Os PDFs são gravados sozinhos em Downloads\Ordens de Servico\Secretaria\Setor.
         </div>
 
         {itens.length > 0 && (
@@ -238,7 +217,7 @@ export const TabBaixarOS = () => {
               ...btnPrimary, background: pronto ? T.gold : 'transparent', color: pronto ? '#fff' : T.textD,
               boxShadow: pronto ? btnPrimary.boxShadow : 'none', border: pronto ? 'none' : `1px solid ${T.border}`,
               cursor: pronto ? 'pointer' : 'not-allowed',
-            }}>Escolher pasta e iniciar</button>
+            }}>Iniciar download</button>
           )}
           {rodando && <button style={btnGhost} onClick={cancelar}>Cancelar</button>}
         </div>
