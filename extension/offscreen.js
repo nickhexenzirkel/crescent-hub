@@ -14,17 +14,17 @@ let recorder = null;
 let chunks = [];
 let tabStream = null;
 let micStream = null;
-let meta = { contactName: null, startedAt: null, avisoPlayed: false };
+let meta = { contactName: null, startedAt: null, avisoPlayed: false, attendantToken: '' };
 let recDest = null; // destino da mistura gravada (aba + microfone) — o aviso também entra aqui
 
 // Log em cada passo (temporário, pra diagnóstico ao vivo 24/set/2026 — nada
 // estava chegando no servidor e nem erro nenhum sobrava pra seguir a pista).
 console.log('[uniko-call] offscreen.js carregado e ouvindo mensagens.');
 
-async function startCapture(streamId, contactName, avisoRecent = false) {
+async function startCapture(streamId, contactName, avisoRecent = false, attendantToken = '') {
   console.log('[uniko-call] startCapture() chamado — streamId:', streamId, 'contactName:', contactName);
   if (recorder && recorder.state === 'recording') { console.log('[uniko-call] já estava gravando — ignorando start duplicado.'); return; }
-  meta = { contactName: contactName || null, startedAt: new Date().toISOString(), avisoPlayed: !!avisoRecent };
+  meta = { contactName: contactName || null, startedAt: new Date().toISOString(), avisoPlayed: !!avisoRecent, attendantToken: attendantToken || '' };
   chunks = [];
 
   console.log('[uniko-call] pedindo tabStream (getUserMedia tab)...');
@@ -137,7 +137,9 @@ async function uploadRecording() {
       chrome.runtime.sendMessage({ type: 'UNIKO_CALL_GET_ATTENDANT_TOKEN' }).then((r) => r?.token || '').catch(() => ''),
       new Promise((r) => setTimeout(() => r(''), 3000)),
     ]);
-    form.append('attendantToken', attendantToken);
+    const tokenFinal = attendantToken || meta.attendantToken || '';
+    console.log('[uniko-call] token do atendente no envio:', tokenFinal ? 'presente' : 'AUSENTE (sem login no popup)');
+    form.append('attendantToken', tokenFinal);
     const res = await fetch(`${CALL_SERVER}/api/uniko-call/upload`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${CALL_UPLOAD_TOKEN}` },
@@ -153,7 +155,7 @@ async function uploadRecording() {
 
 chrome.runtime.onMessage.addListener((message) => {
   console.log('[uniko-call] offscreen recebeu mensagem:', message.type);
-  if (message.type === 'UNIKO_CALL_START') startCapture(message.streamId, message.contactName, !!message.avisoRecent).catch((e) => {
+  if (message.type === 'UNIKO_CALL_START') startCapture(message.streamId, message.contactName, !!message.avisoRecent, message.attendantToken || '').catch((e) => {
     console.error('[uniko-call] falha ao iniciar captura:', e.name, e.message);
     // Solta o que já tinha sido aberto (ex.: tab ok mas microfone negado), senão a aba fica "presa".
     [tabStream, micStream].forEach((s) => s?.getTracks().forEach((t) => t.stop()));

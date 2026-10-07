@@ -246,6 +246,7 @@ const loginOut = $('loginOut'), loginIn = $('loginIn'), loginMsg = $('loginMsg')
 const LOGIN_HINT = loginMsg.textContent;
 
 function renderAttendant(a) {
+  const w = $('noLoginWarn'); if (w) w.style.display = a ? 'none' : 'block';
   loginOut.style.display = a ? 'none' : 'block';
   loginIn.style.display = a ? 'flex' : 'none';
   if (!a) return;

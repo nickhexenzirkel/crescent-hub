@@ -711,7 +711,10 @@ async function startUnikoCallRecordingWithStream(streamId, contactName) {
     console.log('[uniko-call] background: offscreen document garantido, mandando UNIKO_CALL_START...');
     const { unikoAvisoAt } = (await chrome.storage.session?.get('unikoAvisoAt').catch(() => ({}))) || {};
     const avisoRecent = !!unikoAvisoAt && Date.now() - unikoAvisoAt < AVISO_RECENT_MS;
-    chrome.runtime.sendMessage({ type: 'UNIKO_CALL_START', streamId, contactName, avisoRecent });
+    // Token do atendente lido já no início (vai junto da gravação; no fim ainda tenta de novo).
+    const { unikoAttendant } = (await chrome.storage.local.get('unikoAttendant').catch(() => ({}))) || {};
+    console.log('[uniko-call] background: atendente logado?', unikoAttendant?.token ? `sim (${unikoAttendant.name})` : 'NÃO — entre no popup da extensão');
+    chrome.runtime.sendMessage({ type: 'UNIKO_CALL_START', streamId, contactName, avisoRecent, attendantToken: unikoAttendant?.token || '' });
     setUnikoCallState('recording');
     registrarAtendimento(contactName);
   } catch (e) {
