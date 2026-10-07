@@ -101,7 +101,9 @@ async function sairDoCredenciado() {
 
 async function acessarCredenciado(nome) {
   const alvo = norm(nome);
-  const termos = [...new Set([nome, nome.split(' - ')[0].trim(), nome.trim().split(/\s+/)[0]])].filter(Boolean);
+  const pal = nome.trim().split(/\s+/);
+  // o campo é autocompletar: começa por poucas letras (como "jbc") e depois escolhe a opção certa na lista
+  const termos = [...new Set([pal[0].length >= 3 ? pal[0] : pal.slice(0, 2).join(' '), nome.split(' - ')[0].trim(), nome.trim()])].filter(Boolean);
   for (const termo of termos) {
     log(`Credenciados → pesquisando "${termo}"…`);
     await page.goto(`${BASE}/providers`, { waitUntil: 'domcontentloaded' });
@@ -116,7 +118,25 @@ async function acessarCredenciado(nome) {
     log(`Digitando "${termo}" devagar…`);
     await page.keyboard.press('Control+a');
     await page.keyboard.type(termo, { delay: 110 });
-    await page.waitForTimeout(1200);
+    await page.waitForTimeout(2000);
+    // aparecem opções abaixo do campo: clica na que bate com o credenciado
+    const opcoes = page.getByRole('option').or(page.locator('ul li:visible, .dropdown-item:visible, [class*="autocomplete"] *:visible, [class*="suggest"] *:visible, [class*="option"]:visible')).filter({ hasText: new RegExp(esc(termo.split(/\s+/)[0]), 'i') });
+    const qtd = await opcoes.count();
+    const textos = [];
+    for (let i = 0; i < Math.min(qtd, 12); i++) textos.push((await opcoes.nth(i).innerText().catch(() => '')).trim().replace(/\s+/g, ' '));
+    log(`Opções que apareceram (${qtd}): ${textos.join(' | ') || 'nenhuma'}`);
+    let idx = -1;
+    for (let i = 0; i < textos.length; i++) {
+      const t = norm(textos[i]);
+      if (t && (t.includes(alvo) || alvo.includes(t))) { idx = i; break; }
+    }
+    if (idx < 0 && qtd) idx = 0;
+    if (idx >= 0) {
+      const opcao = opcoes.nth(idx);
+      log('Clicando na opção "' + textos[idx] + '"…');
+      await opcao.click().catch((e) => log('(aviso) ' + String(e.message).slice(0, 120)));
+      await page.waitForTimeout(1500);
+    }
     log('Clicando em Buscar…');
     await page.getByRole('button', { name: 'Buscar' }).first().click();
     log('Esperando a lista carregar…');
