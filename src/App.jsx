@@ -68,11 +68,14 @@ export default function CrescentHub() {
   // certas abas do Portal do Colaborador/Oficina Estelar. Nunca afeta
   // admin/moderador. { moduleId: string[] }
   const [cargoTabRestrictions, setCargoTabRestrictions] = useState({});
+  // Nomes dos cargos do usuário — a Oficina Estelar esconde certas abas pra Comercial/Pós Venda (ver TABS_BLOQUEADAS_POR_CARGO).
+  const [cargoNames, setCargoNames] = useState([]);
   useEffect(() => {
-    if (!authUser?.id) { setCargoModules(new Set()); setCargoRestricted(false); setCargoTabRestrictions({}); return; }
+    if (!authUser?.id) { setCargoModules(new Set()); setCargoRestricted(false); setCargoTabRestrictions({}); setCargoNames([]); return; }
     let ativo = true;
-    loadCargoModulesForEmployeeId(authUser.id).then(({ moduleIds, restricted, tabRestrictions }) => {
+    loadCargoModulesForEmployeeId(authUser.id).then(({ moduleIds, restricted, tabRestrictions, cargoNames: nomes }) => {
       if (!ativo) return;
+      setCargoNames(nomes || []);
       setCargoModules(moduleIds);
       setCargoRestricted(restricted);
       const plain = {};
@@ -690,7 +693,7 @@ export default function CrescentHub() {
           {screen==='ponto'       && (authUser?.role==='admin'||authUser?.role==='moderador'||cargoModules.has('ponto')) && <PontoEletronico onBack={handleGoBack} isAdmin={true}/>}
           {screen==='dashboard'   && (authUser?.role==='admin'||authUser?.role==='moderador'||cargoModules.has('dashboard')) && <DashboardRH onBack={handleGoBack} adminName={authUser.name} role={authUser.role} initialTab={portalInitialTab}/>}
           {screen==='alexa'       && <CentralAlexa        onBack={handleGoBack} userPhoto={userPhoto} initialTab={portalInitialTab}/>}
-          {screen==='faturamento' && <FaturamentoPortal onBack={handleGoBack} authUser={authUser} initialTab={portalInitialTab} restrictedTabs={isPlainColaborador ? cargoTabRestrictions['faturamento'] : undefined}/>}
+          {screen==='faturamento' && <FaturamentoPortal onBack={handleGoBack} authUser={authUser} cargoNames={cargoNames} initialTab={portalInitialTab} restrictedTabs={isPlainColaborador ? cargoTabRestrictions['faturamento'] : undefined}/>}
           {screen==='conexao-setorial' && <ConexaoSetorial onBack={handleGoBack} authUser={authUser} initialTab={portalInitialTab}/>}
           {screen==='info-adicional' && <InfoAdicional onBack={handleGoBack}/>}
           {screen==='uniko-safer' && (authUser?.role==='admin'||authUser?.role==='moderador'||cargoModules.has('uniko-safer')) && <UnikoSafer onBack={handleGoBack}/>}

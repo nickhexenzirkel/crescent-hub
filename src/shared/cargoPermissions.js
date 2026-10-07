@@ -25,16 +25,18 @@ const TABLE_MEMBROS = 'uniko_cargo_membros';
 // e recorta a navegação interna de módulos como Portal do Colaborador/
 // Oficina Estelar pras abas liberadas (união entre os cargos do funcionário).
 export async function loadCargoModulesForEmployeeId(employeeId) {
-  if (!employeeId) return { moduleIds: new Set(), restricted: false, tabRestrictions: {} };
+  if (!employeeId) return { moduleIds: new Set(), restricted: false, tabRestrictions: {}, cargoNames: [] };
   const { data, error } = await supabase
     .from(TABLE_MEMBROS)
-    .select('uniko_cargos(module_ids, restrict_only, tab_restrictions)')
+    .select('uniko_cargos(name, module_ids, restrict_only, tab_restrictions)')
     .eq('employee_id', employeeId);
-  if (error || !data) return { moduleIds: new Set(), restricted: false, tabRestrictions: {} };
+  if (error || !data) return { moduleIds: new Set(), restricted: false, tabRestrictions: {}, cargoNames: [] };
   const moduleIds = new Set();
+  const cargoNames = [];
   let restricted = false;
   const tabRestrictions = {};
   data.forEach(row => {
+    if (row.uniko_cargos?.name) cargoNames.push(row.uniko_cargos.name);
     (row.uniko_cargos?.module_ids || []).forEach(id => moduleIds.add(id));
     if (row.uniko_cargos?.restrict_only) restricted = true;
     Object.entries(row.uniko_cargos?.tab_restrictions || {}).forEach(([moduleId, tabIds]) => {
@@ -43,7 +45,7 @@ export async function loadCargoModulesForEmployeeId(employeeId) {
       tabIds.forEach(id => set.add(id));
     });
   });
-  return { moduleIds, restricted, tabRestrictions };
+  return { moduleIds, restricted, tabRestrictions, cargoNames };
 }
 
 export async function updateCargoRestrict(cargoId, restrictOnly) {

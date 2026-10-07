@@ -118,8 +118,8 @@ const FEATURES = [
   },
 ];
 
-export const TabInicio = ({ setTab, isAdmin, authUser }) => {
-  const features = FEATURES.filter(f => f.tabGate ? canSeeTab(f.id, authUser, isAdmin) : (!f.adminOnly || isAdmin));
+export const TabInicio = ({ setTab, isAdmin, authUser, hidden = [] }) => {
+  const features = FEATURES.filter(f => f.tabGate ? canSeeTab(f.id, authUser, isAdmin) : (!f.adminOnly || isAdmin)).filter(f => !hidden.includes(f.id));
   return (
     <div style={{padding:'32px 40px 48px',fontFamily:'var(--font-body)'}}>
       <StellarHero

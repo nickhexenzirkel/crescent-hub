@@ -81,12 +81,13 @@ const NAV = [
 // → Gerenciar Permissões) pra recortar quais abas da Oficina Estelar um
 // cargo específico enxerga (ex: cargo "Comercial" só vendo Editor/Organizar/
 // Mesclar PDF). Sem esse prop, comportamento 100% igual a antes.
-const Sidebar = ({ tab, setTab, onBack, isAdmin, authUser, only }) => {
+const Sidebar = ({ tab, setTab, onBack, isAdmin, authUser, only, hidden = [] }) => {
   const isMobile = useIsMobile();
   const [hov, sh] = useState(null);
   if (isMobile) return null;
   const visibleNav = NAV.filter(n => n.tabGate ? canSeeTab(n.id, authUser, isAdmin) : (!n.adminOnly || isAdmin))
-    .filter(n => !only?.length || only.includes(n.id));
+    .filter(n => !only?.length || only.includes(n.id))
+    .filter(n => !hidden.includes(n.id));
 
   return (
     <div style={{

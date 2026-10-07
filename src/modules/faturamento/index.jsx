@@ -15,17 +15,31 @@ import { refletirAbaNaUrl } from './rotaFerramenta';
 const GATED_TABS = new Set(['xml', 'assinatura']);
 const ADMIN_TABS = new Set(['historico-assinatura']);
 
+// Abas que certos CARGOS não podem ver, mesmo sem recorte de abas configurado no Gerenciar
+// Permissões (07/10/2026: Carta de Correção e Ofício de Emissão foram liberadas pra todos,
+// menos Comercial e Pós Venda). Admin/moderador nunca são afetados.
+const TABS_BLOQUEADAS_POR_CARGO = {
+  'carta':          ['comercial', 'pos venda'],
+  'oficio-emissao': ['comercial', 'pos venda'],
+};
+const nomeCargo = (s) => (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+
 // `restrictedTabs`: cargo em "modo restrito" (Dashboard RH → Gerenciar
 // Permissões) recortando quais abas da Oficina Estelar um cargo específico
 // enxerga — ex: cargo "Comercial" só vendo Editor/Organizar/Mesclar PDF.
 // undefined/[] = sem restrição, comportamento de sempre.
-const FaturamentoPortal = ({ onBack, authUser, initialTab, restrictedTabs }) => {
+const FaturamentoPortal = ({ onBack, authUser, initialTab, restrictedTabs, cargoNames = [] }) => {
   const isMobile = useIsMobile();
   const isAdmin = authUser?.role === 'admin';
   // "Início" não entra numa restrição de cargo — pra quem é restrito, a
   // home vira a 1ª aba liberada.
   const homeTab = restrictedTabs?.length ? restrictedTabs[0] : 'inicio';
+  const cargosNorm = (authUser?.role === 'admin' || authUser?.role === 'moderador') ? [] : cargoNames.map(nomeCargo);
+  const hiddenTabs = Object.entries(TABS_BLOQUEADAS_POR_CARGO)
+    .filter(([, cargos]) => cargosNorm.some(c => cargos.some(b => c.includes(b))))
+    .map(([id]) => id);
   const allowedTab = (id) => {
+    if (hiddenTabs.includes(id)) return false;
     if (restrictedTabs?.length && !restrictedTabs.includes(id)) return false;
     if (GATED_TABS.has(id)) return canSeeTab(id, authUser, isAdmin);
     if (ADMIN_TABS.has(id) && !isAdmin) return false;
@@ -74,7 +88,7 @@ const FaturamentoPortal = ({ onBack, authUser, initialTab, restrictedTabs }) => 
       case 'carta':       return <TabCartaCorrecao/>;
       case 'oficio-emissao': return <TabOficioEmissao/>;
       case 'inicio':
-      default:            return <TabInicio setTab={safeSetTab} isAdmin={isAdmin} authUser={authUser}/>;
+      default:            return <TabInicio setTab={safeSetTab} isAdmin={isAdmin} authUser={authUser} hidden={hiddenTabs}/>;
     }
   };
 
@@ -88,7 +102,7 @@ const FaturamentoPortal = ({ onBack, authUser, initialTab, restrictedTabs }) => 
 
   return (
     <div style={{display:'flex',minHeight:'100vh',background:T.page,fontFamily:'var(--font-body)'}}>
-      <Sidebar tab={tab} setTab={safeSetTab} onBack={sair} isAdmin={isAdmin} authUser={authUser} only={restrictedTabs}/>
+      <Sidebar tab={tab} setTab={safeSetTab} onBack={sair} isAdmin={isAdmin} authUser={authUser} only={restrictedTabs} hidden={hiddenTabs}/>
       <div style={{
         flex:1,
         minWidth:0, // sem isso a tabela larga estica a coluna além do fundo (faixa branca)
