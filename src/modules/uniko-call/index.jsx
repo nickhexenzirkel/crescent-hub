@@ -9,6 +9,8 @@ import { useState, useEffect, useRef } from 'react';
 import { T } from '../../contexts/theme';
 import { supabase } from './callSupabase';
 import { useIsMobile } from '../../hooks/useIsMobile';
+import { SEM_SETOR, setorInfo, callMs, totalLabel, callsLabel } from './callUtils';
+import CallDashboard from './Dashboard';
 
 // Recorta um trecho em volta da 1ª ocorrência do termo (mesmo padrão do
 // Uniko Security) — a transcrição de uma chamada pode ser longa, mostrar
@@ -45,19 +47,6 @@ const durationLabel = (startedAt, endedAt) => {
   return `${min}:${String(sec).padStart(2, '0')}`;
 };
 
-// Mesmos setores/cores das tags de colegas (central-colaborador/tabs/TabColegas.jsx) — o servidor grava só o id.
-const SETORES = {
-  faturamento: { label: 'Faturamento', cor: '#2E8DD4' }, gestao: { label: 'Gestão', cor: '#8B5FE8' },
-  financeiro: { label: 'Financeiro', cor: '#28A870' }, suporte_tecnico: { label: 'Suporte Técnico', cor: '#E08030' },
-  contratual: { label: 'Contratual', cor: '#C0307A' }, distribuicao: { label: 'Distribuição', cor: '#14A3A3' },
-  telemetria: { label: 'Telemetria', cor: '#5B60D0' }, pos_venda: { label: 'Pós Venda', cor: '#D9468F' },
-  diretor: { label: 'Diretor', cor: '#B8860B' }, outros: { label: 'Outros', cor: '#6B7280' },
-};
-const SEM_SETOR = '__sem_setor';
-const setorInfo = (id) => id === SEM_SETOR ? { label: 'Sem setor', cor: '#6B7280' } : (SETORES[id] || { label: id, cor: '#6B7280' });
-const callMs = (r) => { const ms = r.ended_at ? new Date(r.ended_at) - new Date(r.started_at) : 0; return Number.isFinite(ms) && ms > 0 ? ms : 0; };
-const totalLabel = (ms) => { const m = Math.round(ms / 60000); return m >= 60 ? `${Math.floor(m / 60)}h${String(m % 60).padStart(2, '0')}` : `${m} min`; };
-const callsLabel = (n) => `${n} ${n === 1 ? 'ligação' : 'ligações'}`;
 const formatDayShort = (iso) => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }); };
 
 const IcoBack = () => (<svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M9 2L4 7L9 12" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" /></svg>);
@@ -241,7 +230,7 @@ const UnikoCall = ({ onBack }) => {
     setLoadingContacts(false);
   };
   const loadRecs = async () => {
-    const base = 'id, contact_id, started_at, ended_at, status';
+    const base = 'id, contact_id, started_at, ended_at, status, consent_given';
     let { data, error } = await supabase.from('uniko_call_recordings').select(`${base}, attendant_id, attendant_name, sectors`).order('started_at', { ascending: false }).limit(5000);
     // SQL do atendente ainda não rodou: sem as colunas, tudo cai em "Sem atendente identificado" em vez de quebrar a tela.
     if (error) ({ data } = await supabase.from('uniko_call_recordings').select(base).order('started_at', { ascending: false }).limit(5000));
@@ -499,8 +488,12 @@ const UnikoCall = ({ onBack }) => {
     });
   };
 
-  const mobileShowList = !isMobile || !selectedContactId;
-  const mobileShowChat = !isMobile || !!selectedContactId;
+  const dashboardEl = (
+    <CallDashboard recs={recsInPeriod} contacts={contacts} dateFrom={dateFrom} dateTo={dateTo}
+      setDateFrom={setDateFrom} setDateTo={setDateTo} totalAll={recs.length} />
+  );
+  const mobileShowList = !isMobile || !selectedContactId || view === 'dashboard';
+  const mobileShowChat = !isMobile || (!!selectedContactId && view !== 'dashboard');
 
   return (
     <div style={{ height: '100vh', background: T.page, fontFamily: 'var(--font-body)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -525,17 +518,17 @@ const UnikoCall = ({ onBack }) => {
             </div>
             <div style={{ padding: '0 16px 10px' }}>
               <div style={{ display: 'flex', gap: 4, padding: 3, borderRadius: 11, background: T.surfaceSub || 'rgba(0,0,0,0.05)', marginBottom: 10 }}>
-                {[['contatos', 'Contatos'], ['atendentes', 'Atendentes'], ['setores', 'Setores']].map(([id, label]) => (
+                {[['contatos', 'Contatos'], ['atendentes', 'Atendentes'], ['setores', 'Setores'], ['dashboard', 'Dashboard']].map(([id, label]) => (
                   <button key={id} onClick={() => setView(id)}
-                    style={{ flex: 1, padding: '7px 4px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-body)',
+                    style={{ flex: 1, padding: '7px 2px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-body)',
                       background: view === id ? T.surface : 'transparent', color: view === id ? T.gold : T.textT, boxShadow: view === id ? '0 1px 3px rgba(0,0,0,.12)' : 'none' }}>{label}</button>
                 ))}
               </div>
-              <div style={{ position: 'relative' }}>
+              {view !== 'dashboard' && <div style={{ position: 'relative' }}>
                 <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: T.textT }}><IcoSearch /></span>
-                <input value={search} onChange={e => setSearch(e.target.value)} placeholder={view === 'contatos' ? 'Buscar por nome ou transcrição' : view === 'atendentes' ? 'Buscar atendente' : 'Buscar setor ou atendente'}
+                <input value={search} onChange={e => setSearch(e.target.value)} placeholder={view === 'contatos' ? 'Buscar por nome ou transcrição' : view === 'atendentes' ? 'Buscar atendente' : view === 'setores' ? 'Buscar setor ou atendente' : 'Buscar contato'}
                   style={{ width: '100%', padding: '9px 12px 9px 30px', borderRadius: 10, border: `1px solid ${T.border}`, background: T.page, color: T.text, fontSize: 13, outline: 'none', fontFamily: 'var(--font-body)' }} />
-              </div>
+              </div>}
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
                 <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} max={dateTo || undefined}
                   style={{ flex: 1, minWidth: 0, padding: '7px 8px', borderRadius: 9, border: `1px solid ${T.border}`, background: T.page, color: T.text, fontSize: 11.5, outline: 'none', fontFamily: 'var(--font-body)' }} />
@@ -548,7 +541,7 @@ const UnikoCall = ({ onBack }) => {
               </div>
             </div>
             <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '4px 10px 18px' }}>
-              {view !== 'contatos' ? renderGroupedView() : loadingContacts ? (
+              {view === 'dashboard' ? (isMobile ? dashboardEl : <div style={{ padding: '24px 12px', textAlign: 'center', color: T.textT, fontSize: 12.5, lineHeight: 1.5 }}>O Dashboard usa o filtro de data acima. Os números aparecem ao lado.</div>) : view !== 'contatos' ? renderGroupedView() : loadingContacts ? (
                 <div style={{ padding: '24px 12px', textAlign: 'center', color: T.textT, fontSize: 13 }}>Carregando…</div>
               ) : filteredContacts.length === 0 ? (
                 <div style={{ padding: '24px 12px', textAlign: 'center', color: T.textT, fontSize: 13 }}>
@@ -597,7 +590,11 @@ const UnikoCall = ({ onBack }) => {
           </div>
         )}
 
-        {mobileShowChat && (
+        {mobileShowChat && view === 'dashboard' && (
+          <div style={{ flex: 1, minWidth: 0, overflowY: 'auto' }}>{dashboardEl}</div>
+        )}
+
+        {mobileShowChat && view !== 'dashboard' && (
           <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
             {!selectedContact ? (
               <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.textT, fontSize: 13.5, textAlign: 'center', padding: 24 }}>
