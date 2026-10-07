@@ -109,3 +109,36 @@ export const baixarNotasISS = ({ notas, onProgresso, onArquivo }) => {
   const cancelar = () => enviar({ type: 'NOTASMAIL_ISS_CANCEL', jobId });
   return { promessa, cancelar };
 };
+
+/**
+ * Baixa as Ordens de Serviço da Wowlet (PDF de cada ordem) pela extensão (v1.4.0+).
+ * `itens` = [{ os, credenciado }]. `onLog(texto)`, `onItem({os, estado, msg})` e
+ * `onArquivo({ os, bytes })` são chamados em tempo real. Devolve { promessa, cancelar };
+ * a promessa resolve com { ok, falhas, cancelado }.
+ */
+export const baixarOrdensServico = ({ itens, onLog, onItem, onArquivo }) => {
+  const jobId = `o${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+  let ouvir;
+  const promessa = new Promise((resolve, reject) => {
+    let fila = Promise.resolve();
+    ouvir = (e) => {
+      if (!daPagina(e)) return;
+      const m = e.data;
+      if (!m?.type?.startsWith('NOTASMAIL_') || m.jobId !== jobId) return;
+      if (m.type === 'NOTASMAIL_OS_LOG') onLog?.(m.texto);
+      else if (m.type === 'NOTASMAIL_OS_ITEM') onItem?.(m);
+      else if (m.type === 'NOTASMAIL_OS_ARQUIVO')
+        fila = fila.then(() => onArquivo?.({ os: m.os, bytes: base64ParaBytes(m.base64) })).catch((err) => onLog?.(`Não consegui gravar a OS ${m.os}: ${err?.message || err}`));
+      else if (m.type === 'NOTASMAIL_ERROR') {
+        window.removeEventListener('message', ouvir);
+        reject(new Error(m.message || 'Falha na extensão.'));
+      } else if (m.type === 'NOTASMAIL_OS_DONE') {
+        fila.then(() => { window.removeEventListener('message', ouvir); resolve(m); });
+      }
+    };
+    window.addEventListener('message', ouvir);
+    enviar({ type: 'NOTASMAIL_OS_START', jobId, itens });
+  });
+  const cancelar = () => enviar({ type: 'NOTASMAIL_OS_CANCEL', jobId });
+  return { promessa, cancelar };
+};

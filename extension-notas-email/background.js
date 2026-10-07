@@ -3,6 +3,8 @@
 // aba de segundo plano, manda buscar e repassa ao Uniko cada PDF achado.
 // Reaproveita a sessão que você já tem aberta — a extensão nunca vê senha.
 
+import { iniciarOrdens, cancelarOrdens } from './ordens.js';
+
 const VERSAO = chrome.runtime.getManifest().version;
 const LIMITE_NOTAS = 600;
 const jobs = new Map(); // jobId -> { origem, cancelado, abas:Set }
@@ -228,6 +230,12 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
     issEspera.get(tabId)?.({ base64: msg.base64, erro: msg.erro });
     return;
   }
+
+  if (msg.type === 'NOTASMAIL_OS_START') {
+    iniciarOrdens(msg, tabId, paraUniko, (message) => chrome.tabs.sendMessage(tabId, { type: 'NOTASMAIL_ERROR', jobId: msg.jobId, message }).catch(() => {}));
+    return;
+  }
+  if (msg.type === 'NOTASMAIL_OS_CANCEL') { cancelarOrdens(msg, tabId); return; }
 
   if (msg.type === 'NOTASMAIL_ISS_START') {
     const erro = (message) => chrome.tabs.sendMessage(tabId, { type: 'NOTASMAIL_ERROR', jobId: msg.jobId, message }).catch(() => {});

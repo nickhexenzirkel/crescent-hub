@@ -45,3 +45,13 @@ Para cada nota da 7Serv a extensão abre
 `iss.fortaleza.ce.gov.br/grpfor/pagesPublic/consultarNota.seam?codigo=<CodigoVerificacao>&chave=951862&numero=<Numero>`
 numa janelinha, baixa o PDF embutido na página (sessão do próprio Chrome) e o Uniko grava cada PDF (`NFSe_<número>.pdf`) direto na pasta que você escolher (sem janela "Salvar como"). A `chave` 951862 é fixa (inscrição da 7Serv); notas de outro prestador são ignoradas.
 Depois de atualizar os arquivos, clique em **Recarregar** em `chrome://extensions` (a v1.3.0 pede acesso ao ISS) e F5 no Uniko.
+
+## Baixar Ordens de Serviço da Wowlet — v1.4.0 (só admin, Oficina Estelar)
+Na **Oficina Estelar → Baixar Ordens de Serviço**, envie a planilha de manutenção da Wowlet e escolha uma pasta.
+A extensão abre uma janela da Wowlet **no seu Chrome (já logado — sem captcha)** e, para cada credenciado:
+Credenciados → Nome Fantasia (digita e escolhe a opção) → Buscar → linha → Acessar → `/provider_orders` →
+ID da ordem → abre a ordem → imprime em PDF (Ctrl+P) → Logout (`/impersonations`) → próximo credenciado.
+Os PDFs vão para `Secretaria / Setor / OS_<id>.pdf` na pasta escolhida; nada passa por servidor.
+- **Permissão nova: `debugger`** (digitar com teclas reais e imprimir a página em PDF). O Chrome mostra a faixa
+  "depurando este navegador" enquanto roda — é normal. Depois de atualizar os arquivos: **Recarregar** em `chrome://extensions` e F5 no Uniko.
+- Deixe a janela da Wowlet aberta e visível até terminar. Se a sessão cair, a extensão avisa e espera você entrar nela.

@@ -1,16 +1,24 @@
 import { useState, useRef, useEffect } from 'react';
 import { T } from '../../../contexts/theme';
-import { SERVER_URL } from '../../../contexts/user';
 import { StarDivider } from '../../../shared/components';
 import { StellarHero } from '../StellarHero';
+import { baixarOrdensServico, detectarExtensao } from '../extensaoNotasEmail';
 
 /* ═══════════════════════════════════════════════════════════════
    BAIXAR ORDENS DE SERVIÇO — só admin.
    Lê a planilha de manutenção da Wowlet (ID da Ordem de Serviço, Setor,
-   Credenciado, Cliente), pede ao servidor que um robô entre na Wowlet e baixe
-   o PDF de cada ordem, e devolve um .zip: Secretaria / Setor / OS_<id>.pdf.
-   Usuário e senha da Wowlet só trafegam pro servidor; não ficam guardados.
+   Credenciado, Cliente) e pede à extensão "Uniko — Notas por e-mail" (v1.4.0+)
+   que, no SEU Chrome (já logado na Wowlet — sem captcha), abra cada ordem e a
+   imprima em PDF (Ctrl+P). Os PDFs são gravados direto na pasta escolhida:
+   Secretaria / Setor / OS_<id>.pdf. Nada passa pelo servidor.
 ═══════════════════════════════════════════════════════════════ */
+
+const VERSAO_MIN = [1, 4, 0];
+const versaoOk = (v) => {
+  const p = String(v || '0').split('.').map(Number);
+  for (let i = 0; i < 3; i++) { if ((p[i] || 0) > VERSAO_MIN[i]) return true; if ((p[i] || 0) < VERSAO_MIN[i]) return false; }
+  return true;
+};
 
 const btnPrimary = {
   display: 'inline-flex', alignItems: 'center', gap: 8, background: T.gold, color: '#fff', border: 'none',
@@ -23,14 +31,9 @@ const btnGhost = {
   cursor: 'pointer', fontFamily: 'var(--font-body)',
 };
 const labelStyle = { fontSize: 12, fontWeight: 600, color: T.textT, letterSpacing: '.07em', textTransform: 'uppercase', marginBottom: 8, display: 'block' };
-const inputStyle = {
-  width: '100%', boxSizing: 'border-box', padding: '10px 12px', fontSize: 14, color: T.text, background: T.surface,
-  border: `1px solid ${T.border}`, borderRadius: 9, fontFamily: 'var(--font-body)',
-};
 
 const norm = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
 const pasta = (s) => String(s || 'Sem nome').replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 90) || 'Sem nome';
-const authHeaders = () => ({ Authorization: `Bearer ${localStorage.getItem('ch_token') || ''}` });
 
 /** Lê a planilha pelo NOME das colunas (a ordem delas muda de relatório pra relatório). */
 async function lerPlanilha(file) {
@@ -56,85 +59,73 @@ async function lerPlanilha(file) {
 }
 
 const COR = { fila: '#8A8A8A', baixando: '#C98A1B', ok: '#1A9C70', erro: '#C04050' };
-const TXT = { fila: 'Na fila', baixando: 'Baixando…', ok: '✓ Baixada', erro: 'Falhou' };
+const TXT = { fila: 'Na fila', baixando: 'Baixando…', ok: '✓ Salva', erro: 'Falhou' };
+
+/** Grava Secretaria/Setor/OS_<id>.pdf dentro da pasta escolhida. */
+async function gravar(raiz, it, bytes) {
+  const d1 = await raiz.getDirectoryHandle(pasta(it.secretaria), { create: true });
+  const d2 = await d1.getDirectoryHandle(pasta(it.setor), { create: true });
+  const f = await d2.getFileHandle(`OS_${it.os}.pdf`, { create: true });
+  const w = await f.createWritable();
+  await w.write(bytes);
+  await w.close();
+}
 
 export const TabBaixarOS = () => {
   const [itens, setItens] = useState([]);
   const [arquivo, setArquivo] = useState('');
-  const [usuario, setUsuario] = useState('');
-  const [senha, setSenha] = useState('');
-  const [job, setJob] = useState(null);
+  const [estados, setEstados] = useState({});
+  const [logs, setLogs] = useState([]);
+  const [rodando, setRodando] = useState(false);
+  const [fim, setFim] = useState(null);
   const [erro, setErro] = useState('');
-  const [zipando, setZipando] = useState(false);
+  const [ext, setExt] = useState(undefined); // undefined = verificando, null = ausente
+  const [drag, setDrag] = useState(false);
   const inputRef = useRef();
   const logRef = useRef();
-  const [drag, setDrag] = useState(false);
+  const jobRef = useRef(null);
 
-  const rodando = job && ['fila', 'rodando'].includes(job.status);
-  const ok = job ? job.itens.filter((i) => i.estado === 'ok').length : 0;
-  const falhas = job ? job.itens.filter((i) => i.estado === 'erro').length : 0;
+  useEffect(() => { detectarExtensao(2000).then(setExt); }, []);
+  useEffect(() => { if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight; }, [logs.length]);
 
-  // acompanha o job no servidor
-  useEffect(() => {
-    if (!job?.id || !rodando) return undefined;
-    const t = setInterval(async () => {
-      try {
-        const r = await fetch(`${SERVER_URL}/api/wowlet-os/${job.id}`, { headers: authHeaders() });
-        if (r.ok) setJob(await r.json());
-      } catch { /* tenta de novo no próximo ciclo */ }
-    }, 2500);
-    return () => clearInterval(t);
-  }, [job?.id, rodando]);
+  const addLog = (msg) => setLogs((l) => [...l.slice(-400), { t: Date.now(), msg }]);
 
   const carregar = async (files) => {
     const f = [...files].find((x) => /\.xlsx$/i.test(x.name));
     if (!f) { setErro('Envie a planilha .xlsx.'); return; }
     setErro('');
-    try { setItens(await lerPlanilha(f)); setArquivo(f.name); setJob(null); }
+    try { setItens(await lerPlanilha(f)); setArquivo(f.name); setEstados({}); setLogs([]); setFim(null); }
     catch (e) { setErro(e?.message || 'Não consegui ler a planilha.'); }
   };
 
   const iniciar = async () => {
-    setErro('');
-    try {
-      const r = await fetch(`${SERVER_URL}/api/wowlet-os/start`, {
-        method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ usuario, senha, itens }),
-      });
-      const d = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(d.error || `Erro ${r.status}`);
-      setJob(d);
-    } catch (e) { setErro(e?.message || 'Não foi possível iniciar.'); }
+    setErro(''); setFim(null); setLogs([]); setEstados({});
+    let raiz;
+    try { raiz = await window.showDirectoryPicker({ mode: 'readwrite', id: 'uniko-ordens-servico' }); }
+    catch { return; } // cancelou a escolha da pasta
+    const porOs = Object.fromEntries(itens.map((i) => [i.os, i]));
+    setRodando(true);
+    const job = baixarOrdensServico({
+      itens: itens.map(({ os, credenciado }) => ({ os, credenciado })),
+      onLog: addLog,
+      onItem: (m) => setEstados((e) => ({ ...e, [m.os]: { estado: m.estado, msg: m.msg } })),
+      onArquivo: async ({ os, bytes }) => {
+        await gravar(raiz, porOs[os] || { os }, bytes);
+        addLog(`OS ${os}: salva na pasta → ${pasta(porOs[os]?.secretaria)}\\${pasta(porOs[os]?.setor)}`);
+      },
+    });
+    jobRef.current = job;
+    try { setFim(await job.promessa); }
+    catch (e) { setErro(e?.message || 'A extensão parou.'); }
+    setRodando(false);
   };
 
-  const cancelar = () => fetch(`${SERVER_URL}/api/wowlet-os/${job.id}/cancel`, { method: 'POST', headers: authHeaders() }).catch(() => {});
+  const cancelar = () => jobRef.current?.cancelar();
 
-  const baixarZip = async () => {
-    setZipando(true); setErro('');
-    try {
-      const { default: JSZip } = await import('jszip');
-      const zip = new JSZip();
-      const falhou = [];
-      for (const it of job.itens) {
-        if (it.estado !== 'ok') { falhou.push(`${it.os} | ${it.credenciado} | ${it.setor} → ${it.msg || 'não baixada'}`); continue; }
-        const r = await fetch(`${SERVER_URL}/api/wowlet-os/${job.id}/file/${it.idx}`, { headers: authHeaders() });
-        if (!r.ok) { falhou.push(`${it.os} → arquivo indisponível no servidor`); continue; }
-        zip.file(`${pasta(it.secretaria)}/${pasta(it.setor)}/OS_${it.os}.pdf`, await r.arrayBuffer());
-      }
-      if (falhou.length) zip.file('ORDENS_NAO_BAIXADAS.txt', falhou.join('\n'));
-      const blob = await zip.generateAsync({ type: 'blob' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = 'Ordens_de_Servico.zip';
-      document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 4000);
-    } catch (e) { setErro(e?.message || 'Não foi possível montar o zip.'); }
-    setZipando(false);
-  };
-
-  useEffect(() => { if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight; }, [job?.logs?.length]);
-
-  const pronto = itens.length > 0 && usuario.trim() && senha && !rodando;
-  const lista = job ? job.itens : itens.map((i) => ({ ...i, estado: 'fila' }));
+  const extOk = ext && versaoOk(ext.versao);
+  const pronto = itens.length > 0 && extOk && !rodando;
+  const ok = Object.values(estados).filter((s) => s.estado === 'ok').length;
+  const falhas = Object.values(estados).filter((s) => s.estado === 'erro').length;
   const cell = { padding: '8px 12px', fontSize: 12.5, color: T.text, borderTop: `1px solid ${T.border}`, verticalAlign: 'top' };
 
   return (
@@ -143,7 +134,7 @@ export const TabBaixarOS = () => {
         compact
         eyebrow="Automação · Wowlet · Admin"
         title="Baixar Ordens de Serviço"
-        subtitle="Envie a planilha de manutenção e o robô entra na Wowlet, baixa o PDF de cada ordem e devolve um zip com uma pasta por secretaria e setor."
+        subtitle="Envie a planilha de manutenção e a extensão baixa, no seu Chrome, o PDF de cada ordem da Wowlet em pastas por secretaria e setor."
         icon={(
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
             <path d="M12 3v12" /><polyline points="7 11 12 16 17 11" /><path d="M5 21h14" />
@@ -152,6 +143,14 @@ export const TabBaixarOS = () => {
       />
 
       <div style={{ maxWidth: 940 }}>
+        {ext !== undefined && !extOk && (
+          <div style={{ marginBottom: 16, padding: '12px 16px', background: 'rgba(201,138,27,0.08)', border: '1px solid rgba(201,138,27,0.3)', borderRadius: 10, fontSize: 13.5, color: T.text }}>
+            {ext
+              ? `A extensão "Uniko — Notas por e-mail" está na versão ${ext.versao}; é preciso a ${VERSAO_MIN.join('.')} ou mais nova. Atualize os arquivos, clique em Recarregar em chrome://extensions (ela pede a nova permissão de depuração) e dê F5 aqui.`
+              : 'Não encontrei a extensão "Uniko — Notas por e-mail". Instale/recarregue em chrome://extensions e dê F5 nesta página.'}
+          </div>
+        )}
+
         <span style={labelStyle}>1 · Planilha de manutenção (.xlsx)</span>
         <div
           onClick={() => inputRef.current?.click()}
@@ -171,21 +170,12 @@ export const TabBaixarOS = () => {
             Usa as colunas ID da Ordem de Serviço, Credenciado, Setor e Cliente (a secretaria).
           </div>
         </div>
-
-        <div style={{ marginTop: 20, display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 14 }}>
-          <div>
-            <span style={labelStyle}>2 · Usuário da Wowlet</span>
-            <input style={inputStyle} value={usuario} onChange={(e) => setUsuario(e.target.value)} autoComplete="off" disabled={rodando} />
-          </div>
-          <div>
-            <span style={labelStyle}>Senha da Wowlet</span>
-            <input style={inputStyle} type="password" value={senha} onChange={(e) => setSenha(e.target.value)} autoComplete="new-password" disabled={rodando} />
-          </div>
+        <div style={{ fontSize: 12.5, color: T.textT, marginTop: 8 }}>
+          Antes de iniciar, esteja logado na Wowlet neste Chrome. Ao clicar em iniciar você escolhe a pasta onde os PDFs serão gravados.
         </div>
-        <div style={{ fontSize: 12, color: T.textT, marginTop: 6 }}>A senha só vai pro servidor durante o download e não é guardada.</div>
 
-        {lista.length > 0 && (
-          <div style={{ marginTop: 18, border: `1px solid ${T.border}`, borderRadius: 14, background: T.surface, overflowX: 'auto', maxHeight: 420, overflowY: 'auto' }}>
+        {itens.length > 0 && (
+          <div style={{ marginTop: 18, border: `1px solid ${T.border}`, borderRadius: 14, background: T.surface, overflowX: 'auto', maxHeight: 380, overflowY: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 640 }}>
               <thead>
                 <tr style={{ textAlign: 'left' }}>
@@ -195,39 +185,41 @@ export const TabBaixarOS = () => {
                 </tr>
               </thead>
               <tbody>
-                {lista.map((i) => (
-                  <tr key={i.os}>
-                    <td style={{ ...cell, fontWeight: 700 }}>{i.os}</td>
-                    <td style={cell}>{i.credenciado}</td>
-                    <td style={cell}>{i.setor || '—'}</td>
-                    <td style={{ ...cell, color: COR[i.estado], fontWeight: 600 }}>
-                      {TXT[i.estado]}{i.estado === 'erro' && i.msg ? <div style={{ fontWeight: 400, fontSize: 11.5 }}>{i.msg}</div> : null}
-                    </td>
-                  </tr>
-                ))}
+                {itens.map((i) => {
+                  const s = estados[i.os] || { estado: 'fila' };
+                  return (
+                    <tr key={i.os}>
+                      <td style={{ ...cell, fontWeight: 700 }}>{i.os}</td>
+                      <td style={cell}>{i.credenciado}</td>
+                      <td style={cell}>{i.setor || '—'}</td>
+                      <td style={{ ...cell, color: COR[s.estado], fontWeight: 600 }}>
+                        {TXT[s.estado]}{s.estado === 'erro' && s.msg ? <div style={{ fontWeight: 400, fontSize: 11.5 }}>{s.msg}</div> : null}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         )}
 
-        {job?.logs?.length > 0 && (
+        {logs.length > 0 && (
           <div ref={logRef} style={{
             marginTop: 14, maxHeight: 260, overflowY: 'auto', background: '#0F1117', color: '#C9D1D9', borderRadius: 12,
             padding: '12px 14px', fontFamily: 'ui-monospace, Consolas, monospace', fontSize: 12.5, lineHeight: 1.6,
           }}>
-            {job.logs.map((l, i) => (
-              <div key={i} style={{ color: /ERRO|falhou/.test(l.msg) ? '#FF7B72' : /salvo|feito|Conclu/.test(l.msg) ? '#7EE787' : undefined }}>
+            {logs.map((l, i) => (
+              <div key={i} style={{ color: /ERRO|FALHOU/.test(l.msg) ? '#FF7B72' : /salva|feito|Conclu/.test(l.msg) ? '#7EE787' : l.msg.startsWith('>>>') ? '#F2CC60' : undefined }}>
                 <span style={{ opacity: .5 }}>{new Date(l.t).toLocaleTimeString('pt-BR')}</span>  {l.msg}
               </div>
             ))}
           </div>
         )}
 
-        {job && (
+        {(rodando || fim) && (
           <div style={{ marginTop: 10, fontSize: 13, color: T.textS }}>
-            {rodando ? 'Baixando… ' : job.status === 'cancelado' ? 'Cancelado. ' : 'Concluído. '}
-            {ok} de {job.itens.length} baixada(s){falhas ? ` · ${falhas} com falha` : ''}.
-            {job.erro && <span style={{ color: T.danger }}> {job.erro}</span>}
+            {rodando ? 'Baixando… ' : fim?.cancelado ? 'Cancelado. ' : 'Concluído. '}
+            {ok} de {itens.length} salva(s){falhas ? ` · ${falhas} com falha` : ''}.
           </div>
         )}
 
@@ -243,12 +235,9 @@ export const TabBaixarOS = () => {
               ...btnPrimary, background: pronto ? T.gold : 'transparent', color: pronto ? '#fff' : T.textD,
               boxShadow: pronto ? btnPrimary.boxShadow : 'none', border: pronto ? 'none' : `1px solid ${T.border}`,
               cursor: pronto ? 'pointer' : 'not-allowed',
-            }}>Iniciar download</button>
+            }}>Escolher pasta e iniciar</button>
           )}
           {rodando && <button style={btnGhost} onClick={cancelar}>Cancelar</button>}
-          {job && !rodando && ok > 0 && (
-            <button style={btnPrimary} onClick={baixarZip} disabled={zipando}>{zipando ? 'Montando zip…' : `Baixar zip (${ok} PDF)`}</button>
-          )}
         </div>
       </div>
     </div>
