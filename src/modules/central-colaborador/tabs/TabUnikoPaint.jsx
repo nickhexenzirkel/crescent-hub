@@ -1664,7 +1664,10 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker, zoomOut })
   }, []);
 
   const pushState = useCallback(async (next) => {
-    const carimbado = { ...next, ts: Date.now() };
+    // `ts` MONOTÔNICO: nunca menor que o do estado atual. Com só Date.now(), um host cujo relógio
+    // esteja atrás do anterior (celular x PC, ou troca de host no meio da partida) gerava estados
+    // com ts menor — que `aplicaEstado` de TODOS descarta como "velho" — e a partida congelava.
+    const carimbado = { ...next, ts: Math.max(Date.now(), (stateRef.current?.ts || 0) + 1) };
     aplicaEstado(carimbado);            // otimista: já vale localmente
     try {
       await supabase.from('uniko_paint_state')
