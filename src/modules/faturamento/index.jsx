@@ -10,8 +10,9 @@ import { TabOficioEmissao } from './tabs/TabOficioEmissao';
 import { TabHistoricoAssinatura } from './tabs/TabHistoricoAssinatura';
 import { refletirAbaNaUrl } from './rotaFerramenta';
 
-// 'xml'/'carta'/'assinatura' têm gate PRÓPRIO (admin OU CPF liberado) — ver canSeeTab em Sidebar.jsx
-const GATED_TABS = new Set(['xml', 'carta', 'assinatura', 'oficio-emissao']);
+// 'xml'/'assinatura' têm gate PRÓPRIO (admin OU CPF liberado) — ver canSeeTab em Sidebar.jsx.
+// 'carta' e 'oficio-emissao' são liberadas pra todos (07/10/2026).
+const GATED_TABS = new Set(['xml', 'assinatura']);
 const ADMIN_TABS = new Set(['historico-assinatura']);
 
 // `restrictedTabs`: cargo em "modo restrito" (Dashboard RH → Gerenciar
