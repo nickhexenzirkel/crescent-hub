@@ -32,29 +32,29 @@ const IcoXCircle = (p) => <Ico {...p}><circle cx="12" cy="12" r="9" /><path d="M
 const IcoAlert = (p) => <Ico {...p}><path d="M10.3 3.9L2.4 18a2 2 0 001.7 3h15.8a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z" /><path d="M12 9v4M12 17h.01" /></Ico>;
 
 /* ── Peças visuais ───────────────────────────────────────────────────────── */
-const cardStyle = () => ({ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 18, padding: '20px 22px', minWidth: 0 });
+const cardStyle = () => ({ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 18, padding: '16px 18px', minWidth: 0 });
 const Card = ({ title, sub, children, style }) => (
   <div style={{ ...cardStyle(), ...style }}>
-    <div style={{ fontSize: 17, fontWeight: 800, color: T.text }}>{title}</div>
-    {sub && <div style={{ fontSize: 13, color: T.textT, marginTop: 3, lineHeight: 1.4 }}>{sub}</div>}
+    <div style={{ fontSize: 14, fontWeight: 800, color: T.text }}>{title}</div>
+    {sub && <div style={{ fontSize: 11.5, color: T.textT, marginTop: 3, lineHeight: 1.4 }}>{sub}</div>}
     <div style={{ marginTop: 16 }}>{children}</div>
   </div>
 );
 
 // Número grande com ícone — a leitura de primeira.
 const BigNumber = ({ icon: Icon, label, value, sub, tone }) => (
-  <div style={{ ...cardStyle(), padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+  <div style={{ ...cardStyle(), padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 4 }}>
     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-      <span style={{ width: 38, height: 38, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', color: tone || T.gold, background: tone ? `${tone}1f` : (T.goldGl || T.surfaceSub) }}><Icon size={21} /></span>
-      <span style={{ fontSize: 14.5, fontWeight: 700, color: T.textS || T.text }}>{label}</span>
+      <span style={{ width: 32, height: 32, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', color: tone || T.gold, background: tone ? `${tone}1f` : (T.goldGl || T.surfaceSub) }}><Icon size={17} /></span>
+      <span style={{ fontSize: 12, fontWeight: 700, color: T.textS || T.text }}>{label}</span>
     </div>
-    <div style={{ fontSize: 40, fontWeight: 800, color: tone || T.text, lineHeight: 1.1 }}>{value}</div>
-    {sub && <div style={{ fontSize: 13, color: T.textT, lineHeight: 1.4 }}>{sub}</div>}
+    <div style={{ fontSize: 33, fontWeight: 800, color: tone || T.text, lineHeight: 1.1 }}>{value}</div>
+    {sub && <div style={{ fontSize: 11.5, color: T.textT, lineHeight: 1.4 }}>{sub}</div>}
   </div>
 );
 
 // Anel de porcentagem (aviso prévio): verde = dito, vermelho = não dito.
-const Ring = ({ yes, no, size = 132 }) => {
+const Ring = ({ yes, no, size = 112 }) => {
   const total = yes + no, r = 52, c = 2 * Math.PI * r;
   const yesLen = total ? (yes / total) * c : 0, noLen = total ? (no / total) * c : 0, gap = yes && no ? 4 : 0;
   return (
@@ -65,7 +65,7 @@ const Ring = ({ yes, no, size = 132 }) => {
         {no > 0 && <circle cx="66" cy="66" r={r} fill="none" stroke={BAD} strokeWidth="14" strokeLinecap="round" strokeDasharray={`${Math.max(0, noLen - gap)} ${c}`} strokeDashoffset={-yesLen} />}
       </svg>
       <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-        <span style={{ fontSize: 30, fontWeight: 800, color: T.text, lineHeight: 1 }}>{total ? `${pct(yes, total)}%` : '—'}</span>
+        <span style={{ fontSize: 24.5, fontWeight: 800, color: T.text, lineHeight: 1 }}>{total ? `${pct(yes, total)}%` : '—'}</span>
         <span style={{ fontSize: 11.5, color: T.textT, marginTop: 3 }}>com aviso</span>
       </div>
     </div>
@@ -89,7 +89,7 @@ const ColChart = ({ data, color, height = 160, label, unit = 'ligações' }) => 
             <div key={d.key ?? i} onMouseEnter={() => setHov(i)} onMouseLeave={() => setHov(null)}
               style={{ flex: 1, minWidth: 2, height: '100%', display: 'flex', alignItems: 'flex-end', position: 'relative' }}>
               {(isPeak && hov == null) && (
-                <span style={{ position: 'absolute', left: '50%', bottom: `calc(${(d.value / max) * 100}% + 4px)`, transform: 'translateX(-50%)', fontSize: 13, fontWeight: 800, color: T.text }}>{d.value}</span>
+                <span style={{ position: 'absolute', left: '50%', bottom: `calc(${(d.value / max) * 100}% + 4px)`, transform: 'translateX(-50%)', fontSize: 11.5, fontWeight: 800, color: T.text }}>{d.value}</span>
               )}
               <div style={{ width: '100%', maxWidth: 30, margin: '0 auto', height: `${(d.value / max) * 100}%`, minHeight: d.value ? 4 : 0,
                 background: color, borderRadius: '5px 5px 0 0', opacity: dim ? .4 : 1, transition: 'opacity .12s' }} />
@@ -101,7 +101,7 @@ const ColChart = ({ data, color, height = 160, label, unit = 'ligações' }) => 
         {data.map((d, i) => {
           const isPeak = i === peak && d.value > 0;
           return (
-            <div key={d.key ?? i} style={{ flex: 1, minWidth: 2, textAlign: 'center', fontSize: 12, fontWeight: isPeak ? 800 : 500, color: isPeak ? T.text : T.textT, whiteSpace: 'nowrap', height: 15 }}>
+            <div key={d.key ?? i} style={{ flex: 1, minWidth: 2, textAlign: 'center', fontSize: 11.5, fontWeight: isPeak ? 800 : 500, color: isPeak ? T.text : T.textT, whiteSpace: 'nowrap', height: 15 }}>
               {i % step === 0 || isPeak ? d.label : ''}
             </div>
           );
@@ -109,7 +109,7 @@ const ColChart = ({ data, color, height = 160, label, unit = 'ligações' }) => 
       </div>
       {hov != null && (
         <div style={{ position: 'absolute', top: 0, left: `calc(100% * ${(hov + 0.5) / n})`, transform: 'translate(-50%,-6%)', zIndex: 5, pointerEvents: 'none',
-          background: T.text, color: T.surface, padding: '6px 11px', borderRadius: 9, fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap', boxShadow: '0 4px 14px rgba(0,0,0,.25)' }}>
+          background: T.text, color: T.surface, padding: '6px 11px', borderRadius: 9, fontSize: 11.5, fontWeight: 700, whiteSpace: 'nowrap', boxShadow: '0 4px 14px rgba(0,0,0,.25)' }}>
           {data[hov].tip || `${data[hov].label}: ${data[hov].value} ${unit}`}
         </div>
       )}
@@ -175,7 +175,7 @@ const CallDashboard = ({ recs, contacts, dateFrom, dateTo, setDateFrom, setDateT
   const peakDay = S.byWeek.reduce((b, v, i) => (v > S.byWeek[b] ? i : b), 0);
 
   const periodText = dateFrom || dateTo ? `de ${dateFrom ? dateFrom.split('-').reverse().join('/') : 'sempre'} até ${dateTo ? dateTo.split('-').reverse().join('/') : 'hoje'}` : 'em todo o histórico';
-  const selectStyle = { padding: '9px 12px', borderRadius: 10, border: `1px solid ${T.border}`, background: T.page, color: T.text, fontSize: 14, fontFamily: 'var(--font-body)', outline: 'none' };
+  const selectStyle = { padding: '9px 12px', borderRadius: 10, border: `1px solid ${T.border}`, background: T.page, color: T.text, fontSize: 11.5, fontFamily: 'var(--font-body)', outline: 'none' };
 
   // Faixa de status do aviso prévio — o que mais importa saber de primeira.
   const banner = !consentTotal ? null
@@ -186,11 +186,11 @@ const CallDashboard = ({ recs, contacts, dateFrom, dateTo, setDateFrom, setDateT
     <div style={{ padding: 'clamp(14px, 3vw, 28px)', display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 1180, width: '100%', boxSizing: 'border-box', margin: '0 auto' }}>
       {/* Título + filtros */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        <div style={{ fontSize: 24, fontWeight: 800, color: T.text, marginRight: 8 }}>Resumo das ligações</div>
+        <div style={{ fontSize: 19.5, fontWeight: 800, color: T.text, marginRight: 8 }}>Resumo das ligações</div>
         <div style={{ display: 'flex', gap: 3, padding: 3, borderRadius: 12, background: T.surfaceSub || 'rgba(0,0,0,.05)', flexWrap: 'wrap' }}>
           {PRESETS.map(([label, back]) => {
             const on = activePreset === label;
-            return <button key={label} onClick={() => applyPreset(back)} style={{ padding: '8px 14px', borderRadius: 9, border: 'none', cursor: 'pointer', fontSize: 13.5, fontWeight: 700, fontFamily: 'var(--font-body)', background: on ? T.surface : 'transparent', color: on ? T.gold : T.textT, boxShadow: on ? '0 1px 3px rgba(0,0,0,.12)' : 'none' }}>{label}</button>;
+            return <button key={label} onClick={() => applyPreset(back)} style={{ padding: '8px 14px', borderRadius: 9, border: 'none', cursor: 'pointer', fontSize: 11.5, fontWeight: 700, fontFamily: 'var(--font-body)', background: on ? T.surface : 'transparent', color: on ? T.gold : T.textT, boxShadow: on ? '0 1px 3px rgba(0,0,0,.12)' : 'none' }}>{label}</button>;
           })}
         </div>
         <select value={sector} onChange={e => setSector(e.target.value)} style={selectStyle} aria-label="Filtrar por setor">
@@ -201,13 +201,13 @@ const CallDashboard = ({ recs, contacts, dateFrom, dateTo, setDateFrom, setDateT
       </div>
 
       {S.total === 0 ? (
-        <div style={{ ...cardStyle(), padding: 40, textAlign: 'center', color: T.textT, fontSize: 15, borderStyle: 'dashed' }}>
+        <div style={{ ...cardStyle(), padding: 40, textAlign: 'center', color: T.textT, fontSize: 12.5, borderStyle: 'dashed' }}>
           {totalAll === 0 ? 'Nenhuma chamada gravada ainda.' : 'Nenhuma chamada nesse período/setor. Tente "Tudo" ou outro período.'}
         </div>
       ) : (
         <>
           {/* Frase-resumo */}
-          <div style={{ fontSize: 'clamp(17px, 2.4vw, 21px)', lineHeight: 1.5, color: T.textS || T.text }}>
+          <div style={{ fontSize: 'clamp(14px, 1.8vw, 16.5px)', lineHeight: 1.5, color: T.textS || T.text }}>
             {sector ? <b style={{ color: setorInfo(sector).cor }}>{setorInfo(sector).label}: </b> : null}
             Foram <b style={{ color: T.text }}>{callsLabel(S.total)}</b> {periodText}
             {S.ms ? <>, somando <b style={{ color: T.text }}>{totalLabel(S.ms)}</b> de conversa</> : null}
@@ -216,17 +216,17 @@ const CallDashboard = ({ recs, contacts, dateFrom, dateTo, setDateFrom, setDateT
 
           {/* Faixa de status do aviso prévio */}
           {banner && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '16px 20px', borderRadius: 16, border: `1.5px solid ${banner.tone}`, background: `${banner.tone}14` }}>
-              <span style={{ color: banner.tone, display: 'flex' }}><banner.icon size={34} /></span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 16px', borderRadius: 14, border: `1.5px solid ${banner.tone}`, background: `${banner.tone}14` }}>
+              <span style={{ color: banner.tone, display: 'flex' }}><banner.icon size={28} /></span>
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 18, fontWeight: 800, color: T.text }}>{banner.title}</div>
-                <div style={{ fontSize: 14.5, color: T.textS || T.text, marginTop: 2, lineHeight: 1.4 }}>{banner.text}</div>
+                <div style={{ fontSize: 15, fontWeight: 800, color: T.text }}>{banner.title}</div>
+                <div style={{ fontSize: 12, color: T.textS || T.text, marginTop: 2, lineHeight: 1.4 }}>{banner.text}</div>
               </div>
             </div>
           )}
 
           {/* 4 números grandes */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
             <BigNumber icon={IcoPhone} label="Ligações" value={S.total} sub={`feitas por ${known.length || 0} ${known.length === 1 ? 'atendente' : 'atendentes'}`} />
             <BigNumber icon={IcoClock} label="Tempo total" value={S.ms ? totalLabel(S.ms) : '—'} sub="somando todas as ligações" />
             <BigNumber icon={IcoTimer} label="Tempo médio" value={avgLabel(S.ms, S.withDur)} sub="minutos:segundos por ligação" />
@@ -246,22 +246,22 @@ const CallDashboard = ({ recs, contacts, dateFrom, dateTo, setDateFrom, setDateT
                 return (
                   <div key={a.name} style={{ padding: '12px 4px', borderBottom: i < S.atts.length - 1 ? `1px solid ${T.border}` : 'none' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <div style={{ width: 40, height: 40, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 800,
+                      <div style={{ width: 34, height: 34, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11.5, fontWeight: 800,
                         background: none ? (T.surfaceSub || '#eceef0') : T.gold, color: none ? T.textT : '#fff', position: 'relative' }}>
                         {none ? '?' : initials(a.name)}
-                        {rankTone && <span style={{ position: 'absolute', right: -5, bottom: -5, width: 18, height: 18, borderRadius: '50%', background: rankTone, color: '#fff', fontSize: 10.5, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `2px solid ${T.surface}` }}>{i + 1}</span>}
+                        {rankTone && <span style={{ position: 'absolute', right: -5, bottom: -5, width: 18, height: 18, borderRadius: '50%', background: rankTone, color: '#fff', fontSize: 11.5, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `2px solid ${T.surface}` }}>{i + 1}</span>}
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-                          <span style={{ fontSize: 16, fontWeight: 700, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.name}</span>
-                          <span style={{ fontSize: 16, fontWeight: 800, color: T.text, whiteSpace: 'nowrap' }}>{callsLabel(a.calls)} <span style={{ color: T.textT, fontWeight: 600, fontSize: 14 }}>· {pct(a.calls, S.total)}%</span></span>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.name}</span>
+                          <span style={{ fontSize: 13, fontWeight: 800, color: T.text, whiteSpace: 'nowrap' }}>{callsLabel(a.calls)} <span style={{ color: T.textT, fontWeight: 600, fontSize: 11.5 }}>· {pct(a.calls, S.total)}%</span></span>
                         </div>
-                        <div style={{ height: 12, borderRadius: 6, background: T.surfaceSub || 'rgba(0,0,0,.06)', marginTop: 7 }}>
+                        <div style={{ height: 10, borderRadius: 5, background: T.surfaceSub || 'rgba(0,0,0,.06)', marginTop: 7 }}>
                           <div style={{ width: `${(a.calls / top) * 100}%`, minWidth: 4, height: '100%', borderRadius: 6, background: none ? T.textT : color }} />
                         </div>
                       </div>
                     </div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 18px', marginTop: 8, marginLeft: 52, fontSize: 13.5, color: T.textS || T.text }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 18px', marginTop: 8, marginLeft: 46, fontSize: 11.5, color: T.textS || T.text }}>
                       {none ? <span style={{ color: T.textT }}>Ligações antigas, ou feitas sem login na extensão.</span> : <>
                         <span>Tempo total: <b>{a.ms ? totalLabel(a.ms) : '—'}</b></span>
                         <span>Média: <b>{avgLabel(a.ms, a.withDur)}</b> por ligação</span>
@@ -285,15 +285,15 @@ const CallDashboard = ({ recs, contacts, dateFrom, dateTo, setDateFrom, setDateT
                   return (
                     <div key={s.id}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 15.5, fontWeight: 700, color: T.text }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12.5, fontWeight: 700, color: T.text }}>
                           <span style={{ width: 12, height: 12, borderRadius: 4, background: st.cor, flexShrink: 0 }} />{st.label}
                         </span>
-                        <span style={{ fontSize: 15.5, fontWeight: 800, color: T.text }}>{callsLabel(s.calls)} <span style={{ color: T.textT, fontWeight: 600, fontSize: 14 }}>· {pct(s.calls, S.total)}%</span></span>
+                        <span style={{ fontSize: 12.5, fontWeight: 800, color: T.text }}>{callsLabel(s.calls)} <span style={{ color: T.textT, fontWeight: 600, fontSize: 11.5 }}>· {pct(s.calls, S.total)}%</span></span>
                       </div>
-                      <div style={{ height: 12, borderRadius: 6, background: T.surfaceSub || 'rgba(0,0,0,.06)', marginTop: 6 }}>
+                      <div style={{ height: 10, borderRadius: 5, background: T.surfaceSub || 'rgba(0,0,0,.06)', marginTop: 6 }}>
                         <div style={{ width: `${pct(s.calls, S.total)}%`, minWidth: 4, height: '100%', borderRadius: 6, background: st.cor }} />
                       </div>
-                      {s.ms > 0 && <div style={{ fontSize: 13, color: T.textT, marginTop: 4 }}>{totalLabel(s.ms)} de conversa</div>}
+                      {s.ms > 0 && <div style={{ fontSize: 11.5, color: T.textT, marginTop: 4 }}>{totalLabel(s.ms)} de conversa</div>}
                     </div>
                   );
                 })}
@@ -302,23 +302,23 @@ const CallDashboard = ({ recs, contacts, dateFrom, dateTo, setDateFrom, setDateT
 
             {/* Aviso prévio */}
             <Card title="Aviso prévio de gravação" sub="O atendente precisa avisar o cliente que a ligação está sendo gravada.">
-              {consentTotal === 0 ? <div style={{ fontSize: 14, color: T.textT }}>Ainda não há ligações avaliadas.</div> : (
+              {consentTotal === 0 ? <div style={{ fontSize: 11.5, color: T.textT }}>Ainda não há ligações avaliadas.</div> : (
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 22, flexWrap: 'wrap' }}>
                     <Ring yes={S.yes} no={S.no} />
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 15 }}>
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: T.text }}><span style={{ color: GOOD, display: 'flex' }}><IcoCheckCircle size={22} /></span><b style={{ fontSize: 20 }}>{S.yes}</b> com aviso dito</span>
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: T.text }}><span style={{ color: BAD, display: 'flex' }}><IcoXCircle size={22} /></span><b style={{ fontSize: 20 }}>{S.no}</b> sem aviso</span>
-                      {pending > 0 && <span style={{ fontSize: 13, color: T.textT }}>{pending} ainda não avaliadas</span>}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 12.5 }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: T.text }}><span style={{ color: GOOD, display: 'flex' }}><IcoCheckCircle size={18} /></span><b style={{ fontSize: 16.5 }}>{S.yes}</b> com aviso dito</span>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: T.text }}><span style={{ color: BAD, display: 'flex' }}><IcoXCircle size={18} /></span><b style={{ fontSize: 16.5 }}>{S.no}</b> sem aviso</span>
+                      {pending > 0 && <span style={{ fontSize: 11.5, color: T.textT }}>{pending} ainda não avaliadas</span>}
                     </div>
                   </div>
                   {S.secs.some(s => s.no > 0) && (
                     <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${T.border}`, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: T.textT }}>Setores com ligações sem aviso</div>
+                      <div style={{ fontSize: 11.5, fontWeight: 700, color: T.textT }}>Setores com ligações sem aviso</div>
                       {S.secs.filter(s => s.no > 0).map(s => (
-                        <div key={s.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 15 }}>
+                        <div key={s.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12.5 }}>
                           <span style={{ fontWeight: 600, color: T.text }}>{setorInfo(s.id).label}</span>
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: BAD, fontWeight: 700 }}><IcoXCircle size={17} />{s.no} de {s.yes + s.no}</span>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: BAD, fontWeight: 700 }}><IcoXCircle size={14} />{s.no} de {s.yes + s.no}</span>
                         </div>
                       ))}
                     </div>
@@ -347,7 +347,7 @@ const CallDashboard = ({ recs, contacts, dateFrom, dateTo, setDateFrom, setDateT
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {S.contacts.map(([id, n]) => (
                 <div key={id}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 15.5 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 12.5 }}>
                     <span style={{ fontWeight: 700, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{nameOf(id)}</span>
                     <span style={{ fontWeight: 800, color: T.text, whiteSpace: 'nowrap' }}>{callsLabel(n)}</span>
                   </div>
@@ -361,8 +361,8 @@ const CallDashboard = ({ recs, contacts, dateFrom, dateTo, setDateFrom, setDateT
 
           {(S.errors > 0 || withoutAtt) && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {withoutAtt && <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: T.textS || T.text }}><span style={{ color: WARN, display: 'flex' }}><IcoAlert size={20} /></span>{callsLabel(withoutAtt.calls)} sem atendente identificado (feitas antes do login na extensão, ou com a sessão expirada).</div>}
-              {S.errors > 0 && <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: T.textS || T.text }}><span style={{ color: BAD, display: 'flex' }}><IcoAlert size={20} /></span>{S.errors} {S.errors === 1 ? 'transcrição falhou' : 'transcrições falharam'}.</div>}
+              {withoutAtt && <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 11.5, color: T.textS || T.text }}><span style={{ color: WARN, display: 'flex' }}><IcoAlert size={16} /></span>{callsLabel(withoutAtt.calls)} sem atendente identificado (feitas antes do login na extensão, ou com a sessão expirada).</div>}
+              {S.errors > 0 && <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 11.5, color: T.textS || T.text }}><span style={{ color: BAD, display: 'flex' }}><IcoAlert size={16} /></span>{S.errors} {S.errors === 1 ? 'transcrição falhou' : 'transcrições falharam'}.</div>}
             </div>
           )}
         </>
