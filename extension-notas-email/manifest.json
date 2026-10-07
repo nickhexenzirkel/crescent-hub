@@ -8,7 +8,7 @@
     "48": "icon.png",
     "128": "icon.png"
   },
-  "permissions": ["tabs", "debugger", "downloads"],
+  "permissions": ["tabs", "debugger"],
   "host_permissions": ["https://mail.google.com/*", "https://iss.fortaleza.ce.gov.br/*", "https://app.7beneficiosgestao.com.br/*"],
   "background": {
     "service_worker": "background.js",

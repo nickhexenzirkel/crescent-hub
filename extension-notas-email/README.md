@@ -51,7 +51,7 @@ Na **Oficina Estelar → Baixar Ordens de Serviço**, envie a planilha de manute
 A extensão abre uma janela da Wowlet **no seu Chrome (já logado — sem captcha)** e, para cada credenciado:
 Credenciados → Nome Fantasia (busca por URL /providers?business_name=…) → linha → Acessar → `/provider_orders` →
 ID da ordem → abre a ordem → imprime em PDF (Ctrl+P) → Logout (`/impersonations`) → próximo credenciado.
-Os PDFs são gravados sozinhos em `Downloads/Ordens de Servico/Secretaria/Setor/OS_<id>.pdf` (permissão `downloads`); nada passa por servidor.
+Os PDFs vão para `Secretaria/Setor/OS_<id>.pdf` na pasta que você escolhe **uma vez** no Uniko (ela fica lembrada); nada passa por servidor.
 - **Permissão nova: `debugger`** (digitar com teclas reais e imprimir a página em PDF). O Chrome mostra a faixa
   "depurando este navegador" enquanto roda — é normal. Depois de atualizar os arquivos: **Recarregar** em `chrome://extensions` e F5 no Uniko.
 - Deixe a janela da Wowlet aberta e visível até terminar. Se a sessão cair, a extensão avisa e espera você entrar nela.

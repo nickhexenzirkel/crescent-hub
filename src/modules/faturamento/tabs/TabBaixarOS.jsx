@@ -58,8 +58,36 @@ async function lerPlanilha(file) {
   return itens;
 }
 
+const MSG_PASTA = 'O Chrome não deixa gravar nessa pasta (Downloads, Documentos, Desktop e a raiz do OneDrive são bloqueadas). Escolha ou crie uma pasta NOVA, como "Ordens de Servico".';
 const COR = { fila: '#8A8A8A', baixando: '#C98A1B', ok: '#1A9C70', erro: '#C04050' };
 const TXT = { fila: 'Na fila', baixando: 'Baixando…', ok: '✓ Salva', erro: 'Falhou' };
+
+/* A pasta escolhida fica guardada no navegador (IndexedDB): da 2ª vez em diante não abre o seletor,
+   só pede permissão (um clique em "Permitir" do Chrome, quando ele esquece). */
+const idb = () => new Promise((res, rej) => {
+  const r = indexedDB.open('uniko-ordens-servico', 1);
+  r.onupgradeneeded = () => r.result.createObjectStore('kv');
+  r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+});
+const kv = async (modo, valor) => {
+  const db = await idb();
+  return new Promise((res, rej) => {
+    const st = db.transaction('kv', modo === 'set' ? 'readwrite' : 'readonly').objectStore('kv');
+    const rq = modo === 'set' ? st.put(valor, 'pasta') : st.get('pasta');
+    rq.onsuccess = () => res(rq.result); rq.onerror = () => rej(rq.error);
+  });
+};
+const pastaSalva = async () => { try { return (await kv('get')) || null; } catch { return null; } };
+
+/** Grava Secretaria/Setor/OS_<id>.pdf dentro da pasta escolhida. */
+async function gravar(raiz, it, bytes) {
+  const d1 = await raiz.getDirectoryHandle(pasta(it.secretaria), { create: true });
+  const d2 = await d1.getDirectoryHandle(pasta(it.setor), { create: true });
+  const f = await d2.getFileHandle(`OS_${it.os}.pdf`, { create: true });
+  const w = await f.createWritable();
+  await w.write(bytes);
+  await w.close();
+}
 
 export const TabBaixarOS = () => {
   const [itens, setItens] = useState([]);
@@ -71,11 +99,12 @@ export const TabBaixarOS = () => {
   const [erro, setErro] = useState('');
   const [ext, setExt] = useState(undefined); // undefined = verificando, null = ausente
   const [drag, setDrag] = useState(false);
+  const [nomePasta, setNomePasta] = useState('');
   const inputRef = useRef();
   const logRef = useRef();
   const jobRef = useRef(null);
 
-  useEffect(() => { detectarExtensao(2000).then(setExt); }, []);
+  useEffect(() => { detectarExtensao(2000).then(setExt); pastaSalva().then((h) => h && setNomePasta(h.name)); }, []);
   useEffect(() => { if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight; }, [logs.length]);
 
   const addLog = (msg) => setLogs((l) => [...l.slice(-400), { t: Date.now(), msg }]);
@@ -88,13 +117,45 @@ export const TabBaixarOS = () => {
     catch (e) { setErro(e?.message || 'Não consegui ler a planilha.'); }
   };
 
+  /** Pasta lembrada (só pede permissão) ou, na 1ª vez / ao trocar, abre o seletor. */
+  const obterPasta = async (trocar) => {
+    let h = trocar ? null : await pastaSalva();
+    if (h) {
+      let perm = await h.queryPermission({ mode: 'readwrite' });
+      if (perm !== 'granted') perm = await h.requestPermission({ mode: 'readwrite' });
+      if (perm !== 'granted') h = null;
+    }
+    if (!h) {
+      h = await window.showDirectoryPicker({ mode: 'readwrite', id: 'uniko-ordens-servico' });
+      await kv('set', h).catch(() => {});
+    }
+    setNomePasta(h.name);
+    return h;
+  };
+
+  const trocarPasta = async () => {
+    setErro('');
+    try { await obterPasta(true); } catch (e) { if (e?.name !== 'AbortError') setErro(MSG_PASTA); }
+  };
+
   const iniciar = async () => {
     setErro(''); setFim(null); setLogs([]); setEstados({});
+    let raiz;
+    try { raiz = await obterPasta(false); }
+    catch (e) {
+      if (e?.name !== 'AbortError') setErro(MSG_PASTA);
+      return;
+    }
+    const porOs = Object.fromEntries(itens.map((i) => [i.os, i]));
     setRodando(true);
     const job = baixarOrdensServico({
       itens: itens.map(({ os, credenciado, secretaria, setor }) => ({ os, credenciado, secretaria, setor })),
       onLog: addLog,
       onItem: (m) => setEstados((e) => ({ ...e, [m.os]: { estado: m.estado, msg: m.msg } })),
+      onArquivo: async ({ os, bytes }) => {
+        await gravar(raiz, porOs[os] || { os }, bytes);
+        addLog(`OS ${os}: salva → ${pasta(porOs[os]?.secretaria)}\${pasta(porOs[os]?.setor)}`);
+      },
     });
     jobRef.current = job;
     try { setFim(await job.promessa); }
@@ -153,7 +214,7 @@ export const TabBaixarOS = () => {
           </div>
         </div>
         <div style={{ fontSize: 12.5, color: T.textT, marginTop: 8 }}>
-          Antes de iniciar, esteja logado na Wowlet neste Chrome. Os PDFs são gravados sozinhos em Downloads\Ordens de Servico\Secretaria\Setor.
+          Antes de iniciar, esteja logado na Wowlet neste Chrome. Os PDFs são gravados na pasta escolhida, em Secretaria\Setor — a pasta é lembrada, você escolhe só uma vez (use uma pasta NOVA: o Chrome bloqueia Downloads, Documentos, Desktop e a raiz do OneDrive).
         </div>
 
         {itens.length > 0 && (
@@ -220,6 +281,7 @@ export const TabBaixarOS = () => {
             }}>Iniciar download</button>
           )}
           {rodando && <button style={btnGhost} onClick={cancelar}>Cancelar</button>}
+          {!rodando && <button style={btnGhost} onClick={trocarPasta}>{nomePasta ? `Pasta: ${nomePasta} — trocar` : 'Escolher pasta'}</button>}
         </div>
       </div>
     </div>
