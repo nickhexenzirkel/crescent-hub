@@ -289,7 +289,12 @@ const UnikoMascot = ({ track, colors = null, size = 160, songSkin = 'default', c
           transform: `translate(${contentOffset.dxFrac * imgSize}px, ${contentOffset.dyFrac * imgSize}px)`,
         } : undefined}>
           {/* Imagem flutuante — sem quadrado, sem borda */}
-          <div style={VISUAL_SCALE_BY_SKIN[songSkin] ? { transform: `scale(${VISUAL_SCALE_BY_SKIN[songSkin]})` } : undefined}>
+          {/* O scale não encolhe a caixa de layout: sem a margem negativa abaixo, a caixa
+              continua com imgSize e empurra o balão pra cima, pra fora do teto da página. */}
+          <div style={VISUAL_SCALE_BY_SKIN[songSkin] ? {
+            transform: `scale(${VISUAL_SCALE_BY_SKIN[songSkin]})`,
+            margin: `${-Math.round(imgSize * (1 - VISUAL_SCALE_BY_SKIN[songSkin]) / 2)}px 0`,
+          } : undefined}>
           <img
             src={img}
             alt="UNIKO"

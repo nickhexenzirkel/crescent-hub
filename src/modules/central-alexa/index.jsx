@@ -3523,7 +3523,9 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
                     // continuam contidas (a CosmosScene de fundo tem seu PRÓPRIO
                     // overflow:hidden logo abaixo, então ela não vaza mesmo com isso).
                     overflow: songSkin === 'destruidora-de-mundos-dh0x' ? 'visible' : 'hidden',
-                    ...(isMobile?{width:"auto",flex:"0 0 auto"}:{flex:"1 1 0",minHeight:0,display:"flex",alignItems:"center",justifyContent:"center"}),
+                    // 'safe center': se o Uniko gigante for mais alto que o card, alinha ao topo em vez de
+                    // estourar o balão de fala pra cima do teto da página.
+                    ...(isMobile?{width:"auto",flex:"0 0 auto"}:{flex:"1 1 0",minHeight:0,display:"flex",alignItems:songSkin === 'destruidora-de-mundos-dh0x' ? "safe center" : "center",justifyContent:"center"}),
                     transition:"background .5s, border .5s",
                   }}>
 
