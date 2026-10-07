@@ -67,6 +67,7 @@ export const TabBaixarOS = () => {
   const [erro, setErro] = useState('');
   const [zipando, setZipando] = useState(false);
   const inputRef = useRef();
+  const logRef = useRef();
   const [drag, setDrag] = useState(false);
 
   const rodando = job && ['fila', 'rodando'].includes(job.status);
@@ -129,6 +130,8 @@ export const TabBaixarOS = () => {
     } catch (e) { setErro(e?.message || 'Não foi possível montar o zip.'); }
     setZipando(false);
   };
+
+  useEffect(() => { if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight; }, [job?.logs?.length]);
 
   const pronto = itens.length > 0 && usuario.trim() && senha && !rodando;
   const lista = job ? job.itens : itens.map((i) => ({ ...i, estado: 'fila' }));
@@ -204,6 +207,19 @@ export const TabBaixarOS = () => {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {job?.logs?.length > 0 && (
+          <div ref={logRef} style={{
+            marginTop: 14, maxHeight: 260, overflowY: 'auto', background: '#0F1117', color: '#C9D1D9', borderRadius: 12,
+            padding: '12px 14px', fontFamily: 'ui-monospace, Consolas, monospace', fontSize: 12.5, lineHeight: 1.6,
+          }}>
+            {job.logs.map((l, i) => (
+              <div key={i} style={{ color: /ERRO|falhou/.test(l.msg) ? '#FF7B72' : /salvo|feito|Conclu/.test(l.msg) ? '#7EE787' : undefined }}>
+                <span style={{ opacity: .5 }}>{new Date(l.t).toLocaleTimeString('pt-BR')}</span>  {l.msg}
+              </div>
+            ))}
           </div>
         )}
 
