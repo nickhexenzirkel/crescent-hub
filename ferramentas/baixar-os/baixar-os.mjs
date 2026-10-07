@@ -59,17 +59,44 @@ async function garantirLogin() {
   log(`Login feito (página: ${page.url()}).`);
 }
 
-/** Sempre começa pela lista de credenciados (/providers). */
+/** Abre a lista de credenciados (/providers). Se ainda estiver dentro de um credenciado, sai primeiro. */
 async function voltarAoAdmin() {
   await page.goto(`${BASE}/providers`, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(1500);
-  if (await page.getByRole('searchbox').first().isVisible({ timeout: 5000 }).catch(() => false)) return;
-  const textos = await page.getByRole('link').allInnerTexts().catch(() => []);
-  log(`Não vejo a lista de credenciados em /providers (página: ${page.url()}). Links: ${textos.map((t) => t.trim()).filter(Boolean).slice(0, 25).join(' | ')}`);
-  const sair = page.getByRole('link', { name: /voltar|sair d|encerrar|retornar|painel admin/i }).first();
-  if (await sair.count()) { log('Clicando em ' + (await sair.innerText()).trim()); await sair.click(); await page.waitForLoadState('domcontentloaded'); }
+  if (!logado()) { await garantirLogin(); await page.goto(`${BASE}/providers`, { waitUntil: 'domcontentloaded' }); }
+  if (await page.getByRole('link', { name: 'Acessar' }).first().isVisible({ timeout: 6000 }).catch(() => false)) return;
+  log('Parece que ainda estou dentro de um credenciado — saindo (logout)…');
+  await sairDoCredenciado();
   await page.goto(`${BASE}/providers`, { waitUntil: 'domcontentloaded' });
-  if (!(await page.getByRole('searchbox').first().isVisible({ timeout: 5000 }).catch(() => false))) throw new Error('Não consegui abrir a lista de credenciados (veja a lista de links acima).');
+  if (!logado()) { await garantirLogin(); await page.goto(`${BASE}/providers`, { waitUntil: 'domcontentloaded' }); }
+  if (!(await page.getByRole('link', { name: 'Acessar' }).first().isVisible({ timeout: 8000 }).catch(() => false))) throw new Error('Não consegui abrir a lista de credenciados (/providers).');
+}
+
+/** Clica em Logout (sai do acesso do credenciado). Se o botão estiver num menu, abre o menu antes. */
+async function sairDoCredenciado() {
+  const achar = () => page.getByRole('link', { name: /log ?out|sair|desconectar/i }).or(page.getByRole('button', { name: /log ?out|sair|desconectar/i })).first();
+  let el = achar();
+  if (!(await el.isVisible({ timeout: 2000 }).catch(() => false))) {
+    const menus = page.locator('[data-bs-toggle="dropdown"], .dropdown-toggle, [aria-haspopup="true"]');
+    const n = await menus.count();
+    for (let i = n - 1; i >= 0 && !(await achar().isVisible({ timeout: 500 }).catch(() => false)); i--) {
+      await menus.nth(i).click({ timeout: 2000 }).catch(() => {});
+    }
+    el = achar();
+  }
+  if (!(await el.isVisible({ timeout: 3000 }).catch(() => false))) {
+    const links = (await page.getByRole('link').allInnerTexts().catch(() => [])).map((t) => t.trim()).filter(Boolean).slice(0, 30);
+    const botoes = (await page.getByRole('button').allInnerTexts().catch(() => [])).map((t) => t.trim()).filter(Boolean).slice(0, 30);
+    log(`Não achei o Logout. Página: ${page.url()}
+   Links: ${links.join(' | ')}
+   Botões: ${botoes.join(' | ')}`);
+    throw new Error('Não achei o botão de Logout.');
+  }
+  log('Clicando em ' + ((await el.innerText().catch(() => 'Logout')).trim() || 'Logout') + '…');
+  await el.click();
+  await page.waitForLoadState('domcontentloaded');
+  await page.waitForTimeout(1500);
+  log(`Saí do credenciado (página: ${page.url()}).`);
 }
 
 async function acessarCredenciado(nome) {
@@ -78,12 +105,17 @@ async function acessarCredenciado(nome) {
   for (const termo of termos) {
     log(`Credenciados → pesquisando "${termo}"…`);
     await page.goto(`${BASE}/providers`, { waitUntil: 'domcontentloaded' });
-    let campo = page.getByRole('searchbox').first();
-    if (!(await campo.isVisible().catch(() => false))) {
-      for (const i of [2, 3]) await page.getByLabel('').nth(i).click({ timeout: 2000 }).catch(() => {});
-      campo = page.getByRole('searchbox').first();
+    // mesmo caminho da gravação: abre o filtro do nome fantasia (2 cliques) e digita no campo de busca
+    await page.getByLabel('').nth(2).click({ timeout: 8000 }).catch((e) => log('(aviso) clique no filtro 1: ' + e.message.split('\n')[0]));
+    await page.getByLabel('').nth(3).click({ timeout: 8000 }).catch((e) => log('(aviso) clique no filtro 2: ' + e.message.split('\n')[0]));
+    const campo = page.getByRole('searchbox').first();
+    if (!(await campo.isVisible({ timeout: 5000 }).catch(() => false))) {
+      const campos = await page.locator('input:visible, select:visible').evaluateAll((els) => els.map((e) => `${e.tagName.toLowerCase()}[name=${e.name || ''}|placeholder=${e.placeholder || ''}|type=${e.type || ''}]`));
+      throw new Error('Não achei o campo de busca do credenciado. Campos visíveis: ' + campos.join(', '));
     }
+    log('Digitando o nome no filtro…');
     await campo.fill(termo);
+    log('Clicando em Buscar…');
     await page.getByRole('button', { name: 'Buscar' }).first().click();
     await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
     const linhas = page.getByRole('row').filter({ hasText: new RegExp(esc(termo), 'i') });
@@ -145,6 +177,7 @@ try {
       try { await baixar(it, caminho(it)); ok++; }
       catch (e) { log(`OS ${it.os}: FALHOU — ${e.message}`); falhas.push(`${it.os} | ${cred} | ${e.message}`); }
     }
+    try { await sairDoCredenciado(); } catch (e) { log('Aviso no logout: ' + e.message); }
   }
 } finally {
   if (falhas.length) { fs.mkdirSync(saida, { recursive: true }); fs.writeFileSync(path.join(saida, 'ORDENS_NAO_BAIXADAS.txt'), falhas.join('\n')); }
