@@ -225,6 +225,7 @@ const UnikoCall = ({ onBack }) => {
   const [dateTo, setDateTo] = useState('');
   const [chatFrom, setChatFrom] = useState(''); // filtro de data da conversa aberta (além do filtro do painel esquerdo)
   const [chatTo, setChatTo] = useState('');
+  const [focusCallId, setFocusCallId] = useState(null); // ligação única aberta pelas abas Atendentes/Setores
   const [view, setView] = useState('contatos'); // contatos | atendentes | setores
   const [recs, setRecs] = useState([]);          // resumo (sem transcrição) de todas as chamadas, pra agrupar por atendente/setor
   const [loadingRecs, setLoadingRecs] = useState(true);
@@ -257,7 +258,7 @@ const UnikoCall = ({ onBack }) => {
     setCalls(data || []);
     if (!silent) setLoadingCalls(false);
   };
-  const selectContact = (id) => { setSelectedContactId(id); setChatFrom(''); setChatTo(''); loadCalls(id); };
+  const selectContact = (id) => { setSelectedContactId(id); setChatFrom(''); setChatTo(''); setFocusCallId(null); loadCalls(id); };
   useEffect(() => {
     if (!selectedContactId) return;
     const t = setInterval(() => loadCalls(selectedContactId, { silent: true }), CALLS_POLL_MS);
@@ -294,6 +295,7 @@ const UnikoCall = ({ onBack }) => {
 
   // Filtro de data também vale pra conversa já aberta — não só pra busca.
   const visibleCalls = calls.filter(c => {
+    if (focusCallId && c.id !== focusCallId) return false;
     if (dateFrom && c.started_at < `${dateFrom}T00:00:00`) return false;
     if (dateTo && c.started_at > `${dateTo}T23:59:59`) return false;
     if (chatFrom && c.started_at < `${chatFrom}T00:00:00`) return false;
@@ -356,12 +358,12 @@ const UnikoCall = ({ onBack }) => {
       .sort((a, b) => (a.id === SEM_SETOR) - (b.id === SEM_SETOR) || b.calls.length - a.calls.length);
   })();
 
-  const openCallContact = (contactId) => { setView('contatos'); selectContact(contactId); };
+  const openCallContact = (contactId, callId) => { setView('contatos'); selectContact(contactId); setFocusCallId(callId || null); };
 
   const renderCallLine = (r) => {
     const dur = durationLabel(r.started_at, r.ended_at);
     return (
-      <div key={r.id} onClick={() => openCallContact(r.contact_id)} title="Abrir a conversa deste contato"
+      <div key={r.id} onClick={() => openCallContact(r.contact_id, r.id)} title="Abrir só esta ligação"
         style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 8, cursor: 'pointer', fontSize: 12 }}
         onMouseEnter={e => e.currentTarget.style.background = T.surfaceSub || 'rgba(0,0,0,0.04)'}
         onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
@@ -613,6 +615,12 @@ const UnikoCall = ({ onBack }) => {
                     <button onClick={() => deleteContact(selectedContact)} style={btnStyle('danger')}><IcoTrash /></button>
                   </div>
                 </div>
+                {focusCallId && (() => { const fc = calls.find(c => c.id === focusCallId); return (
+                  <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '8px 20px', borderBottom: `1px solid ${T.border}`, background: T.goldGl || T.surfaceSub }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: T.gold }}>Mostrando só a ligação{fc ? ` de ${formatDayLabel(fc.started_at)} às ${formatTime(fc.started_at)}` : ''}</span>
+                    <button onClick={() => setFocusCallId(null)} style={{ ...btnStyle('secondary'), padding: '5px 10px', fontSize: 11.5, marginLeft: 'auto' }}>Ver todas as ligações</button>
+                  </div>
+                ); })()}
                 <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '8px 20px', borderBottom: `1px solid ${T.border}`, background: T.surface }}>
                   <span style={{ fontSize: 11.5, fontWeight: 700, color: T.textT }}>Filtrar por data</span>
                   <input type="date" value={chatFrom} onChange={e => setChatFrom(e.target.value)} max={chatTo || undefined}
