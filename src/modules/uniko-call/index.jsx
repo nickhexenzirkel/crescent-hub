@@ -502,41 +502,41 @@ const UnikoCall = ({ onBack }) => {
     <div style={{ height: '100vh', background: T.page, fontFamily: 'var(--font-body)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden' }}>
         {mobileShowList && (
-          <div style={{ width: isMobile ? '100%' : 320, flexShrink: 0, background: T.surface, borderRight: isMobile ? 'none' : `1px solid ${T.border}`,
+          <div style={{ width: isMobile ? '100%' : 390, flexShrink: 0, background: T.surface, borderRight: isMobile ? 'none' : `1px solid ${T.border}`,
             display: 'flex', flexDirection: 'column', minHeight: 0 }}>
             {/* Cabeçalho da sidebar — mesmo UNIKO em SVG + mascote do Portal do Colaborador (shared/UnikoBrand.jsx). */}
             <div style={{ flexShrink: 0, padding: '18px 16px 14px', borderBottom: `1px solid ${T.border}` }}>
               <UnikoBrandArt legenda="Uniko Call" logo="/UNIKO_CALL.png" tamanhoLogo={58} alturaNome={28} cores={{ texto: T.text, destaque: T.gold }} />
             </div>
-            <div style={{ padding: '16px 16px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+            <div style={{ padding: '20px 20px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
               <div style={{ fontSize: 16, fontWeight: 800, color: T.text }}>Chamadas</div>
               <button title="Atualizar agora" onClick={loadContacts} style={{ ...btnStyle('secondary'), padding: '7px 9px' }}><IcoRefresh /></button>
             </div>
-            <div style={{ padding: '0 16px 10px' }}>
-              <div style={{ display: 'flex', gap: 4, padding: 3, borderRadius: 11, background: T.surfaceSub || 'rgba(0,0,0,0.05)', marginBottom: 10 }}>
+            <div style={{ padding: '0 20px 14px' }}>
+              <div style={{ display: 'flex', gap: 6, padding: 4, borderRadius: 12, background: T.surfaceSub || 'rgba(0,0,0,0.05)', marginBottom: 16 }}>
                 {[['contatos', 'Contatos'], ['atendentes', 'Atendentes'], ['setores', 'Setores'], ['dashboard', 'Dashboard']].map(([id, label]) => (
                   <button key={id} onClick={() => setView(id)}
-                    style={{ flex: 1, padding: '7px 2px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-body)',
+                    style={{ flex: 1, padding: '9px 4px', borderRadius: 9, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-body)',
                       background: view === id ? T.surface : 'transparent', color: view === id ? T.gold : T.textT, boxShadow: view === id ? '0 1px 3px rgba(0,0,0,.12)' : 'none' }}>{label}</button>
                 ))}
               </div>
               {view !== 'dashboard' && <div style={{ position: 'relative' }}>
                 <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: T.textT }}><IcoSearch /></span>
                 <input value={search} onChange={e => setSearch(e.target.value)} placeholder={view === 'contatos' ? 'Buscar por nome ou transcrição' : view === 'atendentes' ? 'Buscar atendente' : view === 'setores' ? 'Buscar setor ou atendente' : 'Buscar contato'}
-                  style={{ width: '100%', padding: '9px 12px 9px 30px', borderRadius: 10, border: `1px solid ${T.border}`, background: T.page, color: T.text, fontSize: 13, outline: 'none', fontFamily: 'var(--font-body)' }} />
+                  style={{ width: '100%', padding: '11px 14px 11px 34px', borderRadius: 11, border: `1px solid ${T.border}`, background: T.page, color: T.text, fontSize: 13, outline: 'none', fontFamily: 'var(--font-body)' }} />
               </div>}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
                 <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} max={dateTo || undefined}
-                  style={{ flex: 1, minWidth: 0, padding: '7px 8px', borderRadius: 9, border: `1px solid ${T.border}`, background: T.page, color: T.text, fontSize: 11.5, outline: 'none', fontFamily: 'var(--font-body)' }} />
+                  style={{ flex: 1, minWidth: 0, padding: '9px 10px', borderRadius: 10, border: `1px solid ${T.border}`, background: T.page, color: T.text, fontSize: 12.5, outline: 'none', fontFamily: 'var(--font-body)' }} />
                 <span style={{ fontSize: 11, color: T.textT, flexShrink: 0 }}>até</span>
                 <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} min={dateFrom || undefined}
-                  style={{ flex: 1, minWidth: 0, padding: '7px 8px', borderRadius: 9, border: `1px solid ${T.border}`, background: T.page, color: T.text, fontSize: 11.5, outline: 'none', fontFamily: 'var(--font-body)' }} />
+                  style={{ flex: 1, minWidth: 0, padding: '9px 10px', borderRadius: 10, border: `1px solid ${T.border}`, background: T.page, color: T.text, fontSize: 12.5, outline: 'none', fontFamily: 'var(--font-body)' }} />
                 {(dateFrom || dateTo) && (
                   <button onClick={() => { setDateFrom(''); setDateTo(''); }} title="Limpar período" style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: T.textT, display: 'flex', padding: 4, flexShrink: 0 }}><IcoClose /></button>
                 )}
               </div>
             </div>
-            <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '4px 10px 18px' }}>
+            <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '8px 14px 20px' }}>
               {view === 'dashboard' ? (isMobile ? dashboardEl : <div style={{ padding: '24px 12px', textAlign: 'center', color: T.textT, fontSize: 12.5, lineHeight: 1.5 }}>O Dashboard usa o filtro de data acima. Os números aparecem ao lado.</div>) : view !== 'contatos' ? renderGroupedView() : loadingContacts ? (
                 <div style={{ padding: '24px 12px', textAlign: 'center', color: T.textT, fontSize: 13 }}>Carregando…</div>
               ) : filteredContacts.length === 0 ? (
