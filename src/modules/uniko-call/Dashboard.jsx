@@ -16,6 +16,18 @@ const dayKey = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDa
 const avgLabel = (ms, n) => { if (!n || !ms) return '—'; const s = Math.round(ms / n / 1000); return `${Math.floor(s / 60)}:${pad(s % 60)}`; };
 const initials = (name) => (name || '').trim().split(/\s+/).slice(0, 2).map(p => p[0]?.toUpperCase() ?? '').join('');
 
+// Ícones SVG (traço currentColor) — no lugar dos emojis.
+const Ico = ({ size = 18, children, ...rest }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }} aria-hidden="true" {...rest}>{children}</svg>
+);
+const IcoTrophy = (p) => <Ico {...p}><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 01-10 0V4z" /><path d="M17 5h3v2a3 3 0 01-3 3M7 5H4v2a3 3 0 003 3" /></Ico>;
+const IcoBuilding = (p) => <Ico {...p}><rect x="4" y="3" width="16" height="18" rx="1.5" /><path d="M9 7h2M13 7h2M9 11h2M13 11h2M9 15h2M13 15h2M10 21v-3h4v3" /></Ico>;
+const IcoClock = (p) => <Ico {...p}><circle cx="12" cy="12" r="9" /><polyline points="12 7 12 12 15.5 14" /></Ico>;
+const IcoCalendar = (p) => <Ico {...p}><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M8 3v4M16 3v4" /></Ico>;
+const IcoCheckCircle = (p) => <Ico {...p}><circle cx="12" cy="12" r="9" /><polyline points="8 12.5 11 15.5 16 9.5" /></Ico>;
+const IcoXCircle = (p) => <Ico {...p}><circle cx="12" cy="12" r="9" /><path d="M15 9l-6 6M9 9l6 6" /></Ico>;
+const IcoAlert = (p) => <Ico {...p}><path d="M10.3 3.9L2.4 18a2 2 0 001.7 3h15.8a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z" /><path d="M12 9v4M12 17h.01" /></Ico>;
+
 const cardStyle = () => ({ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 16, padding: '16px 18px', minWidth: 0 });
 const Card = ({ title, sub, children, style }) => (
   <div style={{ ...cardStyle(), ...style }}>
@@ -29,7 +41,7 @@ const Kpi = ({ label, value, sub, tone }) => (
   <div style={{ ...cardStyle(), padding: '14px 16px' }}>
     <div style={{ fontSize: 11, fontWeight: 700, color: T.textT, textTransform: 'uppercase', letterSpacing: '.04em' }}>{label}</div>
     <div style={{ fontSize: 28, fontWeight: 800, color: tone || T.text, lineHeight: 1.15, marginTop: 4 }}>{value}</div>
-    {sub && <div style={{ fontSize: 11.5, color: T.textT, marginTop: 2 }}>{sub}</div>}
+    {sub && <div style={{ fontSize: 12.5, color: T.textT, marginTop: 3, display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>{sub}</div>}
   </div>
 );
 
@@ -98,8 +110,9 @@ const ConsentBar = ({ yes, no, compact }) => {
         {yes > 0 && <div style={{ flex: yes, background: GOOD, borderRadius: no ? '4px 0 0 4px' : 4 }} />}
         {no > 0 && <div style={{ flex: no, background: BAD, borderRadius: yes ? '0 4px 4px 0' : 4 }} />}
       </div>
-      <div style={{ fontSize: 11, marginTop: 3, color: T.textS || T.text, whiteSpace: 'nowrap' }}>
-        <span>✅ {py}% dito</span>{no > 0 && <span style={{ marginLeft: 8 }}>❌ {no}</span>}
+      <div style={{ fontSize: 12.5, fontWeight: 600, marginTop: 4, color: T.textS || T.text, whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: GOOD }}><IcoCheckCircle size={14} /><span style={{ color: T.textS || T.text }}>{py}% dito</span></span>
+        {no > 0 && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: BAD }}><IcoXCircle size={14} /><span style={{ color: T.textS || T.text }}>{no}</span></span>}
       </div>
     </div>
   );
@@ -166,14 +179,14 @@ const CallDashboard = ({ recs, contacts, dateFrom, dateTo, setDateFrom, setDateT
 
   const insights = [];
   if (S.total) {
-    if (topAtt) insights.push(`🏆 ${topAtt.name} lidera com ${callsLabel(topAtt.calls)} (${pct(topAtt.calls, S.total)}% do total).`);
-    if (topSec) insights.push(`🏢 ${setorInfo(topSec.id).label} é o setor com mais ligações: ${callsLabel(topSec.calls)} (${pct(topSec.calls, S.total)}%).`);
-    if (S.byHour[peakHour]) insights.push(`🕒 Horário de pico: ${pad(peakHour)}h às ${pad(peakHour + 1 > 23 ? 0 : peakHour + 1)}h (${callsLabel(S.byHour[peakHour])}).`);
-    if (S.byWeek[peakDay]) insights.push(`📅 Dia mais movimentado: ${WEEK[peakDay]} (${callsLabel(S.byWeek[peakDay])}).`);
-    if (S.no > 0) insights.push(`❌ ${S.no} ${S.no === 1 ? 'ligação ficou' : 'ligações ficaram'} sem o aviso prévio dito — a gravação não foi registrada, por segurança.`);
-    else if (consentTotal) insights.push('✅ Todas as ligações avaliadas tiveram o aviso prévio dito.');
-    if (withoutAtt) insights.push(`⚠️ ${callsLabel(withoutAtt.calls)} sem atendente identificado (feitas antes do login na extensão ou com a sessão expirada).`);
-    if (S.errors) insights.push(`⚠️ ${S.errors} ${S.errors === 1 ? 'transcrição falhou' : 'transcrições falharam'}.`);
+    if (topAtt) insights.push({ icon: IcoTrophy, text: `${topAtt.name} lidera com ${callsLabel(topAtt.calls)} (${pct(topAtt.calls, S.total)}% do total).` });
+    if (topSec) insights.push({ icon: IcoBuilding, text: `${setorInfo(topSec.id).label} é o setor com mais ligações: ${callsLabel(topSec.calls)} (${pct(topSec.calls, S.total)}%).` });
+    if (S.byHour[peakHour]) insights.push({ icon: IcoClock, text: `Horário de pico: ${pad(peakHour)}h às ${pad(peakHour + 1 > 23 ? 0 : peakHour + 1)}h (${callsLabel(S.byHour[peakHour])}).` });
+    if (S.byWeek[peakDay]) insights.push({ icon: IcoCalendar, text: `Dia mais movimentado: ${WEEK[peakDay]} (${callsLabel(S.byWeek[peakDay])}).` });
+    if (S.no > 0) insights.push({ icon: IcoXCircle, tone: BAD, text: `${S.no} ${S.no === 1 ? 'ligação ficou' : 'ligações ficaram'} sem o aviso prévio dito — a gravação não foi registrada, por segurança.` });
+    else if (consentTotal) insights.push({ icon: IcoCheckCircle, tone: GOOD, text: 'Todas as ligações avaliadas tiveram o aviso prévio dito.' });
+    if (withoutAtt) insights.push({ icon: IcoAlert, tone: '#e0a100', text: `${callsLabel(withoutAtt.calls)} sem atendente identificado (feitas antes do login na extensão ou com a sessão expirada).` });
+    if (S.errors) insights.push({ icon: IcoAlert, tone: BAD, text: `${S.errors} ${S.errors === 1 ? 'transcrição falhou' : 'transcrições falharam'}.` });
   }
 
   const selectStyle = { padding: '7px 10px', borderRadius: 9, border: `1px solid ${T.border}`, background: T.page, color: T.text, fontSize: 12.5, fontFamily: 'var(--font-body)', outline: 'none' };
@@ -211,15 +224,21 @@ const CallDashboard = ({ recs, contacts, dateFrom, dateTo, setDateFrom, setDateT
             <Kpi label="Duração média" value={avgLabel(S.ms, S.withDur)} sub="min:seg por ligação" />
             <Kpi label="Aviso prévio dito" value={consentTotal ? `${pct(S.yes, consentTotal)}%` : '—'}
               tone={consentTotal ? (S.no ? BAD : GOOD) : undefined}
-              sub={consentTotal ? `${S.yes} de ${consentTotal} avaliadas${S.no ? ` · ❌ ${S.no} sem aviso` : ' · ✅'}` : 'sem ligações avaliadas'} />
+              sub={consentTotal ? <><span>{S.yes} de {consentTotal} avaliadas</span>{S.no ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: BAD, fontWeight: 700 }}><IcoXCircle size={14} />{S.no} sem aviso</span> : <span style={{ color: GOOD, display: 'inline-flex' }}><IcoCheckCircle size={15} /></span>}</> : 'sem ligações avaliadas'} />
             <Kpi label="Falhas" value={S.errors} sub={S.errors ? 'transcrições com erro' : 'nenhuma transcrição com erro'} tone={S.errors ? BAD : undefined} />
           </div>
 
           {/* Destaques */}
           {insights.length > 0 && (
             <Card title="Destaques do período">
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {insights.map((t, i) => <div key={i} style={{ fontSize: 13, color: T.text, lineHeight: 1.45 }}>{t}</div>)}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {insights.map((it, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <span style={{ width: 34, height: 34, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                      color: it.tone || T.gold, background: it.tone ? `${it.tone}1f` : (T.goldGl || T.surfaceSub) }}><it.icon size={19} /></span>
+                    <span style={{ fontSize: 15.5, fontWeight: 600, color: T.text, lineHeight: 1.4 }}>{it.text}</span>
+                  </div>
+                ))}
               </div>
             </Card>
           )}
