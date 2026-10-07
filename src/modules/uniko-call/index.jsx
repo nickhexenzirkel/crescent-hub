@@ -223,6 +223,8 @@ const UnikoCall = ({ onBack }) => {
   const messageSearchTimer = useRef(null);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [chatFrom, setChatFrom] = useState(''); // filtro de data da conversa aberta (além do filtro do painel esquerdo)
+  const [chatTo, setChatTo] = useState('');
   const [view, setView] = useState('contatos'); // contatos | atendentes | setores
   const [recs, setRecs] = useState([]);          // resumo (sem transcrição) de todas as chamadas, pra agrupar por atendente/setor
   const [loadingRecs, setLoadingRecs] = useState(true);
@@ -255,7 +257,7 @@ const UnikoCall = ({ onBack }) => {
     setCalls(data || []);
     if (!silent) setLoadingCalls(false);
   };
-  const selectContact = (id) => { setSelectedContactId(id); loadCalls(id); };
+  const selectContact = (id) => { setSelectedContactId(id); setChatFrom(''); setChatTo(''); loadCalls(id); };
   useEffect(() => {
     if (!selectedContactId) return;
     const t = setInterval(() => loadCalls(selectedContactId, { silent: true }), CALLS_POLL_MS);
@@ -288,15 +290,14 @@ const UnikoCall = ({ onBack }) => {
     return () => clearTimeout(messageSearchTimer.current);
   }, [search, dateFrom, dateTo]);
 
-  const openMessageResult = (contactId) => {
-    setSelectedContactId(contactId);
-    loadCalls(contactId);
-  };
+  const openMessageResult = (contactId) => selectContact(contactId);
 
   // Filtro de data também vale pra conversa já aberta — não só pra busca.
   const visibleCalls = calls.filter(c => {
     if (dateFrom && c.started_at < `${dateFrom}T00:00:00`) return false;
     if (dateTo && c.started_at > `${dateTo}T23:59:59`) return false;
+    if (chatFrom && c.started_at < `${chatFrom}T00:00:00`) return false;
+    if (chatTo && c.started_at > `${chatTo}T23:59:59`) return false;
     return true;
   });
 
@@ -355,7 +356,7 @@ const UnikoCall = ({ onBack }) => {
       .sort((a, b) => (a.id === SEM_SETOR) - (b.id === SEM_SETOR) || b.calls.length - a.calls.length);
   })();
 
-  const openCallContact = (contactId) => { setView('contatos'); setSelectedContactId(contactId); loadCalls(contactId); };
+  const openCallContact = (contactId) => { setView('contatos'); selectContact(contactId); };
 
   const renderCallLine = (r) => {
     const dur = durationLabel(r.started_at, r.ended_at);
@@ -611,6 +612,18 @@ const UnikoCall = ({ onBack }) => {
                     <button onClick={() => setRenameModal({ id: selectedContact.id, name: selectedContact.name })} style={btnStyle('secondary')}><IcoEdit /> Renomear</button>
                     <button onClick={() => deleteContact(selectedContact)} style={btnStyle('danger')}><IcoTrash /></button>
                   </div>
+                </div>
+                <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '8px 20px', borderBottom: `1px solid ${T.border}`, background: T.surface }}>
+                  <span style={{ fontSize: 11.5, fontWeight: 700, color: T.textT }}>Filtrar por data</span>
+                  <input type="date" value={chatFrom} onChange={e => setChatFrom(e.target.value)} max={chatTo || undefined}
+                    style={{ padding: '6px 8px', borderRadius: 9, border: `1px solid ${T.border}`, background: T.page, color: T.text, fontSize: 12, outline: 'none', fontFamily: 'var(--font-body)' }} />
+                  <span style={{ fontSize: 11.5, color: T.textT }}>até</span>
+                  <input type="date" value={chatTo} onChange={e => setChatTo(e.target.value)} min={chatFrom || undefined}
+                    style={{ padding: '6px 8px', borderRadius: 9, border: `1px solid ${T.border}`, background: T.page, color: T.text, fontSize: 12, outline: 'none', fontFamily: 'var(--font-body)' }} />
+                  {(chatFrom || chatTo) && (
+                    <button onClick={() => { setChatFrom(''); setChatTo(''); }} style={{ ...btnStyle('secondary'), padding: '5px 10px', fontSize: 11.5 }}><IcoClose /> Limpar</button>
+                  )}
+                  {(chatFrom || chatTo) && <span style={{ fontSize: 11.5, color: T.textT, marginLeft: 'auto' }}>{callsLabel(visibleCalls.length)} de {calls.length}</span>}
                 </div>
                 <div ref={chatScrollRef} style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: isMobile ? '16px' : '20px 28px', display: 'flex', flexDirection: 'column', gap: 3 }}>
                   {renderCalls()}
