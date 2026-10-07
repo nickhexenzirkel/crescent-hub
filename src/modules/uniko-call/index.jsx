@@ -348,15 +348,17 @@ const UnikoCall = ({ onBack }) => {
       .sort((a, b) => (a.id === SEM_SETOR) - (b.id === SEM_SETOR) || b.calls.length - a.calls.length);
   })();
 
-  const openCallContact = (contactId, callId) => { setView('contatos'); selectContact(contactId); setFocusCallId(callId || null); };
+  // Mantém a aba atual (Atendentes/Setores) selecionada — a conversa abre ao lado, sem voltar pra Contatos.
+  const openCallContact = (contactId, callId) => { selectContact(contactId); setFocusCallId(callId || null); };
 
   const renderCallLine = (r) => {
     const dur = durationLabel(r.started_at, r.ended_at);
     return (
       <div key={r.id} onClick={() => openCallContact(r.contact_id, r.id)} title="Abrir só esta ligação"
-        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 8, cursor: 'pointer', fontSize: 12 }}
+        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 8, cursor: 'pointer', fontSize: 12,
+          background: focusCallId === r.id ? (T.goldGl || T.surfaceSub) : 'transparent' }}
         onMouseEnter={e => e.currentTarget.style.background = T.surfaceSub || 'rgba(0,0,0,0.04)'}
-        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+        onMouseLeave={e => e.currentTarget.style.background = focusCallId === r.id ? (T.goldGl || T.surfaceSub) : 'transparent'}>
         <span style={{ color: T.gold, display: 'flex', flexShrink: 0 }}><IcoPhone /></span>
         <span style={{ flex: 1, minWidth: 0, color: T.text, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{contactName(r.contact_id)}</span>
         <span style={{ color: T.textT, flexShrink: 0, fontSize: 11 }}>{formatDayShort(r.started_at)} {formatTime(r.started_at)}{dur ? ` · ${dur}` : ''}</span>
