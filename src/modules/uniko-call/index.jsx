@@ -510,7 +510,7 @@ const UnikoCall = ({ onBack }) => {
         </button>
         {/* Mesmo cabeçalho UNIKO desenhado em SVG do Portal e do Uniko Fit (shared/UnikoBrand.jsx). */}
         <div style={{ display: 'flex', alignItems: 'center', marginLeft: 4 }}>
-          <UnikoBrandArt legenda="CALL" semLogo compacto alturaNome={26} tamanhoLegenda={17} cores={{ texto: T.text, destaque: T.gold }} />
+          <UnikoBrandArt legenda="CALL" logo="/UNIKO_CALL.png" tamanhoLogo={42} compacto alturaNome={26} tamanhoLegenda={17} cores={{ texto: T.text, destaque: T.gold }} />
         </div>
       </div>
 
