@@ -500,24 +500,14 @@ const UnikoCall = ({ onBack }) => {
 
   return (
     <div style={{ height: '100vh', background: T.page, fontFamily: 'var(--font-body)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      <div style={{ height: 56, flexShrink: 0, background: T.topbarBg || (T.dark ? `${T.surface}ee` : 'rgba(245,250,255,0.75)'),
-        backdropFilter: 'blur(28px)', WebkitBackdropFilter: 'blur(28px)', borderBottom: `1px solid ${T.border}`,
-        display: 'flex', alignItems: 'center', padding: '0 24px', gap: 14, position: 'sticky', top: 0, zIndex: 200 }}>
-        <button onClick={onBack}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '7px 14px', background: T.surfaceSub || 'rgba(0,0,0,0.04)',
-            border: `1px solid ${T.border}`, borderRadius: 9, cursor: 'pointer', color: T.textS, outline: 'none', fontFamily: 'var(--font-body)', fontSize: 13 }}>
-          <IcoBack /> Módulos
-        </button>
-        {/* Mesmo cabeçalho UNIKO desenhado em SVG do Portal e do Uniko Fit (shared/UnikoBrand.jsx). */}
-        <div style={{ display: 'flex', alignItems: 'center', marginLeft: 4 }}>
-          <UnikoBrandArt legenda="CALL" logo="/UNIKO_CALL.png" tamanhoLogo={42} compacto alturaNome={26} tamanhoLegenda={17} cores={{ texto: T.text, destaque: T.gold }} />
-        </div>
-      </div>
-
       <div style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden' }}>
         {mobileShowList && (
           <div style={{ width: isMobile ? '100%' : 320, flexShrink: 0, background: T.surface, borderRight: isMobile ? 'none' : `1px solid ${T.border}`,
             display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+            {/* Cabeçalho da sidebar — mesmo UNIKO em SVG + mascote do Portal do Colaborador (shared/UnikoBrand.jsx). */}
+            <div style={{ flexShrink: 0, padding: '18px 16px 14px', borderBottom: `1px solid ${T.border}` }}>
+              <UnikoBrandArt legenda="Uniko Call" logo="/UNIKO_CALL.png" tamanhoLogo={58} alturaNome={28} cores={{ texto: T.text, destaque: T.gold }} />
+            </div>
             <div style={{ padding: '16px 16px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
               <div style={{ fontSize: 16, fontWeight: 800, color: T.text }}>Chamadas</div>
               <button title="Atualizar agora" onClick={loadContacts} style={{ ...btnStyle('secondary'), padding: '7px 9px' }}><IcoRefresh /></button>
@@ -592,6 +582,16 @@ const UnikoCall = ({ onBack }) => {
                   })}
                 </div>
               )}
+            </div>
+            {/* Rodapé da sidebar: voltar pro seletor de módulos */}
+            <div style={{ flexShrink: 0, padding: '10px 12px 14px', borderTop: `1px solid ${T.border}` }}>
+              <button onClick={onBack}
+                onMouseEnter={e => e.currentTarget.style.background = T.surfaceSub || 'rgba(0,0,0,0.05)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 9, padding: '10px 13px', background: 'transparent', border: 'none', borderRadius: 10,
+                  cursor: 'pointer', color: T.textS, outline: 'none', fontFamily: 'var(--font-body)', fontSize: 14, fontWeight: 600, transition: 'background .14s' }}>
+                <IcoBack /> Módulos
+              </button>
             </div>
           </div>
         )}
