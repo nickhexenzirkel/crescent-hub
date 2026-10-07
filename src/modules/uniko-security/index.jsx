@@ -619,7 +619,7 @@ const UnikoSecurity = ({ onBack }) => {
           <div style={{ width: isMobile ? '100%' : 320, flexShrink: 0, background: T.surface, borderRight: isMobile ? 'none' : `1px solid ${T.border}`,
             display: 'flex', flexDirection: 'column', minHeight: 0 }}>
             {/* Cabeçalho da sidebar — mesmo do Uniko Call (shared/UnikoSidebarBrand.jsx), no verde do WhatsApp. */}
-            <UnikoSidebarBrand legenda="WHATSAPP" cor="#25D366" corForte="#128C7E" />
+            <UnikoSidebarBrand legenda="WHATSAPP" logo="/UNIKO_CALL.png" cor="#25D366" corForte="#128C7E" />
             <div style={{ padding: '16px 16px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
               <div style={{ fontSize: 16, fontWeight: 800, color: T.text }}>Contatos</div>
               <div style={{ display: 'flex', gap: 6 }}>
