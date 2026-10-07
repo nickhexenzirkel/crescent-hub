@@ -292,3 +292,31 @@ chrome.storage.local.get('unikoAttendant').then(async ({ unikoAttendant }) => {
     renderAttendant(next);
   } catch { /* offline: mantém */ }
 }).catch(() => renderAttendant(null));
+
+/* ── Ouvir o aviso prévio (prévia) ──────────────────────────────────────────
+   Toca a voz sintética do aviso SÓ no alto-falante de quem está com o popup aberto — não vai pra
+   ligação nem pra gravação (isso é o botão "Tocar aviso na ligação"). Baixa o mesmo áudio do servidor. */
+const prevBtn = $('avisoPreviewBtn'), prevMsg = $('avisoPreviewMsg');
+const PREV_IDLE = '🔈 Ouvir o aviso (só você escuta)';
+let prevAudio = null, prevUrl = null;
+const setPrevMsg = (text, bad) => { prevMsg.style.display = text ? 'block' : 'none'; prevMsg.className = 'line' + (bad ? ' bad' : ''); prevMsg.textContent = text || ''; };
+function stopPreview() { if (prevAudio) { prevAudio.pause(); prevAudio = null; } prevBtn.textContent = PREV_IDLE; prevBtn.disabled = false; }
+
+prevBtn.addEventListener('click', async () => {
+  if (prevAudio) { stopPreview(); setPrevMsg(''); return; } // segundo clique = parar
+  prevBtn.disabled = true; prevBtn.textContent = 'Carregando o aviso…'; setPrevMsg('');
+  try {
+    if (!prevUrl) {
+      const res = await fetch(`${CALL_SERVER}/api/uniko-call/aviso-audio`, { headers: { Authorization: `Bearer ${CALL_TOKEN}` } });
+      if (!res.ok) throw new Error(`o servidor respondeu ${res.status}`);
+      prevUrl = URL.createObjectURL(await res.blob());
+    }
+    prevAudio = new Audio(prevUrl);
+    prevAudio.addEventListener('ended', () => { stopPreview(); setPrevMsg('Fim do aviso.'); });
+    prevAudio.addEventListener('error', () => { stopPreview(); setPrevMsg('Não consegui tocar o áudio.', true); });
+    await prevAudio.play();
+    prevBtn.disabled = false; prevBtn.textContent = '⏹ Parar';
+    setPrevMsg('Tocando só aqui — o cliente não escuta isso.');
+  } catch (e) { stopPreview(); setPrevMsg('❌ ' + (e.message === 'Failed to fetch' ? 'Sem conexão com o servidor.' : e.message), true); }
+});
+window.addEventListener('unload', () => { if (prevAudio) prevAudio.pause(); });
