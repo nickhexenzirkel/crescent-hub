@@ -5,7 +5,7 @@ import {
   setFontAndSize, setFillingRgbColor, setTextMatrix,
 } from 'pdf-lib';
 import { T } from '../../contexts/theme';
-import rubricaUrl from '../../assets/assinatura-evando.png';
+import rubricaUrl from '../../assets/assinatura-cleanderson.png';
 import {
   uid, clamp, loadPdfDoc, readPageSizes, reordenarPaginas, limparThumbs, novoPoolId, useInView,
 } from './pdfPages';
@@ -203,7 +203,7 @@ const SignatureModal = ({ onClose, onUse }) => {
   const [drawn, setDrawn] = useState(null);
   const [saved, setSaved] = useState(() => {
     const list = loadSavedSigs().filter(s => s.id !== 'default-ev');
-    return [{ id:'default-ev', name:'ASSINATURA EV. JR', dataUrl: rubricaUrl }, ...list];
+    return [{ id:'default-ev', name:'ASSINATURA CLEANDERSON', dataUrl: rubricaUrl }, ...list];
   });
   const [repeat, setRepeat] = useState(false);
   const canvasRef = useRef();

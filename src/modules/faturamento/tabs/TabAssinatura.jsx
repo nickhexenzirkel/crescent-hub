@@ -6,7 +6,7 @@ import { T } from '../../../contexts/theme';
 import { StarDivider } from '../../../shared/components';
 import { StellarHero } from '../StellarHero';
 import { logAssinatura } from '../assinaturaDb';
-import rubricaUrl from '../../../assets/assinatura-evando.png';
+import rubricaUrl from '../../../assets/assinatura-cleanderson.png';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 

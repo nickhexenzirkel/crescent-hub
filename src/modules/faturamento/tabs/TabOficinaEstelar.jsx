@@ -8,7 +8,7 @@ import { PdfEditor } from '../PdfEditor';
 import { PdfOrganizer } from '../PdfOrganizer';
 import { PdfMerge } from '../PdfMerge';
 import { logAssinatura } from '../assinaturaDb';
-import rubricaUrl from '../../../assets/assinatura-evando.png';
+import rubricaUrl from '../../../assets/assinatura-cleanderson.png';
 import logo7ServUrl from '../../../assets/logo-7beneficios.png';
 
 const HERO_ICON = (
@@ -299,7 +299,7 @@ const TabCarta = () => {
 
   const [form, setForm] = useState(emptyForm);
   const savedSigs = useState(() => [
-    {id:'default-ev',name:'ASSINATURA EV. JR',dataUrl:rubricaUrl},
+    {id:'default-ev',name:'ASSINATURA CLEANDERSON',dataUrl:rubricaUrl},
     ...loadSigs(),
   ])[0];
 
