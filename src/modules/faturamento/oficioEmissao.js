@@ -224,9 +224,17 @@ export const lerNota = async (arquivo) => {
     const periodo = extractPeriod(texto) ?? periodoAbreviado(norm) ?? extractPeriodFallback(texto);
     const numero = extractNfNumber(texto);
 
+    // Secretaria/setor: achada no texto sem acento (regex estável), mas devolvida do texto ORIGINAL, com acento.
     let secretaria = null;
-    const mSec = new RegExp(`PERIODO\\s*:?\\s*${DATA.source}\\s*A\\s*${DATA.source}\\s*-?\\s*([\\s\\S]*?)(?:${TOTAL.source})`).exec(norm);
-    if (mSec) { const l = mSec[1].replace(/\s+/g, ' ').trim().replace(/^-\s*/, ''); if (l) secretaria = l; }
+    const posRaw = []; let normChar = '';
+    for (let i = 0; i < texto.length; i++) { const pc = normalize(texto[i]); for (let k = 0; k < pc.length; k++) posRaw.push(i); normChar += pc; }
+    const mSec = new RegExp(String.raw`PERIODO\s*:?\s*${DATA.source}\s*A\s*${DATA.source}\s*-?\s*([\s\S]*?)(?:${TOTAL.source})`, 'd').exec(normChar);
+    if (mSec) {
+      const [ini, fim] = mSec.indices[1];
+      const bruto = fim > ini ? texto.slice(posRaw[ini], posRaw[fim - 1] + 1) : '';
+      const l = bruto.replace(/\s+/g, ' ').trim().replace(/^-\s*/, '').toUpperCase();
+      if (l) secretaria = l;
+    }
 
     const mReemb = new RegExp(`(?:${TOTAL.source})[^:]*:?\\s*R\\$\\s*([\\d.,]+)`).exec(norm);
     const reembolso = mReemb ? parseMoedaBr(mReemb[1]) : null;

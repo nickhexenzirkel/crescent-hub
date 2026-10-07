@@ -95,7 +95,7 @@ export const TabOficioEmissao = () => {
       try {
         const d = await lerNota(r.file);
         setRows((rs) => rs.map((x) => (x.id === r.id ? {
-          ...x, ...d, estado: d.status, tipoSel: tipoPadraoPiaui(d.tipo), secretariaSel: '', venc: '',
+          ...x, ...d, estado: d.status, tipoSel: tipoPadraoPiaui(d.tipo), secretariaSel: d.secretaria || '', venc: '',
         } : x)));
       } catch (e) {
         patch(r.id, { estado: 'erro', problemas: [`Não consegui ler o PDF (${e?.message || 'arquivo inválido'}).`] });
@@ -109,7 +109,7 @@ export const TabOficioEmissao = () => {
     const falta = faltaNoModelo(r, modelo);
     if (falta.length) return falta.join(' ');
     if (modelo === 'piaui') {
-      if (!(r.secretariaSel || '').trim()) return 'Escreva a secretaria/setor.';
+      if (!(r.secretariaSel || '').trim()) return 'Informe a secretaria/setor.';
       if (!(r.venc || vencGlobal)) return 'Informe o vencimento.';
     }
     return null;
@@ -327,7 +327,7 @@ export const TabOficioEmissao = () => {
             <div style={{ maxWidth: 260 }}>
               <label style={labelStyle}>Vencimento (para todas as notas)</label>
               <input type="date" style={inputStyle} value={vencGlobal} onChange={(e) => setVencGlobal(e.target.value)} />
-              <div style={{ fontSize: 12.5, color: T.textT, marginTop: 6 }}>Cada nota pode ter o seu na tabela acima. A secretaria/setor é escrita por você na tabela (sai exatamente como digitado).</div>
+              <div style={{ fontSize: 12.5, color: T.textT, marginTop: 6 }}>Cada nota pode ter o seu na tabela acima. A secretaria/setor vem da nota (sem o prefixo “Secretaria Municipal de”) e pode ser editada na tabela.</div>
             </div>
             <Toggle on={comRubrica} onChange={setComRubrica} label="Incluir a rúbrica do Cleanderson"
               sub="O modelo não traz assinatura. Ligue pra já sair com a rúbrica acima do nome; desligado, dá pra assinar depois na Assinatura Automática." />
