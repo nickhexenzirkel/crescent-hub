@@ -154,7 +154,7 @@ export const TabBaixarOS = () => {
       onItem: (m) => setEstados((e) => ({ ...e, [m.os]: { estado: m.estado, msg: m.msg } })),
       onArquivo: async ({ os, bytes }) => {
         await gravar(raiz, porOs[os] || { os }, bytes);
-        addLog(`OS ${os}: salva → ${pasta(porOs[os]?.secretaria)}\${pasta(porOs[os]?.setor)}`);
+        addLog(`OS ${os}: salva → ${pasta(porOs[os]?.secretaria)} / ${pasta(porOs[os]?.setor)}`);
       },
     });
     jobRef.current = job;
