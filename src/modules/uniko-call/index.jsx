@@ -337,7 +337,8 @@ const UnikoCall = ({ onBack }) => {
   const buildAttendants = (list) => {
     const map = new Map();
     list.forEach(r => {
-      const key = r.attendant_id || 'none';
+      // Agrupa pelo NOME (não pelo id): ligações preenchidas à mão pelo SQL não têm o id do Portal.
+      const key = r.attendant_name ? r.attendant_name.trim().toLowerCase() : 'none';
       if (!map.has(key)) map.set(key, { key, name: r.attendant_name || 'Sem atendente identificado', sectors: r.sectors || [], calls: [], ms: 0 });
       const g = map.get(key); g.calls.push(r); g.ms += callMs(r);
     });
