@@ -108,6 +108,12 @@ const GLOW_BY_SKIN  = {
 const SIZE_MULT_BY_SKIN = {
   'destruidora-de-mundos-dh0x': 3,
 };
+// Encolhe só o DESENHO (transform: scale em torno do centro), sem mexer na caixa de layout
+// (que continua imgSize) — assim o Uniko fica menor mas o centro dele não sai do lugar.
+// Pedido do usuário (07/out/2026): a Destruidora estava grande demais. 1 = tamanho anterior.
+const VISUAL_SCALE_BY_SKIN = {
+  'destruidora-de-mundos-dh0x': 0.7,
+};
 
 // songSkin: skin do DJ da música atual (vem do Supabase via index.jsx)
 // claro: o card em volta é claro (tema claro) — o balão dos Unikos da Oficina deixa de ser escuro.
@@ -283,6 +289,7 @@ const UnikoMascot = ({ track, colors = null, size = 160, songSkin = 'default', c
           transform: `translate(${contentOffset.dxFrac * imgSize}px, ${contentOffset.dyFrac * imgSize}px)`,
         } : undefined}>
           {/* Imagem flutuante — sem quadrado, sem borda */}
+          <div style={VISUAL_SCALE_BY_SKIN[songSkin] ? { transform: `scale(${VISUAL_SCALE_BY_SKIN[songSkin]})` } : undefined}>
           <img
             src={img}
             alt="UNIKO"
@@ -297,6 +304,7 @@ const UnikoMascot = ({ track, colors = null, size = 160, songSkin = 'default', c
               transition: 'filter .4s',
             }}
           />
+          </div>
         </div>
         </div>
 
