@@ -447,7 +447,8 @@ export const gerarPiaui = async ({ numeroNota, secretaria, valorLiquido, tipo, p
   linha([B('ENDEREÇO: '), R('Av. Washington Soares, nº 3663, Sala 1416 – Torre 2, Bairro Edson Queiroz, Fortaleza/CE.')], 326.5);
   linha([B('CONTATO: '), R('financeiro@7beneficios.com.br')], 367.9);
 
-  linha([B('À SECRETARIA MUNICIPAL DE '), B(secretaria.toUpperCase(), VAR)], 423.1, { indente: 37.3 });
+  // Sem prefixo: a linha é exatamente o que foi digitado (ex.: "À SECRETARIA MUNICIPAL DE SAÚDE - FUNDO ...").
+  linha([B(secretaria.trim(), VAR)], 423.1, { indente: 37.3 });
 
   const extenso = reaisPorExtenso(valorLiquido).replace(/,\s*/g, ' ').toUpperCase();
   linha([
