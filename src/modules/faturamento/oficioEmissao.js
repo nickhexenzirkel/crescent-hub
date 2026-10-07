@@ -186,6 +186,19 @@ const itemsParaTexto = (items) => {
   return out;
 };
 
+/** O que a nota não trouxe e o modelo escolhido precisa (lista vazia = pode gerar). */
+export const faltaNoModelo = (nota, modelo) => {
+  const f = [];
+  if (modelo === 'piaui') {
+    if (nota.valorLiquido == null) f.push('Não achei o VALOR LÍQUIDO A RECEBER DO CLIENTE na nota.');
+    if (!nota.periodo) f.push('Não achei o período faturado.');
+  } else {
+    if (nota.valorBruto == null) f.push('Não achei o valor bruto na discriminação.');
+    if (!nota.mesReferencia) f.push('Não achei o período faturado, então não sei o mês.');
+  }
+  return f;
+};
+
 /** "SECRETARIA MUNICIPAL DE SAUDE - ..." → o que vem depois do "DE" (o modelo já traz "À SECRETARIA MUNICIPAL DE"). */
 const limparSecretaria = (s) => {
   if (!s) return '';
@@ -225,14 +238,13 @@ export const lerNota = async (arquivo) => {
     const ini = parseDataBr(periodo?.[0]);
     const mesReferencia = ini ? `${MESES[ini.getMonth()]} de ${ini.getFullYear()}` : null;
 
-    const problemas = [];
-    if (!numero) problemas.push('Não achei o número da NFS-e no PDF.');
-    if (valorBruto === null) problemas.push('Não achei o valor bruto na discriminação.');
-    if (!mesReferencia) problemas.push('Não achei o período faturado, então não sei o mês.');
+    // O que falta além do número depende do modelo (ver `faltaNoModelo`): o Eusébio usa o VALOR BRUTO e
+    // o mês; o Juazeiro do Piauí usa o VALOR LÍQUIDO A RECEBER DO CLIENTE e o período.
+    const problemas = numero ? [] : ['Não achei o número da NFS-e no PDF.'];
 
     return {
       status: problemas.length ? 'incompleto' : 'ok', problemas,
-      numero, periodo, mesReferencia, valorBruto,
+      numero, periodo, mesReferencia, valorBruto, valorLiquido: liquido,
       tipo: extractTipo(texto, nome),
       secretaria: limparSecretaria(secretaria),
     };
@@ -406,7 +418,7 @@ export const tipoPadraoPiaui = (tipo) => (tipo === 'MANUTENÇÃO' ? 'Manutençã
 /** "2026-09-30" (campo de data) → "30/09/2026". */
 export const dataBr = (iso) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || ''); return m ? `${m[3]}/${m[2]}/${m[1]}` : ''; };
 
-export const gerarPiaui = async ({ numeroNota, secretaria, valorBruto, tipo, periodo, vencimento, comRubrica = false }) => {
+export const gerarPiaui = async ({ numeroNota, secretaria, valorLiquido, tipo, periodo, vencimento, comRubrica = false }) => {
   const { doc, f, logo } = await abrirDoc(`Requerimento de Pagamento - NF ${numeroNota}`);
   const p = doc.addPage(PAG_PIAUI);
   const VAR = PRETO; // tudo em preto (no arquivo de modelo os campos variáveis vêm em vermelho; aqui não)
@@ -437,10 +449,10 @@ export const gerarPiaui = async ({ numeroNota, secretaria, valorBruto, tipo, per
 
   linha([B('À SECRETARIA MUNICIPAL DE '), B(secretaria.toUpperCase(), VAR)], 423.1, { indente: 37.3 });
 
-  const extenso = reaisPorExtenso(valorBruto).replace(/,\s*/g, ' ').toUpperCase();
+  const extenso = reaisPorExtenso(valorLiquido).replace(/,\s*/g, ' ').toUpperCase();
   linha([
     R('Vimos pelo presente solicitar a V. Sas., o pagamento do valor de '),
-    B('R$ '), B(`${formatarReais(valorBruto)} `, VAR), B(`(${extenso}`, VAR), B(')'),
+    B('R$ '), B(`${formatarReais(valorLiquido)} `, VAR), B(`(${extenso}`, VAR), B(')'),
     R(', CNPJ 13.858.769/0001-97, referente ao faturamento de '), R(tipo, VAR),
     R(' do período de '), B(periodoCurto(periodo), VAR), R('.'),
   ], 450.7, { indente: 37.3 });

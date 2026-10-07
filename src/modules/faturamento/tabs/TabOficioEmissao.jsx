@@ -4,7 +4,7 @@ import { StarDivider } from '../../../shared/components';
 import { StellarHero } from '../StellarHero';
 import {
   lerNota, gerarEusebio, gerarPiaui, formatarReais, periodoCurto, dataBr,
-  TIPOS_PIAUI, tipoPadraoPiaui,
+  TIPOS_PIAUI, tipoPadraoPiaui, faltaNoModelo,
 } from '../oficioEmissao';
 
 /* ═══════════════════════════════════════════════════════════════
@@ -106,6 +106,8 @@ export const TabOficioEmissao = () => {
   /* O que falta pra gerar cada nota, no modelo escolhido. */
   const pendencia = (r) => {
     if (r.estado !== 'ok') return null;
+    const falta = faltaNoModelo(r, modelo);
+    if (falta.length) return falta.join(' ');
     if (modelo === 'piaui') {
       if (!(r.secretariaSel || '').trim()) return 'Informe a secretaria.';
       if (!(r.venc || vencGlobal)) return 'Informe o vencimento.';
@@ -125,7 +127,7 @@ export const TabOficioEmissao = () => {
         try {
           const bytes = modelo === 'piaui'
             ? await gerarPiaui({
-              numeroNota: r.numero, secretaria: r.secretariaSel.trim(), valorBruto: r.valorBruto, tipo: r.tipoSel,
+              numeroNota: r.numero, secretaria: r.secretariaSel.trim(), valorLiquido: r.valorLiquido, tipo: r.tipoSel,
               periodo: r.periodo, vencimento: dataBr(r.venc || vencGlobal), comRubrica,
             })
             : await gerarEusebio({
@@ -237,7 +239,7 @@ export const TabOficioEmissao = () => {
             {rows.length ? `${rows.length} nota(s) na lista — arraste ou clique pra adicionar mais` : 'Arraste aqui os PDFs das notas fiscais'}
           </div>
           <div style={{ fontSize: 12.5, color: T.textT, marginTop: 5 }}>
-            Pode ser uma nota ou a remessa inteira. Da nota saem o número da NFS-e, o valor bruto e o período faturado.
+            Pode ser uma nota ou a remessa inteira. Da nota saem o número da NFS-e, o período faturado e o valor (bruto no Eusébio; no Piauí, o VALOR LÍQUIDO A RECEBER DO CLIENTE).
           </div>
         </div>
 
@@ -246,7 +248,7 @@ export const TabOficioEmissao = () => {
             <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: modelo === 'piaui' ? 860 : 640 }}>
               <thead>
                 <tr style={{ textAlign: 'left' }}>
-                  {['Nota', modelo === 'piaui' ? 'Período' : 'Mês', 'Valor bruto',
+                  {['Nota', modelo === 'piaui' ? 'Período' : 'Mês', modelo === 'piaui' ? 'Valor líquido' : 'Valor bruto',
                     ...(modelo === 'piaui' ? ['Secretaria', 'Tipo', 'Vencimento'] : []), 'Situação', ''].map((h) => (
                     <th key={h} style={{ padding: '10px 12px', fontSize: 11.5, fontWeight: 700, color: T.textT, letterSpacing: '.06em', textTransform: 'uppercase' }}>{h}</th>
                   ))}
@@ -260,7 +262,7 @@ export const TabOficioEmissao = () => {
                       <td style={cell} title={r.nome}><b>{r.numero || '—'}</b>
                         <div style={{ fontSize: 11, color: T.textT, maxWidth: 150, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.nome}</div></td>
                       <td style={{ ...cell, fontSize: 12.5 }}>{lida ? (modelo === 'piaui' ? periodoCurto(r.periodo) : r.mesReferencia) || '—' : '—'}</td>
-                      <td style={{ ...cell, fontSize: 12.5, whiteSpace: 'nowrap' }}>{lida && r.valorBruto != null ? `R$ ${formatarReais(r.valorBruto)}` : '—'}</td>
+                      <td style={{ ...cell, fontSize: 12.5, whiteSpace: 'nowrap' }}>{(() => { const v = modelo === 'piaui' ? r.valorLiquido : r.valorBruto; return lida && v != null ? `R$ ${formatarReais(v)}` : '—'; })()}</td>
                       {modelo === 'piaui' && (
                         <>
                           <td style={{ ...cell, minWidth: 190 }}>
