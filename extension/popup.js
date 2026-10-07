@@ -284,8 +284,13 @@ chrome.storage.local.get('unikoAttendant').then(async ({ unikoAttendant }) => {
   renderAttendant(unikoAttendant || null);
   if (!unikoAttendant?.token) return;
   try {
-    const res = await fetch(`${CALL_SERVER}/api/uniko-call/whoami`, { headers: { Authorization: `Bearer ${CALL_TOKEN}`, 'X-Attendant-Token': unikoAttendant.token } });
-    if (res.status === 401) { await chrome.storage.local.remove('unikoAttendant'); renderAttendant(null); loginErr('Sessão expirada — entre de novo.'); return; }
+    const res = await fetch(`${CALL_SERVER}/api/uniko-call/whoami`, { method: 'POST', headers: { Authorization: `Bearer ${CALL_TOKEN}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ token: unikoAttendant.token }) });
+    // Só apaga o login se o servidor disser explicitamente que o token expirou/é inválido.
+    if (res.status === 401) {
+      const d = await res.json().catch(() => ({}));
+      if (d.expired) { await chrome.storage.local.remove('unikoAttendant'); renderAttendant(null); loginErr('Sessão expirada — entre de novo.'); }
+      return;
+    }
     if (!res.ok) return;
     const data = await res.json();
     const next = { ...unikoAttendant, name: data.name, sectors: data.sectors || [] };
