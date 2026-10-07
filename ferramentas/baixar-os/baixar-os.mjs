@@ -38,7 +38,7 @@ const grupos = new Map();
 for (const it of itens) { if (!grupos.has(it.credenciado)) grupos.set(it.credenciado, []); grupos.get(it.credenciado).push(it); }
 
 const ctx = await chromium.launchPersistentContext(path.resolve('perfil-chrome'), {
-  channel: 'chrome', headless: false, acceptDownloads: true, viewport: null, args: ['--start-maximized'],
+  channel: 'chrome', headless: false, slowMo: 350, acceptDownloads: true, viewport: null, args: ['--start-maximized'],
 });
 const page = ctx.pages()[0] || await ctx.newPage();
 page.setDefaultTimeout(30000);
@@ -105,20 +105,25 @@ async function acessarCredenciado(nome) {
   for (const termo of termos) {
     log(`Credenciados → pesquisando "${termo}"…`);
     await page.goto(`${BASE}/providers`, { waitUntil: 'domcontentloaded' });
-    // mesmo caminho da gravação: abre o filtro do nome fantasia (2 cliques) e digita no campo de busca
-    await page.getByLabel('').nth(2).click({ timeout: 8000 }).catch((e) => log('(aviso) clique no filtro 1: ' + e.message.split('\n')[0]));
-    await page.getByLabel('').nth(3).click({ timeout: 8000 }).catch((e) => log('(aviso) clique no filtro 2: ' + e.message.split('\n')[0]));
-    const campo = page.getByRole('searchbox').first();
-    if (!(await campo.isVisible({ timeout: 5000 }).catch(() => false))) {
-      const campos = await page.locator('input:visible, select:visible').evaluateAll((els) => els.map((e) => `${e.tagName.toLowerCase()}[name=${e.name || ''}|placeholder=${e.placeholder || ''}|type=${e.type || ''}]`));
-      throw new Error('Não achei o campo de busca do credenciado. Campos visíveis: ' + campos.join(', '));
-    }
-    log('Digitando o nome no filtro…');
-    await campo.fill(termo);
+    await page.waitForTimeout(1500);
+    // gravação: 1º clique = Razão Social, 2º clique = Nome Fantasia (é nele que se digita)
+    log('Clicando no campo Razão Social…');
+    await page.getByLabel('').nth(2).click({ timeout: 10000 }).catch((e) => log('(aviso) ' + String(e.message).slice(0, 120)));
+    await page.waitForTimeout(900);
+    log('Clicando no campo Nome Fantasia…');
+    await page.getByLabel('').nth(3).click({ timeout: 10000 }).catch((e) => log('(aviso) ' + String(e.message).slice(0, 120)));
+    await page.waitForTimeout(900);
+    log(`Digitando "${termo}" devagar…`);
+    await page.keyboard.press('Control+a');
+    await page.keyboard.type(termo, { delay: 110 });
+    await page.waitForTimeout(1200);
     log('Clicando em Buscar…');
     await page.getByRole('button', { name: 'Buscar' }).first().click();
-    await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
+    log('Esperando a lista carregar…');
+    await page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => {});
+    await page.waitForTimeout(2500);
     const linhas = page.getByRole('row').filter({ hasText: new RegExp(esc(termo), 'i') });
+    await linhas.first().waitFor({ timeout: 12000 }).catch(() => {});
     const n = await linhas.count();
     log(`${n} linha(s) para "${termo}".`);
     let achada = null;
@@ -127,14 +132,17 @@ async function acessarCredenciado(nome) {
     }
     if (!achada && n === 1) achada = linhas.first();
     if (!achada) continue;
-    let acessar = achada.getByRole('link', { name: 'Acessar' }).first();
-    if (!(await acessar.count())) {
-      await achada.getByRole('cell').first().click().catch(() => {});
-      acessar = achada.getByRole('link', { name: 'Acessar' }).first();
-    }
+    log('Clicando na linha do credenciado…');
+    await achada.scrollIntoViewIfNeeded().catch(() => {});
+    await achada.getByRole('cell').first().click().catch(() => {});
+    await page.waitForTimeout(1500);
+    const acessar = achada.getByRole('link', { name: 'Acessar' }).first();
     if (!(await acessar.count())) continue;
     log('Clicando em Acessar…');
+    await acessar.scrollIntoViewIfNeeded().catch(() => {});
+    await page.waitForTimeout(800);
     await acessar.click();
+    await page.waitForTimeout(2000);
     await page.waitForLoadState('domcontentloaded');
     return;
   }
