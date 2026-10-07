@@ -81,7 +81,7 @@ async function voltarAoAdmin() {
 
 /** Clica em Logout (sai do acesso do credenciado). Se o botão estiver num menu, abre o menu antes. */
 async function sairDoCredenciado() {
-  const achar = () => page.getByRole('link', { name: /log ?out|sair|desconectar/i }).or(page.getByRole('button', { name: /log ?out|sair|desconectar/i })).first();
+  const achar = () => page.locator('a[href="/impersonations"][data-method="delete"], a[data-to="/impersonations"]').or(page.getByRole('link', { name: /log ?out|sair|desconectar/i })).or(page.getByRole('button', { name: /log ?out|sair|desconectar/i })).first();
   let el = achar();
   if (!(await el.isVisible({ timeout: 2000 }).catch(() => false))) {
     const menus = page.locator('[data-bs-toggle="dropdown"], .dropdown-toggle, [aria-haspopup="true"]');
