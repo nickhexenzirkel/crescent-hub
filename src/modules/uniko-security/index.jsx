@@ -13,6 +13,7 @@ import { T } from '../../contexts/theme';
 import { getAuthUser, SERVER_URL } from '../../contexts/user';
 import { supabase } from './securitySupabase';
 import { useIsMobile } from '../../hooks/useIsMobile';
+import UnikoSidebarBrand from '../../shared/UnikoSidebarBrand';
 
 const initials = (name) => (name || '').trim().split(/\s+/).slice(0, 2).map(p => p[0]?.toUpperCase() ?? '').join('');
 const formatTime = (iso) => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }); };
@@ -617,6 +618,8 @@ const UnikoSecurity = ({ onBack }) => {
         {mobileShowList && (
           <div style={{ width: isMobile ? '100%' : 320, flexShrink: 0, background: T.surface, borderRight: isMobile ? 'none' : `1px solid ${T.border}`,
             display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+            {/* Cabeçalho da sidebar — mesmo do Uniko Call (shared/UnikoSidebarBrand.jsx), no verde do WhatsApp. */}
+            <UnikoSidebarBrand legenda="WHATSAPP" cor="#25D366" corForte="#128C7E" />
             <div style={{ padding: '16px 16px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
               <div style={{ fontSize: 16, fontWeight: 800, color: T.text }}>Contatos</div>
               <div style={{ display: 'flex', gap: 6 }}>
