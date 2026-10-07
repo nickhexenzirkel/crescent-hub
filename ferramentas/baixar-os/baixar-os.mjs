@@ -44,24 +44,32 @@ const page = ctx.pages()[0] || await ctx.newPage();
 page.setDefaultTimeout(30000);
 const cdp = await ctx.newCDPSession(page);
 
-const linkCred = () => page.getByRole('link', { name: 'Credenciados' }).first();
+const logado = () => !/\/sessions/.test(new URL(page.url()).pathname);
 
 async function garantirLogin() {
   await page.goto(`${BASE}/sessions/new`, { waitUntil: 'domcontentloaded' });
-  if (await linkCred().isVisible({ timeout: 4000 }).catch(() => false)) { log('Já logado.'); return; }
+  await page.waitForTimeout(2500);
+  if (logado()) { log('Já logado.'); return; }
   log('>>> FAÇA O LOGIN na janela do Chrome (resolva o captcha e clique em Acessar). Aguardando até 5 min…');
-  await linkCred().waitFor({ timeout: 300000 });
-  log('Login feito.');
+  for (let i = 0; i < 100 && !logado(); i++) {
+    await page.waitForTimeout(3000);
+    if (i % 5 === 4) log(`…ainda esperando o login (página: ${page.url()})`);
+  }
+  if (!logado()) throw new Error('Login não concluído a tempo.');
+  log(`Login feito (página: ${page.url()}).`);
 }
 
+/** Sempre começa pela lista de credenciados (/providers). */
 async function voltarAoAdmin() {
-  await page.goto(BASE, { waitUntil: 'domcontentloaded' });
-  if (await linkCred().isVisible({ timeout: 4000 }).catch(() => false)) return;
+  await page.goto(`${BASE}/providers`, { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(1500);
+  if (await page.getByRole('searchbox').first().isVisible({ timeout: 5000 }).catch(() => false)) return;
   const textos = await page.getByRole('link').allInnerTexts().catch(() => []);
-  log(`Não vejo "Credenciados" (provavelmente estou dentro de um credenciado). Links na tela: ${textos.map((t) => t.trim()).filter(Boolean).slice(0, 25).join(' | ')}`);
+  log(`Não vejo a lista de credenciados em /providers (página: ${page.url()}). Links: ${textos.map((t) => t.trim()).filter(Boolean).slice(0, 25).join(' | ')}`);
   const sair = page.getByRole('link', { name: /voltar|sair d|encerrar|retornar|painel admin/i }).first();
   if (await sair.count()) { log('Clicando em ' + (await sair.innerText()).trim()); await sair.click(); await page.waitForLoadState('domcontentloaded'); }
-  if (!(await linkCred().isVisible({ timeout: 5000 }).catch(() => false))) throw new Error('Não consegui voltar para a área de Credenciados (veja a lista de links acima).');
+  await page.goto(`${BASE}/providers`, { waitUntil: 'domcontentloaded' });
+  if (!(await page.getByRole('searchbox').first().isVisible({ timeout: 5000 }).catch(() => false))) throw new Error('Não consegui abrir a lista de credenciados (veja a lista de links acima).');
 }
 
 async function acessarCredenciado(nome) {
@@ -69,8 +77,7 @@ async function acessarCredenciado(nome) {
   const termos = [...new Set([nome, nome.split(' - ')[0].trim(), nome.trim().split(/\s+/)[0]])].filter(Boolean);
   for (const termo of termos) {
     log(`Credenciados → pesquisando "${termo}"…`);
-    await linkCred().click();
-    await page.waitForLoadState('domcontentloaded');
+    await page.goto(`${BASE}/providers`, { waitUntil: 'domcontentloaded' });
     let campo = page.getByRole('searchbox').first();
     if (!(await campo.isVisible().catch(() => false))) {
       for (const i of [2, 3]) await page.getByLabel('').nth(i).click({ timeout: 2000 }).catch(() => {});
