@@ -1,124 +1,124 @@
 // src/modules/uniko-call/Dashboard.jsx
-// Dashboard do Uniko Call — totais, porcentagens e gráficos por atendente e setor.
+// Dashboard do Uniko Call — pensado pra ser entendido de primeira, por qualquer pessoa:
+// 1) uma frase-resumo + um aviso de "tudo certo / atenção" sobre o aviso prévio de gravação;
+// 2) 4 números grandes; 3) quem mais atendeu; 4) por setor; 5) quando as ligações acontecem.
 // Recebe as chamadas JÁ filtradas pelo período (filtro de data do painel esquerdo) e só
-// agrega; nada é buscado aqui. Gráficos em HTML/CSS puro (sem biblioteca), cores pelo tema.
+// agrega; nada é buscado aqui. Gráficos em HTML/SVG puro, cores pelo tema.
 import { useState, useMemo } from 'react';
 import { T } from '../../contexts/theme';
 import { SETORES, SEM_SETOR, setorInfo, callMs, totalLabel, callsLabel } from './callUtils';
 
 const WEEK = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
 const WEEK_SHORT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-const GOOD = '#0ca30c', BAD = '#d03b3b'; // status fixos — sempre acompanhados de ícone + texto
-const SERIES = () => (T.dark ? '#3987e5' : '#2a78d6'); // cor única de série (azul do palette validado)
+const GOOD = '#0ca30c', BAD = '#d03b3b', WARN = '#e0a100'; // status fixos — sempre com ícone + texto
+const SERIES = () => (T.dark ? '#3987e5' : '#2a78d6');
 const pct = (n, d) => (d ? Math.round((n / d) * 100) : 0);
 const pad = (n) => String(n).padStart(2, '0');
 const dayKey = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const avgLabel = (ms, n) => { if (!n || !ms) return '—'; const s = Math.round(ms / n / 1000); return `${Math.floor(s / 60)}:${pad(s % 60)}`; };
 const initials = (name) => (name || '').trim().split(/\s+/).slice(0, 2).map(p => p[0]?.toUpperCase() ?? '').join('');
+const isNoAtt = (name) => name.startsWith('Sem atendente');
 
-// Ícones SVG (traço currentColor) — no lugar dos emojis.
-const Ico = ({ size = 18, children, ...rest }) => (
+/* ── Ícones (traço currentColor) ─────────────────────────────────────────── */
+const Ico = ({ size = 20, children, ...rest }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }} aria-hidden="true" {...rest}>{children}</svg>
 );
-const IcoTrophy = (p) => <Ico {...p}><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 01-10 0V4z" /><path d="M17 5h3v2a3 3 0 01-3 3M7 5H4v2a3 3 0 003 3" /></Ico>;
-const IcoBuilding = (p) => <Ico {...p}><rect x="4" y="3" width="16" height="18" rx="1.5" /><path d="M9 7h2M13 7h2M9 11h2M13 11h2M9 15h2M13 15h2M10 21v-3h4v3" /></Ico>;
+const IcoPhone = (p) => <Ico {...p}><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.902.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.908.339 1.85.573 2.81.7A2 2 0 0122 16.92z" /></Ico>;
 const IcoClock = (p) => <Ico {...p}><circle cx="12" cy="12" r="9" /><polyline points="12 7 12 12 15.5 14" /></Ico>;
-const IcoCalendar = (p) => <Ico {...p}><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M8 3v4M16 3v4" /></Ico>;
+const IcoTimer = (p) => <Ico {...p}><path d="M10 2h4M12 14l3-3" /><circle cx="12" cy="14" r="8" /></Ico>;
+const IcoShield = (p) => <Ico {...p}><path d="M12 3l8 3v6c0 4.5-3.2 8-8 9-4.8-1-8-4.5-8-9V6l8-3z" /><polyline points="8.5 12 11 14.5 15.5 9.5" /></Ico>;
 const IcoCheckCircle = (p) => <Ico {...p}><circle cx="12" cy="12" r="9" /><polyline points="8 12.5 11 15.5 16 9.5" /></Ico>;
 const IcoXCircle = (p) => <Ico {...p}><circle cx="12" cy="12" r="9" /><path d="M15 9l-6 6M9 9l6 6" /></Ico>;
 const IcoAlert = (p) => <Ico {...p}><path d="M10.3 3.9L2.4 18a2 2 0 001.7 3h15.8a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z" /><path d="M12 9v4M12 17h.01" /></Ico>;
 
-const cardStyle = () => ({ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 16, padding: '16px 18px', minWidth: 0 });
+/* ── Peças visuais ───────────────────────────────────────────────────────── */
+const cardStyle = () => ({ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 18, padding: '20px 22px', minWidth: 0 });
 const Card = ({ title, sub, children, style }) => (
   <div style={{ ...cardStyle(), ...style }}>
-    <div style={{ fontSize: 13.5, fontWeight: 800, color: T.text }}>{title}</div>
-    {sub && <div style={{ fontSize: 11.5, color: T.textT, marginTop: 2 }}>{sub}</div>}
-    <div style={{ marginTop: 12 }}>{children}</div>
+    <div style={{ fontSize: 17, fontWeight: 800, color: T.text }}>{title}</div>
+    {sub && <div style={{ fontSize: 13, color: T.textT, marginTop: 3, lineHeight: 1.4 }}>{sub}</div>}
+    <div style={{ marginTop: 16 }}>{children}</div>
   </div>
 );
 
-const Kpi = ({ label, value, sub, tone }) => (
-  <div style={{ ...cardStyle(), padding: '14px 16px' }}>
-    <div style={{ fontSize: 11, fontWeight: 700, color: T.textT, textTransform: 'uppercase', letterSpacing: '.04em' }}>{label}</div>
-    <div style={{ fontSize: 28, fontWeight: 800, color: tone || T.text, lineHeight: 1.15, marginTop: 4 }}>{value}</div>
-    {sub && <div style={{ fontSize: 12.5, color: T.textT, marginTop: 3, display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>{sub}</div>}
+// Número grande com ícone — a leitura de primeira.
+const BigNumber = ({ icon: Icon, label, value, sub, tone }) => (
+  <div style={{ ...cardStyle(), padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <span style={{ width: 38, height: 38, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', color: tone || T.gold, background: tone ? `${tone}1f` : (T.goldGl || T.surfaceSub) }}><Icon size={21} /></span>
+      <span style={{ fontSize: 14.5, fontWeight: 700, color: T.textS || T.text }}>{label}</span>
+    </div>
+    <div style={{ fontSize: 40, fontWeight: 800, color: tone || T.text, lineHeight: 1.1 }}>{value}</div>
+    {sub && <div style={{ fontSize: 13, color: T.textT, lineHeight: 1.4 }}>{sub}</div>}
   </div>
 );
 
-// Colunas finas (topo arredondado 4px), grade discreta, tooltip no hover.
-const ColChart = ({ data, color, height = 150, label }) => {
+// Anel de porcentagem (aviso prévio): verde = dito, vermelho = não dito.
+const Ring = ({ yes, no, size = 132 }) => {
+  const total = yes + no, r = 52, c = 2 * Math.PI * r;
+  const yesLen = total ? (yes / total) * c : 0, noLen = total ? (no / total) * c : 0, gap = yes && no ? 4 : 0;
+  return (
+    <div style={{ position: 'relative', width: size, height: size, flexShrink: 0 }} role="img" aria-label={total ? `${pct(yes, total)}% das ligações com aviso prévio dito` : 'sem dados'}>
+      <svg width={size} height={size} viewBox="0 0 132 132" style={{ transform: 'rotate(-90deg)' }}>
+        <circle cx="66" cy="66" r={r} fill="none" stroke={T.surfaceSub || 'rgba(0,0,0,.08)'} strokeWidth="14" />
+        {yes > 0 && <circle cx="66" cy="66" r={r} fill="none" stroke={GOOD} strokeWidth="14" strokeLinecap="round" strokeDasharray={`${Math.max(0, yesLen - gap)} ${c}`} />}
+        {no > 0 && <circle cx="66" cy="66" r={r} fill="none" stroke={BAD} strokeWidth="14" strokeLinecap="round" strokeDasharray={`${Math.max(0, noLen - gap)} ${c}`} strokeDashoffset={-yesLen} />}
+      </svg>
+      <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+        <span style={{ fontSize: 30, fontWeight: 800, color: T.text, lineHeight: 1 }}>{total ? `${pct(yes, total)}%` : '—'}</span>
+        <span style={{ fontSize: 11.5, color: T.textT, marginTop: 3 }}>com aviso</span>
+      </div>
+    </div>
+  );
+};
+
+// Colunas: a mais alta (pico) ganha destaque e rótulo direto; as outras ficam mais claras.
+const ColChart = ({ data, color, height = 160, label, unit = 'ligações' }) => {
   const [hov, setHov] = useState(null);
   const n = data.length;
   const max = Math.max(1, ...data.map(d => d.value));
+  const peak = data.reduce((b, d, i) => (d.value > data[b].value ? i : b), 0);
   const step = Math.max(1, Math.ceil(n / 8));
-  const grid = max > 1 ? [max, Math.round(max / 2)] : [max];
   return (
-    <div role="img" aria-label={label} style={{ position: 'relative' }}>
-      <div style={{ position: 'relative', height, marginLeft: 28, borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'flex-end', gap: n > 31 ? 2 : 4 }}>
-        {grid.map(g => (
-          <div key={g} style={{ position: 'absolute', left: -28, right: 0, bottom: `${(g / max) * 100}%`, borderTop: `1px solid ${T.border}`, opacity: .5, pointerEvents: 'none' }}>
-            <span style={{ position: 'absolute', left: 0, top: -14, fontSize: 10, color: T.textT, background: T.surface, paddingRight: 3 }}>{g}</span>
-          </div>
-        ))}
-        {data.map((d, i) => (
-          <div key={d.key ?? i} onMouseEnter={() => setHov(i)} onMouseLeave={() => setHov(null)}
-            style={{ flex: 1, minWidth: 2, height: '100%', display: 'flex', alignItems: 'flex-end', position: 'relative' }}>
-            <div style={{ width: '100%', maxWidth: 26, margin: '0 auto', height: `${(d.value / max) * 100}%`, minHeight: d.value ? 3 : 0,
-              background: color, borderRadius: '4px 4px 0 0', opacity: hov == null || hov === i ? 1 : .5, transition: 'opacity .1s' }} />
-          </div>
-        ))}
+    <div role="img" aria-label={label} style={{ position: 'relative', paddingTop: 22 }}>
+      <div style={{ position: 'relative', height, borderBottom: `2px solid ${T.border}`, display: 'flex', alignItems: 'flex-end', gap: n > 31 ? 2 : 5 }}>
+        {data.map((d, i) => {
+          const isPeak = i === peak && d.value > 0;
+          const dim = hov != null ? hov !== i : !isPeak;
+          return (
+            <div key={d.key ?? i} onMouseEnter={() => setHov(i)} onMouseLeave={() => setHov(null)}
+              style={{ flex: 1, minWidth: 2, height: '100%', display: 'flex', alignItems: 'flex-end', position: 'relative' }}>
+              {(isPeak && hov == null) && (
+                <span style={{ position: 'absolute', left: '50%', bottom: `calc(${(d.value / max) * 100}% + 4px)`, transform: 'translateX(-50%)', fontSize: 13, fontWeight: 800, color: T.text }}>{d.value}</span>
+              )}
+              <div style={{ width: '100%', maxWidth: 30, margin: '0 auto', height: `${(d.value / max) * 100}%`, minHeight: d.value ? 4 : 0,
+                background: color, borderRadius: '5px 5px 0 0', opacity: dim ? .4 : 1, transition: 'opacity .12s' }} />
+            </div>
+          );
+        })}
       </div>
-      <div style={{ display: 'flex', gap: n > 31 ? 2 : 4, marginLeft: 28, marginTop: 5 }}>
-        {data.map((d, i) => (
-          <div key={d.key ?? i} style={{ flex: 1, minWidth: 2, textAlign: 'center', fontSize: 10, color: T.textT, whiteSpace: 'nowrap', overflow: 'visible', height: 12 }}>
-            {i % step === 0 ? d.label : ''}
-          </div>
-        ))}
+      <div style={{ display: 'flex', gap: n > 31 ? 2 : 5, marginTop: 6 }}>
+        {data.map((d, i) => {
+          const isPeak = i === peak && d.value > 0;
+          return (
+            <div key={d.key ?? i} style={{ flex: 1, minWidth: 2, textAlign: 'center', fontSize: 12, fontWeight: isPeak ? 800 : 500, color: isPeak ? T.text : T.textT, whiteSpace: 'nowrap', height: 15 }}>
+              {i % step === 0 || isPeak ? d.label : ''}
+            </div>
+          );
+        })}
       </div>
       {hov != null && (
-        <div style={{ position: 'absolute', top: -6, left: `calc(28px + (100% - 28px) * ${(hov + 0.5) / n})`, transform: 'translate(-50%,-100%)', zIndex: 5, pointerEvents: 'none',
-          background: T.text, color: T.surface, padding: '5px 9px', borderRadius: 8, fontSize: 11.5, fontWeight: 600, whiteSpace: 'nowrap', boxShadow: '0 4px 14px rgba(0,0,0,.25)' }}>
-          {data[hov].tip || `${data[hov].label}: ${data[hov].value}`}
+        <div style={{ position: 'absolute', top: 0, left: `calc(100% * ${(hov + 0.5) / n})`, transform: 'translate(-50%,-6%)', zIndex: 5, pointerEvents: 'none',
+          background: T.text, color: T.surface, padding: '6px 11px', borderRadius: 9, fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap', boxShadow: '0 4px 14px rgba(0,0,0,.25)' }}>
+          {data[hov].tip || `${data[hov].label}: ${data[hov].value} ${unit}`}
         </div>
       )}
     </div>
   );
 };
 
-// Barras horizontais: rótulo | barra | valor (%).
-const HBars = ({ rows }) => {
-  const max = Math.max(1, ...rows.map(r => r.value));
-  return rows.map(r => (
-    <div key={r.key} title={r.tip} style={{ display: 'grid', gridTemplateColumns: 'minmax(90px, 36%) 1fr auto', alignItems: 'center', gap: 10, padding: '5px 0' }}>
-      <div style={{ fontSize: 12.5, fontWeight: 600, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.label}</div>
-      <div style={{ height: 8, borderRadius: 4, background: T.surfaceSub || 'rgba(0,0,0,.06)' }}>
-        <div style={{ width: `${(r.value / max) * 100}%`, minWidth: r.value ? 3 : 0, height: '100%', borderRadius: 4, background: r.color }} />
-      </div>
-      <div style={{ fontSize: 12, color: T.textS || T.text, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{r.right}</div>
-    </div>
-  ));
-};
-
-// Aviso prévio: barra 100% (dito × não dito) com 2px de respiro, sempre com ícone + texto.
-const ConsentBar = ({ yes, no, compact }) => {
-  const total = yes + no;
-  if (!total) return <span style={{ fontSize: 11.5, color: T.textT }}>sem dados</span>;
-  const py = pct(yes, total);
-  return (
-    <div style={{ minWidth: compact ? 110 : 0 }}>
-      <div style={{ display: 'flex', gap: 2, height: 8 }}>
-        {yes > 0 && <div style={{ flex: yes, background: GOOD, borderRadius: no ? '4px 0 0 4px' : 4 }} />}
-        {no > 0 && <div style={{ flex: no, background: BAD, borderRadius: yes ? '0 4px 4px 0' : 4 }} />}
-      </div>
-      <div style={{ fontSize: 12.5, fontWeight: 600, marginTop: 4, color: T.textS || T.text, whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 10 }}>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: GOOD }}><IcoCheckCircle size={14} /><span style={{ color: T.textS || T.text }}>{py}% dito</span></span>
-        {no > 0 && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: BAD }}><IcoXCircle size={14} /><span style={{ color: T.textS || T.text }}>{no}</span></span>}
-      </div>
-    </div>
-  );
-};
-
-const PRESETS = [['Hoje', 0], ['7 dias', 6], ['30 dias', 29], ['Tudo', null]];
+const PRESETS = [['Hoje', 0], ['Últimos 7 dias', 6], ['Últimos 30 dias', 29], ['Tudo', null]];
+const RANK_TONES = ['#d4a017', '#8a94a3', '#b87333']; // ouro, prata, bronze
 
 const CallDashboard = ({ recs, contacts, dateFrom, dateTo, setDateFrom, setDateTo, totalAll }) => {
   const [sector, setSector] = useState('');
@@ -129,10 +129,9 @@ const CallDashboard = ({ recs, contacts, dateFrom, dateTo, setDateFrom, setDateT
     setDateFrom(dayKey(from)); setDateTo(dayKey(to));
   };
   const activePreset = (() => {
-    if (!dateFrom && !dateTo) return null;
-    const today = dayKey(new Date());
-    if (dateTo !== today) return undefined;
-    return PRESETS.find(([, back]) => back != null && (() => { const f = new Date(); f.setDate(f.getDate() - back); return dayKey(f) === dateFrom; })())?.[0];
+    if (!dateFrom && !dateTo) return 'Tudo';
+    if (dateTo !== dayKey(new Date())) return null;
+    return PRESETS.find(([, back]) => back != null && (() => { const f = new Date(); f.setDate(f.getDate() - back); return dayKey(f) === dateFrom; })())?.[0] || null;
   })();
 
   const S = useMemo(() => {
@@ -152,16 +151,15 @@ const CallDashboard = ({ recs, contacts, dateFrom, dateTo, setDateFrom, setDateT
       (r.sectors?.length ? r.sectors : [SEM_SETOR]).forEach(id => add(bySec, id, { id }));
       byContact.set(r.contact_id, (byContact.get(r.contact_id) || 0) + 1);
     });
-    // Série por dia: do 1º ao último dia com ligação (máx. 60 dias mais recentes), zerando os vazios.
     const days = [];
     if (byDay.size) {
       const keys = [...byDay.keys()].sort();
-      let cur = new Date(`${keys[0]}T12:00:00`); const last = new Date(`${keys[keys.length - 1]}T12:00:00`);
+      const cur = new Date(`${keys[0]}T12:00:00`); const last = new Date(`${keys[keys.length - 1]}T12:00:00`);
       while (cur <= last) { const k = dayKey(cur); days.push({ key: k, value: byDay.get(k) || 0, label: `${k.slice(8)}/${k.slice(5, 7)}`, tip: `${k.slice(8)}/${k.slice(5, 7)}/${k.slice(0, 4)}: ${callsLabel(byDay.get(k) || 0)}` }); cur.setDate(cur.getDate() + 1); }
     }
     return {
       total: list.length, ms, withDur, yes, no, errors, days: days.slice(-60), byHour, byWeek,
-      atts: [...byAtt.values()].sort((a, b) => (a.name.startsWith('Sem atendente')) - (b.name.startsWith('Sem atendente')) || b.calls - a.calls),
+      atts: [...byAtt.values()].sort((a, b) => isNoAtt(a.name) - isNoAtt(b.name) || b.calls - a.calls),
       secs: [...bySec.values()].sort((a, b) => (a.id === SEM_SETOR) - (b.id === SEM_SETOR) || b.calls - a.calls),
       contacts: [...byContact.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5),
     };
@@ -170,37 +168,29 @@ const CallDashboard = ({ recs, contacts, dateFrom, dateTo, setDateFrom, setDateT
   const color = SERIES();
   const nameOf = (id) => contacts.find(c => c.id === id)?.name || 'Contato removido';
   const consentTotal = S.yes + S.no;
+  const pending = S.total - consentTotal;
+  const known = S.atts.filter(a => !isNoAtt(a.name));
+  const withoutAtt = S.atts.find(a => isNoAtt(a.name));
   const peakHour = S.byHour.reduce((b, v, i) => (v > S.byHour[b] ? i : b), 0);
   const peakDay = S.byWeek.reduce((b, v, i) => (v > S.byWeek[b] ? i : b), 0);
-  const known = S.atts.filter(a => !a.name.startsWith('Sem atendente'));
-  const topAtt = known[0];
-  const topSec = S.secs.find(s => s.id !== SEM_SETOR);
-  const withoutAtt = S.atts.find(a => a.name.startsWith('Sem atendente'));
 
-  const insights = [];
-  if (S.total) {
-    if (topAtt) insights.push({ icon: IcoTrophy, text: `${topAtt.name} lidera com ${callsLabel(topAtt.calls)} (${pct(topAtt.calls, S.total)}% do total).` });
-    if (topSec) insights.push({ icon: IcoBuilding, text: `${setorInfo(topSec.id).label} é o setor com mais ligações: ${callsLabel(topSec.calls)} (${pct(topSec.calls, S.total)}%).` });
-    if (S.byHour[peakHour]) insights.push({ icon: IcoClock, text: `Horário de pico: ${pad(peakHour)}h às ${pad(peakHour + 1 > 23 ? 0 : peakHour + 1)}h (${callsLabel(S.byHour[peakHour])}).` });
-    if (S.byWeek[peakDay]) insights.push({ icon: IcoCalendar, text: `Dia mais movimentado: ${WEEK[peakDay]} (${callsLabel(S.byWeek[peakDay])}).` });
-    if (S.no > 0) insights.push({ icon: IcoXCircle, tone: BAD, text: `${S.no} ${S.no === 1 ? 'ligação ficou' : 'ligações ficaram'} sem o aviso prévio dito — a gravação não foi registrada, por segurança.` });
-    else if (consentTotal) insights.push({ icon: IcoCheckCircle, tone: GOOD, text: 'Todas as ligações avaliadas tiveram o aviso prévio dito.' });
-    if (withoutAtt) insights.push({ icon: IcoAlert, tone: '#e0a100', text: `${callsLabel(withoutAtt.calls)} sem atendente identificado (feitas antes do login na extensão ou com a sessão expirada).` });
-    if (S.errors) insights.push({ icon: IcoAlert, tone: BAD, text: `${S.errors} ${S.errors === 1 ? 'transcrição falhou' : 'transcrições falharam'}.` });
-  }
+  const periodText = dateFrom || dateTo ? `de ${dateFrom ? dateFrom.split('-').reverse().join('/') : 'sempre'} até ${dateTo ? dateTo.split('-').reverse().join('/') : 'hoje'}` : 'em todo o histórico';
+  const selectStyle = { padding: '9px 12px', borderRadius: 10, border: `1px solid ${T.border}`, background: T.page, color: T.text, fontSize: 14, fontFamily: 'var(--font-body)', outline: 'none' };
 
-  const selectStyle = { padding: '7px 10px', borderRadius: 9, border: `1px solid ${T.border}`, background: T.page, color: T.text, fontSize: 12.5, fontFamily: 'var(--font-body)', outline: 'none' };
-  const periodText = dateFrom || dateTo ? `${dateFrom ? dateFrom.split('-').reverse().join('/') : 'início'} até ${dateTo ? dateTo.split('-').reverse().join('/') : 'hoje'}` : 'todo o histórico';
+  // Faixa de status do aviso prévio — o que mais importa saber de primeira.
+  const banner = !consentTotal ? null
+    : S.no === 0 ? { tone: GOOD, icon: IcoCheckCircle, title: 'Tudo certo com o aviso de gravação', text: `Em todas as ${consentTotal} ligações avaliadas o aviso prévio foi dito.` }
+    : { tone: BAD, icon: IcoAlert, title: `Atenção: ${S.no} ${S.no === 1 ? 'ligação ficou' : 'ligações ficaram'} sem o aviso prévio`, text: 'Quando o aviso não é dito, a gravação não é registrada, por segurança (proteção de dados).' };
 
   return (
-    <div style={{ padding: 'clamp(14px, 3vw, 24px)', display: 'flex', flexDirection: 'column', gap: 14, maxWidth: 1180, width: '100%', boxSizing: 'border-box', margin: '0 auto' }}>
-      {/* Filtros */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-        <div style={{ fontSize: 18, fontWeight: 800, color: T.text, marginRight: 6 }}>Dashboard</div>
-        <div style={{ display: 'flex', gap: 3, padding: 3, borderRadius: 10, background: T.surfaceSub || 'rgba(0,0,0,.05)' }}>
+    <div style={{ padding: 'clamp(14px, 3vw, 28px)', display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 1180, width: '100%', boxSizing: 'border-box', margin: '0 auto' }}>
+      {/* Título + filtros */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <div style={{ fontSize: 24, fontWeight: 800, color: T.text, marginRight: 8 }}>Resumo das ligações</div>
+        <div style={{ display: 'flex', gap: 3, padding: 3, borderRadius: 12, background: T.surfaceSub || 'rgba(0,0,0,.05)', flexWrap: 'wrap' }}>
           {PRESETS.map(([label, back]) => {
-            const on = back == null ? (!dateFrom && !dateTo) : activePreset === label;
-            return <button key={label} onClick={() => applyPreset(back)} style={{ padding: '6px 11px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-body)', background: on ? T.surface : 'transparent', color: on ? T.gold : T.textT, boxShadow: on ? '0 1px 3px rgba(0,0,0,.12)' : 'none' }}>{label}</button>;
+            const on = activePreset === label;
+            return <button key={label} onClick={() => applyPreset(back)} style={{ padding: '8px 14px', borderRadius: 9, border: 'none', cursor: 'pointer', fontSize: 13.5, fontWeight: 700, fontFamily: 'var(--font-body)', background: on ? T.surface : 'transparent', color: on ? T.gold : T.textT, boxShadow: on ? '0 1px 3px rgba(0,0,0,.12)' : 'none' }}>{label}</button>;
           })}
         </div>
         <select value={sector} onChange={e => setSector(e.target.value)} style={selectStyle} aria-label="Filtrar por setor">
@@ -208,111 +198,173 @@ const CallDashboard = ({ recs, contacts, dateFrom, dateTo, setDateFrom, setDateT
           {Object.entries(SETORES).map(([id, s]) => <option key={id} value={id}>{s.label}</option>)}
           <option value={SEM_SETOR}>Sem setor</option>
         </select>
-        <span style={{ fontSize: 11.5, color: T.textT, marginLeft: 'auto' }}>Período: {periodText}{sector ? ` · ${setorInfo(sector).label}` : ''}</span>
       </div>
 
       {S.total === 0 ? (
-        <div style={{ ...cardStyle(), padding: 36, textAlign: 'center', color: T.textT, fontSize: 13, borderStyle: 'dashed' }}>
-          {totalAll === 0 ? 'Nenhuma chamada gravada ainda.' : 'Nenhuma chamada nesse período/setor.'}
+        <div style={{ ...cardStyle(), padding: 40, textAlign: 'center', color: T.textT, fontSize: 15, borderStyle: 'dashed' }}>
+          {totalAll === 0 ? 'Nenhuma chamada gravada ainda.' : 'Nenhuma chamada nesse período/setor. Tente "Tudo" ou outro período.'}
         </div>
       ) : (
         <>
-          {/* KPIs */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 10 }}>
-            <Kpi label="Ligações" value={S.total} sub={`${known.length} ${known.length === 1 ? 'atendente' : 'atendentes'}`} />
-            <Kpi label="Tempo total" value={S.ms ? totalLabel(S.ms) : '—'} sub={`${S.withDur} com duração registrada`} />
-            <Kpi label="Duração média" value={avgLabel(S.ms, S.withDur)} sub="min:seg por ligação" />
-            <Kpi label="Aviso prévio dito" value={consentTotal ? `${pct(S.yes, consentTotal)}%` : '—'}
-              tone={consentTotal ? (S.no ? BAD : GOOD) : undefined}
-              sub={consentTotal ? <><span>{S.yes} de {consentTotal} avaliadas</span>{S.no ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: BAD, fontWeight: 700 }}><IcoXCircle size={14} />{S.no} sem aviso</span> : <span style={{ color: GOOD, display: 'inline-flex' }}><IcoCheckCircle size={15} /></span>}</> : 'sem ligações avaliadas'} />
-            <Kpi label="Falhas" value={S.errors} sub={S.errors ? 'transcrições com erro' : 'nenhuma transcrição com erro'} tone={S.errors ? BAD : undefined} />
+          {/* Frase-resumo */}
+          <div style={{ fontSize: 'clamp(17px, 2.4vw, 21px)', lineHeight: 1.5, color: T.textS || T.text }}>
+            {sector ? <b style={{ color: setorInfo(sector).cor }}>{setorInfo(sector).label}: </b> : null}
+            Foram <b style={{ color: T.text }}>{callsLabel(S.total)}</b> {periodText}
+            {S.ms ? <>, somando <b style={{ color: T.text }}>{totalLabel(S.ms)}</b> de conversa</> : null}
+            {known.length ? <>, atendidas por <b style={{ color: T.text }}>{known.length} {known.length === 1 ? 'pessoa' : 'pessoas'}</b></> : null}.
           </div>
 
-          {/* Destaques */}
-          {insights.length > 0 && (
-            <Card title="Destaques do período">
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {insights.map((it, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <span style={{ width: 34, height: 34, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                      color: it.tone || T.gold, background: it.tone ? `${it.tone}1f` : (T.goldGl || T.surfaceSub) }}><it.icon size={19} /></span>
-                    <span style={{ fontSize: 15.5, fontWeight: 600, color: T.text, lineHeight: 1.4 }}>{it.text}</span>
-                  </div>
-                ))}
+          {/* Faixa de status do aviso prévio */}
+          {banner && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '16px 20px', borderRadius: 16, border: `1.5px solid ${banner.tone}`, background: `${banner.tone}14` }}>
+              <span style={{ color: banner.tone, display: 'flex' }}><banner.icon size={34} /></span>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 18, fontWeight: 800, color: T.text }}>{banner.title}</div>
+                <div style={{ fontSize: 14.5, color: T.textS || T.text, marginTop: 2, lineHeight: 1.4 }}>{banner.text}</div>
               </div>
-            </Card>
+            </div>
           )}
 
-          {/* Ligações por dia */}
-          <Card title="Ligações por dia" sub={S.days.length >= 60 ? 'Últimos 60 dias do período' : undefined}>
-            <ColChart data={S.days} color={color} label="Ligações por dia" height={160} />
-          </Card>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 340px), 1fr))', gap: 14 }}>
-            {/* Por setor */}
-            <Card title="Ligações por setor" sub="% sobre o total de ligações (quem tem mais de um setor conta em cada um)">
-              <HBars rows={S.secs.map(s => {
-                const st = setorInfo(s.id);
-                return { key: s.id, label: st.label, value: s.calls, color: st.cor, tip: `${st.label}: ${callsLabel(s.calls)} · ${totalLabel(s.ms)}`, right: `${s.calls} · ${pct(s.calls, S.total)}%` };
-              })} />
-            </Card>
-
-            {/* Aviso prévio por setor */}
-            <Card title="Aviso prévio por setor" sub="Ligações em que o aviso de gravação foi dito ou não">
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {S.secs.map(s => (
-                  <div key={s.id} style={{ display: 'grid', gridTemplateColumns: 'minmax(90px, 36%) 1fr', gap: 10, alignItems: 'center' }}>
-                    <div style={{ fontSize: 12.5, fontWeight: 600, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{setorInfo(s.id).label}</div>
-                    <ConsentBar yes={s.yes} no={s.no} />
-                  </div>
-                ))}
-              </div>
-            </Card>
-
-            {/* Horário */}
-            <Card title="Ligações por horário" sub="Hora em que a ligação começou">
-              <ColChart data={S.byHour.map((v, h) => ({ key: h, value: v, label: `${pad(h)}h`, tip: `${pad(h)}h: ${callsLabel(v)}` }))} color={color} label="Ligações por hora do dia" height={130} />
-            </Card>
-
-            {/* Dia da semana */}
-            <Card title="Ligações por dia da semana">
-              <ColChart data={S.byWeek.map((v, d) => ({ key: d, value: v, label: WEEK_SHORT[d], tip: `${WEEK[d]}: ${callsLabel(v)}` }))} color={color} label="Ligações por dia da semana" height={130} />
-            </Card>
+          {/* 4 números grandes */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 12 }}>
+            <BigNumber icon={IcoPhone} label="Ligações" value={S.total} sub={`feitas por ${known.length || 0} ${known.length === 1 ? 'atendente' : 'atendentes'}`} />
+            <BigNumber icon={IcoClock} label="Tempo total" value={S.ms ? totalLabel(S.ms) : '—'} sub="somando todas as ligações" />
+            <BigNumber icon={IcoTimer} label="Tempo médio" value={avgLabel(S.ms, S.withDur)} sub="minutos:segundos por ligação" />
+            <BigNumber icon={IcoShield} label="Aviso prévio dito" value={consentTotal ? `${pct(S.yes, consentTotal)}%` : '—'}
+              tone={consentTotal ? (S.no ? BAD : GOOD) : undefined}
+              sub={consentTotal ? `${S.yes} de ${consentTotal} ligações` : 'ainda sem ligações avaliadas'} />
           </div>
 
-          {/* Ranking de atendentes */}
-          <Card title="Ranking de atendentes" sub="Ligações, participação no total, tempo, duração média e aviso prévio">
-            <div style={{ overflowX: 'auto' }}>
-              <div style={{ minWidth: 620 }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '28px minmax(130px, 1.3fr) minmax(120px, 1.4fr) 60px 70px 70px minmax(110px, 1fr)', gap: 10, padding: '0 4px 6px', fontSize: 10.5, fontWeight: 700, color: T.textT, textTransform: 'uppercase', letterSpacing: '.04em', borderBottom: `1px solid ${T.border}` }}>
-                  <span /><span>Atendente</span><span>Ligações</span><span>% total</span><span>Tempo</span><span>Média</span><span>Aviso prévio</span>
-                </div>
-                {S.atts.map(a => {
-                  const none = a.name.startsWith('Sem atendente');
-                  const top = S.atts[0]?.calls || 1;
-                  return (
-                    <div key={a.name} style={{ display: 'grid', gridTemplateColumns: '28px minmax(130px, 1.3fr) minmax(120px, 1.4fr) 60px 70px 70px minmax(110px, 1fr)', gap: 10, alignItems: 'center', padding: '8px 4px', borderBottom: `1px solid ${T.border}55` }}>
-                      <div style={{ width: 26, height: 26, borderRadius: '50%', background: none ? (T.surfaceSub || '#eceef0') : T.gold, color: none ? T.textT : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10.5, fontWeight: 700 }}>{none ? '?' : initials(a.name)}</div>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={a.name}>{a.name}</div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <div style={{ flex: 1, height: 8, borderRadius: 4, background: T.surfaceSub || 'rgba(0,0,0,.06)' }}><div style={{ width: `${(a.calls / top) * 100}%`, height: '100%', borderRadius: 4, background: none ? T.textT : color }} /></div>
-                        <span style={{ fontSize: 12.5, fontWeight: 700, color: T.text, minWidth: 18, textAlign: 'right' }}>{a.calls}</span>
+          {/* Quem mais atendeu */}
+          <Card title="Quem mais atendeu" sub="Cada barra mostra quantas ligações a pessoa fez, comparada com quem mais fez.">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {S.atts.map((a, i) => {
+                const none = isNoAtt(a.name);
+                const top = S.atts.find(x => !isNoAtt(x.name))?.calls || S.atts[0].calls || 1;
+                const rankTone = !none && i < 3 ? RANK_TONES[i] : null;
+                const consent = a.yes + a.no;
+                return (
+                  <div key={a.name} style={{ padding: '12px 4px', borderBottom: i < S.atts.length - 1 ? `1px solid ${T.border}` : 'none' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <div style={{ width: 40, height: 40, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 800,
+                        background: none ? (T.surfaceSub || '#eceef0') : T.gold, color: none ? T.textT : '#fff', position: 'relative' }}>
+                        {none ? '?' : initials(a.name)}
+                        {rankTone && <span style={{ position: 'absolute', right: -5, bottom: -5, width: 18, height: 18, borderRadius: '50%', background: rankTone, color: '#fff', fontSize: 10.5, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `2px solid ${T.surface}` }}>{i + 1}</span>}
                       </div>
-                      <div style={{ fontSize: 12.5, color: T.textS || T.text }}>{pct(a.calls, S.total)}%</div>
-                      <div style={{ fontSize: 12.5, color: T.textS || T.text }}>{a.ms ? totalLabel(a.ms) : '—'}</div>
-                      <div style={{ fontSize: 12.5, color: T.textS || T.text, fontVariantNumeric: 'tabular-nums' }}>{avgLabel(a.ms, a.withDur)}</div>
-                      <ConsentBar yes={a.yes} no={a.no} compact />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+                          <span style={{ fontSize: 16, fontWeight: 700, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.name}</span>
+                          <span style={{ fontSize: 16, fontWeight: 800, color: T.text, whiteSpace: 'nowrap' }}>{callsLabel(a.calls)} <span style={{ color: T.textT, fontWeight: 600, fontSize: 14 }}>· {pct(a.calls, S.total)}%</span></span>
+                        </div>
+                        <div style={{ height: 12, borderRadius: 6, background: T.surfaceSub || 'rgba(0,0,0,.06)', marginTop: 7 }}>
+                          <div style={{ width: `${(a.calls / top) * 100}%`, minWidth: 4, height: '100%', borderRadius: 6, background: none ? T.textT : color }} />
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 18px', marginTop: 8, marginLeft: 52, fontSize: 13.5, color: T.textS || T.text }}>
+                      {none ? <span style={{ color: T.textT }}>Ligações antigas, ou feitas sem login na extensão.</span> : <>
+                        <span>Tempo total: <b>{a.ms ? totalLabel(a.ms) : '—'}</b></span>
+                        <span>Média: <b>{avgLabel(a.ms, a.withDur)}</b> por ligação</span>
+                      </>}
+                      {consent > 0 && (a.no === 0
+                        ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: GOOD, fontWeight: 700 }}><IcoCheckCircle size={16} />Aviso prévio em todas</span>
+                        : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: BAD, fontWeight: 700 }}><IcoXCircle size={16} />{a.no} sem aviso prévio</span>)}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 380px), 1fr))', gap: 16 }}>
+            {/* Por setor */}
+            <Card title="Ligações por setor" sub="Quem está em mais de um setor aparece em cada um deles.">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {S.secs.map(s => {
+                  const st = setorInfo(s.id);
+                  return (
+                    <div key={s.id}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 15.5, fontWeight: 700, color: T.text }}>
+                          <span style={{ width: 12, height: 12, borderRadius: 4, background: st.cor, flexShrink: 0 }} />{st.label}
+                        </span>
+                        <span style={{ fontSize: 15.5, fontWeight: 800, color: T.text }}>{callsLabel(s.calls)} <span style={{ color: T.textT, fontWeight: 600, fontSize: 14 }}>· {pct(s.calls, S.total)}%</span></span>
+                      </div>
+                      <div style={{ height: 12, borderRadius: 6, background: T.surfaceSub || 'rgba(0,0,0,.06)', marginTop: 6 }}>
+                        <div style={{ width: `${pct(s.calls, S.total)}%`, minWidth: 4, height: '100%', borderRadius: 6, background: st.cor }} />
+                      </div>
+                      {s.ms > 0 && <div style={{ fontSize: 13, color: T.textT, marginTop: 4 }}>{totalLabel(s.ms)} de conversa</div>}
                     </div>
                   );
                 })}
               </div>
+            </Card>
+
+            {/* Aviso prévio */}
+            <Card title="Aviso prévio de gravação" sub="O atendente precisa avisar o cliente que a ligação está sendo gravada.">
+              {consentTotal === 0 ? <div style={{ fontSize: 14, color: T.textT }}>Ainda não há ligações avaliadas.</div> : (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 22, flexWrap: 'wrap' }}>
+                    <Ring yes={S.yes} no={S.no} />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 15 }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: T.text }}><span style={{ color: GOOD, display: 'flex' }}><IcoCheckCircle size={22} /></span><b style={{ fontSize: 20 }}>{S.yes}</b> com aviso dito</span>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: T.text }}><span style={{ color: BAD, display: 'flex' }}><IcoXCircle size={22} /></span><b style={{ fontSize: 20 }}>{S.no}</b> sem aviso</span>
+                      {pending > 0 && <span style={{ fontSize: 13, color: T.textT }}>{pending} ainda não avaliadas</span>}
+                    </div>
+                  </div>
+                  {S.secs.some(s => s.no > 0) && (
+                    <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${T.border}`, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: T.textT }}>Setores com ligações sem aviso</div>
+                      {S.secs.filter(s => s.no > 0).map(s => (
+                        <div key={s.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 15 }}>
+                          <span style={{ fontWeight: 600, color: T.text }}>{setorInfo(s.id).label}</span>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: BAD, fontWeight: 700 }}><IcoXCircle size={17} />{s.no} de {s.yes + s.no}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </Card>
+          </div>
+
+          {/* Quando acontecem */}
+          <Card title="Ligações por dia" sub={S.days.length >= 60 ? 'Mostrando os últimos 60 dias do período. A coluna mais alta é o dia mais movimentado.' : 'A coluna mais alta é o dia mais movimentado. Passe o mouse pra ver o valor.'}>
+            <ColChart data={S.days} color={color} label="Ligações por dia" height={170} />
+          </Card>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 380px), 1fr))', gap: 16 }}>
+            <Card title="Que horas as ligações acontecem" sub={S.byHour[peakHour] ? `Mais movimentado: das ${pad(peakHour)}h às ${pad((peakHour + 1) % 24)}h (${callsLabel(S.byHour[peakHour])}).` : undefined}>
+              <ColChart data={S.byHour.map((v, h) => ({ key: h, value: v, label: `${pad(h)}h`, tip: `${pad(h)}h às ${pad((h + 1) % 24)}h: ${callsLabel(v)}` }))} color={color} label="Ligações por hora do dia" height={150} />
+            </Card>
+            <Card title="Em que dia da semana" sub={S.byWeek[peakDay] ? `Mais movimentado: ${WEEK[peakDay]} (${callsLabel(S.byWeek[peakDay])}).` : undefined}>
+              <ColChart data={S.byWeek.map((v, d) => ({ key: d, value: v, label: WEEK_SHORT[d], tip: `${WEEK[d]}: ${callsLabel(v)}` }))} color={color} label="Ligações por dia da semana" height={150} />
+            </Card>
+          </div>
+
+          {/* Clientes */}
+          <Card title="Clientes que mais ligaram" sub="Os 5 contatos com mais ligações no período.">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {S.contacts.map(([id, n]) => (
+                <div key={id}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 15.5 }}>
+                    <span style={{ fontWeight: 700, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{nameOf(id)}</span>
+                    <span style={{ fontWeight: 800, color: T.text, whiteSpace: 'nowrap' }}>{callsLabel(n)}</span>
+                  </div>
+                  <div style={{ height: 10, borderRadius: 5, background: T.surfaceSub || 'rgba(0,0,0,.06)', marginTop: 5 }}>
+                    <div style={{ width: `${(n / S.contacts[0][1]) * 100}%`, minWidth: 4, height: '100%', borderRadius: 5, background: color }} />
+                  </div>
+                </div>
+              ))}
             </div>
           </Card>
 
-          {/* Contatos mais frequentes */}
-          <Card title="Contatos com mais ligações" sub="Top 5 do período">
-            <HBars rows={S.contacts.map(([id, n]) => ({ key: id, label: nameOf(id), value: n, color, right: `${n} · ${pct(n, S.total)}%` }))} />
-          </Card>
+          {(S.errors > 0 || withoutAtt) && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {withoutAtt && <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: T.textS || T.text }}><span style={{ color: WARN, display: 'flex' }}><IcoAlert size={20} /></span>{callsLabel(withoutAtt.calls)} sem atendente identificado (feitas antes do login na extensão, ou com a sessão expirada).</div>}
+              {S.errors > 0 && <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: T.textS || T.text }}><span style={{ color: BAD, display: 'flex' }}><IcoAlert size={20} /></span>{S.errors} {S.errors === 1 ? 'transcrição falhou' : 'transcrições falharam'}.</div>}
+            </div>
+          )}
         </>
       )}
     </div>

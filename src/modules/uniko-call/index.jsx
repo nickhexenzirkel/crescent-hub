@@ -11,6 +11,7 @@ import { supabase } from './callSupabase';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { SEM_SETOR, setorInfo, callMs, totalLabel, callsLabel } from './callUtils';
 import CallDashboard from './Dashboard';
+import { UnikoBrandArt } from '../../shared/UnikoBrand';
 
 // Recorta um trecho em volta da 1ª ocorrência do termo (mesmo padrão do
 // Uniko Security) — a transcrição de uma chamada pode ser longa, mostrar
@@ -507,7 +508,10 @@ const UnikoCall = ({ onBack }) => {
             border: `1px solid ${T.border}`, borderRadius: 9, cursor: 'pointer', color: T.textS, outline: 'none', fontFamily: 'var(--font-body)', fontSize: 13 }}>
           <IcoBack /> Módulos
         </button>
-        <div style={{ fontFamily: 'var(--font-brand)', fontSize: 15, fontWeight: 700, color: T.text }}>Uniko Call</div>
+        {/* Mesmo cabeçalho UNIKO desenhado em SVG do Portal e do Uniko Fit (shared/UnikoBrand.jsx). */}
+        <div style={{ display: 'flex', alignItems: 'center', marginLeft: 4 }}>
+          <UnikoBrandArt legenda="CALL" semLogo compacto alturaNome={26} tamanhoLegenda={17} cores={{ texto: T.text, destaque: T.gold }} />
+        </div>
       </div>
 
       <div style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden' }}>
