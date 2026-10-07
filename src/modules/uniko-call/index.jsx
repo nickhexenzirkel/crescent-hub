@@ -45,12 +45,28 @@ const durationLabel = (startedAt, endedAt) => {
   return `${min}:${String(sec).padStart(2, '0')}`;
 };
 
+// Mesmos setores/cores das tags de colegas (central-colaborador/tabs/TabColegas.jsx) — o servidor grava só o id.
+const SETORES = {
+  faturamento: { label: 'Faturamento', cor: '#2E8DD4' }, gestao: { label: 'Gestão', cor: '#8B5FE8' },
+  financeiro: { label: 'Financeiro', cor: '#28A870' }, suporte_tecnico: { label: 'Suporte Técnico', cor: '#E08030' },
+  contratual: { label: 'Contratual', cor: '#C0307A' }, distribuicao: { label: 'Distribuição', cor: '#14A3A3' },
+  telemetria: { label: 'Telemetria', cor: '#5B60D0' }, pos_venda: { label: 'Pós Venda', cor: '#D9468F' },
+  diretor: { label: 'Diretor', cor: '#B8860B' }, outros: { label: 'Outros', cor: '#6B7280' },
+};
+const SEM_SETOR = '__sem_setor';
+const setorInfo = (id) => id === SEM_SETOR ? { label: 'Sem setor', cor: '#6B7280' } : (SETORES[id] || { label: id, cor: '#6B7280' });
+const callMs = (r) => { const ms = r.ended_at ? new Date(r.ended_at) - new Date(r.started_at) : 0; return Number.isFinite(ms) && ms > 0 ? ms : 0; };
+const totalLabel = (ms) => { const m = Math.round(ms / 60000); return m >= 60 ? `${Math.floor(m / 60)}h${String(m % 60).padStart(2, '0')}` : `${m} min`; };
+const callsLabel = (n) => `${n} ${n === 1 ? 'ligação' : 'ligações'}`;
+const formatDayShort = (iso) => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }); };
+
 const IcoBack = () => (<svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M9 2L4 7L9 12" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" /></svg>);
 const IcoSearch = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>);
 const IcoTrash = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" /><path d="M10 11v6M14 11v6" /><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2" /></svg>);
 const IcoClose = () => (<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>);
 const IcoEdit = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" /></svg>);
-const IcoPhone = () => (<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.902.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.908.339 1.85.573 2.81.7A2 2 0 0122 16.92z" /></svg>);
+const IcoChevron = ({ open }) => (<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" style={{ transform: open ? 'rotate(90deg)' : 'none', transition: 'transform .15s' }}><polyline points="9 6 15 12 9 18" /></svg>);
+const IcoPhone =() => (<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.902.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.908.339 1.85.573 2.81.7A2 2 0 0122 16.92z" /></svg>);
 const IcoPlay = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>);
 const IcoPause = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1" /><rect x="14" y="5" width="4" height="14" rx="1" /></svg>);
 
@@ -207,6 +223,11 @@ const UnikoCall = ({ onBack }) => {
   const messageSearchTimer = useRef(null);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [view, setView] = useState('contatos'); // contatos | atendentes | setores
+  const [recs, setRecs] = useState([]);          // resumo (sem transcrição) de todas as chamadas, pra agrupar por atendente/setor
+  const [loadingRecs, setLoadingRecs] = useState(true);
+  const [expanded, setExpanded] = useState({});
+  const toggleExpanded = (k) => setExpanded(e => ({ ...e, [k]: !e[k] }));
 
   const flash = (msg) => { setToast(msg); clearTimeout(toastTimer.current); toastTimer.current = setTimeout(() => setToast(''), 2800); };
 
@@ -216,8 +237,16 @@ const UnikoCall = ({ onBack }) => {
     setContacts(data || []);
     setLoadingContacts(false);
   };
-  useEffect(() => { loadContacts(); }, []);
-  useEffect(() => { const t = setInterval(loadContacts, CONTACTS_POLL_MS); return () => clearInterval(t); }, []);
+  const loadRecs = async () => {
+    const base = 'id, contact_id, started_at, ended_at, status';
+    let { data, error } = await supabase.from('uniko_call_recordings').select(`${base}, attendant_id, attendant_name, sectors`).order('started_at', { ascending: false }).limit(5000);
+    // SQL do atendente ainda não rodou: sem as colunas, tudo cai em "Sem atendente identificado" em vez de quebrar a tela.
+    if (error) ({ data } = await supabase.from('uniko_call_recordings').select(base).order('started_at', { ascending: false }).limit(5000));
+    setRecs(data || []);
+    setLoadingRecs(false);
+  };
+  useEffect(() => { loadContacts(); loadRecs(); }, []);
+  useEffect(() => { const t = setInterval(() => { loadContacts(); loadRecs(); }, CONTACTS_POLL_MS); return () => clearInterval(t); }, []);
 
   const loadCalls = async (contactId, { silent = false } = {}) => {
     if (!silent) setLoadingCalls(true);
@@ -298,6 +327,102 @@ const UnikoCall = ({ onBack }) => {
     await loadCalls(selectedContactId);
   };
 
+  // ── Agrupamentos por atendente / setor (respeitam o filtro de data e a busca por nome) ──
+  const contactName = (id) => contacts.find(c => c.id === id)?.name || 'Contato removido';
+  const nameQuery = search.trim().toLowerCase();
+  const recsInPeriod = recs.filter(r => (!dateFrom || r.started_at >= `${dateFrom}T00:00:00`) && (!dateTo || r.started_at <= `${dateTo}T23:59:59`));
+  const buildAttendants = (list) => {
+    const map = new Map();
+    list.forEach(r => {
+      const key = r.attendant_id || 'none';
+      if (!map.has(key)) map.set(key, { key, name: r.attendant_name || 'Sem atendente identificado', sectors: r.sectors || [], calls: [], ms: 0 });
+      const g = map.get(key); g.calls.push(r); g.ms += callMs(r);
+    });
+    return [...map.values()].sort((a, b) => (a.key === 'none') - (b.key === 'none') || b.calls.length - a.calls.length);
+  };
+  const attendants = buildAttendants(recsInPeriod).filter(a => !nameQuery || a.name.toLowerCase().includes(nameQuery));
+  const sectorGroups = (() => {
+    const map = new Map();
+    recsInPeriod.forEach(r => {
+      (r.sectors?.length ? r.sectors : [SEM_SETOR]).forEach(id => {
+        if (!map.has(id)) map.set(id, { id, calls: [], ms: 0 });
+        const g = map.get(id); g.calls.push(r); g.ms += callMs(r);
+      });
+    });
+    return [...map.values()]
+      .map(g => ({ ...g, attendants: buildAttendants(g.calls) }))
+      .filter(g => !nameQuery || setorInfo(g.id).label.toLowerCase().includes(nameQuery) || g.attendants.some(a => a.name.toLowerCase().includes(nameQuery)))
+      .sort((a, b) => (a.id === SEM_SETOR) - (b.id === SEM_SETOR) || b.calls.length - a.calls.length);
+  })();
+
+  const openCallContact = (contactId) => { setView('contatos'); setSelectedContactId(contactId); loadCalls(contactId); };
+
+  const renderCallLine = (r) => {
+    const dur = durationLabel(r.started_at, r.ended_at);
+    return (
+      <div key={r.id} onClick={() => openCallContact(r.contact_id)} title="Abrir a conversa deste contato"
+        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 8, cursor: 'pointer', fontSize: 12 }}
+        onMouseEnter={e => e.currentTarget.style.background = T.surfaceSub || 'rgba(0,0,0,0.04)'}
+        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+        <span style={{ color: T.gold, display: 'flex', flexShrink: 0 }}><IcoPhone /></span>
+        <span style={{ flex: 1, minWidth: 0, color: T.text, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{contactName(r.contact_id)}</span>
+        <span style={{ color: T.textT, flexShrink: 0, fontSize: 11 }}>{formatDayShort(r.started_at)} {formatTime(r.started_at)}{dur ? ` · ${dur}` : ''}</span>
+      </div>
+    );
+  };
+  const renderSectorChips = (ids) => (
+    <span style={{ display: 'inline-flex', gap: 4, flexWrap: 'wrap' }}>
+      {(ids || []).map(id => { const st = setorInfo(id); return (
+        <span key={id} style={{ fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 999, color: st.cor, border: `1px solid ${st.cor}66`, background: `${st.cor}14`, whiteSpace: 'nowrap' }}>{st.label}</span>
+      ); })}
+    </span>
+  );
+  const renderAttendantRow = (a, keyPrefix) => {
+    const k = `${keyPrefix}:${a.key}`; const open = !!expanded[k];
+    return (
+      <div key={k} style={{ marginBottom: 2 }}>
+        <div onClick={() => toggleExpanded(k)} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '9px 10px', borderRadius: 10, cursor: 'pointer', background: open ? (T.goldGl || T.surfaceSub) : 'transparent' }}>
+          <span style={{ color: T.textT, display: 'flex', flexShrink: 0 }}><IcoChevron open={open} /></span>
+          <div style={{ width: 30, height: 30, borderRadius: '50%', background: a.key === 'none' ? (T.surfaceSub || '#eceef0') : T.gold, color: a.key === 'none' ? T.textT : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11.5, fontWeight: 700, flexShrink: 0 }}>{a.key === 'none' ? '?' : (initials(a.name) || '?')}</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13.5, fontWeight: 600, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.name}</div>
+            <div style={{ fontSize: 11.5, color: T.textT }}>{callsLabel(a.calls.length)}{a.ms ? ` · ${totalLabel(a.ms)}` : ''}</div>
+          </div>
+        </div>
+        {open && keyPrefix === 'at' && a.sectors?.length > 0 && <div style={{ padding: '4px 12px 2px 40px' }}>{renderSectorChips(a.sectors)}</div>}
+        {open && (
+          <div style={{ padding: '2px 0 6px 8px' }}>
+            {a.calls.slice(0, 60).map(renderCallLine)}
+            {a.calls.length > 60 && <div style={{ padding: '4px 8px', fontSize: 11, color: T.textT }}>Mostrando as 60 mais recentes — use o filtro de data pra ver as outras.</div>}
+          </div>
+        )}
+      </div>
+    );
+  };
+  const renderGroupedView = () => {
+    if (loadingRecs) return <div style={{ padding: '24px 12px', textAlign: 'center', color: T.textT, fontSize: 13 }}>Carregando…</div>;
+    if ((view === 'atendentes' ? attendants.length : sectorGroups.length) === 0) {
+      return <div style={{ padding: '24px 12px', textAlign: 'center', color: T.textT, fontSize: 13 }}>{recs.length === 0 ? 'Nenhuma chamada gravada ainda.' : 'Nada encontrado nesse filtro.'}</div>;
+    }
+    if (view === 'atendentes') return attendants.map(a => renderAttendantRow(a, 'at'));
+    return sectorGroups.map(g => {
+      const st = setorInfo(g.id); const k = `se:${g.id}`; const open = !!expanded[k];
+      const inSector = g.attendants.filter(a => !nameQuery || a.name.toLowerCase().includes(nameQuery) || st.label.toLowerCase().includes(nameQuery));
+      return (
+        <div key={k} style={{ marginBottom: 4 }}>
+          <div onClick={() => toggleExpanded(k)} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '10px 10px', borderRadius: 10, cursor: 'pointer', borderLeft: `3px solid ${st.cor}`, background: open ? (T.goldGl || T.surfaceSub) : 'transparent' }}>
+            <span style={{ color: T.textT, display: 'flex', flexShrink: 0 }}><IcoChevron open={open} /></span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: st.cor }}>{st.label}</div>
+              <div style={{ fontSize: 11.5, color: T.textT }}>{callsLabel(g.calls.length)} · {g.attendants.length} {g.attendants.length === 1 ? 'atendente' : 'atendentes'}{g.ms ? ` · ${totalLabel(g.ms)}` : ''}</div>
+            </div>
+          </div>
+          {open && <div style={{ paddingLeft: 12 }}>{inSector.map(a => renderAttendantRow(a, `se-${g.id}`))}</div>}
+        </div>
+      );
+    });
+  };
+
   const filteredContacts = contacts.filter(c => !search.trim() || c.name.toLowerCase().includes(search.trim().toLowerCase()));
 
   const statusLabel = (call) => {
@@ -335,6 +460,10 @@ const UnikoCall = ({ onBack }) => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, fontWeight: 700, color: T.gold, marginBottom: 6, flexWrap: 'wrap' }}>
                   <IcoPhone /> Chamada{dur ? ` · ${dur}` : ''}
                   <span style={{ color: T.textT, fontWeight: 600 }}>· Protocolo #{call.protocol}</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', fontSize: 11.5, color: T.textT, marginBottom: 6 }}>
+                  <span>Atendente: <b style={{ color: T.text }}>{call.attendant_name || 'não identificado'}</b></span>
+                  {renderSectorChips(call.sectors)}
                 </div>
                 {noConsent ? (
                   <>
@@ -391,9 +520,16 @@ const UnikoCall = ({ onBack }) => {
               <button title="Atualizar agora" onClick={loadContacts} style={{ ...btnStyle('secondary'), padding: '7px 9px' }}><IcoRefresh /></button>
             </div>
             <div style={{ padding: '0 16px 10px' }}>
+              <div style={{ display: 'flex', gap: 4, padding: 3, borderRadius: 11, background: T.surfaceSub || 'rgba(0,0,0,0.05)', marginBottom: 10 }}>
+                {[['contatos', 'Contatos'], ['atendentes', 'Atendentes'], ['setores', 'Setores']].map(([id, label]) => (
+                  <button key={id} onClick={() => setView(id)}
+                    style={{ flex: 1, padding: '7px 4px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-body)',
+                      background: view === id ? T.surface : 'transparent', color: view === id ? T.gold : T.textT, boxShadow: view === id ? '0 1px 3px rgba(0,0,0,.12)' : 'none' }}>{label}</button>
+                ))}
+              </div>
               <div style={{ position: 'relative' }}>
                 <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: T.textT }}><IcoSearch /></span>
-                <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por nome ou transcrição"
+                <input value={search} onChange={e => setSearch(e.target.value)} placeholder={view === 'contatos' ? 'Buscar por nome ou transcrição' : view === 'atendentes' ? 'Buscar atendente' : 'Buscar setor ou atendente'}
                   style={{ width: '100%', padding: '9px 12px 9px 30px', borderRadius: 10, border: `1px solid ${T.border}`, background: T.page, color: T.text, fontSize: 13, outline: 'none', fontFamily: 'var(--font-body)' }} />
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
@@ -408,7 +544,7 @@ const UnikoCall = ({ onBack }) => {
               </div>
             </div>
             <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '4px 10px 18px' }}>
-              {loadingContacts ? (
+              {view !== 'contatos' ? renderGroupedView() : loadingContacts ? (
                 <div style={{ padding: '24px 12px', textAlign: 'center', color: T.textT, fontSize: 13 }}>Carregando…</div>
               ) : filteredContacts.length === 0 ? (
                 <div style={{ padding: '24px 12px', textAlign: 'center', color: T.textT, fontSize: 13 }}>
@@ -430,7 +566,7 @@ const UnikoCall = ({ onBack }) => {
                 );
               })}
 
-              {(search.trim().length >= 2 || dateFrom || dateTo) && (searchingMessages || messageResults.length > 0) && (
+              {view === 'contatos' && (search.trim().length >= 2 || dateFrom || dateTo) && (searchingMessages || messageResults.length > 0) && (
                 <div style={{ marginTop: 12, borderTop: `1px solid ${T.border}`, paddingTop: 10 }}>
                   <div style={{ padding: '0 10px 6px', fontSize: 11, fontWeight: 700, color: T.textT, textTransform: 'uppercase', letterSpacing: '.04em' }}>
                     Transcrições{searchingMessages ? '…' : ''}

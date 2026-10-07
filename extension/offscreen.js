@@ -132,6 +132,12 @@ async function uploadRecording() {
     form.append('startedAt', meta.startedAt || new Date().toISOString());
     form.append('avisoPlayed', meta.avisoPlayed ? 'true' : 'false');
     form.append('endedAt', new Date().toISOString());
+    // Quem fez a ligação (login do popup). Sem token a gravação sobe do mesmo jeito, sem atendente.
+    const attendantToken = await Promise.race([
+      chrome.runtime.sendMessage({ type: 'UNIKO_CALL_GET_ATTENDANT_TOKEN' }).then((r) => r?.token || '').catch(() => ''),
+      new Promise((r) => setTimeout(() => r(''), 3000)),
+    ]);
+    form.append('attendantToken', attendantToken);
     const res = await fetch(`${CALL_SERVER}/api/uniko-call/upload`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${CALL_UPLOAD_TOKEN}` },

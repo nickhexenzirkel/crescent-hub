@@ -853,6 +853,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  // Uniko Call — o offscreen/janela de gravação não tem acesso ao storage: pede o token do atendente aqui.
+  if (message.type === 'UNIKO_CALL_GET_ATTENDANT_TOKEN') {
+    chrome.storage.local.get('unikoAttendant')
+      .then(({ unikoAttendant }) => sendResponse({ token: unikoAttendant?.token || '' }))
+      .catch(() => sendResponse({ token: '' }));
+    return true;
+  }
+
   // Uniko Call — offscreen document avisa quando termina de subir a gravação.
   // Fecha o offscreen document aqui (não em stopCapture — isso rodaria ANTES
   // do upload terminar) — bug achado ao vivo 24/set/2026: sem fechar, o

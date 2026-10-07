@@ -235,3 +235,60 @@ function renderHist(list) {
 }
 chrome.storage.local.get('unikoCallHistory').then(({ unikoCallHistory }) => renderHist(unikoCallHistory)).catch(() => {});
 chrome.storage.onChanged.addListener((ch, area) => { if (area === 'local' && ch.unikoCallHistory) renderHist(ch.unikoCallHistory.newValue); });
+
+/* ── Login do atendente (CPF + senha do Portal) ──────────────────────────────
+   Guarda só o token de 30 dias (escopo uniko-call) e o nome — a senha nunca fica salva. O token
+   vai junto de cada gravação (ver offscreen.js) pro servidor saber quem atendeu e de qual setor. */
+const CALL_SERVER = 'https://api.centraluniko.com.br';
+const CALL_TOKEN = 'uniko-call-rec';
+const SETOR_LABEL = { faturamento: 'Faturamento', gestao: 'Gestão', financeiro: 'Financeiro', suporte_tecnico: 'Suporte Técnico', contratual: 'Contratual', distribuicao: 'Distribuição', telemetria: 'Telemetria', pos_venda: 'Pós Venda', diretor: 'Diretor', outros: 'Outros' };
+const loginOut = $('loginOut'), loginIn = $('loginIn'), loginMsg = $('loginMsg'), loginBtn = $('loginBtn');
+const LOGIN_HINT = loginMsg.textContent;
+
+function renderAttendant(a) {
+  loginOut.style.display = a ? 'none' : 'block';
+  loginIn.style.display = a ? 'flex' : 'none';
+  if (!a) return;
+  $('whoName').textContent = a.name;
+  $('whoAv').textContent = a.name.trim().split(/\s+/).slice(0, 2).map((p) => p[0]?.toUpperCase() || '').join('');
+  const s = (a.sectors || []).map((id) => SETOR_LABEL[id] || id).join(', ');
+  $('whoSector').textContent = s || 'Sem setor definido no Portal';
+}
+function loginErr(msg) { loginMsg.className = 'line bad'; loginMsg.textContent = msg; }
+
+loginBtn.addEventListener('click', async () => {
+  const cpf = $('loginCpf').value, password = $('loginPass').value;
+  if (!cpf.trim() || !password) return loginErr('Informe CPF e senha.');
+  loginBtn.disabled = true; loginBtn.textContent = 'Entrando…';
+  try {
+    const res = await fetch(`${CALL_SERVER}/api/uniko-call/login`, {
+      method: 'POST', headers: { Authorization: `Bearer ${CALL_TOKEN}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cpf, password }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `erro ${res.status}`);
+    await chrome.storage.local.set({ unikoAttendant: { token: data.token, name: data.name, sectors: data.sectors || [] } });
+    $('loginPass').value = '';
+    loginMsg.className = 'line'; loginMsg.textContent = LOGIN_HINT;
+    renderAttendant(data);
+  } catch (e) { loginErr(e.message === 'Failed to fetch' ? 'Sem conexão com o servidor.' : e.message); }
+  finally { loginBtn.disabled = false; loginBtn.textContent = 'Entrar'; }
+});
+$('loginPass').addEventListener('keydown', (e) => { if (e.key === 'Enter') loginBtn.click(); });
+$('logoutBtn').addEventListener('click', async () => { await chrome.storage.local.remove('unikoAttendant'); renderAttendant(null); });
+
+// Ao abrir: mostra o que está salvo e confirma no servidor (token expirado/colaborador desligado → pede login de novo;
+// setor mudou no Portal → atualiza). Se o servidor estiver fora do ar, mantém o login salvo.
+chrome.storage.local.get('unikoAttendant').then(async ({ unikoAttendant }) => {
+  renderAttendant(unikoAttendant || null);
+  if (!unikoAttendant?.token) return;
+  try {
+    const res = await fetch(`${CALL_SERVER}/api/uniko-call/whoami`, { headers: { Authorization: `Bearer ${CALL_TOKEN}`, 'X-Attendant-Token': unikoAttendant.token } });
+    if (res.status === 401) { await chrome.storage.local.remove('unikoAttendant'); renderAttendant(null); loginErr('Sessão expirada — entre de novo.'); return; }
+    if (!res.ok) return;
+    const data = await res.json();
+    const next = { ...unikoAttendant, name: data.name, sectors: data.sectors || [] };
+    await chrome.storage.local.set({ unikoAttendant: next });
+    renderAttendant(next);
+  } catch { /* offline: mantém */ }
+}).catch(() => renderAttendant(null));

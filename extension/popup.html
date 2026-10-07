@@ -64,6 +64,14 @@
   .hist .row .w { color: var(--sub); white-space: nowrap; font-size: 10.5px; }
   .hist .row:first-child .n { color: var(--green-dk); }
   .hist .none { color: var(--sub); font-size: 11px; }
+  .login input { width: 100%; padding: 8px 10px; margin-bottom: 6px; border: 1px solid var(--line); border-radius: 9px; font-size: 12px; font-family: inherit; outline: none; }
+  .login input:focus { border-color: var(--green); }
+  .who { display: flex; align-items: center; gap: 8px; }
+  .who .av { width: 28px; height: 28px; border-radius: 50%; background: var(--green-gl); color: var(--green-dk); font-weight: 800; font-size: 11px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .who .txt { flex: 1; min-width: 0; }
+  .who .txt b { display: block; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .who .txt span { font-size: 10.5px; color: var(--sub); }
+  .who button { width: auto; padding: 4px 9px; font-size: 10.5px; }
   .warn { font-size: 10px; line-height: 1.4; color: var(--sub); margin-top: 6px; }
 </style>
 </head>
@@ -72,6 +80,21 @@
     <img src="icon.png" alt="Uniko Call">
     <div class="name">UNIKO CALL<small>Extensão</small></div>
     <div class="pill"><span id="dot" class="dot"></span><span id="statusText">Verificando…</span></div>
+  </div>
+
+  <div class="card" id="loginCard">
+    <div id="loginOut" class="login" style="display:none">
+      <div class="h">Identificação do atendente</div>
+      <input id="loginCpf" type="text" inputmode="numeric" maxlength="14" placeholder="CPF" autocomplete="username">
+      <input id="loginPass" type="password" placeholder="Senha do Uniko" autocomplete="current-password">
+      <button id="loginBtn" class="primary">Entrar</button>
+      <div id="loginMsg" class="line">Entre com o mesmo CPF e senha do Portal. Sem isso, as ligações gravadas ficam sem atendente/setor.</div>
+    </div>
+    <div id="loginIn" class="who" style="display:none">
+      <div class="av" id="whoAv">?</div>
+      <div class="txt"><b id="whoName"></b><span id="whoSector"></span></div>
+      <button id="logoutBtn" class="secondary">Sair</button>
+    </div>
   </div>
 
   <div class="card step">
