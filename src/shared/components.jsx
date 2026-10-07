@@ -199,12 +199,13 @@ const Moon = ({size=32, color=T.goldL, opacity=0.45, float=false}) => (
    STAR DIVIDER — linha dourada + estrela
    (estilo da imagem enviada)
 ══════════════════════════════════════════ */
-const StarDivider = ({my=8, width='100%', dim=false}) => {
-  /* T.goldLine é hex (#RRGGBB) — sufixo hex de opacidade é válido */
-  const lc = T.goldLine + (dim ? '44' : '88');
-  const sc = T.goldV    + (dim ? '77' : 'BB');
+const StarDivider = ({my=8, width='100%', dim=false, color}) => {
+  /* T.goldLine é hex (#RRGGBB) — sufixo hex de opacidade é válido. `color` (hex #RRGGBB) troca
+     a cor do módulo (ex.: verde do Uniko Call); sem ele usa o dourado do tema, como sempre. */
+  const lc = (color || T.goldLine) + (dim ? '44' : '88');
+  const sc = (color || T.goldV)    + (dim ? '77' : 'BB');
   /* transparent compatível: versão rgba do goldLine com alpha=0 */
-  const lt = T.goldLine + '00';
+  const lt = (color || T.goldLine) + '00';
   return (
     <div style={{
       display:'flex', alignItems:'center',
