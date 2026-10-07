@@ -8,8 +8,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const BASE = 'https://app.7beneficiosgestao.com.br';
-const planilha = process.argv[2];
-const saida = path.resolve(process.argv[3] || 'Ordens de Servico');
+const planilha = process.argv.slice(2).filter((a) => !a.startsWith('--'))[0];
+const args = process.argv.slice(2);
+const filtroCred = (args.find((a) => a.startsWith('--credenciado=')) || '').split('=')[1] || '';   // ex: --credenciado=jbc (só testa esse)
+const posicionais = args.filter((a) => !a.startsWith('--'));
+const saida = path.resolve(posicionais[1] || 'Ordens de Servico');
 if (!planilha) { console.log('Uso: node baixar-os.mjs "planilha.xlsx" [pasta-de-saida]'); process.exit(1); }
 
 const log = (m) => console.log(`${new Date().toLocaleTimeString('pt-BR')}  ${m}`);
@@ -33,7 +36,12 @@ for (const r of rows) {
     secretaria: String(r[chave(r, 'cliente')] ?? '').trim(),
   });
 }
-log(`${itens.length} ordem(ns) na planilha.`);
+if (filtroCred) {
+  const f = norm(filtroCred);
+  for (let i = itens.length - 1; i >= 0; i--) if (!norm(itens[i].credenciado).includes(f)) itens.splice(i, 1);
+  log(`Filtro --credenciado=${filtroCred}: só esse credenciado.`);
+}
+log(`${itens.length} ordem(ns) para baixar.`);
 const grupos = new Map();
 for (const it of itens) { if (!grupos.has(it.credenciado)) grupos.set(it.credenciado, []); grupos.get(it.credenciado).push(it); }
 
@@ -42,7 +50,6 @@ const ctx = await chromium.launchPersistentContext(path.resolve('perfil-chrome')
 });
 const page = ctx.pages()[0] || await ctx.newPage();
 page.setDefaultTimeout(30000);
-const cdp = await ctx.newCDPSession(page);
 
 const logado = () => !/\/sessions/.test(new URL(page.url()).pathname);
 
@@ -183,7 +190,20 @@ async function baixar(it, destino) {
   await page.getByText(/Ordem de Serviço:/).first().waitFor();
   await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
   log(`OS ${it.os}: imprimindo em PDF (Ctrl+P)…`);
-  const { data } = await cdp.send('Page.printToPDF', { printBackground: true, preferCSSPageSize: true });
+  await page.bringToFront();
+  await page.waitForTimeout(1500);
+  let data = null;
+  for (let t = 1; t <= 3 && !data; t++) {
+    const cdp = await ctx.newCDPSession(page);   // sessão nova a cada impressão (a antiga pode ficar inválida)
+    try { ({ data } = await cdp.send('Page.printToPDF', { printBackground: true, preferCSSPageSize: true })); }
+    catch (e) {
+      if (/closed/i.test(e.message)) throw e;
+      log(`OS ${it.os}: impressão falhou (tentativa ${t}/3): ${String(e.message).slice(0, 80)} — esperando e tentando de novo…`);
+      await page.waitForTimeout(3000);
+      if (t === 2) { await page.reload({ waitUntil: 'networkidle' }).catch(() => {}); await page.waitForTimeout(2000); }
+    } finally { await cdp.detach().catch(() => {}); }
+  }
+  if (!data) throw new Error('o Chrome não conseguiu imprimir a página');
   fs.mkdirSync(path.dirname(destino), { recursive: true });
   fs.writeFileSync(destino, Buffer.from(data, 'base64'));
   log(`OS ${it.os}: salvo → ${path.relative(saida, destino)}`);
@@ -203,12 +223,15 @@ try {
     catch (e) { log('ERRO: ' + e.message); faltam.forEach((it) => falhas.push(`${it.os} | ${cred} | ${e.message}`)); continue; }
     for (const it of faltam) {
       try { await baixar(it, caminho(it)); ok++; }
-      catch (e) { log(`OS ${it.os}: FALHOU — ${e.message}`); falhas.push(`${it.os} | ${cred} | ${e.message}`); }
+      catch (e) {
+        log(`OS ${it.os}: FALHOU — ${e.message}`); falhas.push(`${it.os} | ${cred} | ${e.message}`);
+        if (/has been closed/i.test(e.message)) { log('A janela do Chrome foi fechada — encerrando.'); throw e; }
+      }
     }
     try { await sairDoCredenciado(); } catch (e) { log('Aviso no logout: ' + e.message); }
   }
 } finally {
   if (falhas.length) { fs.mkdirSync(saida, { recursive: true }); fs.writeFileSync(path.join(saida, 'ORDENS_NAO_BAIXADAS.txt'), falhas.join('\n')); }
   log(`Fim: ${ok} baixada(s), ${falhas.length} falha(s). Pasta: ${saida}`);
-  await ctx.close();
+  await ctx.close().catch(() => {});
 }
