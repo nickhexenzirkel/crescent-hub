@@ -70,7 +70,6 @@ export const TabOficioEmissao = () => {
   const [modelo, setModeloState] = useState(() => LS('ofem.modelo', 'eusebio'));
   const [contrato, setContratoState] = useState(() => LS('ofem.contrato', ''));
   const [objeto, setObjetoState] = useState(() => LS('ofem.objeto', OBJETO_PADRAO));
-  const [destacar, setDestacarState] = useState(() => LS('ofem.destacar', true));
   const [comRubrica, setComRubricaState] = useState(() => LS('ofem.rubrica', false));
   const [vencGlobal, setVencGlobal] = useState('');
   const [rows, setRows] = useState([]);
@@ -83,7 +82,6 @@ export const TabOficioEmissao = () => {
   const setModelo = persistir(setModeloState, 'ofem.modelo');
   const setContrato = persistir(setContratoState, 'ofem.contrato');
   const setObjeto = persistir(setObjetoState, 'ofem.objeto');
-  const setDestacar = persistir(setDestacarState, 'ofem.destacar');
   const setComRubrica = persistir(setComRubricaState, 'ofem.rubrica');
 
   const patch = (id, p) => setRows((rs) => rs.map((r) => (r.id === id ? { ...r, ...p } : r)));
@@ -128,7 +126,7 @@ export const TabOficioEmissao = () => {
           const bytes = modelo === 'piaui'
             ? await gerarPiaui({
               numeroNota: r.numero, secretaria: r.secretariaSel.trim(), valorBruto: r.valorBruto, tipo: r.tipoSel,
-              periodo: r.periodo, vencimento: dataBr(r.venc || vencGlobal), destacar, comRubrica,
+              periodo: r.periodo, vencimento: dataBr(r.venc || vencGlobal), comRubrica,
             })
             : await gerarEusebio({
               mesReferencia: r.mesReferencia, numeroNota: r.numero, valorBruto: r.valorBruto,
@@ -329,8 +327,6 @@ export const TabOficioEmissao = () => {
               <input type="date" style={inputStyle} value={vencGlobal} onChange={(e) => setVencGlobal(e.target.value)} />
               <div style={{ fontSize: 12.5, color: T.textT, marginTop: 6 }}>Cada nota pode ter o seu na tabela acima. A secretaria vem da nota, mas confira.</div>
             </div>
-            <Toggle on={destacar} onChange={setDestacar} label="Campos preenchidos em vermelho, como no modelo"
-              sub="Secretaria, valor, tipo, período e vencimento saem em vermelho (igual ao arquivo de modelo). Desligue pra sair tudo em preto." />
             <Toggle on={comRubrica} onChange={setComRubrica} label="Incluir a rúbrica do Cleanderson"
               sub="O modelo não traz assinatura. Ligue pra já sair com a rúbrica acima do nome; desligado, dá pra assinar depois na Assinatura Automática." />
           </div>

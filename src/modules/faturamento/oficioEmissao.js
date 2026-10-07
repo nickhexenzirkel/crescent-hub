@@ -243,7 +243,7 @@ export const lerNota = async (arquivo) => {
 const cacheBin = {};
 const baixar = async (url) => (cacheBin[url] ??= fetch(url).then((r) => r.arrayBuffer()));
 
-const PRETO = rgb(0, 0, 0), BRANCO = rgb(1, 1, 1), VERMELHO = rgb(0xee / 255, 0, 0);
+const PRETO = rgb(0, 0, 0), BRANCO = rgb(1, 1, 1);
 
 /**
  * Largura SEM kerning. O pdf-lib mede com os pares de kerning da fonte (ex.: "TÃ"), mas o drawText
@@ -406,10 +406,10 @@ export const tipoPadraoPiaui = (tipo) => (tipo === 'MANUTENÇÃO' ? 'Manutençã
 /** "2026-09-30" (campo de data) → "30/09/2026". */
 export const dataBr = (iso) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || ''); return m ? `${m[3]}/${m[2]}/${m[1]}` : ''; };
 
-export const gerarPiaui = async ({ numeroNota, secretaria, valorBruto, tipo, periodo, vencimento, destacar = true, comRubrica = false }) => {
+export const gerarPiaui = async ({ numeroNota, secretaria, valorBruto, tipo, periodo, vencimento, comRubrica = false }) => {
   const { doc, f, logo } = await abrirDoc(`Requerimento de Pagamento - NF ${numeroNota}`);
   const p = doc.addPage(PAG_PIAUI);
-  const VAR = destacar ? VERMELHO : PRETO; // campos que mudam de nota pra nota (vermelhos no modelo)
+  const VAR = PRETO; // tudo em preto (no arquivo de modelo os campos variáveis vêm em vermelho; aqui não)
   const X = 77.8, LARGURA = 461, SIZE = 12;
 
   // Cabeçalho: faixa verde, quadrado azul-petróleo e logotipo (coordenadas do PDF do modelo).
@@ -433,7 +433,7 @@ export const gerarPiaui = async ({ numeroNota, secretaria, valorBruto, tipo, per
   linha([B('FORNECEDOR: '), R('7SERV GESTÃO DE BENEFÍCIOS LTDA.')], 271.3);
   linha([B('CNPJ: '), R('13.858.769/0001-97')], 298.9);
   linha([B('ENDEREÇO: '), R('Av. Washington Soares, nº 3663, Sala 1416 – Torre 2, Bairro Edson Queiroz, Fortaleza/CE.')], 326.5);
-  linha([B('CONTATO: '), R('financeiro@7beneficios.com.br', VERMELHO)], 367.9);
+  linha([B('CONTATO: '), R('financeiro@7beneficios.com.br')], 367.9);
 
   linha([B('À SECRETARIA MUNICIPAL DE '), B(secretaria.toUpperCase(), VAR)], 423.1, { indente: 37.3 });
 
