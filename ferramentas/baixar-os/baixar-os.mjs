@@ -92,6 +92,16 @@ async function sairDoCredenciado() {
     el = achar();
   }
   if (!(await el.isVisible({ timeout: 3000 }).catch(() => false))) {
+    // o Logout fica no menu do usuário (link com o nome, ex.: "nicolas2 (c)")
+    const menuUsuario = page.getByRole('link', { name: /\([a-z]\)\s*$/i }).first();
+    if (await menuUsuario.count()) {
+      log('Abrindo o menu do usuário (' + (await menuUsuario.innerText()).trim() + ')…');
+      await menuUsuario.click().catch(() => {});
+      await page.waitForTimeout(1200);
+      el = achar();
+    }
+  }
+  if (!(await el.isVisible({ timeout: 3000 }).catch(() => false))) {
     const links = (await page.getByRole('link').allInnerTexts().catch(() => [])).map((t) => t.trim()).filter(Boolean).slice(0, 30);
     const botoes = (await page.getByRole('button').allInnerTexts().catch(() => [])).map((t) => t.trim()).filter(Boolean).slice(0, 30);
     log(`Não achei o Logout. Página: ${page.url()}
