@@ -40,7 +40,9 @@ async function startCapture(streamId, contactName, avisoRecent = false, attendan
   // Cancelamento de eco/ruído/ganho automático: sem isso o microfone capta de volta o som
 // da aba que sai nos alto-falantes (eco) e a fala fica embolada/baixa pro Whisper.
   micStream = await navigator.mediaDevices.getUserMedia({
-    audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
+    // v1.7.4: sem ganho automático e sem supressão de ruído — os dois "bombeiam" a voz (sobe/desce o
+    // volume e distorce, soando como grunhido/estouro). O eco da ligação nos alto-falantes continua tratado.
+    audio: { echoCancellation: true, noiseSuppression: false, autoGainControl: false, channelCount: 1 },
   });
   console.log('[uniko-call] micStream OK. Montando AudioContext e MediaRecorder...');
 
@@ -58,14 +60,17 @@ async function startCapture(streamId, contactName, avisoRecent = false, attendan
   const micSrc = audioContext.createMediaStreamSource(micStream);
   // Somar duas vozes no volume cheio estoura 100% e distorce ("grunhidos" na voz de quem está na linha).
   // Cada fonte entra com ganho 0,8 e um limitador suave segura os picos antes de gravar.
-  const tabGain = audioContext.createGain(); tabGain.gain.value = 0.8;
-  const micGain = audioContext.createGain(); micGain.gain.value = 0.8;
+  const tabGain = audioContext.createGain(); tabGain.gain.value = 0.7;
+  const micGain = audioContext.createGain(); micGain.gain.value = 0.7;
   const limiter = audioContext.createDynamicsCompressor();
-  limiter.threshold.value = -6; limiter.knee.value = 0; limiter.ratio.value = 20;
-  limiter.attack.value = 0.003; limiter.release.value = 0.1;
+  // Limitador SUAVE (joelho largo, taxa moderada): o duro anterior (joelho 0, taxa 20) distorcia nos picos.
+  // O ganho de saída 0,9 garante que nada passe de 0 dBFS (a gravação anterior chegou a +2,4 dB).
+  limiter.threshold.value = -8; limiter.knee.value = 12; limiter.ratio.value = 6;
+  limiter.attack.value = 0.005; limiter.release.value = 0.25;
+  const outGain = audioContext.createGain(); outGain.gain.value = 0.9;
   tabSrc.connect(tabGain).connect(limiter);
   micSrc.connect(micGain).connect(limiter);
-  limiter.connect(dest);
+  limiter.connect(outGain).connect(dest);
   startLevelMeter(tabSrc, micSrc);
 
   // chrome.tabCapture "rouba" o áudio da aba pro nosso stream — sem isso o
