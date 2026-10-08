@@ -766,7 +766,7 @@ function limparAvisoChamada() {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // Ping de verificação de saúde — responde com PONG para a aba
   if (message.type === 'UNIKO_FAT_PING_BG') {
-    chrome.tabs.sendMessage(sender.tab.id, { type: 'FAT_PONG' }).catch(() => {});
+    chrome.tabs.sendMessage(sender.tab.id, { type: 'FAT_PONG', version: chrome.runtime.getManifest().version }).catch(() => {});
     sendResponse({ ok: true });
     return;
   }

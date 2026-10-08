@@ -3,7 +3,7 @@ import { T } from '../../contexts/theme';
 import { supabase as _supabase } from '../../contexts/user';
 import { Card, StarDivider } from '../../shared/components';
 import { notifyDesktop, ensureNotifyPermission, notifyPermission } from '../../utils/desktopNotify';
-import { checkExtension } from '../../utils/checkExtension';
+import { checkExtensionInfo, extensaoDesatualizada, LATEST_EXTENSION_VERSION } from '../../utils/checkExtension';
 
 /* ── cores de destaque para anotações ── */
 const NOTA_CORES = [
@@ -34,14 +34,17 @@ const CentralLembretes = ({ onBack, authUser }) => {
   const [activeTab, setActiveTab] = useState('lembretes');
   const [notifPerm, setNotifPerm] = useState(notifyPermission());
   const [extStatus, setExtStatus] = useState('checking'); // checking | ok | missing | reload
+  const [extVersion, setExtVersion] = useState(null);
   const [notifTeste, setNotifTeste] = useState(null); // resultado do último "Testar no desktop" (ver testarNotificacao)
 
   /* ── Verifica se a extensão Uniko Cat-Bot está ativa no navegador ── */
   const verificarExtensao = async () => {
     setExtStatus('checking');
-    const r = await checkExtension();
+    const { status: r, version } = await checkExtensionInfo();
     setExtStatus(r === true ? 'ok' : r === 'reload' ? 'reload' : 'missing');
+    setExtVersion(r === true ? version : null);
   };
+  const extDesatualizada = extStatus === 'ok' && extensaoDesatualizada(extVersion);
 
   /* ── Teste de notificação no desktop (pede permissão no clique) ──
      Mostra o resultado REAL na tela (não só dispara e reza): se nem a
@@ -204,15 +207,15 @@ const CentralLembretes = ({ onBack, authUser }) => {
             color: extStatus==='ok'?'#1A9060':extStatus==='missing'||extStatus==='reload'?'#C04050':T.textS }}>
           <span style={{ width:8, height:8, borderRadius:'50%', flexShrink:0, display:'inline-block',
             background: extStatus==='ok'?'#1A9060':extStatus==='checking'?'#C8960A':'#C04050' }}/>
-          {extStatus==='checking' ? 'Verificando…' : extStatus==='ok' ? 'Extensão ativa' : extStatus==='reload' ? 'Recarregue (F5)' : 'Extensão inativa'}
+          {extStatus==='checking' ? 'Verificando…' : extStatus==='ok' ? (extDesatualizada ? 'Extensão desatualizada' : 'Extensão ativa') : extStatus==='reload' ? 'Recarregue (F5)' : 'Extensão inativa'}
         </button>
         <a href="/uniko-catbot.zip" download="uniko-catbot.zip"
           title="Baixar a extensão Uniko Cat-Bot (.zip)"
           style={{ display:'flex', alignItems:'center', gap:7, padding:'10px 14px', borderRadius:12, textDecoration:'none',
-            border:`1px solid ${extStatus==='ok'?T.border:'rgba(200,150,10,0.5)'}`, background: extStatus==='ok'?'transparent':'rgba(200,150,10,0.08)',
-            color: extStatus==='ok'?T.textS:T.gold, fontWeight:600, fontSize:12.5, fontFamily:'var(--font-body)' }}>
+            border:`1px solid ${extStatus==='ok'&&!extDesatualizada?T.border:'rgba(200,150,10,0.5)'}`, background: extStatus==='ok'&&!extDesatualizada?'transparent':'rgba(200,150,10,0.08)',
+            color: extStatus==='ok'&&!extDesatualizada?T.textS:T.gold, fontWeight:600, fontSize:12.5, fontFamily:'var(--font-body)' }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          Baixar extensão
+          {extDesatualizada ? `Atualizar extensão (v${LATEST_EXTENSION_VERSION})` : 'Baixar extensão'}
         </a>
         <div style={{ position:'relative' }}>
           <button onClick={testarNotificacao}
@@ -246,6 +249,23 @@ const CentralLembretes = ({ onBack, authUser }) => {
           {activeTab === 'lembretes' ? 'Novo Lembrete' : 'Nova Anotação'}
         </button>
       </div>
+
+      {extDesatualizada && (
+        <div style={{ display:'flex', alignItems:'center', gap:12, flexWrap:'wrap', marginBottom:18, padding:'12px 16px', borderRadius:12,
+          border:'1px solid rgba(200,150,10,0.45)', background:'rgba(200,150,10,0.09)', fontSize:13, color:T.text }}>
+          <span style={{ fontSize:18 }}>🔄</span>
+          <div style={{ flex:1, minWidth:220 }}>
+            <b>Há uma versão nova da extensão Uniko</b> (v{LATEST_EXTENSION_VERSION}{extVersion ? `, a sua é a v${extVersion}` : ', a sua é antiga'}).
+            <div style={{ fontSize:12, color:T.textT, marginTop:2 }}>
+              Baixe o zip, extraia por cima da pasta antiga, vá em chrome://extensions (ou edge://extensions) e clique em recarregar na extensão. Depois dê F5 aqui e no WhatsApp Web.
+            </div>
+          </div>
+          <a href="/uniko-catbot.zip" download="uniko-catbot.zip"
+            style={{ padding:'9px 14px', borderRadius:10, textDecoration:'none', background:T.gold, color:'white', fontWeight:700, fontSize:12.5 }}>
+            Baixar atualização
+          </a>
+        </div>
+      )}
 
       {/* ── ABAS ── */}
       <div style={{ display:'flex', gap:4, marginBottom:22, padding:'4px', background:T.surfaceSub||'rgba(0,0,0,0.04)', borderRadius:14, width:'fit-content' }}>
