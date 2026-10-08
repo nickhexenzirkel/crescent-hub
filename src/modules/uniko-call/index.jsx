@@ -8,6 +8,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { T } from '../../contexts/theme';
 import { supabase } from './callSupabase';
+import { BACKEND } from '../../utils/backendStream';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { SEM_SETOR, setorInfo, callMs, totalLabel, callsLabel } from './callUtils';
 import CallDashboard from './Dashboard';
@@ -323,6 +324,25 @@ const UnikoCall = ({ onBack }) => {
     await loadCalls(selectedContactId);
   };
 
+  // Refaz só a transcrição de uma chamada que já tem áudio guardado (o servidor roda em segundo plano;
+  // o polling da tela traz o resultado). Útil quando a transcrição falhou ou voltou só com o aviso.
+  const retranscribeCall = async (call) => {
+    setCalls(prev => prev.map(c => c.id === call.id ? { ...c, status: 'processing', error: null } : c));
+    try {
+      const res = await fetch(`${BACKEND}/api/uniko-call/retranscribe/${call.id}`, {
+        method: 'POST', headers: { Authorization: `Bearer ${localStorage.getItem('ch_token') || ''}` },
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.error || `o servidor respondeu ${res.status}`);
+      }
+      flash('Transcrevendo de novo… o resultado aparece aqui em instantes.');
+    } catch (e) {
+      flash('Erro ao transcrever de novo: ' + (e.message === 'Failed to fetch' ? 'sem conexão com o servidor.' : e.message));
+      if (selectedContactId) loadCalls(selectedContactId, { silent: true });
+    }
+  };
+
   // ── Agrupamentos por atendente / setor (respeitam o filtro de data e a busca por nome) ──
   const contactName = (id) => contacts.find(c => c.id === id)?.name || 'Contato removido';
   const nameQuery = search.trim().toLowerCase();
@@ -480,6 +500,15 @@ const UnikoCall = ({ onBack }) => {
                     {status
                       ? <span style={{ color: call.status === 'error' ? T.danger : T.textT, fontStyle: 'italic' }}>{status}</span>
                       : (call.transcript || <span style={{ color: T.textT, fontStyle: 'italic' }}>(sem fala reconhecida)</span>)}
+                    {call.audio_url && call.status !== 'processing' && (
+                      <button onClick={() => retranscribeCall(call)}
+                        title="Lê o áudio guardado e refaz a transcrição desta ligação"
+                        style={{ display: 'block', marginTop: 8, padding: '5px 11px', borderRadius: 8, cursor: 'pointer', fontSize: 11.5, fontWeight: 700,
+                          fontFamily: 'inherit', background: call.status === 'error' ? T.danger : 'transparent',
+                          color: call.status === 'error' ? '#fff' : T.textS || T.textT, border: `1px solid ${call.status === 'error' ? T.danger : T.border}` }}>
+                        ↻ Transcrever novamente
+                      </button>
+                    )}
                   </>
                 )}
               </div>
