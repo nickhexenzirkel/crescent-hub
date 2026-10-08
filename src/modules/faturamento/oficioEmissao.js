@@ -190,6 +190,7 @@ export const itemsParaTexto = (items) => {
 export const faltaNoModelo = (nota, modelo) => {
   const f = [];
   if (modelo === 'piaui') {
+    if (nota.valorBruto == null) f.push('Não achei o valor bruto na discriminação.');
     if (nota.valorLiquido == null) f.push('Não achei o VALOR LÍQUIDO A RECEBER DO CLIENTE na nota.');
     if (!nota.periodo) f.push('Não achei o período faturado.');
   } else {
@@ -426,7 +427,7 @@ export const tipoPadraoPiaui = (tipo) => (tipo === 'MANUTENÇÃO' ? 'Manutençã
 /** "2026-09-30" (campo de data) → "30/09/2026". */
 export const dataBr = (iso) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || ''); return m ? `${m[3]}/${m[2]}/${m[1]}` : ''; };
 
-export const gerarPiaui = async ({ numeroNota, secretaria, valorLiquido, tipo, periodo, vencimento, comRubrica = false }) => {
+export const gerarPiaui = async ({ numeroNota, secretaria, valorBruto, valorLiquido, tipo, periodo, vencimento, comRubrica = false }) => {
   const { doc, f, logo } = await abrirDoc(`Requerimento de Pagamento - NF ${numeroNota}`);
   const p = doc.addPage(PAG_PIAUI);
   const VAR = PRETO; // tudo em preto (no arquivo de modelo os campos variáveis vêm em vermelho; aqui não)
@@ -461,23 +462,31 @@ export const gerarPiaui = async ({ numeroNota, secretaria, valorLiquido, tipo, p
   const fimSecretaria = linha([B(secretaria.trim(), VAR)], 423.1, { indente: 37.3, justificar: false });
   const extra = topo(423.1) - fimSecretaria; // pontos que a secretaria ocupou além da 1ª linha
 
-  const extenso = reaisPorExtenso(valorLiquido).replace(/,\s*/g, ' ').toUpperCase();
-  linha([
-    R('Vimos pelo presente solicitar a V. Sas., o pagamento do valor de '),
-    B('R$ '), B(`${formatarReais(valorLiquido)} `, VAR), B(`(${extenso}`, VAR), B(')'),
+  const extExt = (v) => reaisPorExtenso(v).replace(/,\s*/g, ' ').toUpperCase();
+  const fimTexto = linha([
+    R('Vimos pelo presente solicitar a V. Sas., o pagamento do valor bruto de '),
+    B('R$ '), B(`${formatarReais(valorBruto)} `, VAR), B(`(${extExt(valorBruto)})`, VAR),
+    R(', com valor líquido de '),
+    B('R$ '), B(`${formatarReais(valorLiquido)} `, VAR), B(`(${extExt(valorLiquido)})`, VAR),
     R(', CNPJ 13.858.769/0001-97, referente ao faturamento de '), R(tipo, VAR),
     R(' do período de '), B(periodoCurto(periodo), VAR), R('.'),
   ], 450.7 + extra, { indente: 37.3 });
 
-  linha([R('Vencimento em: '), B(`${vencimento}.`, VAR)], 519.7 + extra, { indente: 37.3 });
+  // O texto ficou maior: se passar do espaço que o modelo reserva, empurra o vencimento e a assinatura
+  // pra baixo (2 linhas de respiro abaixo do último parágrafo, como no modelo).
+  const venc0 = topo(519.7 + extra);
+  const extra2 = Math.max(0, venc0 - (fimTexto - 27.6));
+  const E = extra + extra2;
+
+  linha([R('Vencimento em: '), B(`${vencimento}.`, VAR)], 519.7 + E, { indente: 37.3 });
 
   if (comRubrica) {
     const rubrica = await doc.embedPng(await baixar(rubricaUrl));
     const rw = 160.8, rh = rw * (rubrica.height / rubrica.width);
-    p.drawImage(rubrica, { x: 77.8, y: topo(592 + extra) + 2, width: rw, height: rh });
+    p.drawImage(rubrica, { x: 77.8, y: topo(592 + E) + 2, width: rw, height: rh });
   }
-  linha([B('7SERV GESTÃO DE BENEFÍCIOS LTDA')], 602.5 + extra);
-  linha([B(SIGNATARIO.nome.toUpperCase())], 616.3 + extra);
-  linha([B(`CPF Nº ${SIGNATARIO.cpf}`)], 630.2 + extra);
+  linha([B('7SERV GESTÃO DE BENEFÍCIOS LTDA')], 602.5 + E);
+  linha([B(SIGNATARIO.nome.toUpperCase())], 616.3 + E);
+  linha([B(`CPF Nº ${SIGNATARIO.cpf}`)], 630.2 + E);
   return doc.save();
 };

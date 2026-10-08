@@ -127,7 +127,7 @@ export const TabOficioEmissao = () => {
         try {
           const bytes = modelo === 'piaui'
             ? await gerarPiaui({
-              numeroNota: r.numero, secretaria: r.secretariaSel.trim(), valorLiquido: r.valorLiquido, tipo: r.tipoSel,
+              numeroNota: r.numero, secretaria: r.secretariaSel.trim(), valorBruto: r.valorBruto, valorLiquido: r.valorLiquido, tipo: r.tipoSel,
               periodo: r.periodo, vencimento: dataBr(r.venc || vencGlobal), comRubrica,
             })
             : await gerarEusebio({
@@ -239,17 +239,17 @@ export const TabOficioEmissao = () => {
             {rows.length ? `${rows.length} nota(s) na lista — arraste ou clique pra adicionar mais` : 'Arraste aqui os PDFs das notas fiscais'}
           </div>
           <div style={{ fontSize: 12.5, color: T.textT, marginTop: 5 }}>
-            Pode ser uma nota ou a remessa inteira. Da nota saem o número da NFS-e, o período faturado e o valor (bruto no Eusébio; no Piauí, o VALOR LÍQUIDO A RECEBER DO CLIENTE).
+            Pode ser uma nota ou a remessa inteira. Da nota saem o número da NFS-e, o período faturado e o valor (bruto no Eusébio; no Piauí, o bruto e o VALOR LÍQUIDO A RECEBER DO CLIENTE).
           </div>
         </div>
 
         {rows.length > 0 && (
           <div style={{ marginTop: 16, border: `1px solid ${T.border}`, borderRadius: 14, background: T.surface, overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: modelo === 'piaui' ? 860 : 640 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: modelo === 'piaui' ? 960 : 640 }}>
               <thead>
                 <tr style={{ textAlign: 'left' }}>
-                  {['Nota', modelo === 'piaui' ? 'Período' : 'Mês', modelo === 'piaui' ? 'Valor líquido' : 'Valor bruto',
-                    ...(modelo === 'piaui' ? ['Secretaria', 'Tipo', 'Vencimento'] : []), 'Situação', ''].map((h) => (
+                  {['Nota', modelo === 'piaui' ? 'Período' : 'Mês', modelo === 'piaui' ? 'Valor bruto' : 'Valor bruto',
+                    ...(modelo === 'piaui' ? ['Valor líquido', 'Secretaria', 'Tipo', 'Vencimento'] : []), 'Situação', ''].map((h) => (
                     <th key={h} style={{ padding: '10px 12px', fontSize: 11.5, fontWeight: 700, color: T.textT, letterSpacing: '.06em', textTransform: 'uppercase' }}>{h}</th>
                   ))}
                 </tr>
@@ -262,9 +262,10 @@ export const TabOficioEmissao = () => {
                       <td style={cell} title={r.nome}><b>{r.numero || '—'}</b>
                         <div style={{ fontSize: 11, color: T.textT, maxWidth: 150, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.nome}</div></td>
                       <td style={{ ...cell, fontSize: 12.5 }}>{lida ? (modelo === 'piaui' ? periodoCurto(r.periodo) : r.mesReferencia) || '—' : '—'}</td>
-                      <td style={{ ...cell, fontSize: 12.5, whiteSpace: 'nowrap' }}>{(() => { const v = modelo === 'piaui' ? r.valorLiquido : r.valorBruto; return lida && v != null ? `R$ ${formatarReais(v)}` : '—'; })()}</td>
+                      <td style={{ ...cell, fontSize: 12.5, whiteSpace: 'nowrap' }}>{(() => { const v = r.valorBruto; return lida && v != null ? `R$ ${formatarReais(v)}` : '—'; })()}</td>
                       {modelo === 'piaui' && (
                         <>
+                          <td style={{ ...cell, fontSize: 12.5, whiteSpace: 'nowrap' }}>{lida && r.valorLiquido != null ? `R$ ${formatarReais(r.valorLiquido)}` : '—'}</td>
                           <td style={{ ...cell, minWidth: 190 }}>
                             {r.estado === 'ok' ? <input style={small} value={r.secretariaSel} placeholder="Ex.: À SECRETARIA MUNICIPAL DE SAÚDE" onChange={(e) => patch(r.id, { secretariaSel: e.target.value, gerado: null })} /> : '—'}
                           </td>
