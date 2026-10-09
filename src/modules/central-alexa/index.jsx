@@ -708,6 +708,72 @@ const CentralOcean = () => {
 //    e pra tela cheia aqui via `fixed=true` (o canvas se redimensiona sozinho).
 const CentralCosmos = () => <CosmosScene fixed />;
 
+// ── Efeitos INTERNOS do card (desktop) da Destruidora de Mundos ─────────────
+//    No desktop o card segue o tema da página (branco no claro), então em vez de trocar o
+//    fundo por escuro, soma por cima: portal giratório de energia, anéis de onda de choque,
+//    estrelinhas violeta cintilando, cadentes, rachaduras de luz e poeira estelar subindo.
+//    Tudo CSS, pointer-events:none, preso no card (overflow hidden + borderRadius).
+const DESTRUIDORA_FX_CSS = `
+@keyframes dmgSpin{to{transform:translate(-50%,-50%) rotate(360deg)}}
+@keyframes dmgSpinRev{to{transform:translate(-50%,-50%) rotate(-360deg)}}
+@keyframes dmgShock{0%{transform:translate(-50%,-50%) scale(.25);opacity:.55}100%{transform:translate(-50%,-50%) scale(1.5);opacity:0}}
+@keyframes dmgTwinkle{0%,100%{opacity:.15;transform:scale(.7)}50%{opacity:1;transform:scale(1.25)}}
+@keyframes dmgShoot{0%{transform:translate(0,0) rotate(-28deg);opacity:0}8%{opacity:1}35%{transform:translate(260px,-125px) rotate(-28deg);opacity:0}100%{transform:translate(260px,-125px) rotate(-28deg);opacity:0}}
+@keyframes dmgCrack{0%,82%,100%{opacity:0}86%{opacity:.95}92%{opacity:.25}96%{opacity:.8}}
+@keyframes dmgRise{0%{transform:translateY(0) scale(1);opacity:0}15%{opacity:.8}100%{transform:translateY(-230px) scale(.3);opacity:0}}
+@keyframes dmgCore{0%,100%{opacity:.5;transform:translate(-50%,-50%) scale(.9)}50%{opacity:.9;transform:translate(-50%,-50%) scale(1.15)}}
+`;
+const DMG_STARS = Array.from({ length: 22 }, (_, i) => ({
+  x: (i * 37 + 11) % 97 + 1, y: (i * 53 + 7) % 91 + 3,
+  s: 2 + (i % 3), d: 1.6 + (i % 5) * .7, dl: (i % 7) * .45,
+  c: ['#7c3aed', '#c026d3', '#6366f1', '#a21caf'][i % 4],
+}));
+const DMG_DUST = Array.from({ length: 12 }, (_, i) => ({
+  x: (i * 29 + 6) % 92 + 4, s: 3 + (i % 3) * 2, d: 5 + (i % 4) * 1.6, dl: (i % 6) * 1.1,
+  c: i % 2 ? '#a855f7' : '#e879f9',
+}));
+const DestruidoraCardFX = () => (
+  <div style={{ position:'absolute', inset:0, borderRadius:20, overflow:'hidden', pointerEvents:'none', zIndex:1 }}>
+    <style>{DESTRUIDORA_FX_CSS}</style>
+    {/* Portal de energia girando atrás do Uniko */}
+    <div style={{ position:'absolute', left:'50%', top:'50%', width:340, height:340, borderRadius:'50%',
+      background:'conic-gradient(from 0deg, transparent 0 18%, rgba(168,85,247,.38) 28%, transparent 40%, transparent 58%, rgba(217,70,239,.34) 70%, transparent 82%)',
+      filter:'blur(14px)', animation:'dmgSpin 14s linear infinite' }}/>
+    <div style={{ position:'absolute', left:'50%', top:'50%', width:260, height:260, borderRadius:'50%',
+      border:'2px dashed rgba(124,58,237,.35)', animation:'dmgSpinRev 22s linear infinite' }}/>
+    <div style={{ position:'absolute', left:'50%', top:'50%', width:200, height:200, borderRadius:'50%',
+      background:'radial-gradient(circle, rgba(192,38,211,.35) 0%, rgba(124,58,237,.12) 50%, transparent 72%)',
+      animation:'dmgCore 3.2s ease-in-out infinite' }}/>
+    {/* Ondas de choque */}
+    {[0, 1.6, 3.2].map(dl => (
+      <div key={dl} style={{ position:'absolute', left:'50%', top:'50%', width:300, height:300, borderRadius:'50%',
+        border:'2px solid rgba(147,51,234,.55)', animation:`dmgShock 4.8s ease-out ${dl}s infinite` }}/>
+    ))}
+    {/* Rachaduras de luz */}
+    <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position:'absolute', inset:0, width:'100%', height:'100%', animation:'dmgCrack 7s linear infinite', filter:'drop-shadow(0 0 4px #c026d3)' }}>
+      <path d="M0 18 L14 24 L22 20 L34 34 L30 44" fill="none" stroke="#a21caf" strokeWidth=".7"/>
+      <path d="M100 70 L86 64 L78 72 L66 60 L70 50" fill="none" stroke="#7c3aed" strokeWidth=".7"/>
+      <path d="M22 100 L28 88 L40 92 L46 80" fill="none" stroke="#c026d3" strokeWidth=".6"/>
+    </svg>
+    {/* Estrelinhas cintilando */}
+    {DMG_STARS.map((s, i) => (
+      <span key={i} style={{ position:'absolute', left:`${s.x}%`, top:`${s.y}%`, width:s.s, height:s.s, borderRadius:'50%',
+        background:s.c, boxShadow:`0 0 ${s.s * 3}px ${s.c}`, animation:`dmgTwinkle ${s.d}s ease-in-out ${s.dl}s infinite` }}/>
+    ))}
+    {/* Estrelas cadentes */}
+    {[{ l:'6%', t:'38%', dl:0 }, { l:'18%', t:'72%', dl:4.5 }, { l:'4%', t:'58%', dl:8 }].map((m, i) => (
+      <span key={i} style={{ position:'absolute', left:m.l, top:m.t, width:70, height:2, borderRadius:2,
+        background:'linear-gradient(90deg, transparent, #c026d3, #fff)', boxShadow:'0 0 8px #a855f7', opacity:0,
+        animation:`dmgShoot 11s ease-in ${m.dl}s infinite` }}/>
+    ))}
+    {/* Poeira estelar subindo */}
+    {DMG_DUST.map((p, i) => (
+      <span key={i} style={{ position:'absolute', left:`${p.x}%`, bottom:-10, width:p.s, height:p.s, borderRadius:'50%',
+        background:p.c, boxShadow:`0 0 8px ${p.c}`, opacity:0, animation:`dmgRise ${p.d}s ease-out ${p.dl}s infinite` }}/>
+    ))}
+  </div>
+);
+
 // ── Cenário de floresta de sakura de FUNDO da página (Uniko Kitsune) — o MESMO
 //    componente canvas serve pro card (fixed=false) e pra tela cheia aqui (fixed=true):
 //    árvores de cerejeira, pétalas caindo, grama rosa, cachoeira/rio, névoas e torii.
@@ -3614,6 +3680,9 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
                         <OceanScene jellies={3} fish={4} bubbles={7} whales={false} dolphins={false} />
                       </div>
                     )}
+
+                    {/* Efeitos internos da Destruidora de Mundos (desktop — onde o card é claro/tema) */}
+                    {!isMobile && songSkin === 'destruidora-de-mundos-dh0x' && <DestruidoraCardFX />}
 
                     {/* Normal blob */}
                     {!isThemedCard && (
