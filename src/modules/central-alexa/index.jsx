@@ -714,20 +714,14 @@ const CentralCosmos = () => <CosmosScene fixed />;
 //    estrelinhas violeta cintilando, cadentes, rachaduras de luz e poeira estelar subindo.
 //    Tudo CSS, pointer-events:none, preso no card (overflow hidden + borderRadius).
 const DESTRUIDORA_FX_CSS = `
-@keyframes dmgSpin{to{transform:translate(-50%,-50%) rotate(360deg)}}
-@keyframes dmgSpinRev{to{transform:translate(-50%,-50%) rotate(-360deg)}}
-@keyframes dmgShock{0%{transform:translate(-50%,-50%) scale(.2);opacity:.7}100%{transform:translate(-50%,-50%) scale(1.7);opacity:0}}
 @keyframes dmgTwinkle{0%,100%{opacity:.15;transform:scale(.6)}50%{opacity:1;transform:scale(1.4)}}
-@keyframes dmgShoot{0%{transform:translate(0,0) rotate(-28deg);opacity:0}6%{opacity:1}30%{transform:translate(300px,-145px) rotate(-28deg);opacity:0}100%{transform:translate(300px,-145px) rotate(-28deg);opacity:0}}
-@keyframes dmgCrack{0%,70%,100%{opacity:0}74%{opacity:1}80%{opacity:.2}86%{opacity:.9}92%{opacity:.1}}
 @keyframes dmgRise{0%{transform:translateY(0) scale(1);opacity:0}15%{opacity:.9}100%{transform:translateY(-260px) scale(.3);opacity:0}}
-@keyframes dmgCore{0%,100%{opacity:.55;transform:translate(-50%,-50%) scale(.85)}50%{opacity:1;transform:translate(-50%,-50%) scale(1.2)}}
-@keyframes dmgAurora{0%{transform:translateX(-30%) skewX(-12deg);opacity:0}30%{opacity:.55}60%{opacity:.35}100%{transform:translateX(130%) skewX(-12deg);opacity:0}}
-@keyframes dmgFlash{0%,91%,100%{opacity:0}93%{opacity:.5}96%{opacity:.12}}
-@keyframes dmgBorder{0%,100%{border-color:#a855f7;box-shadow:0 0 14px #a855f755,inset 0 0 22px #a855f722}25%{border-color:#ec4899;box-shadow:0 0 18px #ec489966,inset 0 0 26px #ec489926}50%{border-color:#22d3ee;box-shadow:0 0 16px #22d3ee55,inset 0 0 24px #22d3ee22}75%{border-color:#fb923c;box-shadow:0 0 18px #fb923c55,inset 0 0 26px #fb923c22}}
+@keyframes dmgPulse{0%,100%{opacity:.55;transform:translate(-50%,-50%) scale(.88)}50%{opacity:1;transform:translate(-50%,-50%) scale(1.18)}}
+@keyframes dmgBolt{0%,100%{opacity:0}2%{opacity:1}4%{opacity:.25}6%{opacity:.95}10%{opacity:.4}16%{opacity:0}}
+@keyframes dmgBorder{0%,100%{box-shadow:0 0 12px #7c3aed66,inset 0 0 20px #7c3aed22}50%{box-shadow:0 0 22px #a855f799,inset 0 0 30px #a855f733}}
 `;
 // Card escuro e translúcido no estilo do fundo (nebulosa roxa + buracos negros): deixa o
-// CosmosScene da página aparecer por trás e a borda troca de cor sutilmente.
+// CosmosScene da página aparecer por trás; a borda roxa só pulsa o brilho.
 const dmgCardStyle = () => ({
   background: 'radial-gradient(ellipse at 70% 20%, rgba(130,0,220,.38), transparent 60%), radial-gradient(ellipse at 15% 85%, rgba(72,0,135,.45), transparent 60%), rgba(8,0,18,.72)',
   backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
@@ -755,7 +749,21 @@ const dmgTextCss = () => {
   return [[T.text, '#f5ecff'], [T.textS, '#dcc8f5'], [T.textT, '#cdb4ec'], [T.textD, '#b79ae0']]
     .map(([from, to]) => { const k = dmgRgb(from); return k ? `.dmg-fx-host [style*="color: ${k}"]{color:${to} !important}` : ''; }).join(' ');
 };
-const DMG_COLORS = ['#ffffff', '#e9d5ff', '#c084fc', '#f0abfc', '#a78bfa', '#fdba74', '#ffffff'];
+const DMG_COLORS = ['#ffffff', '#e9d5ff', '#c084fc', '#a78bfa', '#7c3aed', '#ffffff'];
+// Raios: caminhos zigue-zague de cima a baixo, em 4 tons (roxo escuro, roxo, roxo claro, branco),
+// cada um com duração/atraso próprios pra nunca piscarem juntos.
+const DMG_BOLT_COLORS = ['#5b21b6', '#7c3aed', '#c4b5fd', '#ffffff'];
+const dmgBolts = (n) => Array.from({ length: n }, (_, i) => {
+  let x = 6 + ((i * 41 + 13) % 88), y = -2, d = `M${x} ${y}`;
+  const steps = 5 + (i % 3);
+  for (let k = 0; k < steps; k++) {
+    x += ((i * 7 + k * 11) % 17) - 8; y += 100 / steps + ((k * 5 + i) % 5) - 2;
+    d += ` L${Math.max(2, Math.min(98, x)).toFixed(1)} ${y.toFixed(1)}`;
+  }
+  return { d, c: DMG_BOLT_COLORS[i % 4], w: .5 + (i % 3) * .35, dur: 3.2 + ((i * 13) % 9) * .7, dl: ((i * 17) % 11) * .6 };
+});
+const DMG_BOLTS_BIG = dmgBolts(12);
+const DMG_BOLTS_MINI = dmgBolts(8);
 const DMG_STARS = Array.from({ length: 46 }, (_, i) => ({
   x: (i * 37 + 11) % 97 + 1, y: (i * 53 + 7) % 91 + 3,
   s: 2 + (i % 4), d: 1.2 + (i % 5) * .6, dl: (i % 9) * .35,
@@ -769,53 +777,35 @@ const DMG_DUST = Array.from({ length: 26 }, (_, i) => ({
 const DestruidoraCardFX = ({ mini = false, radius = 20 }) => (
   <div className="dmg-fx" style={{ position:'absolute', inset:0, borderRadius:radius, overflow:'hidden', pointerEvents:'none', zIndex:1 }}>
     <style>{DESTRUIDORA_FX_CSS + dmgTextCss().replace(/\.dmg-fx-host/g, ':has(> .dmg-fx)')}</style>
-    {/* Auroras de cor varrendo o card */}
-    {['rgba(168,85,247,.30)', 'rgba(130,0,220,.28)', 'rgba(236,72,153,.22)'].map((c, i) => (
-      <div key={i} style={{ position:'absolute', top:0, bottom:0, left:0, width:'38%',
-        background:`linear-gradient(90deg, transparent, ${c}, transparent)`, filter:'blur(10px)',
-        animation:`dmgAurora ${9 + i * 2.5}s ease-in-out ${i * 2.8}s infinite` }}/>
-    ))}
-    {/* Buracos negros: núcleo preto, disco de acreção girando e anel de lente gravitacional */}
+    {/* Buracos negros pulsando: núcleo preto + anel roxo de lente gravitacional (sem girar) */}
     {(mini
-      ? [{ x:'88%', y:'30%', z:90, dur:7 }, { x:'8%', y:'78%', z:60, dur:9 }]
-      : [{ x:'50%', y:'50%', z:300, dur:10 }, { x:'92%', y:'12%', z:110, dur:7 }, { x:'6%', y:'90%', z:130, dur:8 }]
+      ? [{ x:'88%', y:'30%', z:90, dur:4 }, { x:'8%', y:'78%', z:60, dur:5 }]
+      : [{ x:'50%', y:'50%', z:300, dur:5 }, { x:'92%', y:'12%', z:110, dur:4 }, { x:'6%', y:'90%', z:130, dur:4.6 }]
     ).map((h, i) => (
       <div key={i} style={{ position:'absolute', left:h.x, top:h.y, width:h.z, height:h.z, transform:'translate(-50%,-50%)' }}>
         <div style={{ position:'absolute', left:'50%', top:'50%', width:'100%', height:'100%', borderRadius:'50%',
-          background:'conic-gradient(from 0deg, rgba(251,146,60,.0), rgba(251,146,60,.85) 12%, rgba(236,72,153,.7) 30%, rgba(168,85,247,.0) 48%, rgba(168,85,247,.8) 62%, rgba(255,255,255,.75) 72%, rgba(251,146,60,.0) 100%)',
-          filter:'blur(5px)', animation:`dmgSpin ${h.dur}s linear infinite` }}/>
-        <div style={{ position:'absolute', left:'50%', top:'50%', width:'72%', height:'72%', borderRadius:'50%',
-          border:'2px solid rgba(255,230,200,.6)', boxShadow:'0 0 18px rgba(236,72,153,.8), inset 0 0 14px rgba(168,85,247,.8)',
-          transform:'translate(-50%,-50%)', animation:`dmgCore ${h.dur / 3}s ease-in-out infinite` }}/>
+          background:'radial-gradient(circle, transparent 38%, rgba(124,58,237,.55) 52%, rgba(76,29,149,.35) 68%, transparent 82%)',
+          filter:'blur(4px)', animation:`dmgPulse ${h.dur}s ease-in-out infinite` }}/>
+        <div style={{ position:'absolute', left:'50%', top:'50%', width:'66%', height:'66%', borderRadius:'50%',
+          border:'2px solid rgba(216,180,254,.55)', boxShadow:'0 0 16px rgba(168,85,247,.85), inset 0 0 12px rgba(124,58,237,.85)',
+          animation:`dmgPulse ${h.dur}s ease-in-out ${h.dur / 4}s infinite` }}/>
         <div style={{ position:'absolute', left:'50%', top:'50%', width:'50%', height:'50%', borderRadius:'50%',
           background:'radial-gradient(circle, #000 55%, rgba(0,0,0,.9) 70%, transparent 100%)', transform:'translate(-50%,-50%)',
           boxShadow:'0 0 24px 6px #000' }}/>
       </div>
     ))}
-    {/* Ondas de choque multicoloridas */}
-    {[['#9333ea', 0], ['#ec4899', 1.6], ['#a78bfa', 3.2]].map(([c, dl]) => (
-      <div key={dl} style={{ position:'absolute', left:'50%', top:'50%', width: mini ? 220 : 320, height: mini ? 220 : 320, borderRadius:'50%',
-        border:`2px solid ${c}99`, boxShadow:`0 0 14px ${c}66`, animation:`dmgShock 4.8s ease-out ${dl}s infinite` }}/>
-    ))}
-    {/* Rachaduras de luz */}
-    <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position:'absolute', inset:0, width:'100%', height:'100%', animation:'dmgCrack 6s linear infinite', filter:'drop-shadow(0 0 5px #ec4899)' }}>
-      <path d="M0 18 L14 24 L22 20 L34 34 L30 44 L38 52" fill="none" stroke="#c026d3" strokeWidth=".8"/>
-      <path d="M100 70 L86 64 L78 72 L66 60 L70 50 L60 44" fill="none" stroke="#06b6d4" strokeWidth=".8"/>
-      <path d="M22 100 L28 88 L40 92 L46 80 L56 84" fill="none" stroke="#f97316" strokeWidth=".7"/>
-      <path d="M78 0 L72 14 L82 20 L76 32" fill="none" stroke="#ec4899" strokeWidth=".7"/>
+    {/* Raios em tempos diferentes: roxo escuro, roxo, roxo claro e branco */}
+    <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position:'absolute', inset:0, width:'100%', height:'100%' }}>
+      {(mini ? DMG_BOLTS_MINI : DMG_BOLTS_BIG).map((b, i) => (
+        <path key={i} d={b.d} fill="none" stroke={b.c} strokeWidth={b.w} strokeLinejoin="round" vectorEffect="non-scaling-stroke"
+          style={{ opacity:0, filter:`drop-shadow(0 0 4px ${b.c}) drop-shadow(0 0 9px #a855f7)`, strokeWidth:b.w * 2.2,
+            animation:`dmgBolt ${b.dur}s linear ${b.dl}s infinite` }}/>
+      ))}
     </svg>
-    {/* Clarão de explosão intermitente */}
-    <div style={{ position:'absolute', inset:0, background:'radial-gradient(circle at 50% 50%, rgba(255,255,255,.7), rgba(236,72,153,.35) 40%, transparent 70%)', animation:'dmgFlash 7s linear infinite', mixBlendMode:'screen' }}/>
     {/* Estrelinhas cintilando */}
     {DMG_STARS.map((s, i) => (
       <span key={i} style={{ position:'absolute', left:`${s.x}%`, top:`${s.y}%`, width:s.s, height:s.s, borderRadius:'50%',
         background:s.c, boxShadow:`0 0 ${s.s * 4}px ${s.c}`, animation:`dmgTwinkle ${s.d}s ease-in-out ${s.dl}s infinite` }}/>
-    ))}
-    {/* Estrelas cadentes */}
-    {[{ l:'4%', t:'34%', dl:0, c:'#c026d3' }, { l:'14%', t:'70%', dl:2.6, c:'#06b6d4' }, { l:'2%', t:'56%', dl:5, c:'#f97316' }, { l:'20%', t:'20%', dl:7.4, c:'#ec4899' }].map((m, i) => (
-      <span key={i} style={{ position:'absolute', left:m.l, top:m.t, width:90, height:2.5, borderRadius:2,
-        background:`linear-gradient(90deg, transparent, ${m.c}, #fff)`, boxShadow:`0 0 10px ${m.c}`, opacity:0,
-        animation:`dmgShoot 9s ease-in ${m.dl}s infinite` }}/>
     ))}
     {/* Poeira estelar subindo */}
     {DMG_DUST.map((p, i) => (
@@ -824,6 +814,7 @@ const DestruidoraCardFX = ({ mini = false, radius = 20 }) => (
     ))}
   </div>
 );
+
 
 // ── Cenário de floresta de sakura de FUNDO da página (Uniko Kitsune) — o MESMO
 //    componente canvas serve pro card (fixed=false) e pra tela cheia aqui (fixed=true):
