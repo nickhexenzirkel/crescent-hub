@@ -3976,8 +3976,8 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
                     }
                     return (
                       <div style={{position:"absolute",top:"calc(100% + 6px)",left:"0",right:"0",
-                        borderRadius:14,background:isDark?T.surface:"white",
-                        border:`1px solid ${T.border}`,boxShadow:T.shL,
+                        borderRadius:14,background:dmgDesk?"rgba(12,0,26,.96)":isDark?T.surface:"white",
+                        border:dmgDesk?"1px solid #7c3aed":`1px solid ${T.border}`,boxShadow:T.shL,
                         overflow:"hidden",zIndex:495}}>
                         {list}
                       </div>
