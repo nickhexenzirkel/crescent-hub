@@ -716,60 +716,111 @@ const CentralCosmos = () => <CosmosScene fixed />;
 const DESTRUIDORA_FX_CSS = `
 @keyframes dmgSpin{to{transform:translate(-50%,-50%) rotate(360deg)}}
 @keyframes dmgSpinRev{to{transform:translate(-50%,-50%) rotate(-360deg)}}
-@keyframes dmgShock{0%{transform:translate(-50%,-50%) scale(.25);opacity:.55}100%{transform:translate(-50%,-50%) scale(1.5);opacity:0}}
-@keyframes dmgTwinkle{0%,100%{opacity:.15;transform:scale(.7)}50%{opacity:1;transform:scale(1.25)}}
-@keyframes dmgShoot{0%{transform:translate(0,0) rotate(-28deg);opacity:0}8%{opacity:1}35%{transform:translate(260px,-125px) rotate(-28deg);opacity:0}100%{transform:translate(260px,-125px) rotate(-28deg);opacity:0}}
-@keyframes dmgCrack{0%,82%,100%{opacity:0}86%{opacity:.95}92%{opacity:.25}96%{opacity:.8}}
-@keyframes dmgRise{0%{transform:translateY(0) scale(1);opacity:0}15%{opacity:.8}100%{transform:translateY(-230px) scale(.3);opacity:0}}
-@keyframes dmgCore{0%,100%{opacity:.5;transform:translate(-50%,-50%) scale(.9)}50%{opacity:.9;transform:translate(-50%,-50%) scale(1.15)}}
+@keyframes dmgShock{0%{transform:translate(-50%,-50%) scale(.2);opacity:.7}100%{transform:translate(-50%,-50%) scale(1.7);opacity:0}}
+@keyframes dmgTwinkle{0%,100%{opacity:.15;transform:scale(.6)}50%{opacity:1;transform:scale(1.4)}}
+@keyframes dmgShoot{0%{transform:translate(0,0) rotate(-28deg);opacity:0}6%{opacity:1}30%{transform:translate(300px,-145px) rotate(-28deg);opacity:0}100%{transform:translate(300px,-145px) rotate(-28deg);opacity:0}}
+@keyframes dmgCrack{0%,70%,100%{opacity:0}74%{opacity:1}80%{opacity:.2}86%{opacity:.9}92%{opacity:.1}}
+@keyframes dmgRise{0%{transform:translateY(0) scale(1);opacity:0}15%{opacity:.9}100%{transform:translateY(-260px) scale(.3);opacity:0}}
+@keyframes dmgCore{0%,100%{opacity:.55;transform:translate(-50%,-50%) scale(.85)}50%{opacity:1;transform:translate(-50%,-50%) scale(1.2)}}
+@keyframes dmgAurora{0%{transform:translateX(-30%) skewX(-12deg);opacity:0}30%{opacity:.55}60%{opacity:.35}100%{transform:translateX(130%) skewX(-12deg);opacity:0}}
+@keyframes dmgFlash{0%,91%,100%{opacity:0}93%{opacity:.5}96%{opacity:.12}}
+@keyframes dmgBorder{0%,100%{border-color:#a855f7;box-shadow:0 0 14px #a855f755,inset 0 0 22px #a855f722}25%{border-color:#ec4899;box-shadow:0 0 18px #ec489966,inset 0 0 26px #ec489926}50%{border-color:#22d3ee;box-shadow:0 0 16px #22d3ee55,inset 0 0 24px #22d3ee22}75%{border-color:#fb923c;box-shadow:0 0 18px #fb923c55,inset 0 0 26px #fb923c22}}
 `;
-const DMG_STARS = Array.from({ length: 22 }, (_, i) => ({
+// Card escuro e translúcido no estilo do fundo (nebulosa roxa + buracos negros): deixa o
+// CosmosScene da página aparecer por trás e a borda troca de cor sutilmente.
+const dmgCardStyle = () => ({
+  background: 'radial-gradient(ellipse at 70% 20%, rgba(130,0,220,.38), transparent 60%), radial-gradient(ellipse at 15% 85%, rgba(72,0,135,.45), transparent 60%), rgba(8,0,18,.72)',
+  backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
+  border: '2px solid #a855f7',
+  animation: 'dmgBorder 8s linear infinite',
+});
+// Tema claro: os textos dos cards usam T.text/T.textS/T.textD (escuros). Reescreve essas cores
+// só dentro do card cósmico, casando pelo valor serializado no atributo style.
+const dmgRgb = (c) => {
+  if (!c) return null;
+  const m = String(c).trim();
+  let r, g, b;
+  if (m[0] === '#') {
+    const h = m.length === 4 ? m.slice(1).split('').map(x => x + x).join('') : m.slice(1, 7);
+    r = parseInt(h.slice(0, 2), 16); g = parseInt(h.slice(2, 4), 16); b = parseInt(h.slice(4, 6), 16);
+  } else {
+    const n = m.match(/[\d.]+/g); if (!n || n.length < 3) return null;
+    [r, g, b] = n.map(Number);
+    if (n.length > 3 && Number(n[3]) < 1) return null;
+  }
+  return `rgb(${r}, ${g}, ${b})`;
+};
+const dmgTextCss = () => {
+  if (T.dark) return '';
+  return [[T.text, '#f5ecff'], [T.textS, '#dcc8f5'], [T.textT, '#cdb4ec'], [T.textD, '#b79ae0']]
+    .map(([from, to]) => { const k = dmgRgb(from); return k ? `.dmg-fx-host [style*="color: ${k}"]{color:${to} !important}` : ''; }).join(' ');
+};
+const DMG_COLORS = ['#ffffff', '#e9d5ff', '#c084fc', '#f0abfc', '#a78bfa', '#fdba74', '#ffffff'];
+const DMG_STARS = Array.from({ length: 46 }, (_, i) => ({
   x: (i * 37 + 11) % 97 + 1, y: (i * 53 + 7) % 91 + 3,
-  s: 2 + (i % 3), d: 1.6 + (i % 5) * .7, dl: (i % 7) * .45,
-  c: ['#7c3aed', '#c026d3', '#6366f1', '#a21caf'][i % 4],
+  s: 2 + (i % 4), d: 1.2 + (i % 5) * .6, dl: (i % 9) * .35,
+  c: DMG_COLORS[i % DMG_COLORS.length],
 }));
-const DMG_DUST = Array.from({ length: 12 }, (_, i) => ({
-  x: (i * 29 + 6) % 92 + 4, s: 3 + (i % 3) * 2, d: 5 + (i % 4) * 1.6, dl: (i % 6) * 1.1,
-  c: i % 2 ? '#a855f7' : '#e879f9',
+const DMG_DUST = Array.from({ length: 26 }, (_, i) => ({
+  x: (i * 29 + 6) % 92 + 4, s: 3 + (i % 4) * 2, d: 3.6 + (i % 5) * 1.3, dl: (i % 8) * .8,
+  c: DMG_COLORS[(i + 2) % DMG_COLORS.length],
 }));
-const DestruidoraCardFX = () => (
-  <div style={{ position:'absolute', inset:0, borderRadius:20, overflow:'hidden', pointerEvents:'none', zIndex:1 }}>
-    <style>{DESTRUIDORA_FX_CSS}</style>
-    {/* Portal de energia girando atrás do Uniko */}
-    <div style={{ position:'absolute', left:'50%', top:'50%', width:340, height:340, borderRadius:'50%',
-      background:'conic-gradient(from 0deg, transparent 0 18%, rgba(168,85,247,.38) 28%, transparent 40%, transparent 58%, rgba(217,70,239,.34) 70%, transparent 82%)',
-      filter:'blur(14px)', animation:'dmgSpin 14s linear infinite' }}/>
-    <div style={{ position:'absolute', left:'50%', top:'50%', width:260, height:260, borderRadius:'50%',
-      border:'2px dashed rgba(124,58,237,.35)', animation:'dmgSpinRev 22s linear infinite' }}/>
-    <div style={{ position:'absolute', left:'50%', top:'50%', width:200, height:200, borderRadius:'50%',
-      background:'radial-gradient(circle, rgba(192,38,211,.35) 0%, rgba(124,58,237,.12) 50%, transparent 72%)',
-      animation:'dmgCore 3.2s ease-in-out infinite' }}/>
-    {/* Ondas de choque */}
-    {[0, 1.6, 3.2].map(dl => (
-      <div key={dl} style={{ position:'absolute', left:'50%', top:'50%', width:300, height:300, borderRadius:'50%',
-        border:'2px solid rgba(147,51,234,.55)', animation:`dmgShock 4.8s ease-out ${dl}s infinite` }}/>
+// `mini`: cards baixos/largos (pesquisa, barra, fila) — sem portal gigante, mas com o resto.
+const DestruidoraCardFX = ({ mini = false, radius = 20 }) => (
+  <div className="dmg-fx" style={{ position:'absolute', inset:0, borderRadius:radius, overflow:'hidden', pointerEvents:'none', zIndex:1 }}>
+    <style>{DESTRUIDORA_FX_CSS + dmgTextCss().replace(/\.dmg-fx-host/g, ':has(> .dmg-fx)')}</style>
+    {/* Auroras de cor varrendo o card */}
+    {['rgba(168,85,247,.30)', 'rgba(130,0,220,.28)', 'rgba(236,72,153,.22)'].map((c, i) => (
+      <div key={i} style={{ position:'absolute', top:0, bottom:0, left:0, width:'38%',
+        background:`linear-gradient(90deg, transparent, ${c}, transparent)`, filter:'blur(10px)',
+        animation:`dmgAurora ${9 + i * 2.5}s ease-in-out ${i * 2.8}s infinite` }}/>
+    ))}
+    {/* Buracos negros: núcleo preto, disco de acreção girando e anel de lente gravitacional */}
+    {(mini
+      ? [{ x:'88%', y:'30%', z:90, dur:7 }, { x:'8%', y:'78%', z:60, dur:9 }]
+      : [{ x:'50%', y:'50%', z:300, dur:10 }, { x:'92%', y:'12%', z:110, dur:7 }, { x:'6%', y:'90%', z:130, dur:8 }]
+    ).map((h, i) => (
+      <div key={i} style={{ position:'absolute', left:h.x, top:h.y, width:h.z, height:h.z, transform:'translate(-50%,-50%)' }}>
+        <div style={{ position:'absolute', left:'50%', top:'50%', width:'100%', height:'100%', borderRadius:'50%',
+          background:'conic-gradient(from 0deg, rgba(251,146,60,.0), rgba(251,146,60,.85) 12%, rgba(236,72,153,.7) 30%, rgba(168,85,247,.0) 48%, rgba(168,85,247,.8) 62%, rgba(255,255,255,.75) 72%, rgba(251,146,60,.0) 100%)',
+          filter:'blur(5px)', animation:`dmgSpin ${h.dur}s linear infinite` }}/>
+        <div style={{ position:'absolute', left:'50%', top:'50%', width:'72%', height:'72%', borderRadius:'50%',
+          border:'2px solid rgba(255,230,200,.6)', boxShadow:'0 0 18px rgba(236,72,153,.8), inset 0 0 14px rgba(168,85,247,.8)',
+          transform:'translate(-50%,-50%)', animation:`dmgCore ${h.dur / 3}s ease-in-out infinite` }}/>
+        <div style={{ position:'absolute', left:'50%', top:'50%', width:'50%', height:'50%', borderRadius:'50%',
+          background:'radial-gradient(circle, #000 55%, rgba(0,0,0,.9) 70%, transparent 100%)', transform:'translate(-50%,-50%)',
+          boxShadow:'0 0 24px 6px #000' }}/>
+      </div>
+    ))}
+    {/* Ondas de choque multicoloridas */}
+    {[['#9333ea', 0], ['#ec4899', 1.6], ['#a78bfa', 3.2]].map(([c, dl]) => (
+      <div key={dl} style={{ position:'absolute', left:'50%', top:'50%', width: mini ? 220 : 320, height: mini ? 220 : 320, borderRadius:'50%',
+        border:`2px solid ${c}99`, boxShadow:`0 0 14px ${c}66`, animation:`dmgShock 4.8s ease-out ${dl}s infinite` }}/>
     ))}
     {/* Rachaduras de luz */}
-    <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position:'absolute', inset:0, width:'100%', height:'100%', animation:'dmgCrack 7s linear infinite', filter:'drop-shadow(0 0 4px #c026d3)' }}>
-      <path d="M0 18 L14 24 L22 20 L34 34 L30 44" fill="none" stroke="#a21caf" strokeWidth=".7"/>
-      <path d="M100 70 L86 64 L78 72 L66 60 L70 50" fill="none" stroke="#7c3aed" strokeWidth=".7"/>
-      <path d="M22 100 L28 88 L40 92 L46 80" fill="none" stroke="#c026d3" strokeWidth=".6"/>
+    <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position:'absolute', inset:0, width:'100%', height:'100%', animation:'dmgCrack 6s linear infinite', filter:'drop-shadow(0 0 5px #ec4899)' }}>
+      <path d="M0 18 L14 24 L22 20 L34 34 L30 44 L38 52" fill="none" stroke="#c026d3" strokeWidth=".8"/>
+      <path d="M100 70 L86 64 L78 72 L66 60 L70 50 L60 44" fill="none" stroke="#06b6d4" strokeWidth=".8"/>
+      <path d="M22 100 L28 88 L40 92 L46 80 L56 84" fill="none" stroke="#f97316" strokeWidth=".7"/>
+      <path d="M78 0 L72 14 L82 20 L76 32" fill="none" stroke="#ec4899" strokeWidth=".7"/>
     </svg>
+    {/* Clarão de explosão intermitente */}
+    <div style={{ position:'absolute', inset:0, background:'radial-gradient(circle at 50% 50%, rgba(255,255,255,.7), rgba(236,72,153,.35) 40%, transparent 70%)', animation:'dmgFlash 7s linear infinite', mixBlendMode:'screen' }}/>
     {/* Estrelinhas cintilando */}
     {DMG_STARS.map((s, i) => (
       <span key={i} style={{ position:'absolute', left:`${s.x}%`, top:`${s.y}%`, width:s.s, height:s.s, borderRadius:'50%',
-        background:s.c, boxShadow:`0 0 ${s.s * 3}px ${s.c}`, animation:`dmgTwinkle ${s.d}s ease-in-out ${s.dl}s infinite` }}/>
+        background:s.c, boxShadow:`0 0 ${s.s * 4}px ${s.c}`, animation:`dmgTwinkle ${s.d}s ease-in-out ${s.dl}s infinite` }}/>
     ))}
     {/* Estrelas cadentes */}
-    {[{ l:'6%', t:'38%', dl:0 }, { l:'18%', t:'72%', dl:4.5 }, { l:'4%', t:'58%', dl:8 }].map((m, i) => (
-      <span key={i} style={{ position:'absolute', left:m.l, top:m.t, width:70, height:2, borderRadius:2,
-        background:'linear-gradient(90deg, transparent, #c026d3, #fff)', boxShadow:'0 0 8px #a855f7', opacity:0,
-        animation:`dmgShoot 11s ease-in ${m.dl}s infinite` }}/>
+    {[{ l:'4%', t:'34%', dl:0, c:'#c026d3' }, { l:'14%', t:'70%', dl:2.6, c:'#06b6d4' }, { l:'2%', t:'56%', dl:5, c:'#f97316' }, { l:'20%', t:'20%', dl:7.4, c:'#ec4899' }].map((m, i) => (
+      <span key={i} style={{ position:'absolute', left:m.l, top:m.t, width:90, height:2.5, borderRadius:2,
+        background:`linear-gradient(90deg, transparent, ${m.c}, #fff)`, boxShadow:`0 0 10px ${m.c}`, opacity:0,
+        animation:`dmgShoot 9s ease-in ${m.dl}s infinite` }}/>
     ))}
     {/* Poeira estelar subindo */}
     {DMG_DUST.map((p, i) => (
       <span key={i} style={{ position:'absolute', left:`${p.x}%`, bottom:-10, width:p.s, height:p.s, borderRadius:'50%',
-        background:p.c, boxShadow:`0 0 8px ${p.c}`, opacity:0, animation:`dmgRise ${p.d}s ease-out ${p.dl}s infinite` }}/>
+        background:p.c, boxShadow:`0 0 10px ${p.c}`, opacity:0, animation:`dmgRise ${p.d}s ease-out ${p.dl}s infinite` }}/>
     ))}
   </div>
 );
@@ -1482,6 +1533,8 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
   useEffect(() => onAssistantSkinChange(id => setMascotSkinId(id)), []);
   // songSkin = skin do DJ da música atual; salva/lê do Supabase para TODOS verem igual
   const [songSkin, setSongSkin] = useState('default');
+  // Destruidora de Mundos no desktop: todos os cards ganham cor + efeitos internos.
+  const dmgDesk = !isMobile && songSkin === 'destruidora-de-mundos-dh0x';
   // BUG (corrigido ago/2026): `getUniko(id)` cai pro vampire-robot quando `id` não é uma
   // chave conhecida (fallback pensado pra Uniko capturado desconhecido/ainda não
   // carregado) — mas 'default' (o UNIKO padrão, sem nenhuma skin especial) TAMBÉM cai
@@ -2986,8 +3039,10 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
               // travamento ao abrir a fila (blur sobre blur, recalculado a cada scroll).
               <div style={{borderRadius:16,background:opts.sobreEscuro?'rgba(14,14,22,.88)':opts.noBlur?'rgba(255,255,255,.05)':cardBg,
                 backdropFilter:opts.noBlur?'none':"blur(16px)",WebkitBackdropFilter:opts.noBlur?'none':"blur(16px)",
-                border:`1px solid ${C.border}`,overflow:"hidden",boxShadow:opts.noBlur?'none':C.sh}}>
-                <div style={{padding:"13px 20px",borderBottom:`1px solid ${C.border}`,background:`linear-gradient(135deg,${C.goldGl},transparent)`,display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
+                border:`1px solid ${C.border}`,overflow:"hidden",boxShadow:opts.noBlur?'none':C.sh,position:"relative",
+                ...(dmgDesk&&!opts.noBlur&&!opts.sobreEscuro?dmgCardStyle():{})}}>
+                {dmgDesk&&!opts.noBlur&&!opts.sobreEscuro && <DestruidoraCardFX mini radius={16} />}
+                <div style={{position:"relative",zIndex:2,padding:"13px 20px",borderBottom:`1px solid ${C.border}`,background:`linear-gradient(135deg,${C.goldGl},transparent)`,display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
                   <div style={{fontFamily:"var(--font-brand)",fontSize:14,fontWeight:700,color:C.text,flexShrink:0}}>Fila Democrática</div>
                   <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",justifyContent:"flex-end"}}>
                     {/* Contador de limite para colaboradores */}
@@ -3580,6 +3635,7 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
                     background: cardBgVideo ? 'transparent' : isVampCard ? '#090004' : isSeaCard ? '#03141a' : isCustomCard ? (uni?.theme?.deep || '#0a0a12') : cardBg,
                     backdropFilter: cardBgVideo ? 'none' : "blur(20px)",WebkitBackdropFilter: cardBgVideo ? 'none' : "blur(20px)",
                     border: isVampCard ? '2px solid #c41e3a' : isSeaCard ? '2px solid #2dd4bf' : isCustomCard ? `2px solid ${customAccent}` : `1px solid ${T.border}`,
+                    ...(dmgDesk ? dmgCardStyle() : {}),
                     padding:"14px 16px 22px",
                     boxShadow: isThemedCard ? undefined : T.shM,
                     animation: isVampCard ? 'vampHeartBeat 3s ease-in-out infinite' : isSeaCard ? 'seaCardBreathe 4s ease-in-out infinite' : undefined,
@@ -3682,7 +3738,7 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
                     )}
 
                     {/* Efeitos internos da Destruidora de Mundos (desktop — onde o card é claro/tema) */}
-                    {!isMobile && songSkin === 'destruidora-de-mundos-dh0x' && <DestruidoraCardFX />}
+                    {dmgDesk && <DestruidoraCardFX />}
 
                     {/* Normal blob */}
                     {!isThemedCard && (
@@ -3844,8 +3900,10 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
               <div style={isMobile?{display:"contents"}:{display:"flex",flexDirection:"column",flexShrink:0}}>
               {/* Search Bar */}
               <div className="ca-card" style={{borderRadius:18,background:cardBg,border:`1px solid ${T.border}`,padding:isMobile?"20px 24px":"10px 14px 12px",boxShadow:T.shM,position:"relative",overflow:"visible",zIndex:10,
+                ...(dmgDesk?dmgCardStyle():{}),
                 ...(isMobile?{}:{flex:"0 0 auto",minWidth:0,display:"flex",flexDirection:"column",justifyContent:"center"})}}>
                 {pulseBorda(18)}
+                {dmgDesk && <DestruidoraCardFX mini radius={16} />}
                 <div style={{position:"absolute",width:100,height:100,borderRadius:"50%",background:bolhaGradiente(T.gold),opacity:0.16,top:"-20px",right:"10%",animation:"hdrBlob1 5s ease-in-out infinite"}}/>
                 <div style={{fontSize:11,fontWeight:700,color:T.textD,textTransform:"uppercase",letterSpacing:".10em",marginBottom:isMobile?12:6,position:"relative",zIndex:1,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}}>
                   <span>Pesquisar música</span>
@@ -3973,7 +4031,8 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
             {!isMobile && (
             <div style={{flex:"0 0 30%",minWidth:300,maxWidth:440,position:"relative",display:"flex",flexDirection:"column",minHeight:0}}>
               {pulseBorda(20)}
-              <div className="ca-card" style={{flex:1,minHeight:0,borderRadius:20,background:cardBg,border:`1px solid ${T.border}`,padding:"14px 20px",boxShadow:T.shM,position:"relative",overflow:"hidden",display:"flex",flexDirection:"column",justifyContent:"center"}}>
+              <div className="ca-card" style={{flex:1,minHeight:0,borderRadius:20,background:cardBg,border:`1px solid ${T.border}`,padding:"14px 20px",boxShadow:T.shM,position:"relative",overflow:"hidden",display:"flex",flexDirection:"column",justifyContent:"center",...(dmgDesk?dmgCardStyle():{})}}>
+                {dmgDesk && <DestruidoraCardFX />}
                 <style>{`@keyframes caVinylSpin{to{transform:rotate(360deg)}}`}</style>
                 <div style={{position:"absolute",width:340,height:340,borderRadius:"50%",background:bolhaGradiente(festColors?.[0]||T.gold),opacity:0.16,top:-80,left:-60,pointerEvents:"none",transition:"background 1.5s ease"}}/>
                 {cur ? (
@@ -4260,7 +4319,8 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
                   )}
                 </div>
               ) : (
-              <div className="ca-card" style={{borderRadius:20,background:cardBg,border:`1px solid ${T.border}`,padding:"8px 18px",boxShadow:T.shL,backdropFilter:"blur(22px)",WebkitBackdropFilter:"blur(22px)",position:"relative"}}>
+              <div className="ca-card" style={{borderRadius:20,background:cardBg,border:`1px solid ${T.border}`,padding:"8px 18px",boxShadow:T.shL,backdropFilter:"blur(22px)",WebkitBackdropFilter:"blur(22px)",position:"relative",...(dmgDesk?{overflow:"hidden",...dmgCardStyle()}:{})}}>
+                {dmgDesk && <DestruidoraCardFX mini radius={18} />}
                 {spotifyChecked&&!spotifyOk&&(
                   <div style={{marginBottom:10,padding:"7px 12px",borderRadius:10,background:`rgba(192,64,80,0.06)`,border:`1px solid rgba(192,64,80,0.2)`,display:"flex",alignItems:"center",gap:8}}>
                     <span style={{fontSize:11}}>⚠️</span>
