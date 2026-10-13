@@ -2741,6 +2741,35 @@ const AdminTransacoes = ({ flash, isMobile, cardBg, adminName, ownSetState, miss
   const [kindFilter, setKindFilter] = useState('all'); // all | compra | compra_uniko | checkin | ...
   const [playerQuery, setPlayerQuery] = useState(''); // busca por colaborador nas Transações de todos
   const allPlayers = useAllPlayers();
+  // Busca por colaborador: a lista geral só traz as 200 transações mais recentes (de todo mundo),
+  // então quem tinha movimentação antiga sumia. Ao buscar uma pessoa, puxa TODO o histórico dela
+  // no banco — da primeira transação até a mais recente (em páginas de 1000, o teto do Supabase).
+  const [playerHist, setPlayerHist] = useState(null); // null = sem busca ativa
+  const [playerBusy, setPlayerBusy] = useState(false);
+  const loadPlayerHist = async (q) => {
+    const rows = [];
+    const like = '%' + q.replace(/[\\%_]/g, m => '\\' + m) + '%';
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await supabase.from('mercado_history').select('*').ilike('player', like)
+        .order('created_at', { ascending: false }).range(from, from + 999);
+      if (error) throw error;
+      rows.push(...(data || []));
+      if (!data || data.length < 1000) break;
+    }
+    return rows.map(r => ({ ...histFromRow(r), _p: r.player }));
+  };
+  useEffect(() => {
+    const q = playerQuery.trim();
+    if (!q) { setPlayerHist(null); setPlayerBusy(false); return; }
+    let vivo = true;
+    setPlayerBusy(true);
+    const t = setTimeout(async () => {
+      try { const rows = await loadPlayerHist(q); if (vivo) setPlayerHist(rows); }
+      catch { if (vivo) setPlayerHist(null); }
+      if (vivo) setPlayerBusy(false);
+    }, 350);
+    return () => { vivo = false; clearTimeout(t); };
+  }, [playerQuery]); // eslint-disable-line
 
   const load = async () => {
     setBusy(true);
@@ -3006,7 +3035,7 @@ const AdminTransacoes = ({ flash, isMobile, cardBg, adminName, ownSetState, miss
         </div>
         {(() => {
           const q = playerQuery.trim().toLowerCase();
-          const nameFiltered = q ? hist.filter(h => (h._p || '').toLowerCase().includes(q)) : hist;
+          const nameFiltered = q ? (playerHist || hist.filter(h => (h._p || '').toLowerCase().includes(q))) : hist;
           const histFiltered = kindFilter === 'all' ? nameFiltered : nameFiltered.filter(h => h.kind === kindFilter);
           // Resumo do que a pessoa buscada ganhou/gastou no total (soma dos deltas positivos e
           // negativos de cada moeda) — dá pra ver o saldo movimentado sem contar linha por linha.
@@ -3017,7 +3046,7 @@ const AdminTransacoes = ({ flash, isMobile, cardBg, adminName, ownSetState, miss
             }
             return acc;
           }, { comum: { ganho: 0, gasto: 0 }, premium: { ganho: 0, gasto: 0 } }) : null;
-          return busy ? <div style={{ fontSize: 13, color: T.textT, padding: '16px 0', textAlign: 'center' }}>Carregando…</div>
+          return busy || (q && playerBusy) ? <div style={{ fontSize: 13, color: T.textT, padding: '16px 0', textAlign: 'center' }}>Carregando…</div>
           : histFiltered.length === 0 ? <div style={{ fontSize: 13, color: T.textT, padding: '16px 0', textAlign: 'center' }}>Nenhuma transação encontrada.</div>
             : (
               <div>
