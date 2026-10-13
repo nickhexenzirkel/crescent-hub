@@ -153,7 +153,7 @@ const PedidosAjusteTab = ({ cardBg }) => {
 
   return (
     <div>
-      <div style={{ fontSize: 20, fontWeight: 800, color: T.text }}>Pedidos de Ajuste</div>
+<div style={{ fontSize: 20, fontWeight: 800, color: T.text }}>Ajuste Inteligente</div>
       <div style={{ fontSize: 12.5, color: T.textT, margin: '2px 0 12px', lineHeight: 1.5 }}>
         Descreva uma mudança pequena no Uniko. O <b>agente</b> faz a alteração e confere se o site continua montando. Com <b>Publicar direto</b> marcado, a mudança vai pra versão que todo mundo usa assim que ficar pronta (e dá pra desfazer); desmarcado, ela espera a sua aprovação.
       </div>
