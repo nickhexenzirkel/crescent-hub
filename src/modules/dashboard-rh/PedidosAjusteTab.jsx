@@ -128,7 +128,10 @@ const PedidosAjusteTab = ({ cardBg }) => {
     } catch (e) { setErro(e.message === 'Failed to fetch' ? 'Sem conexão com o servidor.' : e.message); }
     setOcupado(null); load(); loadAgente();
   };
-  const aprovar = (r) => { if (window.confirm('Aprovar e publicar esta mudança no site?')) chamar('approve', r.id, null, 'Publicado! A Vercel atualiza o site em ~1 minuto.'); };
+  const aprovar = (r) => {
+    if (r.acao) { if (window.confirm(`${r.nota_ia?.replace(/^Vou fazer: /, '').replace(/\. Clique em Aplicar.*$/, '') || 'Aplicar esta ação'}?`)) chamar('approve', r.id, null, 'Ação aplicada! Quem está com o Uniko aberto recebe em até 3 minutos.'); return; }
+    if (window.confirm('Aprovar e publicar esta mudança no site?')) chamar('approve', r.id, null, 'Publicado! A Vercel atualiza o site em ~1 minuto.');
+  };
 
   const campo = { width: '100%', padding: '9px 11px', borderRadius: 10, border: `1px solid ${T.border}`, background: 'transparent', color: T.text, fontSize: 13, fontFamily: 'var(--font-body)', outline: 'none', boxSizing: 'border-box' };
   const btn = (primario) => ({ padding: '7px 13px', borderRadius: 9, cursor: 'pointer', fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-body)',
@@ -213,9 +216,9 @@ const PedidosAjusteTab = ({ cardBg }) => {
                   title={agentePronto ? '' : agente?.notReady} style={{ ...btn(true), opacity: agentePronto && !agente?.busy ? 1 : .5 }}>{r.status === 'falhou' ? 'Tentar de novo' : 'Rodar agente'}</button>}
                 {r.status === 'em_revisao' && r.branch && <Previa id={r.id} />}
                 {r.status === 'em_revisao' && r.pr_url && <a href={r.pr_url} target="_blank" rel="noreferrer" style={{ ...btn(false), textDecoration: 'none' }}>Ver mudanças ↗</a>}
-                {r.status === 'em_revisao' && <button disabled={ocupado === r.id} onClick={() => aprovar(r)} style={{ ...btn(true), background: '#28A870', borderColor: '#28A870' }}>{ocupado === r.id ? 'Publicando…' : 'Aprovar e publicar'}</button>}
+                {r.status === 'em_revisao' && <button disabled={ocupado === r.id} onClick={() => aprovar(r)} style={{ ...btn(true), background: '#28A870', borderColor: '#28A870' }}>{ocupado === r.id ? (r.acao ? 'Aplicando…' : 'Publicando…') : (r.acao ? 'Aplicar' : 'Aprovar e publicar')}</button>}
                 {r.status === 'em_revisao' && <button disabled={ocupado === r.id} onClick={() => setReabrir({ id: r.id, texto: '', modo: 'recusar' })} style={btn(false)}>Recusar</button>}
-                {r.status === 'feito' && r.merge_sha && <button disabled={ocupado === r.id} onClick={() => { if (window.confirm('Desfazer esta mudança na versão definitiva?')) chamar('undo', r.id, null, 'Mudança desfeita. A Vercel atualiza o site em ~1 minuto.'); }} style={btn(false)}>{ocupado === r.id ? 'Desfazendo…' : 'Desfazer'}</button>}
+                {r.status === 'feito' && (r.merge_sha || r.acao?.undo) && <button disabled={ocupado === r.id} onClick={() => { if (window.confirm(r.acao ? 'Desfazer esta ação?' : 'Desfazer esta mudança na versão definitiva?')) chamar('undo', r.id, null, r.acao ? 'Ação desfeita.' : 'Mudança desfeita. A Vercel atualiza o site em ~1 minuto.'); }} style={btn(false)}>{ocupado === r.id ? 'Desfazendo…' : 'Desfazer'}</button>}
                 {r.status === 'feito' && <button onClick={() => setReabrir({ id: r.id, texto: '', modo: 'reabrir' })} style={btn(false)}>Reabrir</button>}
                 {['pendente', 'reaberto', 'falhou'].includes(r.status) && <button onClick={() => mudar(r.id, { status: 'descartado' })} style={btn(false)}>Descartar</button>}
                 {r.status !== 'em_andamento' && <button onClick={() => excluir(r.id)} style={{ ...btn(false), color: T.danger }}>Excluir</button>}

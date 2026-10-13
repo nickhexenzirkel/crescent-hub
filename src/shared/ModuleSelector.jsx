@@ -13,6 +13,7 @@ import { MenuLayoutNovo, WIDGETS_NOVO } from './MenuLayoutNovo';
 import { catalogoAtalhos, resolverAtalho, useSalasConexao } from './atalhos';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { nomeChamado, useNomesExibicao } from './nomeExibicao';
+import { aplicarVisibilidade, useVisibilidade } from './visibilidade';
 
 /* Ordem pessoal dos módulos na tela — por usuário (mesmo padrão de outras
    preferências client-only do app: chave por CPF, senão nome, senão 'anon'). */
@@ -241,6 +242,7 @@ const SHOOT_POS = [
 ];
 
 const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto, cargoModules, cargoRestricted, cargoTabRestrictions}) => {
+  useVisibilidade();
   // Cargos (Dashboard RH → Gerenciar Permissões) liberam módulo por módulo
   // pra quem não é admin/moderador — camada ADICIONAL, só soma acesso, nunca
   // tira o que admin/moderador já tinham. `cargoRestricted` é a exceção: um
@@ -549,14 +551,15 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto, cargoModules, 
       // Seus Dados nasce grande (widget deitado); os outros atalhos, pequenos.
       tamPadrao: chave === 'dados' ? 'g' : undefined,
     }));
-  const filteredMods = [...allMods, ...atalhoMods]
+  // Esconder/renomear módulos (por pessoa ou pra todos) vem do Supabase — ver visibilidade.js.
+  const filteredMods = aplicarVisibilidade('modulo', [...allMods, ...atalhoMods]
     .filter(m => {
       // Atalho aponta pra um módulo de verdade via `m.modulo` (ex: atalho
       // "Seus Dados" → módulo 'colaborador') — no modo restrito, checa esse
       // alvo real, senão um atalho furava a restrição do card principal.
       if (cargoRestricted && !isAdmin && !isModerador) return temCargoPara(m.modulo || m.id);
       return !m.adminOnly || (m.strictAdmin ? isAdmin : podeAdminOnly) || temCargoPara(m.id);
-    });
+    }), authUser?.name);
   /* O Portal do Colaborador fica SEMPRE em primeiro — em qualquer ordem salva,
      no computador e no celular. Reordenar mexe só nos outros. */
   const fixarPrincipal = (lista) => {

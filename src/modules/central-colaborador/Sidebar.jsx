@@ -4,6 +4,7 @@ import { USER, supabase as _supabase, getAuthUser } from '../../contexts/user';
 import { StarDivider, UnikoIcon, Logo, AvatarCircle } from '../../shared/components';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { bolhaGradiente } from '../../shared/bolhas';
+import { aplicarVisibilidade, useVisibilidade } from '../../shared/visibilidade';
 /* Cabeçalho da barra — o MESMO componente que a Oficina Estelar usa. */
 import { UnikoBrandArt } from '../../shared/UnikoBrand';
 import { nomeExibido, useNomesExibicao } from '../../shared/nomeExibicao';
@@ -59,7 +60,8 @@ const NAV=[
    quem saiu não acumula mais banco de horas nem falta, então não faz sentido
    continuar vendo — nem justificando — dia nenhum. */
 const NAV_FOR = (isAdmin, desligado = false) =>
-  NAV.filter(n => (!n.adminOnly || isAdmin) && !(desligado && n.ponto));
+  // Esconder/renomear abas (por pessoa ou pra todos) vem do Supabase — ver shared/visibilidade.js.
+  aplicarVisibilidade('aba', NAV.filter(n => (!n.adminOnly || isAdmin) && !(desligado && n.ponto)));
 
 const LockIcon = () => (
   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" style={{flexShrink:0}}>
@@ -75,6 +77,7 @@ const LockIcon = () => (
 // 100% igual a antes.
 const Sidebar = ({tab,setTab,onBack,activeTheme,onTheme,onOpenSettings,userPhoto,profileComplete,collapsed,desligado,only}) => {
   useNomesExibicao();
+  useVisibilidade();
   const isMobile = useIsMobile();
   const [hov,sh]=useState(null);
   let nav = NAV_FOR(getAuthUser()?.role === 'admin', desligado);

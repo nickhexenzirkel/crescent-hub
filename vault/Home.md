@@ -12,6 +12,7 @@ Abra a pasta `vault/` como um cofre (vault) no Obsidian.
 - [[Como pedir ajustes]] — o fluxo de pedidos sem precisar de API paga
 
 ## Módulos e projetos
+- [[acoes-administrativas]] — pedidos que escondem/renomeiam módulos e abas ou tiram um Uniko de alguém (sem código)
 - [[imagens-do-site]] — troca imagens do Uniko pela tela (Dashboard RH), valendo pra todos sem deploy
 - [[agente-ia]] — agente independente que resolve Pedidos de Ajuste (branch + build + pull request)
 - [[arquivo-anual]] — Arquivo anual (.ukarq) do WhatsApp e Call: baixar o ano, excluir e importar

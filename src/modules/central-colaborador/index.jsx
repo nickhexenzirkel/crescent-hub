@@ -3,6 +3,7 @@ import { T, applyTheme } from '../../contexts/theme';
 import { USER, SERVER_URL, getAuthUser, isProfileComplete as checkProfileComplete, shrinkPhoto } from '../../contexts/user';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { NAV_FOR } from './Sidebar';
+import { useVisibilidade } from '../../shared/visibilidade';
 import { recordRecentTab } from './recentTabs';
 import { SettingsModal } from '../../shared/SettingsModal';
 import { Sidebar, TopBar } from './Sidebar';
@@ -60,6 +61,7 @@ const ehCelularDeitado = () => {
 // — ex: cargo "Comercial" só vendo Seus Dados/Financeiro/Meus Lembretes/
 // Eventos/Feedback. undefined/[] = sem restrição, comportamento de sempre.
 const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange, initialTab, restrictedTabs}) => {
+  useVisibilidade();
   const isMobile = useIsMobile();
   const [celularDeitado, setCelularDeitado] = useState(ehCelularDeitado);
   useEffect(() => {
