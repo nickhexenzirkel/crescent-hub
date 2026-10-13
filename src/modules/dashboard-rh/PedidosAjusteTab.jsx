@@ -72,6 +72,9 @@ const PedidosAjusteTab = ({ cardBg }) => {
   const [titulo, setTitulo] = useState('');
   const [descricao, setDescricao] = useState('');
   const [area, setArea] = useState('');
+  // Publicar direto na versão definitiva assim que o agente terminar (lembra a última escolha).
+  const [auto, setAuto] = useState(() => { try { return localStorage.getItem('uniko_pedido_auto') !== '0'; } catch { return true; } });
+  const mudarAuto = (v) => { setAuto(v); try { localStorage.setItem('uniko_pedido_auto', v ? '1' : '0'); } catch { /* sem storage */ } };
   const [filtro, setFiltro] = useState('abertos'); // abertos | feito | todos
   const [reabrir, setReabrir] = useState(null);    // { id, texto, modo: 'reabrir' | 'recusar' }
   const [agente, setAgente] = useState(null);      // { llm, github, auto, busy, model, notReady }
@@ -103,7 +106,7 @@ const PedidosAjusteTab = ({ cardBg }) => {
 
   const criar = async () => {
     if (!titulo.trim()) return;
-    const { error } = await _supabase.from('uniko_pedidos_ajuste').insert({ titulo: titulo.trim(), descricao: descricao.trim() || null, area: area.trim() || null, autor: USER?.name || null });
+    const { error } = await _supabase.from('uniko_pedidos_ajuste').insert({ titulo: titulo.trim(), descricao: descricao.trim() || null, area: area.trim() || null, autor: USER?.name || null, auto_publicar: auto });
     if (error) { setErro(error.message); return; }
     setTitulo(''); setDescricao(''); setArea(''); load();
   };
@@ -139,7 +142,7 @@ const PedidosAjusteTab = ({ cardBg }) => {
     <div>
       <div style={{ fontSize: 20, fontWeight: 800, color: T.text }}>Pedidos de Ajuste</div>
       <div style={{ fontSize: 12.5, color: T.textT, margin: '2px 0 12px', lineHeight: 1.5 }}>
-        Descreva uma mudança pequena no Uniko. O <b>agente</b> faz a alteração, confere se o site continua montando e te mostra o resultado aqui — só vai pro ar depois que você aprovar.
+        Descreva uma mudança pequena no Uniko. O <b>agente</b> faz a alteração e confere se o site continua montando. Com <b>Publicar direto</b> marcado, a mudança vai pra versão que todo mundo usa assim que ficar pronta (e dá pra desfazer); desmarcado, ela espera a sua aprovação.
       </div>
       {agente && (
         <div style={{ fontSize: 11.5, marginBottom: 14, padding: '7px 11px', borderRadius: 9, display: 'inline-block',
@@ -156,6 +159,10 @@ const PedidosAjusteTab = ({ cardBg }) => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <input value={titulo} onChange={e => setTitulo(e.target.value)} placeholder="O que você quer mudar? (ex.: botão Salvar maior no mobile)" style={campo} />
           <textarea value={descricao} onChange={e => setDescricao(e.target.value)} rows={3} placeholder="Detalhes: como está hoje, como deveria ficar…" style={{ ...campo, resize: 'vertical' }} />
+          <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 12.5, color: T.textS, cursor: 'pointer', lineHeight: 1.45 }}>
+            <input type="checkbox" checked={auto} onChange={e => mudarAuto(e.target.checked)} style={{ marginTop: 2 }} />
+            <span><b style={{ color: T.text }}>Publicar direto</b> na versão que todo mundo usa assim que ficar pronto (o site só é atualizado se o build passar). Dá pra desfazer depois. Desmarque pra revisar antes.</span>
+          </label>
           <div style={{ display: 'flex', gap: 8 }}>
             <input value={area} onChange={e => setArea(e.target.value)} placeholder="Tela / módulo (opcional — ajuda o agente a achar)" style={{ ...campo, flex: 1 }} />
             <button onClick={criar} disabled={!titulo.trim()} style={{ ...btn(true), opacity: titulo.trim() ? 1 : .5 }}>Enviar pedido</button>
@@ -208,6 +215,7 @@ const PedidosAjusteTab = ({ cardBg }) => {
                 {r.status === 'em_revisao' && r.pr_url && <a href={r.pr_url} target="_blank" rel="noreferrer" style={{ ...btn(false), textDecoration: 'none' }}>Ver mudanças ↗</a>}
                 {r.status === 'em_revisao' && <button disabled={ocupado === r.id} onClick={() => aprovar(r)} style={{ ...btn(true), background: '#28A870', borderColor: '#28A870' }}>{ocupado === r.id ? 'Publicando…' : 'Aprovar e publicar'}</button>}
                 {r.status === 'em_revisao' && <button disabled={ocupado === r.id} onClick={() => setReabrir({ id: r.id, texto: '', modo: 'recusar' })} style={btn(false)}>Recusar</button>}
+                {r.status === 'feito' && r.merge_sha && <button disabled={ocupado === r.id} onClick={() => { if (window.confirm('Desfazer esta mudança na versão definitiva?')) chamar('undo', r.id, null, 'Mudança desfeita. A Vercel atualiza o site em ~1 minuto.'); }} style={btn(false)}>{ocupado === r.id ? 'Desfazendo…' : 'Desfazer'}</button>}
                 {r.status === 'feito' && <button onClick={() => setReabrir({ id: r.id, texto: '', modo: 'reabrir' })} style={btn(false)}>Reabrir</button>}
                 {['pendente', 'reaberto', 'falhou'].includes(r.status) && <button onClick={() => mudar(r.id, { status: 'descartado' })} style={btn(false)}>Descartar</button>}
                 {r.status !== 'em_andamento' && <button onClick={() => excluir(r.id)} style={{ ...btn(false), color: T.danger }}>Excluir</button>}

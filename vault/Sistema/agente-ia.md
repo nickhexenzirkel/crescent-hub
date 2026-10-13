@@ -18,3 +18,5 @@ Código: `crescent-hub-server/agent/` (guard.js trilhos, tools.js ferramentas, l
 **Testado:** com modelo e GitHub falsos num repositório git local (guard, build falho→conserto, PR, main intacta). NÃO testado: Groq real e GitHub real — o primeiro pedido de verdade é o teste.
 
 **Ao vivo:** o runner grava o log no banco a cada ~1,5s (coluna agente_log) com linhas em português (🔎 procurando, 📖 lendo arquivo, ✏️ EDITANDO arquivo + antes/depois, 🔨 build); a aba mostra "Agora: …" e o console rolando enquanto o status é em_andamento.
+
+**Publicação direta (13/out):** o pedido tem a opção "Publicar direto" (coluna `auto_publicar`, padrão marcado na tela; `AGENT_AUTOPUBLISH=1` liga para todos). Com ela, depois do build passar o agente faz o squash merge sozinho (a Vercel publica em ~1 min) e guarda `merge_sha`. Botão **Desfazer** (rota `/api/agent/undo/:id`) cria um commit de reversão na main. Sem a opção, fluxo de aprovação + botão de prévia da Vercel. Todo usuário com o site aberto vê o aviso "O Uniko foi atualizado — Atualizar agora" (`src/shared/AtualizacaoDisponivel.jsx`, checa o index.html a cada 90s).

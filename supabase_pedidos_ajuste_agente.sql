@@ -12,3 +12,7 @@ alter table public.uniko_pedidos_ajuste add column if not exists agente_log  tex
 alter table public.uniko_pedidos_ajuste drop constraint if exists uniko_pedidos_ajuste_status_check;
 alter table public.uniko_pedidos_ajuste add constraint uniko_pedidos_ajuste_status_check
   check (status in ('pendente','em_andamento','em_revisao','feito','reaberto','descartado','falhou'));
+
+-- Publicação automática + desfazer
+alter table public.uniko_pedidos_ajuste add column if not exists auto_publicar boolean not null default false;
+alter table public.uniko_pedidos_ajuste add column if not exists merge_sha     text;
