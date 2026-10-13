@@ -5,6 +5,7 @@ import { StarDivider, Card, Btn, Tag, SHead, Moon, Logo, UnikoIcon } from '../..
 import { splitContrachequesPDF, normName, onlyDigits } from './contrachequeSplit';
 import UnikoQATab from './UnikoQATab';
 import ArmazenamentoTab from './ArmazenamentoTab';
+import PedidosAjusteTab from './PedidosAjusteTab';
 import UnikoFitPosesTab from './UnikoFitPosesTab';
 import PrestacoesContasTab from './PrestacoesContasTab';
 import UnikoSuspectMapTab from './UnikoSuspectMapTab';
@@ -2167,6 +2168,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin', initialTa
     {id:'trofeus',        label:'Troféus',            icon:<><path d="M6 9H4.5a2.5 2.5 0 010-5H6"/><path d="M18 9h1.5a2.5 2.5 0 000-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0012 0V2z"/></>},
     {id:'config',         label:'Configurações',      icon:<><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></>},
     {id:'spotify',        label:'API do Spotify',     icon:<><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></>},
+    {id:'pedidos_ajuste', label:'Pedidos de Ajuste', icon:<><path d="M14.7 6.3a4 4 0 00-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 005.4-5.4L15 12l-3-3z"/></>},
     {id:'armazenamento',  label:'Armazenamento Supabase', icon:<><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></>},
     {id:'logs',           label:'Logs do Servidor',   icon:<><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></>},
   ];
@@ -3559,6 +3561,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin', initialTa
           {/* ── TAB: PERGUNTAS DO UNIKO (cache/aprendizado da IA) ── */}
           {tab==='uniko_ia'&&<UnikoQATab cardBg={cardBg}/>}
           {tab==='armazenamento'&&<ArmazenamentoTab/>}
+          {tab==='pedidos_ajuste'&&<PedidosAjusteTab cardBg={cardBg}/>}
           {tab==='uniko-fit'&&<UnikoFitPosesTab cardBg={cardBg} adminName={adminName}/>}
           {tab==='uniko-suspect'&&<UnikoSuspectMapTab cardBg={cardBg} adminName={adminName}/>}
 
