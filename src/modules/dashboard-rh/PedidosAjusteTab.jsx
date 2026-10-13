@@ -163,7 +163,7 @@ const PedidosAjusteTab = ({ cardBg }) => {
       {agente && (
         <div style={{ fontSize: 11.5, marginBottom: 14, padding: '7px 11px', borderRadius: 9, display: 'inline-block',
           background: agentePronto ? 'rgba(40,168,112,.12)' : 'rgba(232,160,32,.14)', color: agentePronto ? '#1d7a52' : '#9a6a00' }}>
-          {agentePronto ? `Agente pronto (${agente.model})${agente.auto ? ' · fila automática ligada' : ' · rode manualmente em cada pedido'}` : `Agente indisponível: ${agente.notReady}`}
+          {agentePronto ? `Agente pronto (${agente.model})${agente.auto ? ' · fila automática ligada' : ' · rode manualmente em cada pedido'}${agente.fallback?.length ? ` · se um agente falhar, tenta: ${agente.fallback.filter(f => agente.provedores?.[f]?.ok).join(' → ')}` : ''}` : `Agente indisponível: ${agente.notReady}`}
         </div>
       )}
 
