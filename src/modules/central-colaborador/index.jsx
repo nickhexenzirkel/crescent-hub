@@ -25,6 +25,7 @@ import { TabQuizMM } from './tabs/TabQuizMM';
 import { TabUnikoStop } from './tabs/TabUnikoStop';
 import { TabUnikoPalavras } from './tabs/TabUnikoPalavras';
 import { TabUnikoFaster } from './tabs/TabUnikoFaster';
+import { TabTetris } from './tabs/TabTetris';
 import { TabUnikoSuspect } from './tabs/TabUnikoSuspect';
 import CentralLembretes from '../central-lembretes';
 import { syncCollectionFromServer } from '../../shared/captureUniko';
@@ -245,6 +246,7 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange, initialTab, restri
     if(tab==='unikostop')   return <TabUnikoStop/>;
     if(tab==='unikopalavras') return <TabUnikoPalavras/>;
     if(tab==='unikofaster') return <TabUnikoFaster/>;
+    if(tab==='tetris') return <TabTetris/>;
     if(tab==='unikosuspect') return <TabUnikoSuspect/>;
     return null;
   };
