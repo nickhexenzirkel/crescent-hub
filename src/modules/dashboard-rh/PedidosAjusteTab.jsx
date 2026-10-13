@@ -32,6 +32,30 @@ const AoVivo = ({ log }) => {
     </div>
   );
 };
+// Botão de prévia: a Vercel publica a branch do agente num endereço de teste (~1 min).
+// Pergunta ao servidor até ficar pronta e abre numa aba nova — sem esperar o site principal.
+const Previa = ({ id }) => {
+  const [st, setSt] = useState({ state: 'gerando', url: null });
+  useEffect(() => {
+    let vivo = true, t;
+    const tick = async () => {
+      try {
+        const r = await fetch(`${SERVER_URL}/api/agent/preview/${id}`, { headers: authHeaders() });
+        const d = await r.json();
+        if (!vivo) return;
+        if (r.ok) setSt(d);
+        if (!r.ok || d.state === 'gerando') t = setTimeout(tick, 5000);
+      } catch { if (vivo) t = setTimeout(tick, 8000); }
+    };
+    tick();
+    return () => { vivo = false; clearTimeout(t); };
+  }, [id]);
+  const base = { padding: '7px 13px', borderRadius: 9, fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-body)', textDecoration: 'none' };
+  if (st.state === 'pronta') return <a href={st.url} target="_blank" rel="noreferrer" style={{ ...base, border: '1px solid #3B82F6', background: '#3B82F6', color: '#fff' }}>Abrir prévia ao vivo ↗</a>;
+  if (st.state === 'falhou') return <span style={{ ...base, border: `1px solid ${T.border}`, color: T.textT }}>Prévia indisponível</span>;
+  return <span style={{ ...base, border: `1px solid ${T.border}`, color: T.textT }}>Gerando prévia… (~1 min)</span>;
+};
+
 // Console do passo a passo: rola sozinho pro fim enquanto chegam linhas novas.
 const LogTela = ({ log }) => {
   const ref = useRef(null);
@@ -180,6 +204,7 @@ const PedidosAjusteTab = ({ cardBg }) => {
                 <span style={{ fontSize: 11, color: T.textT, flex: 1 }}>{r.autor || ''} · {new Date(r.created_at).toLocaleDateString('pt-BR')}</span>
                 {podeRodar && <button disabled={!agentePronto || ocupado === r.id || !!agente?.busy} onClick={() => chamar('run', r.id, null, 'O agente começou a trabalhar. Acompanhe por aqui.')}
                   title={agentePronto ? '' : agente?.notReady} style={{ ...btn(true), opacity: agentePronto && !agente?.busy ? 1 : .5 }}>{r.status === 'falhou' ? 'Tentar de novo' : 'Rodar agente'}</button>}
+                {r.status === 'em_revisao' && r.branch && <Previa id={r.id} />}
                 {r.status === 'em_revisao' && r.pr_url && <a href={r.pr_url} target="_blank" rel="noreferrer" style={{ ...btn(false), textDecoration: 'none' }}>Ver mudanças ↗</a>}
                 {r.status === 'em_revisao' && <button disabled={ocupado === r.id} onClick={() => aprovar(r)} style={{ ...btn(true), background: '#28A870', borderColor: '#28A870' }}>{ocupado === r.id ? 'Publicando…' : 'Aprovar e publicar'}</button>}
                 {r.status === 'em_revisao' && <button disabled={ocupado === r.id} onClick={() => setReabrir({ id: r.id, texto: '', modo: 'recusar' })} style={btn(false)}>Recusar</button>}
