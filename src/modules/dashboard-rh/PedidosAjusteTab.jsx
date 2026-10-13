@@ -20,6 +20,25 @@ const STATUS = {
 const ABERTOS = ['pendente', 'reaberto', 'em_andamento', 'em_revisao', 'falhou'];
 const authHeaders = () => ({ Authorization: `Bearer ${localStorage.getItem('ch_token') || ''}`, 'Content-Type': 'application/json' });
 
+// Mostra, em destaque, em que o agente está mexendo AGORA (última linha de ação do log).
+const AoVivo = ({ log }) => {
+  const acoes = String(log || '').split('\n').filter(l => /(EDITANDO|CRIANDO|Lendo|Procurando|Olhando|Conferindo|Build|Clonando|Instalando)/.test(l));
+  const ultima = (acoes[acoes.length - 1] || '').replace(/^\[[^\]]*\]\s*/, '');
+  return (
+    <div style={{ margin: '8px 0 6px', padding: '8px 11px', borderRadius: 9, background: 'rgba(59,130,246,.12)', color: T.text, fontSize: 12.5, display: 'flex', alignItems: 'center', gap: 8 }}>
+      <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#3B82F6', flexShrink: 0, animation: 'pedPulso 1.2s ease-in-out infinite' }} />
+      <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}><b>Agora:</b> {ultima || 'iniciando…'}</span>
+      <style>{'@keyframes pedPulso{0%,100%{opacity:1}50%{opacity:.25}}'}</style>
+    </div>
+  );
+};
+// Console do passo a passo: rola sozinho pro fim enquanto chegam linhas novas.
+const LogTela = ({ log }) => {
+  const ref = useRef(null);
+  useEffect(() => { if (ref.current) ref.current.scrollTop = ref.current.scrollHeight; }, [log]);
+  return <pre ref={ref} style={{ margin: '6px 0 0', padding: 10, borderRadius: 8, background: T.surfaceSub || 'rgba(0,0,0,.05)', color: T.textS, fontSize: 11, lineHeight: 1.55, whiteSpace: 'pre-wrap', maxHeight: 260, overflowY: 'auto' }}>{log}</pre>;
+};
+
 const PedidosAjusteTab = ({ cardBg }) => {
   const bg = cardBg || T.surface;
   const [rows, setRows] = useState([]);
@@ -54,7 +73,7 @@ const PedidosAjusteTab = ({ cardBg }) => {
   const trabalhando = rows.some(r => r.status === 'em_andamento');
   useEffect(() => {
     clearInterval(timer.current);
-    if (trabalhando) timer.current = setInterval(load, 5000);
+    if (trabalhando) timer.current = setInterval(load, 2500);
     return () => clearInterval(timer.current);
   }, [trabalhando, load]);
 
@@ -146,12 +165,14 @@ const PedidosAjusteTab = ({ cardBg }) => {
                 </div>
               )}
               {r.comentario && <div style={{ fontSize: 12, color: T.textS, marginTop: 6 }}><b>Seu comentário:</b> {r.comentario}</div>}
+              {r.status === 'em_andamento' && !r.agente_log && <div style={{ fontSize: 12, color: T.textT, marginTop: 8 }}>Preparando o agente…</div>}
               {r.agente_log && (
                 <div style={{ marginTop: 6 }}>
+                  {r.status === 'em_andamento' && <AoVivo log={r.agente_log} />}
                   <button onClick={() => setLogAberto(logAberto === r.id ? null : r.id)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: 11, color: T.textT, textDecoration: 'underline' }}>
-                    {logAberto === r.id ? 'Esconder passo a passo' : 'Ver passo a passo do agente'}
+                    {(logAberto === r.id || r.status === 'em_andamento') ? 'Esconder passo a passo' : 'Ver passo a passo do agente'}
                   </button>
-                  {logAberto === r.id && <pre style={{ margin: '6px 0 0', padding: 10, borderRadius: 8, background: T.surfaceSub || 'rgba(0,0,0,.05)', color: T.textS, fontSize: 11, lineHeight: 1.5, whiteSpace: 'pre-wrap', maxHeight: 220, overflowY: 'auto' }}>{r.agente_log}</pre>}
+                  {(logAberto === r.id || r.status === 'em_andamento') && <LogTela log={r.agente_log} />}
                 </div>
               )}
 
