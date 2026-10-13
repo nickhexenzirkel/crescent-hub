@@ -102,6 +102,21 @@ export const useComunicadosResumo = () => {
   return resumo;
 };
 
+/* Eventos do calendário da empresa marcados pra HOJE. [] enquanto carrega ou se
+   a leitura falhar — o widget só aparece quando há algum. */
+export const useEventosHoje = () => {
+  const [evts, setEvts] = useState([]);
+  useEffect(() => {
+    let vivo = true;
+    const hoje = localDateStr(new Date());
+    supabase.from('calendar_events').select('id,title,event_date,event_time').eq('event_date', hoje)
+      .order('event_time', { ascending: true })
+      .then(({ data, error }) => { if (vivo && !error && Array.isArray(data)) setEvts(data); }, () => {});
+    return () => { vivo = false; };
+  }, []);
+  return evts;
+};
+
 /* Janela em que o catálogo conta como "atualizado". O Admin da loja regrava o
    catálogo inteiro a cada edição (updated_at de todos os itens muda junto),
    então o maior updated_at é, na prática, "a última vez que mexeram na loja". */

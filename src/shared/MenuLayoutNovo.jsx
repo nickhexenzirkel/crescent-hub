@@ -4,7 +4,7 @@ import { T } from '../contexts/theme';
 import { AvatarCircle } from './components';
 import { NAV } from '../modules/central-colaborador/Sidebar';
 import { novidadesAtivas } from './novidades';
-import { useCheckinHoje, usePrismaResumo, usePontoResumo, useComunicadosResumo, useCaixaEntrada } from './menuWidgets';
+import { useCheckinHoje, usePrismaResumo, usePontoResumo, useComunicadosResumo, useCaixaEntrada, useEventosHoje } from './menuWidgets';
 import { setPendingJoin } from './gameInvites';
 import { setPendingListInvite } from './listShares';
 import { nomeChamado, useNomesExibicao } from './nomeExibicao';
@@ -540,6 +540,33 @@ const WidgetAvisos = ({ tam, ...moldura }) => {
           </div>
         ) : <div style={{ fontSize:13, color:T.textT }}>{resumo ? 'Nenhum comunicado no momento' : 'Carregando…'}</div>
       )}
+    </Moldura>
+  );
+};
+
+/* ── Widget: eventos de hoje ──────────────────────────────────────────────────
+   Fica logo abaixo do card de boas-vindas e SÓ existe quando há evento no dia
+   (não entra no modo Tamanho: some e volta sozinho conforme a agenda). */
+const COR_EVENTOS = '#FF375F';
+const WidgetEventosHoje = ({ onAbrir, i }) => {
+  const evts = useEventosHoje();
+  if (!evts.length) return null;
+  const mostrar = evts.slice(0, 4);
+  return (
+    <Moldura tam="g" colunas={2} linhas={mostrar.length <= 2 ? 2 : 3} cor={COR_EVENTOS} i={i} onAbrir={onAbrir}
+      style={{ padding:'13px 14px', display:'flex', flexDirection:'column', gap:8, overflow:'hidden' }}>
+      <Cabeca cor={COR_EVENTOS} icone={navIcone('eventos')} titulo="Eventos de hoje"
+        sub={evts.length === 1 ? '1 evento na agenda' : `${evts.length} eventos na agenda`} pontoCor={COR_EVENTOS} pulso/>
+      <div style={{ display:'flex', flexDirection:'column', gap:5, minWidth:0 }}>
+        {mostrar.map(ev => (
+          <div key={ev.id} style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 10px', borderRadius:11,
+            background:T.surfaceSub || 'rgba(0,0,0,.04)' }}>
+            <span style={{ flex:1, minWidth:0, fontSize:12.5, fontWeight:600, color:T.text, ...umaLinha }}>{ev.title}</span>
+            <span style={{ fontSize:11, color:T.textT, flexShrink:0, fontVariantNumeric:'tabular-nums' }}>{ev.event_time || 'Dia todo'}</span>
+          </div>
+        ))}
+        {evts.length > 4 && <span style={{ fontSize:11, color:T.textT, paddingLeft:4 }}>+{evts.length - 4} no calendário</span>}
+      </div>
     </Moldura>
   );
 };
@@ -1404,6 +1431,7 @@ const MenuLayoutNovo = ({ mods, onSelect, getModuleColor, authUser, userPhoto, a
           <div ref={gradeWidRef} style={{ display:'grid', gridTemplateColumns:'repeat(2, minmax(0, 1fr))', gridAutoRows: LINHA + folga.wid,
             gap:VAO_W, gridAutoFlow:'row dense' }}>
             <WidgetPerfil {...widget('perfil', 0)} authUser={authUser} userPhoto={userPhoto} acoes={acoes}/>
+            <WidgetEventosHoje i={1} onAbrir={abrir('colaborador', 'eventos')}/>
             <WidgetCaixa {...widget('caixa', 1)} authUser={authUser} onSelect={onSelect}/>
             {!widgetsOcultos.checkin && <WidgetCheckin {...widget('checkin', 2)} authUser={authUser} onAbrir={abrir('mercado-estelar', 'checkin')}/>}
             {!widgetsOcultos.horas && <WidgetHoras {...widget('horas', 3)} ponto={ponto} onAbrir={abrir('colaborador', 'horas')}/>}
