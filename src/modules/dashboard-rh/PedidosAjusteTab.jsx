@@ -75,6 +75,9 @@ const PedidosAjusteTab = ({ cardBg }) => {
   // Publicar direto na versão definitiva assim que o agente terminar (lembra a última escolha).
   const [auto, setAuto] = useState(() => { try { return localStorage.getItem('uniko_pedido_auto') !== '0'; } catch { return true; } });
   const mudarAuto = (v) => { setAuto(v); try { localStorage.setItem('uniko_pedido_auto', v ? '1' : '0'); } catch { /* sem storage */ } };
+  // Qual agente resolve o pedido: Groq (grátis) ou OpenAI (pago, cartão da conta). Lembra a última escolha.
+  const [qualAgente, setQualAgente] = useState(() => { try { return localStorage.getItem('uniko_pedido_agente') || ''; } catch { return ''; } });
+  const mudarQualAgente = (v) => { setQualAgente(v); try { localStorage.setItem('uniko_pedido_agente', v); } catch { /* sem storage */ } };
   const [filtro, setFiltro] = useState('abertos'); // abertos | feito | todos
   const [reabrir, setReabrir] = useState(null);    // { id, texto, modo: 'reabrir' | 'recusar' }
   const [agente, setAgente] = useState(null);      // { llm, github, auto, busy, model, notReady }
@@ -106,7 +109,7 @@ const PedidosAjusteTab = ({ cardBg }) => {
 
   const criar = async () => {
     if (!titulo.trim()) return;
-    const { error } = await _supabase.from('uniko_pedidos_ajuste').insert({ titulo: titulo.trim(), descricao: descricao.trim() || null, area: area.trim() || null, autor: USER?.name || null, auto_publicar: auto });
+    const { error } = await _supabase.from('uniko_pedidos_ajuste').insert({ titulo: titulo.trim(), descricao: descricao.trim() || null, area: area.trim() || null, autor: USER?.name || null, auto_publicar: auto, agente: qualAgente || agente?.padrao || 'groq' });
     if (error) { setErro(error.message); return; }
     setTitulo(''); setDescricao(''); setArea(''); load();
   };
@@ -140,6 +143,13 @@ const PedidosAjusteTab = ({ cardBg }) => {
   const visiveis = rows.filter(r => filtro === 'todos' ? true : filtro === 'feito' ? r.status === 'feito' : ABERTOS.includes(r.status));
   const nAbertos = rows.filter(r => ABERTOS.includes(r.status)).length;
   const agentePronto = agente && !agente.notReady;
+  const OPCOES_AGENTE = [['groq', 'Groq — grátis, mais simples'], ['openai', 'OpenAI — pago, mais capaz']];
+  const agenteEfetivo = (r) => (r && r.agente) || qualAgente || agente?.padrao || 'groq';
+  const seletorAgente = (valor, onChange, estilo) => (
+    <select value={valor} onChange={e => onChange(e.target.value)} style={{ padding: '6px 8px', borderRadius: 9, border: `1px solid ${T.border}`, background: 'transparent', color: T.textS, fontSize: 12, fontFamily: 'var(--font-body)', ...estilo }}>
+      {OPCOES_AGENTE.map(([id, rotulo]) => <option key={id} value={id} disabled={agente?.provedores && !agente.provedores[id]}>{rotulo}{agente?.provedores && !agente.provedores[id] ? ' (sem chave no servidor)' : ''}</option>)}
+    </select>
+  );
 
   return (
     <div>
@@ -162,6 +172,9 @@ const PedidosAjusteTab = ({ cardBg }) => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <input value={titulo} onChange={e => setTitulo(e.target.value)} placeholder="O que você quer mudar? (ex.: botão Salvar maior no mobile)" style={campo} />
           <textarea value={descricao} onChange={e => setDescricao(e.target.value)} rows={3} placeholder="Detalhes: como está hoje, como deveria ficar…" style={{ ...campo, resize: 'vertical' }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: T.textS }}>
+            <span>Agente:</span>{seletorAgente(agenteEfetivo(null), mudarQualAgente, { flex: 1 })}
+          </div>
           <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 12.5, color: T.textS, cursor: 'pointer', lineHeight: 1.45 }}>
             <input type="checkbox" checked={auto} onChange={e => mudarAuto(e.target.checked)} style={{ marginTop: 2 }} />
             <span><b style={{ color: T.text }}>Publicar direto</b> na versão que todo mundo usa assim que ficar pronto (o site só é atualizado se o build passar). Dá pra desfazer depois. Desmarque pra revisar antes.</span>
@@ -212,6 +225,7 @@ const PedidosAjusteTab = ({ cardBg }) => {
 
               <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap', alignItems: 'center' }}>
                 <span style={{ fontSize: 11, color: T.textT, flex: 1 }}>{r.autor || ''} · {new Date(r.created_at).toLocaleDateString('pt-BR')}</span>
+                {podeRodar && seletorAgente(agenteEfetivo(r), (v) => mudar(r.id, { agente: v }))}
                 {podeRodar && <button disabled={!agentePronto || ocupado === r.id || !!agente?.busy} onClick={() => chamar('run', r.id, null, 'O agente começou a trabalhar. Acompanhe por aqui.')}
                   title={agentePronto ? '' : agente?.notReady} style={{ ...btn(true), opacity: agentePronto && !agente?.busy ? 1 : .5 }}>{r.status === 'falhou' ? 'Tentar de novo' : 'Rodar agente'}</button>}
                 {r.status === 'em_revisao' && r.branch && <Previa id={r.id} />}

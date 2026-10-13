@@ -16,3 +16,6 @@ alter table public.uniko_pedidos_ajuste add constraint uniko_pedidos_ajuste_stat
 -- Publicação automática + desfazer
 alter table public.uniko_pedidos_ajuste add column if not exists auto_publicar boolean not null default false;
 alter table public.uniko_pedidos_ajuste add column if not exists merge_sha     text;
+
+-- Qual agente resolve o pedido: groq (grátis) ou openai (pago)
+alter table public.uniko_pedidos_ajuste add column if not exists agente text;
