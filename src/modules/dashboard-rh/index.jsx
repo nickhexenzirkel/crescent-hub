@@ -7,6 +7,7 @@ import UnikoQATab from './UnikoQATab';
 import ArmazenamentoTab from './ArmazenamentoTab';
 import PedidosAjusteTab from './PedidosAjusteTab';
 import ImagensSiteTab from './ImagensSiteTab';
+import { aplicarVisibilidade, useVisibilidade } from '../../shared/visibilidade';
 import VisibilidadeTab from './VisibilidadeTab';
 import UnikoFitPosesTab from './UnikoFitPosesTab';
 import PrestacoesContasTab from './PrestacoesContasTab';
@@ -275,6 +276,7 @@ const SearchPicker = ({ value, onPick, options, placeholder, isDark, minWidth = 
 ══════════════════════════════════════════════════ */
 const ADMIN_PW = 'ColumbinaCleyNick50';
 const DashboardRH = ({onBack, adminName='Administrador', role='admin', initialTab=null}) => {
+  useVisibilidade();   // re-renderiza quando o agente esconde/renomeia abas do Dashboard RH
   // Dark mode detection (same pattern as PontoEletronico)
   const isDark   = !!T.page;
   const cardBg   = isDark ? T.surface : (T.surfaceW||'rgba(255,255,255,0.85)');
@@ -2253,7 +2255,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin', initialTa
           {/* Menu items */}
           <div style={{padding:'10px 10px',display:'flex',flexDirection:'column',gap:2}}>
             <div style={{fontSize:9,fontWeight:700,color:T.textD,textTransform:'uppercase',letterSpacing:'.12em',padding:'0 6px 6px',borderBottom:`1px solid ${T.border}`,marginBottom:4}}>Menu</div>
-            {TABS.filter(({id}) => !isRestrito || MODERADOR_TABS.includes(id)).map(({id,label,icon})=>(
+            {aplicarVisibilidade('rh_aba', TABS.filter(({id}) => !isRestrito || MODERADOR_TABS.includes(id))).map(({id,label,icon})=>(
               <button key={id} onClick={()=>setTab(id)} style={{
                 display:'flex',alignItems:'center',gap:8,padding:'9px 12px',borderRadius:9,
                 cursor:'pointer',outline:'none',fontFamily:'var(--font-body)',fontSize:13,

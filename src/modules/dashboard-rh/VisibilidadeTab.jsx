@@ -46,7 +46,7 @@ const VisibilidadeTab = ({ cardBg }) => {
           <div key={`${r.tipo}:${r.item_id}`} style={{ background: bg, border: `1px solid ${T.border}`, borderRadius: 12, padding: '12px 14px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             <div style={{ flex: 1, minWidth: 220 }}>
               <div style={{ marginBottom: 4 }}>
-                {tag(r.tipo === 'aba' ? 'ABA DO PORTAL' : 'MÓDULO', T.gold)}
+                {tag(r.tipo === 'rh_aba' ? 'ABA DO DASHBOARD RH' : r.tipo === 'aba' ? 'ABA DO PORTAL' : 'MÓDULO', T.gold)}
                 <b style={{ color: T.text, fontSize: 14 }}>{r.item_id}</b>
                 {r.nome && <span style={{ color: T.textS, fontSize: 13 }}> → chamado de <b>{r.nome}</b></span>}
               </div>

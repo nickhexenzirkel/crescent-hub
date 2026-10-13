@@ -2,7 +2,8 @@
 // pelo admin sem mexer em código: esconder pra todos ou só pra algumas pessoas, e renomear.
 // Quem escreve é o agente de Pedidos de Ajuste (crescent-hub-server/agent/acoes.js) ou a aba
 // "Módulos e Abas" do Dashboard RH; aqui só LEMOS e aplicamos.
-//   tipo:'modulo' → id do card (ex.: 'uniko-fit'),  tipo:'aba' → id da aba do Portal (ex.: 'unikosuspect')
+//   tipo:'modulo' → id do card (ex.: 'uniko-fit'),  tipo:'aba' → id da aba do Portal (ex.: 'unikosuspect'),
+//   tipo:'rh_aba' → id da aba do menu lateral do Dashboard RH (ex.: 'pedidos_ajuste')
 // Tabela uniko_visibilidade (supabase_visibilidade.sql, projeto principal).
 import { useEffect, useState } from 'react';
 import { supabase, getAuthUser } from '../contexts/user';
@@ -11,7 +12,7 @@ const CACHE_KEY = 'uniko_visibilidade_v1';
 const EVENTO = 'uniko-visibilidade:changed';
 
 /* Nunca escondem (evita o admin se trancar pra fora do próprio sistema). */
-export const PROTEGIDOS = new Set(['modulo:colaborador', 'modulo:dashboard', 'aba:inicio']);
+export const PROTEGIDOS = new Set(['modulo:colaborador', 'modulo:dashboard', 'aba:inicio', 'rh_aba:pedidos_ajuste', 'rh_aba:modulos_abas', 'rh_aba:permissoes']);
 
 const norm = (s) => String(s || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().replace(/\s+/g, ' ').trim();
 

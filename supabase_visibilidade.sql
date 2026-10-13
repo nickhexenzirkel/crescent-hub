@@ -7,7 +7,7 @@
 --  Rode no projeto Supabase PRINCIPAL, DEPOIS de supabase_pedidos_ajuste.sql. Idempotente.
 -- ════════════════════════════════════════════════════════════════════════
 create table if not exists public.uniko_visibilidade (
-  tipo          text not null check (tipo in ('modulo','aba')),
+  tipo          text not null check (tipo in ('modulo','aba','rh_aba')),
   item_id       text not null,                       -- id do card (ex.: uniko-fit) ou da aba (ex.: unikosuspect)
   nome          text,                                -- novo nome exibido (null = nome original)
   oculto_todos  boolean not null default false,      -- escondido pra todo mundo
@@ -16,6 +16,10 @@ create table if not exists public.uniko_visibilidade (
   updated_at    timestamptz not null default now(),
   primary key (tipo, item_id)
 );
+
+-- Bancos que já rodaram a versão antiga (só modulo/aba): amplia a regra pra aceitar as abas do Dashboard RH.
+alter table public.uniko_visibilidade drop constraint if exists uniko_visibilidade_tipo_check;
+alter table public.uniko_visibilidade add constraint uniko_visibilidade_tipo_check check (tipo in ('modulo','aba','rh_aba'));
 
 alter table public.uniko_visibilidade enable row level security;
 drop policy if exists uniko_visibilidade_all on public.uniko_visibilidade;
