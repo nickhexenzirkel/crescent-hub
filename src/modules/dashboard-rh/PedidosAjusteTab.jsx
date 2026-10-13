@@ -143,11 +143,14 @@ const PedidosAjusteTab = ({ cardBg }) => {
   const visiveis = rows.filter(r => filtro === 'todos' ? true : filtro === 'feito' ? r.status === 'feito' : ABERTOS.includes(r.status));
   const nAbertos = rows.filter(r => ABERTOS.includes(r.status)).length;
   const agentePronto = agente && !agente.notReady;
-  const OPCOES_AGENTE = [['groq', 'Groq — grátis, mais simples'], ['openai', 'OpenAI — pago, mais capaz']];
+  // Lista vem do servidor (cada agente com chave no .env aparece; os sem chave ficam desativados).
+  const OPCOES_AGENTE = agente?.provedores && typeof agente.provedores === 'object'
+    ? Object.entries(agente.provedores).map(([id, d]) => [id, d.rotulo || id, !!d.ok])
+    : [['groq', 'Groq — grátis', true]];
   const agenteEfetivo = (r) => (r && r.agente) || qualAgente || agente?.padrao || 'groq';
   const seletorAgente = (valor, onChange, estilo) => (
     <select value={valor} onChange={e => onChange(e.target.value)} style={{ padding: '6px 8px', borderRadius: 9, border: `1px solid ${T.border}`, background: 'transparent', color: T.textS, fontSize: 12, fontFamily: 'var(--font-body)', ...estilo }}>
-      {OPCOES_AGENTE.map(([id, rotulo]) => <option key={id} value={id} disabled={agente?.provedores && !agente.provedores[id]}>{rotulo}{agente?.provedores && !agente.provedores[id] ? ' (sem chave no servidor)' : ''}</option>)}
+      {OPCOES_AGENTE.map(([id, rotulo, ok]) => <option key={id} value={id} disabled={!ok}>{rotulo}{!ok ? ' (sem chave no servidor)' : ''}</option>)}
     </select>
   );
 
