@@ -535,6 +535,30 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
         </div>
       </div>
 
+      {/* ══ EVENTOS DE HOJE — só aparece quando há evento no dia ══ */}
+      {todayEvts.length > 0 && (
+        <Card className="home-card" style={{padding:'14px 16px',marginBottom:14,border:`1px solid ${T.gold}44`,background:T.goldGl}}>
+          <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:10}}>
+            <Ico size={14} stroke={T.gold} d={<><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></>}/>
+            <span style={{fontSize:11,fontWeight:700,color:T.gold,letterSpacing:'.08em',textTransform:'uppercase',flex:1}}>
+              {todayEvts.length === 1 ? 'Evento de hoje' : 'Eventos de hoje'}
+            </span>
+            <BtnVer tab="eventos"/>
+          </div>
+          <div style={{display:'flex',flexDirection:'column',gap:7}}>
+            {todayEvts.map(ev => (
+              <div key={ev.id} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 12px',borderRadius:10,background:T.surface,border:`1px solid ${T.border}`}}>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:13.5,fontWeight:600,color:T.text,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{ev.title}</div>
+                  {ev.description && <div style={{fontSize:11,color:T.textT,marginTop:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{ev.description}</div>}
+                </div>
+                <span style={{fontSize:11.5,fontWeight:600,color:T.gold,flexShrink:0}}>{ev.event_time ? `◷ ${fmtT(ev.event_time)}` : 'Dia todo'}</span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
       {/* ══ ACESSOS RECENTES — últimas abas visitadas (Uniko Paint, Banco de Horas...) ══ */}
       {recentItems.length > 0 && (
         <Card className="home-card" style={{padding:'14px 16px',marginBottom:14}}>
