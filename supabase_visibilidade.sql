@@ -23,3 +23,5 @@ create policy uniko_visibilidade_all on public.uniko_visibilidade for all using 
 
 -- Ação administrativa do agente (plano + como desfazer) guardada no pedido.
 alter table public.uniko_pedidos_ajuste add column if not exists acao jsonb;
+
+notify pgrst, 'reload schema';

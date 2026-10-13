@@ -19,3 +19,6 @@ alter table public.uniko_pedidos_ajuste add column if not exists merge_sha     t
 
 -- Qual agente resolve o pedido: groq (grátis) ou openai (pago)
 alter table public.uniko_pedidos_ajuste add column if not exists agente text;
+
+-- Faz a API do Supabase enxergar as colunas novas na hora (evita o erro "column not found in the schema cache")
+notify pgrst, 'reload schema';
