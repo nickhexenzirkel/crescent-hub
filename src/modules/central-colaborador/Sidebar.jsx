@@ -44,7 +44,6 @@ const NAV=[
   {id:'uniko',      label:'Coleção',        icon:<I><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></I>},
   {id:'roleta',     label:'Roleta da Sorte', icon:<I><circle cx="12" cy="12" r="9"/><path d="M12 3v9l6.5 3.8"/></I>},
   {id:'unikosuspect',label:'Uniko Detetive', icon:<I><circle cx="10.5" cy="10.5" r="6.5"/><line x1="15.5" y1="15.5" x2="21" y2="21"/></I>},
-  {id:'tetris',      label:'Tetris',        icon:<I><rect x="4" y="4" width="16" height="16" rx="2"/></I>},
   {id:'unikowave',  label:'Uniko Wave',     icon:<I><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></I>},
   {id:'unikopaint', label:'Uniko Paint',    icon:<I><path d="M9.06 11.9l8.07-8.06a2.85 2.85 0 114.03 4.03l-8.06 8.08"/><path d="M7.07 14.94c-1.66 0-3 1.35-3 3.02 0 1.33-2.5 1.52-2 2.02 1.08 1.1 2.49 2.02 4 2.02 2.2 0 4-1.8 4-4.04a3.01 3.01 0 00-3-3.02z"/></I>},
   {id:'unikocamera',label:'Uniko Camera',   icon:<I><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></I>},
@@ -52,6 +51,7 @@ const NAV=[
   {id:'unikostop',  label:'Uniko Stop!',    icon:<I><rect x="4" y="4" width="16" height="16" rx="3"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="12" y2="17"/></I>},
   {id:'unikopalavras',label:'Uniko Palavras', icon:<I><path d="M4 7V5h16v2"/><line x1="12" y1="5" x2="12" y2="19"/><line x1="9" y1="19" x2="15" y2="19"/></I>},
   {id:'unikofaster',label:'Uniko Speed',   icon:<I><path d="M5 11l1.5-4.5A2 2 0 018.4 5h7.2a2 2 0 011.9 1.5L19 11"/><path d="M3 11h18v5a1 1 0 01-1 1h-1a2 2 0 01-4 0H9a2 2 0 01-4 0H4a1 1 0 01-1-1z"/><circle cx="7.5" cy="14.5" r="1"/><circle cx="16.5" cy="14.5" r="1"/></I>},
+  {id:'tetris',      label:'Tetris',        icon:<I><rect x="3" y="3" width="6" height="6" rx="1"/><rect x="9" y="3" width="6" height="6" rx="1"/><rect x="15" y="3" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/></I>},
 ];
 
 /* Esconde os itens marcados adminOnly de quem não é admin. Hoje nenhum item usa
