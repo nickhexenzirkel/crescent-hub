@@ -13,6 +13,7 @@ import { useIsMobile } from '../../hooks/useIsMobile';
 import { SEM_SETOR, setorInfo, callMs, totalLabel, callsLabel } from './callUtils';
 import CallDashboard from './Dashboard';
 import UnikoSidebarBrand from '../../shared/UnikoSidebarBrand';
+import ArquivoAnual from '../../shared/ArquivoAnual';
 
 // Verde do mascote do Uniko Call (headset de luzes verdes) — subtítulo, blobs e star divider do cabeçalho.
 const CALL_GREEN = '#22c55e', CALL_GREEN_DK = '#16a34a';
@@ -210,6 +211,7 @@ const UnikoCall = ({ onBack }) => {
   const [loadingCalls, setLoadingCalls] = useState(false);
   const [renameModal, setRenameModal] = useState(null); // {id, name}
   const [toast, setToast] = useState('');
+  const [arquivoAnualOpen, setArquivoAnualOpen] = useState(false); // baixar/excluir/importar por ANO
   const toastTimer = useRef(null);
   const chatScrollRef = useRef(null);
   const [messageResults, setMessageResults] = useState([]);
@@ -540,7 +542,10 @@ const UnikoCall = ({ onBack }) => {
             <UnikoSidebarBrand legenda="CALL" logo="/UNIKO_CALL.png" cor={CALL_GREEN} corForte={CALL_GREEN_DK} />
             <div style={{ padding: '20px 20px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
               <div style={{ fontSize: 16, fontWeight: 800, color: T.text }}>Chamadas</div>
-              <button title="Atualizar agora" onClick={loadContacts} style={{ ...btnStyle('secondary'), padding: '7px 9px' }}><IcoRefresh /></button>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button title="Arquivo anual — baixar, excluir e importar um ano inteiro" onClick={() => setArquivoAnualOpen(true)} style={{ ...btnStyle('secondary'), padding: '7px 11px' }}>Arquivo anual</button>
+                <button title="Atualizar agora" onClick={loadContacts} style={{ ...btnStyle('secondary'), padding: '7px 9px' }}><IcoRefresh /></button>
+              </div>
             </div>
             <div style={{ padding: '0 20px 14px' }}>
               <div style={{ display: 'flex', gap: 6, padding: 4, borderRadius: 12, background: T.surfaceSub || 'rgba(0,0,0,0.05)', marginBottom: 16 }}>
@@ -679,6 +684,8 @@ const UnikoCall = ({ onBack }) => {
           </div>
         )}
       </div>
+
+      {arquivoAnualOpen && <ArquivoAnual system="call" onClose={() => setArquivoAnualOpen(false)} onChanged={loadContacts} />}
 
       {renameModal && (
         <div onClick={() => setRenameModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 500, padding: 16 }}>

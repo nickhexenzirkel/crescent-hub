@@ -14,6 +14,7 @@ import { getAuthUser, SERVER_URL } from '../../contexts/user';
 import { supabase } from './securitySupabase';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import UnikoSidebarBrand from '../../shared/UnikoSidebarBrand';
+import ArquivoAnual from '../../shared/ArquivoAnual';
 
 const initials = (name) => (name || '').trim().split(/\s+/).slice(0, 2).map(p => p[0]?.toUpperCase() ?? '').join('');
 const formatTime = (iso) => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }); };
@@ -146,6 +147,7 @@ const UnikoSecurity = ({ onBack }) => {
   const [autoBackups, setAutoBackups] = useState([]);
   const [autoBackupsLoading, setAutoBackupsLoading] = useState(false);
   const [backupPickerOpen, setBackupPickerOpen] = useState(false);
+  const [arquivoAnualOpen, setArquivoAnualOpen] = useState(false); // baixar/excluir/importar por ANO (ver shared/ArquivoAnual.jsx)
   const importFileRef = useRef(null);
 
   const flash = (msg) => {
@@ -902,6 +904,7 @@ const UnikoSecurity = ({ onBack }) => {
                 { icon: <IcoAudit />, title: 'Registro de auditoria', desc: 'Quem viu, editou ou excluiu cada conversa', onClick: () => { setMoreMenuOpen(false); openAuditLog(); } },
                 { icon: <IcoShieldDown />, title: 'Backup completo', desc: 'Baixa as conversas (texto + mídia) num arquivo criptografado — todos os setores ou só um', onClick: () => { setMoreMenuOpen(false); setBackupPickerOpen(true); } },
                 { icon: <IcoUpload />, title: 'Importar backup', desc: 'Abre um .ukbak baixado antes — só o Uniko WhatsApp sabe ler', onClick: () => importFileRef.current?.click() },
+                { icon: <IcoShieldDown />, title: 'Arquivo anual', desc: 'Baixa um ano inteiro criptografado, exclui do Supabase pra liberar espaço e importa de volta quando precisar', onClick: () => { setMoreMenuOpen(false); setArquivoAnualOpen(true); } },
                 { icon: <IcoHistory />, title: 'Backups automáticos', desc: 'Histórico dos backups mensais gerados sozinhos (últimos 12)', onClick: openAutoBackups },
               ].map(card => (
                 <button key={card.title} onClick={card.onClick}
@@ -969,6 +972,8 @@ const UnikoSecurity = ({ onBack }) => {
           </div>
         </div>
       )}
+
+      {arquivoAnualOpen && <ArquivoAnual system="security" onClose={() => setArquivoAnualOpen(false)} onChanged={loadContacts} />}
 
       {/* Input escondido — "Importar backup" no menu "Mais opções" só clica nele. */}
       <input ref={importFileRef} type="file" accept=".ukbak" style={{ display: 'none' }}
