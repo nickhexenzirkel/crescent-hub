@@ -1,14 +1,17 @@
 ---
 title: Como pedir ajustes
 ---
-# Como pedir ajustes (sem API paga)
+# Como pedir ajustes
 
-Fluxo que **não custa nada extra** — usa só o limite do Claude Code que você já tem:
+Dois jeitos, os dois **sem custo extra**. Ambos usam a mesma fila: **Dashboard RH → Pedidos de Ajuste**.
 
-1. No Uniko: **Dashboard RH → Pedidos de Ajuste** → descreva o que quer mudar (título, detalhe, tela/módulo). Fica salvo como *pendente*.
-2. Quando abrir o Claude Code no projeto, rode **`/pedidos`**. Ele lê os pendentes, lê este cofre, resolve um por um e marca como *feito* com uma nota do que mudou.
-3. Você confere no site e, se não gostou, reabre o pedido com um comentário.
+## 1. Agente independente (não precisa do Claude Code)
+1. Descreva o pedido na aba e clique **Rodar agente** (ou deixe a fila automática ligada).
+2. O agente do servidor faz a mudança, confere o build e abre um pull request.
+3. Você clica **Ver mudanças** (e confere a prévia da Vercel no PR), depois **Aprovar e publicar** ou **Recusar** com um comentário — ele tenta de novo.
+Detalhes e limites: [[agente-ia]].
 
-Se o Claude Code **não** estiver aberto, os pedidos ficam esperando — nada quebra e nada é publicado sozinho.
+## 2. Claude Code (para pedidos maiores)
+Abra o Claude Code no projeto e rode **/pedidos**: ele lê a fila e este cofre, resolve, e marca como feito.
 
-Ver também: [[Regras da IA]] (o que a IA não pode mexer) e [[Convenções]].
+Em ambos: nada vai pro ar sem você ver. Ver também [[Regras da IA]] e [[Convenções]].
