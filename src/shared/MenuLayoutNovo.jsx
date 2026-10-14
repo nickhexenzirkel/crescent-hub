@@ -4,7 +4,8 @@ import { T } from '../contexts/theme';
 import { AvatarCircle } from './components';
 import { NAV } from '../modules/central-colaborador/Sidebar';
 import { novidadesAtivas } from './novidades';
-import { useCheckinHoje, usePrismaResumo, usePontoResumo, useComunicadosResumo, useCaixaEntrada, useEventosHoje } from './menuWidgets';
+import { useCheckinHoje, usePrismaResumo, usePontoResumo, useComunicadosResumo, useMissoesAndamento, useCaixaEntrada, useEventosHoje } from './menuWidgets';
+import { usePaineisOcultos } from './paineisConfig';
 import { setPendingJoin } from './gameInvites';
 import { setPendingListInvite } from './listShares';
 import { nomeChamado, useNomesExibicao } from './nomeExibicao';
@@ -61,6 +62,7 @@ const WIDGETS = {
   horas:      { p:[1, 1], g:[2, 2], padrao:'p' },
   ponto:      { p:[1, 1], g:[2, 2], padrao:'p' },
   avisos:     { p:[1, 1], g:[2, 2], padrao:'p' },
+  missoes:    { p:[1, 1], g:[2, 2], padrao:'g' },
   novidades:  { p:[1, 2], g:[2, 2], padrao:'g' },
 };
 /* Prefixo das chaves de widget no mapa de tamanhos (o mesmo mapa guarda os
@@ -539,6 +541,47 @@ const WidgetAvisos = ({ tam, ...moldura }) => {
             </div>
           </div>
         ) : <div style={{ fontSize:13, color:T.textT }}>{resumo ? 'Nenhum comunicado no momento' : 'Carregando…'}</div>
+      )}
+    </Moldura>
+  );
+};
+
+/* ── Widget: missões em andamento ─────────────────────────────────────────── */
+const COR_MISSOES = '#FF9F0A';
+const IcoMissao = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/>
+  </svg>
+);
+
+const WidgetMissoes = ({ tam, authUser, ...moldura }) => {
+  const resumo = useMissoesAndamento(authUser, 3);
+  const [c, l] = WIDGETS.missoes[tam];
+  const n = resumo?.total || 0;
+  const sub = !resumo ? 'Carregando…' : n ? `${n} em andamento` : 'Prisma Store';
+  return (
+    <Moldura tam={tam} colunas={c} linhas={l} cor={COR_MISSOES} {...moldura}
+      style={{ padding: tam === 'p' ? '11px 12px' : '13px 14px', display:'flex', flexDirection:'column', justifyContent: tam === 'p' ? 'center' : 'space-between', gap:6 }}>
+      <Cabeca cor={COR_MISSOES} icone={IcoMissao} titulo="Missões" sub={sub}/>
+      {tam === 'g' && (
+        resumo?.lista?.length ? (
+          <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+            {resumo.lista.map(m => {
+              const pct = Math.min(100, Math.round((m.feito / m.goal) * 100));
+              return (
+                <div key={m.id} style={{ minWidth:0 }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', gap:8, fontSize:11.5, lineHeight:1.2 }}>
+                    <span style={{ color:T.text, fontWeight:600, ...umaLinha }}>{m.title}</span>
+                    <span style={{ color:T.textT, flexShrink:0, fontVariantNumeric:'tabular-nums' }}>{m.feito}/{m.goal}</span>
+                  </div>
+                  <div style={{ height:5, borderRadius:3, marginTop:3, background:T.surfaceSub || 'rgba(0,0,0,.08)', overflow:'hidden' }}>
+                    <div style={{ width:`${pct}%`, height:'100%', borderRadius:3, background:COR_MISSOES, transition:'width .5s' }}/>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : <div style={{ fontSize:13, color:T.textT }}>{resumo ? 'Nenhuma missão em andamento' : 'Carregando…'}</div>
       )}
     </Moldura>
   );
@@ -1330,6 +1373,9 @@ const DataHoje = () => {
 // (não passam pela lista de módulos nem de atalhos). {} = nenhum escondido.
 const MenuLayoutNovo = ({ mods, onSelect, getModuleColor, authUser, userPhoto, acoes, modo, tamanhos = {}, onTamanhos, sobreposicao, widgetsOcultos = {} }) => {
   const editando = !!modo.sizeMode;
+  // off = painéis desligados pro sistema todo (Dashboard RH → Painéis) + os que o cargo esconde.
+  const globais = usePaineisOcultos();
+  const off = { ...globais, ...Object.fromEntries(Object.entries(widgetsOcultos).filter(([, v]) => v)) };
   const tamWidget = (id) => tamanhos[chaveWidget(id)] || WIDGETS[id].padrao;
   const tamModulo = (m) => tamanhos[m.id] || tamModuloPadrao(m);
 
@@ -1345,7 +1391,7 @@ const MenuLayoutNovo = ({ mods, onSelect, getModuleColor, authUser, userPhoto, a
   const mudarWidget = (id, v) => onTamanhos({ [chaveWidget(id)]: v });
 
   // Os dois widgets de ponto dividem a mesma leitura, e só se algum está grande.
-  const ponto = usePontoResumo(authUser, tamWidget('horas') === 'g' || tamWidget('ponto') === 'g');
+  const ponto = usePontoResumo(authUser, (!off.horas && tamWidget('horas') === 'g') || (!off.ponto && tamWidget('ponto') === 'g'));
 
   /* BASES ALINHADAS, COM LIMITE.
      O ideal é as duas colunas terminarem na mesma linha, mas esticar sem
@@ -1430,14 +1476,15 @@ const MenuLayoutNovo = ({ mods, onSelect, getModuleColor, authUser, userPhoto, a
           <DataHoje/>
           <div ref={gradeWidRef} style={{ display:'grid', gridTemplateColumns:'repeat(2, minmax(0, 1fr))', gridAutoRows: LINHA + folga.wid,
             gap:VAO_W, gridAutoFlow:'row dense' }}>
-            <WidgetPerfil {...widget('perfil', 0)} authUser={authUser} userPhoto={userPhoto} acoes={acoes}/>
-            <WidgetEventosHoje i={1} onAbrir={abrir('colaborador', 'eventos')}/>
-            <WidgetCaixa {...widget('caixa', 1)} authUser={authUser} onSelect={onSelect}/>
-            {!widgetsOcultos.checkin && <WidgetCheckin {...widget('checkin', 2)} authUser={authUser} onAbrir={abrir('mercado-estelar', 'checkin')}/>}
-            {!widgetsOcultos.horas && <WidgetHoras {...widget('horas', 3)} ponto={ponto} onAbrir={abrir('colaborador', 'horas')}/>}
-            {!widgetsOcultos.ponto && <WidgetPonto {...widget('ponto', 4)} ponto={ponto} onAbrir={abrir('colaborador', 'ponto')}/>}
-            {!widgetsOcultos.avisos && <WidgetAvisos {...widget('avisos', 5)} onAbrir={abrir('colaborador', 'comunicados')}/>}
-            <WidgetNovidades {...widget('novidades', 6)} onSelect={onSelect} acoes={acoes}/>
+            {!off.perfil && <WidgetPerfil {...widget('perfil', 0)} authUser={authUser} userPhoto={userPhoto} acoes={acoes}/>}
+            {!off.eventos && <WidgetEventosHoje i={1} onAbrir={abrir('colaborador', 'eventos')}/>}
+            {!off.caixa && <WidgetCaixa {...widget('caixa', 1)} authUser={authUser} onSelect={onSelect}/>}
+            {!off.checkin && <WidgetCheckin {...widget('checkin', 2)} authUser={authUser} onAbrir={abrir('mercado-estelar', 'checkin')}/>}
+            {!off.horas && <WidgetHoras {...widget('horas', 3)} ponto={ponto} onAbrir={abrir('colaborador', 'horas')}/>}
+            {!off.ponto && <WidgetPonto {...widget('ponto', 4)} ponto={ponto} onAbrir={abrir('colaborador', 'ponto')}/>}
+            {!off.avisos && <WidgetAvisos {...widget('avisos', 5)} onAbrir={abrir('colaborador', 'comunicados')}/>}
+            {!off.missoes && !widgetsOcultos.checkin && <WidgetMissoes {...widget('missoes', 6)} authUser={authUser} onAbrir={abrir('mercado-estelar', 'missoes')}/>}
+            {!off.novidades && <WidgetNovidades {...widget('novidades', 7)} onSelect={onSelect} acoes={acoes}/>}
           </div>
         </div>
       </div>

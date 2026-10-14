@@ -15,6 +15,7 @@ import { supabase } from '../contexts/user';
 import { isNonCheckinDay, localDateStr } from '../modules/mercado-estelar';
 import { computePontoDays, loadColaboradorPonto } from './pontoCalc';
 import { nomeChamado } from './nomeExibicao';
+import { loadMissionDefs, loadMissionProgress } from './prismaMissions';
 
 /* Check-in diário da Prisma Store.
    status: 'carregando' | 'disponivel' | 'feito' | 'folga' (fim de semana/feriado)
@@ -99,6 +100,42 @@ export const useComunicadosResumo = () => {
       }, () => {});
     return () => { vivo = false; };
   }, []);
+  return resumo;
+};
+
+/* Missões da Prisma Store em andamento (as mesmas da aba Missões): ainda não
+   concluídas nem resgatadas, com medição automática e fora de manutenção. As
+   mais adiantadas vêm primeiro. null enquanto carrega ou se falhar;
+   { lista:[{ id,title,period,feito,goal }], total } depois. */
+export const useMissoesAndamento = (authUser, max = 3) => {
+  const nome = authUser?.name;
+  const [resumo, setResumo] = useState(null);
+  useEffect(() => {
+    if (!nome) return;
+    let vivo = true;
+    (async () => {
+      try {
+        const { data: row } = await supabase.from('mercado_state').select('data').eq('player', nome).maybeSingle();
+        const defs = await loadMissionDefs({ seed: false });
+        const prog = await loadMissionProgress({ userName: nome, cpf: authUser?.cpf, baseline: row?.data?.missionBaseline || {}, missions: defs });
+        if (!vivo) return;
+        const hoje = localDateStr(new Date()), mes = hoje.slice(0, 7);
+        const recs = new Map((row?.data?.missions || []).map(x => [x.id, x]));
+        const resgatada = (d) => {
+          const r = recs.get(d.id);
+          if (!r?.claimed) return false;
+          return d.period === 'dia' ? r.claimedAt === hoje : d.period === 'mes' ? (r.claimedAt || '').slice(0, 7) === mes : true;
+        };
+        const todas = (defs || [])
+          .filter(d => d.active !== false && !d.maintenance && d.metric !== 'manual' && d.metric !== 'rank_mes' && !resgatada(d))
+          .map(d => ({ id: d.id, title: d.title, period: d.period, goal: Number(d.goal) || 1, feito: prog[d.id] || 0 }))
+          .filter(d => d.feito < d.goal)
+          .sort((a, b) => (b.feito / b.goal) - (a.feito / a.goal));
+        setResumo({ lista: todas.slice(0, max), total: todas.length });
+      } catch { if (vivo) setResumo({ lista: [], total: 0, erro: true }); }
+    })();
+    return () => { vivo = false; };
+  }, [nome, authUser?.cpf, max]);
   return resumo;
 };
 
