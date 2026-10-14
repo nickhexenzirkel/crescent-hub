@@ -1576,7 +1576,7 @@ const UnikoSafer = ({ onBack }) => {
                           <span style={{ fontSize: 11, fontWeight: 700, color: auditActionColor(r.action), background: `${auditActionColor(r.action)}22`, borderRadius: 20, padding: '2px 9px' }}>
                             {auditActionLabel(r.action)}
                           </span>
-                          <span style={{ fontSize: 13.5, fontWeight: 700, color: T.text }}>{r.contact_name || 'Contato removido'}</span>
+                          <span style={{ fontSize: 13.5, fontWeight: 700, color: T.text }}>{r.contact_name || contacts.find(c => c.id === r.contact_id)?.name || (r.contact_id ? `Contato #${r.contact_id} (removido)` : 'Contato não identificado')}</span>
                           <span style={{ fontSize: 11.5, color: T.textT, marginLeft: 'auto', whiteSpace: 'nowrap' }}>{formatDateTime(r.viewed_at)}</span>
                         </div>
                         <div style={{ fontSize: 12, color: T.textT, marginTop: 4 }}>
