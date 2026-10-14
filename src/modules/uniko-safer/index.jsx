@@ -19,6 +19,21 @@ import {
 
 const MESSAGE_UPSERT_CHUNK = 500;
 
+/* Índice de contatos pra casar a conversa exportada do WhatsApp: pelo nome, pelo nome ORIGINAL
+   do WhatsApp (guardado ao renomear) e pelo telefone. Sem isso, renomear um contato no Safer
+   fazia a sync não achá-lo mais e criar outro com o nome antigo. */
+const soDigitos = (v) => String(v || '').replace(/D/g, '');
+const chaveTel = (v) => { const d = soDigitos(v); return d.length >= 10 ? 'tel:' + d.slice(-10) : null; };
+const mapaDeContatos = (lista) => {
+  const m = new Map();
+  for (const c of lista || []) {
+    m.set(c.name.toLowerCase(), c);
+    if (c.whatsapp_name) m.set(String(c.whatsapp_name).toLowerCase(), c);
+    const t = chaveTel(c.phone_number); if (t) m.set(t, c);
+  }
+  return m;
+};
+
 const BUCKET = 'uniko-safer';
 
 const initials = (name) => (name || '').trim().split(/\s+/).slice(0, 2).map(p => p[0]?.toUpperCase() ?? '').join('');
@@ -389,7 +404,10 @@ const UnikoSafer = ({ onBack }) => {
     const payload = { name, phone_number: contactModal.phone.trim() || null, notes: contactModal.notes.trim() || null, category: contactModal.category, tag_ids: contactModal.tag_ids || [] };
     if (contactModal.mode === 'edit') {
       const before = contacts.find(c => c.id === contactModal.id);
-      const { error } = await supabase.from('uniko_safer_contacts').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', contactModal.id);
+      // guarda o nome de origem (WhatsApp) ao renomear, pra sync continuar achando este contato
+      const extra = (before && 'whatsapp_name' in before && before.name !== payload.name)
+        ? { whatsapp_name: before.whatsapp_name || before.name } : {};
+      const { error } = await supabase.from('uniko_safer_contacts').update({ ...payload, ...extra, updated_at: new Date().toISOString() }).eq('id', contactModal.id);
       if (error) { flash('Erro: ' + error.message); return; }
       const changes = [];
       if (before && before.name !== payload.name) changes.push(`nome: "${before.name}" → "${payload.name}"`);
@@ -569,7 +587,7 @@ const UnikoSafer = ({ onBack }) => {
   // lógica em dois lugares.
   const importOneFile = async (file, contactName, category, byNameMap) => {
     const key = contactName.toLowerCase();
-    let contact = byNameMap.get(key);
+    let contact = byNameMap.get(key) || byNameMap.get(chaveTel(contactName) || '');
     let createdContact = false;
     if (!contact) {
       const { data, error } = await supabase.from('uniko_safer_contacts').insert({ name: contactName, category }).select().single();
@@ -591,7 +609,7 @@ const UnikoSafer = ({ onBack }) => {
     // Casa só com contatos do setor escolhido no passo anterior do modal —
     // nomes iguais em Faturamento e Financeiro são pessoas/números
     // diferentes, não a mesma conversa.
-    const byName = new Map(contacts.filter(c => c.category === bulkCategory).map(c => [c.name.toLowerCase(), c]));
+    const byName = mapaDeContatos(contacts.filter(c => c.category === bulkCategory));
     const results = [];
     for (const file of files) {
       const contactName = deriveContactNameFromFilename(file.name);
@@ -675,7 +693,7 @@ const UnikoSafer = ({ onBack }) => {
     let finished = false;
     let lastLogCount = -1;
     let lastStatus = null;
-    const byName = new Map(contacts.filter(c => c.category === autoCategory).map(c => [c.name.toLowerCase(), c]));
+    const byName = mapaDeContatos(contacts.filter(c => c.category === autoCategory));
 
     const poll = async () => {
       if (finished) return;
@@ -758,7 +776,7 @@ const UnikoSafer = ({ onBack }) => {
       const jobId = startData.jobId;
 
       const { data: freshContacts } = await supabase.from('uniko_safer_contacts').select('*').eq('category', autoCategory);
-      const byName = new Map((freshContacts || []).map(c => [c.name.toLowerCase(), c]));
+      const byName = mapaDeContatos(freshContacts);
       const processedFiles = new Set();
       let loggedInfoCount = 0;
       let importedCount = 0;
