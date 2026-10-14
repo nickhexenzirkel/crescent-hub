@@ -460,7 +460,7 @@ const UnikoSafer = ({ onBack }) => {
     if ((c.category || 'faturamento') !== activeCategory) return false;
     if (!search.trim()) return true;
     const q = search.trim().toLowerCase();
-    return c.name.toLowerCase().includes(q) || (c.phone_number || '').toLowerCase().includes(q);
+    return c.name.toLowerCase().includes(q) || (c.whatsapp_name || '').toLowerCase().includes(q) || (c.phone_number || '').toLowerCase().includes(q);
   }).sort((a, b) => {
     if (sortMode === 'asc') return a.name.localeCompare(b.name);
     if (sortMode === 'desc') return b.name.localeCompare(a.name);
