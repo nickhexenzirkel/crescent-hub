@@ -917,13 +917,13 @@ export async function countOwnedUnikos(player) {
 
 /* ── Até N capturadores por evento (o admin escolhe N no Dashboard RH, campo
    maxWinners do cfg — padrão 3 se não vier definido, ex.: eventos antigos) ──
-   `capture_uniko_event` aceita até 5 linhas por event_id (1 slot cada, ver
+   `capture_uniko_event` aceita até 10 linhas por event_id (1 slot cada, ver
    supabase_capture_uniko_multi.sql e supabase_capture_uniko_max_winners.sql —
-   o teto de linhas no banco é 5, mas o admin pode configurar de 1 a 5 vagas
+   o teto é 10 (era 5 e cortava silenciosamente: admin pedia 10 e saíam 5), o admin configura de 1 a 10 vagas
    por evento) — as N primeiras pessoas a capturar ganham; da próxima tentativa
    em diante o evento já está esgotado. ─────────────────────────────────────── */
 export const CAPTURE_MAX_WINNERS_DEFAULT = 3; // eventos sem maxWinners definido (compatibilidade)
-export const CAPTURE_MAX_WINNERS_CAP = 5;     // teto absoluto (limite de slots no banco)
+export const CAPTURE_MAX_WINNERS_CAP = 10;    // teto absoluto (mesmo que o seletor do admin e a função no banco)
 export function maxWinnersFor(cfg) {
   const n = Math.floor(Number(cfg?.maxWinners));
   if (!Number.isFinite(n) || n < 1) return CAPTURE_MAX_WINNERS_DEFAULT;
