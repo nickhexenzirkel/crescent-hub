@@ -1120,7 +1120,7 @@ const RankingGeral = ({ name, cardBg, maxAltura }) => {
       ) : (
         <div className="up-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
           {linhas.map((l, i) => {
-            const eu = l.player === name;
+            const eu = l.player === name || l.player === authName();
             return (
               <div key={l.player} className="up-fade" style={{ display: 'flex', alignItems: 'center', gap: 8,
                 padding: '7px 8px', borderRadius: 9, background: eu ? `${A}12` : 'transparent',
@@ -1970,9 +1970,12 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker, zoomOut })
     const nomes = Object.keys(scores);
     if (!nomes.length) return;
     const campeao = nomes.reduce((a, b) => (scores[b] > scores[a] ? b : a), nomes[0]);
+    // O ranking é por CONTA: trocar de apelido não pode zerar/dividir os pontos.
+    // O placar da partida usa o apelido; aqui traduz de volta pro nome da conta.
+    const contaDe = (apelido) => players.find(p => p.name === apelido)?.conta || apelido;
     nomes.forEach((quem) => {
       supabase.rpc('uniko_paint_add_score', {
-        p_player: quem, p_pontos: scores[quem] || 0, p_venceu: quem === campeao,
+        p_player: contaDe(quem), p_pontos: scores[quem] || 0, p_venceu: quem === campeao,
       }).then(({ error }) => { if (error) console.error('[uniko-paint] ranking:', error.message); });
     });
   };
@@ -3120,7 +3123,7 @@ const TabUnikoPaint = ({ zoomOut }) => {
     const estado = ch.presenceState();
     const list = Object.entries(estado).map(([key, arr]) => {
       const e = escolherEntrada(arr);
-      return e ? { id: e.id || key, name: e.name, photo: e.photo, room: e.room, entrouEm: e.entrouEm } : null;
+      return e ? { id: e.id || key, name: e.name, conta: e.conta, photo: e.photo, room: e.room, entrouEm: e.entrouEm } : null;
     }).filter(Boolean);
     setTodos(list);
 
@@ -3148,7 +3151,7 @@ const TabUnikoPaint = ({ zoomOut }) => {
       // Se o track falhar, ninguém enxerga ninguém — então isso PRECISA aparecer
       // no console em vez de sumir calado (foi assim que o payload gigante da
       // foto passou despercebido).
-      const r = await ch.track({ id: idDaConta(), conn: CONEXAO, name, photo, room, entrouEm });
+      const r = await ch.track({ id: idDaConta(), conn: CONEXAO, name, conta: authName(), photo, room, entrouEm });
       if (r !== 'ok') console.error('[uniko-paint] presence track falhou:', r);
       refreshPresence();
     });
