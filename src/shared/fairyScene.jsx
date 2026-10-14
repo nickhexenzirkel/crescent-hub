@@ -6,6 +6,7 @@
 // sakuraScene: UM componente canvas com prop `fixed` — serve o card (fixed=false,
 // preenche o pai) e o fundo de página inteira (fixed=true, redimensiona sozinho).
 import React, { useEffect, useRef } from 'react';
+import { pularFrameCenario } from './diagnosticoPerfCore';
 
 const PI2 = Math.PI * 2;
 const rng = (a, b) => Math.random() * (b - a) + a;
@@ -322,6 +323,7 @@ export default function FairyScene({ fixed = false }) {
 
     // ── Loop principal ──────────────────────────────────────────────────────────
     const frame = () => {
+      if (pularFrameCenario()) { rafId = requestAnimationFrame(frame); return; }   // Configurações > Desempenho
       t += 0.016;
       const w = W(), h = H(), d = dpr();
       ctx.setTransform(d, 0, 0, d, 0, 0);

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { T, THEMES } from '../contexts/theme';
 import { SERVER_URL, getAuthUser } from '../contexts/user';
+import { lerFlags, aplicarFlags, FLAGS_PADRAO, PERFIS_DESEMPENHO } from './diagnosticoPerfCore';
 
 const ThemeGrid = ({activeTheme,onTheme}) => (
   <div style={{display:'grid',gridTemplateColumns:'1fr 1px 1fr',gap:'0 18px'}}>
@@ -187,6 +188,75 @@ const AccountPanel = () => {
   );
 };
 
+const OPCOES_GRAFICAS = [
+  ['semBackdrop', 'Desfoque de fundo (vidro fosco)', 'O efeito mais pesado. Desligar costuma dar o maior ganho de FPS.'],
+  ['semLava', 'Fundo animado (lava lamp)', 'As bolhas coloridas que se movem atrás de todas as telas.'],
+  ['semEstrelas', 'Estrelas piscando no fundo', 'As estrelinhas do fundo do sistema.'],
+  ['semOrbita', 'Estrelas em órbita e cadentes', 'Efeitos extras do menu de módulos.'],
+  ['semSombra', 'Sombras e brilhos', 'Remove sombras, brilhos e filtros dos elementos.'],
+  ['semAnim', 'Animações e transições', 'Tudo fica instantâneo, sem movimentos suaves.'],
+  ['cenarios30', 'Limitar cenários a 30 fps', 'Metade do trabalho nos cenários dos Unikos (Cosmos, Sakura, Fadas...).'],
+  ['semCenarios', 'Cenários animados dos Unikos', 'Desligado = congela de vez a animação dos cenários.'],
+];
+
+const DesempenhoPanel = () => {
+  const [flags, setFlags] = useState(lerFlags);
+  const mudar = (novo) => { setFlags(novo); aplicarFlags(novo); };
+  const perfilAtivo = Object.entries(PERFIS_DESEMPENHO).find(([, pf]) =>
+    Object.keys(FLAGS_PADRAO).every(k => !!flags[k] === !!pf.flags[k]))?.[0];
+  const rotulo = {fontFamily:'var(--font-body)',fontSize:11,color:'#7A92A8',letterSpacing:'.09em',
+    textTransform:'uppercase',fontWeight:600,marginBottom:10};
+  return (
+    <div style={{display:'flex',flexDirection:'column',gap:20}}>
+      <div>
+        <div style={rotulo}>Perfil gráfico</div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+          {Object.entries(PERFIS_DESEMPENHO).map(([id, pf]) => {
+            const ativo = perfilAtivo === id;
+            return (
+              <div key={id} onClick={()=>mudar({...FLAGS_PADRAO, ...pf.flags})}
+                style={{padding:'11px 13px',borderRadius:11,cursor:'pointer',
+                  background:ativo?(T.goldGl||'rgba(0,0,0,0.05)'):'rgba(0,0,0,0.03)',
+                  border:'1.5px solid '+(ativo?T.gold+'88':'rgba(0,0,0,0.06)')}}>
+                <div style={{fontSize:13,fontWeight:ativo?700:600,color:ativo?T.gold:'#0D1B2E'}}>{pf.label}</div>
+                <div style={{fontSize:11.5,color:'#7A92A8',marginTop:3,lineHeight:1.35}}>{pf.desc}</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      <div>
+        <div style={rotulo}>Ajuste fino</div>
+        <div style={{display:'flex',flexDirection:'column',gap:6}}>
+          {OPCOES_GRAFICAS.map(([k, titulo, desc]) => {
+            // as chaves são 'sem…' (desligar) — o interruptor mostra o efeito LIGADO
+            const desliga = k !== 'cenarios30';
+            const ligado = desliga ? !flags[k] : !!flags[k];
+            return (
+              <div key={k} onClick={()=>mudar({...flags,[k]:!flags[k]})}
+                style={{display:'flex',alignItems:'center',gap:12,padding:'9px 12px',borderRadius:10,
+                  cursor:'pointer',background:'rgba(0,0,0,0.03)',border:'1px solid rgba(0,0,0,0.05)'}}>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:13,fontWeight:600,color:'#0D1B2E'}}>{titulo}</div>
+                  <div style={{fontSize:11.5,color:'#7A92A8',marginTop:2}}>{desc}</div>
+                </div>
+                <div style={{width:38,height:22,borderRadius:11,flexShrink:0,position:'relative',transition:'background .15s',
+                  background:ligado?T.gold:'rgba(0,0,0,0.18)'}}>
+                  <div style={{position:'absolute',top:3,left:ligado?19:3,width:16,height:16,borderRadius:'50%',
+                    background:'#fff',transition:'left .15s'}}/>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      <div style={{fontSize:11.5,color:'#9AA8B8',lineHeight:1.5}}>
+        As escolhas valem na hora e ficam salvas neste aparelho. Para medir o ganho, abra o medidor de FPS com Ctrl + Alt + P.
+      </div>
+    </div>
+  );
+};
+
 const SettingsModal = ({activeTheme,onTheme,onClose,painelInicial='theme'}) => {
   // `painelInicial` existe porque o card de perfil tem um botão pra Tema e
   // outro pra Conta: cada um abre este mesmo modal já na aba certa.
@@ -223,7 +293,7 @@ const SettingsModal = ({activeTheme,onTheme,onClose,painelInicial='theme'}) => {
           <div>
             <div style={{fontFamily:'var(--font-brand)',fontSize:17,fontWeight:700,color:'#0D1B2E'}}>Configurações</div>
             <div style={{fontFamily:'var(--font-body)',fontSize:13,color:'#7A92A8',marginTop:2}}>
-              {pane==='theme' ? 'Personalize o visual do sistema' : 'Gerencie os dados e a senha da sua conta'}
+              {pane==='theme' ? 'Personalize o visual do sistema' : pane==='desempenho' ? 'Ganhe FPS desligando efeitos visuais pesados' : 'Gerencie os dados e a senha da sua conta'}
             </div>
           </div>
           <button onClick={onClose} style={{background:'rgba(0,0,0,0.06)',border:'none',
@@ -236,13 +306,15 @@ const SettingsModal = ({activeTheme,onTheme,onClose,painelInicial='theme'}) => {
           background:'rgba(0,0,0,0.04)',width:'fit-content'}}>
           <Tab id="theme" label="Tema"
             icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><circle cx="13.5" cy="6.5" r="1"/><circle cx="17.5" cy="10.5" r="1"/><circle cx="8.5" cy="7.5" r="1"/><circle cx="6.5" cy="12.5" r="1"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 011.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C22 6.012 17.5 2 12 2z"/></svg>}/>
+          <Tab id="desempenho" label="Desempenho"
+            icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9z"/></svg>}/>
           <Tab id="account" label="Conta"
             icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>}/>
         </div>
 
         {pane==='theme'
           ? <ThemeGrid activeTheme={activeTheme} onTheme={onTheme}/>
-          : <AccountPanel/>}
+          : pane==='desempenho' ? <DesempenhoPanel/> : <AccountPanel/>}
 
         <div style={{marginTop:18,fontFamily:'var(--font-body)',fontSize:11,
           color:'#9AA8B8',textAlign:'center'}}>Clique fora para fechar</div>

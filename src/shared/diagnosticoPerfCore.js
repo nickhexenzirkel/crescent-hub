@@ -59,7 +59,8 @@ function envolverTimers() {
 
 /* ── Estado dos interruptores ──────────────────────────────────────────── */
 const FLAGS_PADRAO = { semBackdrop: false, semLava: false, semAnim: false, semSombra: false,
-                       semEstrelas: false, semOrbita: false };
+                       semEstrelas: false, semOrbita: false,
+                       cenarios30: false, semCenarios: false };
 
 function lerFlags() {
   try { return { ...FLAGS_PADRAO, ...JSON.parse(localStorage.getItem(CHAVE_FLAGS) || '{}') }; }
@@ -76,6 +77,8 @@ function aplicarFlags(f) {
   b.classList.toggle('pd-sem-sombra',   !!f.semSombra);
   b.classList.toggle('pd-sem-estrelas', !!f.semEstrelas);
   b.classList.toggle('pd-sem-orbita',   !!f.semOrbita);
+  b.classList.toggle('pd-cenarios-30',  !!f.cenarios30);
+  b.classList.toggle('pd-sem-cenarios', !!f.semCenarios);
   try { localStorage.setItem(CHAVE_FLAGS, JSON.stringify(f)); } catch {}
 }
 
@@ -93,6 +96,28 @@ export function iniciarDiagnosticoPerf() {
   if (querAbrir()) envolverTimers();
 }
 
+
+/* Cenários animados em canvas (Cosmos, Sakura, Fadas, Olivia) chamam isto no começo de
+   cada frame: true = pula o desenho. 'cenarios30' desenha 1 frame sim, 1 não (≈30 fps);
+   'semCenarios' congela. Só lê classe do <body>, então custa quase nada. */
+let _alt = 0;
+export function pularFrameCenario() {
+  const c = document.body.classList;
+  if (c.contains('pd-sem-cenarios')) return true;
+  if (c.contains('pd-cenarios-30')) { _alt ^= 1; return _alt === 1; }
+  return false;
+}
+
+/* Perfis prontos da aba Configurações > Desempenho (só ligam/desligam os flags acima). */
+export const PERFIS_DESEMPENHO = {
+  maximo:      { label: 'Máxima qualidade', desc: 'Todos os efeitos visuais ligados.', flags: {} },
+  equilibrado: { label: 'Equilibrado', desc: 'Tira o desfoque de fundo e deixa os cenários em 30 fps.',
+                 flags: { semBackdrop: true, cenarios30: true } },
+  desempenho:  { label: 'Desempenho', desc: 'Sem desfoque, fundo animado, estrelas e sombras pesadas.',
+                 flags: { semBackdrop: true, semLava: true, semEstrelas: true, semOrbita: true, semSombra: true, cenarios30: true } },
+  minimo:      { label: 'Mínimo (máximo de FPS)', desc: 'Desliga todos os efeitos e animações. Ideal para PCs fracos.',
+                 flags: { semBackdrop: true, semLava: true, semAnim: true, semSombra: true, semEstrelas: true, semOrbita: true, semCenarios: true } },
+};
 
 export { timers, envolverTimers, lerFlags, aplicarFlags, querAbrir, FLAGS_PADRAO, CHAVE_ABERTO };
 

@@ -6,6 +6,7 @@
 // que serve pro card (fixed=false, preenche o pai) e pra tela cheia da página (fixed=true,
 // o canvas se redimensiona sozinho via ResizeObserver). Suave/calmo, funciona em qualquer tema.
 import React, { useEffect, useRef } from 'react';
+import { pularFrameCenario } from './diagnosticoPerfCore';
 
 const rng = (min, max) => Math.random() * (max - min) + min;
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
@@ -385,6 +386,7 @@ export default function SakuraScene({ fixed = false }) {
 
     // ── Loop principal ──────────────────────────────────────────────────────────
     const frame = () => {
+      if (pularFrameCenario()) { rafId = requestAnimationFrame(frame); return; }   // Configurações > Desempenho
       t += 0.016;
       const w = W(), h = H(), d = dpr();
       ctx.setTransform(d, 0, 0, d, 0, 0);

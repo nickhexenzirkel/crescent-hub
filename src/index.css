@@ -80,6 +80,9 @@ body.pd-sem-estrelas .bg-estrelas { display: none !important; }
 body.pd-sem-orbita .orbita-estrelinha,
 body.pd-sem-orbita .estrela-cadente { display: none !important; }
 
+/* [7] Cenários em canvas: o corte de frames fica em pularFrameCenario (JS); aqui só some
+   o brilho extra dos cards quando congelados. */
+
 /* Uniko Wave aberto (body.uw-active): o jogo cobre a tela inteira num iframe, mas o
    fundo animado do Portal (lava lamp + 52 estrelas) e as animações da sidebar
    continuavam rodando por trás, disputando o quadro com o jogo. Some com o que fica

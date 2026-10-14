@@ -6,6 +6,7 @@
 // em Figma Make do usuário (`Criar cenário animado/src/app/App.tsx`), só TS→JS e adaptado
 // pra ocupar o elemento pai em vez da tela toda sozinho. Preenche o pai (position:relative).
 import React, { useEffect, useRef } from 'react';
+import { pularFrameCenario } from './diagnosticoPerfCore';
 
 const rng = (min, max) => Math.random() * (max - min) + min;
 
@@ -500,6 +501,7 @@ export default function CosmosScene({ fixed = false }) {
 
     // ── loop principal ─────────────────────────────────────────────────────────
     const frame = () => {
+      if (pularFrameCenario()) { rafId = requestAnimationFrame(frame); return; }   // Configurações > Desempenho
       t += 0.007;
       const w = W(), h = H(), d = dpr();
       ctx.setTransform(d, 0, 0, d, 0, 0);
