@@ -230,7 +230,15 @@ const UnikoSafer = ({ onBack }) => {
 
   const loadContacts = async () => {
     setLoadingContacts(true);
-    const { data: contactRows, error } = await supabase.from('uniko_safer_contacts').select('*').order('name');
+    // Em páginas: o Supabase corta em 1000 linhas por consulta, e contato além disso sumia
+    // da lista (a busca de mensagens mostrava "Contato removido" pra conversa dele).
+    let contactRows = [], error = null;
+    for (let de = 0; ; de += 1000) {
+      const r = await supabase.from('uniko_safer_contacts').select('*').order('name').order('id').range(de, de + 999);
+      if (r.error) { error = r.error; break; }
+      contactRows = contactRows.concat(r.data || []);
+      if ((r.data || []).length < 1000) break;
+    }
     if (error) { flash('Erro ao carregar contatos: ' + error.message); setLoadingContacts(false); return; }
     setContacts(contactRows || []);
     setLoadingContacts(false);
@@ -1049,7 +1057,7 @@ const UnikoSafer = ({ onBack }) => {
                           display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, flexShrink: 0 }}>{initials(rc?.name) || '?'}</div>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                            <div style={{ fontSize: 13.5, fontWeight: 600, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{rc?.name || 'Contato removido'}</div>
+                            <div style={{ fontSize: 13.5, fontWeight: 600, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{rc?.name?.trim() || rc?.phone_number || (rc ? `Contato #${rc.id} (sem nome)` : 'Contato removido')}</div>
                             <div style={{ fontSize: 10.5, color: T.textT, flexShrink: 0 }}>{formatDateShort(r.sent_at)}</div>
                           </div>
                           <div style={{ fontSize: 12, color: T.textT, lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
