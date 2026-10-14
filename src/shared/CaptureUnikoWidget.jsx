@@ -24,7 +24,7 @@ import {
   saveCaptureToCollection, emitCaptureState, emitCaptureSlotBusy, getCaptureResult, setCaptureResult,
   getCaptureReward, WINNER_PANEL_MS, fetchCaptureWinners, claimCapture, awardPrismas, addToMyUnikoCollection, fetchCaptureStreak, puzzleRequiredForStreak,
   registerCaptureTarget, onCaptureThrow, clearCaptureLocal, clearCaptureDone, isWithinWindow, subscribeCaptureWinner, syncCollectionFromServer,
-  loadCustomUnikos, loadRewardOverrides, nowMs, ensureServerClock, maxWinnersFor, captureEventId, unikoIdForSlot,
+  loadCustomUnikos, getAllUnikos, loadRewardOverrides, nowMs, ensureServerClock, maxWinnersFor, captureEventId, unikoIdForSlot,
 } from './captureUniko';
 
 // Só quem vem GANHANDO os eventos seguidos precisa resolver a constelação: depois de
@@ -86,6 +86,17 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
     loadCustomUnikos().then(() => forceRefresh(n => n + 1));
     loadRewardOverrides().then(() => forceRefresh(n => n + 1));
   }, []);
+
+  // Evento NOVO chegando com a página já aberta (realtime/poll troca o cfg sem remontar o
+  // widget): o Uniko recém-criado na Oficina ainda não está no cache local, e getUniko
+  // caía no Vampire Robot. Recarrega o roster sempre que o Uniko do evento muda.
+  const unikoKey = `${cfg?.unikoId || ''}|${(cfg?.slotUnikoIds || []).join(',')}|${cfg?.startAt || ''}`;
+  useEffect(() => {
+    if (!cfg?.unikoId) return;
+    const ids = [cfg.unikoId, ...(cfg.slotUnikoIds || [])];
+    if (ids.every(id => getAllUnikos().some(u => u.id === id))) return;   // já conheço todos
+    loadCustomUnikos().then(() => forceRefresh(n => n + 1));
+  }, [unikoKey]);
 
   // Até maxWinners (o admin escolhe, 1 a 10, padrão 3) pessoas capturam o mesmo evento —
   // cada uma vê o PRÓPRIO resultado; quem ainda não capturou continua vendo o encontro
