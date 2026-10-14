@@ -299,9 +299,17 @@ const UnikoSecurity = ({ onBack }) => {
   };
 
   const loadContacts = async () => {
-    const { data, error } = await supabase.from('uniko_security_contacts').select('*').order('name');
+    // Em páginas: o Supabase corta em 1000 linhas por consulta. Contato além disso ficava
+    // fora da lista — a busca de mensagens mostrava "Contato removido" e a conversa não abria.
+    let data = [], error = null;
+    for (let de = 0; ; de += 1000) {
+      const r = await supabase.from('uniko_security_contacts').select('*').order('name').order('id').range(de, de + 999);
+      if (r.error) { error = r.error; break; }
+      data = data.concat(r.data || []);
+      if ((r.data || []).length < 1000) break;
+    }
     if (error) { flash('Erro ao carregar contatos: ' + error.message); setLoadingContacts(false); return; }
-    setContacts(data || []);
+    setContacts(data);
     setLoadingContacts(false);
   };
 
@@ -455,7 +463,13 @@ const UnikoSecurity = ({ onBack }) => {
     if (el && nearBottomRef.current) el.scrollTop = el.scrollHeight;
   }, [currentChatMessages]);
 
-  const openMessageResult = (contactId) => {
+  const openMessageResult = async (contactId) => {
+    // Contato fora da lista local (lista velha/incompleta): busca ele direto, entra no
+    // setor dele e só então abre — antes selecionava um id que a tela não conhecia.
+    if (!contacts.some(c => c.id === contactId)) {
+      const { data: c } = await supabase.from('uniko_security_contacts').select('*').eq('id', contactId).maybeSingle();
+      if (c) { setContacts(prev => prev.some(x => x.id === c.id) ? prev : [...prev, c]); setActiveCategory(c.category || 'faturamento'); }
+    }
     setSelectedContactId(contactId);
     loadChatMessages(contactId);
     setChatSearchOpen(true);
@@ -525,7 +539,7 @@ const UnikoSecurity = ({ onBack }) => {
   // setor ativo (a busca em si roda em uniko_security_messages, sem coluna
   // de setor própria — cruza com a lista de contatos já carregada).
   const visibleMessageResults = search.trim().length >= 2
-    ? messageResults.filter(r => (contacts.find(c => c.id === r.contact_id)?.category || 'faturamento') === activeCategory).slice(0, 20)
+    ? messageResults.filter(r => { const c = contacts.find(x => x.id === r.contact_id); return c ? (c.category || 'faturamento') === activeCategory : activeCategory === 'faturamento'; }).slice(0, 20)
     : [];
   const selectAllVisible = () => setSelectedIds(new Set(filteredContacts.map(c => c.id)));
   const deselectAll = () => setSelectedIds(new Set());
@@ -720,7 +734,7 @@ const UnikoSecurity = ({ onBack }) => {
                         style={{ padding: '8px 10px', borderRadius: 10, cursor: 'pointer', marginBottom: 2 }}
                         onMouseEnter={e => e.currentTarget.style.background = T.surfaceSub || 'rgba(0,0,0,0.04)'}
                         onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{rc?.name || 'Contato removido'}</div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{rc ? (rc.name?.trim() || rc.wa_id || `Contato #${rc.id}`) : 'Contato fora da lista (clique para abrir)'}</div>
                         <div style={{ fontSize: 12, color: T.textT, marginTop: 2 }}>{highlightMatch(snippetAround(r.text, search.trim()), search.trim())}</div>
                       </div>
                     );
