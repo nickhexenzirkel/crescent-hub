@@ -335,7 +335,16 @@ const UnikoSafer = ({ onBack }) => {
   const loadChatMessages = async (contactId) => {
     setLoadingChat(true);
     logAcessoConversa(contactId);
-    const { data, error } = await supabase.from('uniko_safer_messages').select('sent_at, sender, text').eq('contact_id', contactId).order('sent_at');
+    // O Supabase devolve no máximo 1000 linhas por consulta: conversa longa vinha CORTADA
+    // (só as 1000 mais antigas, sem as recentes). Busca em páginas até acabar.
+    let data = [], error = null;
+    for (let de = 0; ; de += 1000) {
+      const r = await supabase.from('uniko_safer_messages').select('sent_at, sender, text')
+        .eq('contact_id', contactId).order('sent_at').order('id').range(de, de + 999);
+      if (r.error) { error = r.error; break; }
+      data = data.concat(r.data || []);
+      if ((r.data || []).length < 1000) break;
+    }
     if (error) { flash('Erro ao carregar mensagens: ' + error.message); setLoadingChat(false); return; }
     setCurrentChatMessages((data || []).map(r => ({ timestamp: r.sent_at, sender: r.sender, text: r.text })));
     setLoadingChat(false);
