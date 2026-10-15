@@ -294,7 +294,7 @@ export const montarHtml = ({ modelo, rows, titulo, orientacao, cores = {}, tema 
   const colgroupHtml = (duas) => {
     if (duas) return `<colgroup>${cols.map(([, w]) => `<col style="width:${w}%">`).join('')}</colgroup>`;
     if (orientacao !== 'landscape') return '';
-    return `<colgroup>${cols.map(([nome]) => (nome === 'CLIENTE' || nome === 'OBSERVAÇÃO' ? '<col>' : `<col style="width:${Math.round(caracteresColuna(nome, dados, 0) * 7.6 + 18)}px">`)).join('')}</colgroup>`;
+    return `<colgroup>${cols.map(([nome]) => (nome === 'CLIENTE' || nome === 'OBSERVAÇÃO' ? '<col>' : `<col style="width:${Math.round(caracteresColuna(nome, dados, 0) * 8.4 + 18)}px">`)).join('')}</colgroup>`;
   };
   const thead = `<thead><tr>${cols.map(([n]) => `<th class="${['SETOR', 'MÉTODO', 'CATEGORIA'].includes(n) ? 'c' : ''}">${n}</th>`).join('')}</tr></thead>`;
 
@@ -388,7 +388,7 @@ window.addEventListener('load',ajusta);
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>${esc(titulo || 'Controle de Clientes')}</title>
 <style>@page{size:A4 ${orientacao};margin:${mm}mm}${CSS_BASE}${CSS_MODELO[modelo] || ''}${cssTema(modelo, resolverTema(modelo, tema))}${separador(tema) ? `tbody td{border-top:${separador(tema) === 'grossa' ? 2 : 1}px solid ${resolverTema(modelo, tema).head || (MODELOS.find((m) => m.id === modelo) || {}).cor || '#000'}}` : ''}
 #wrap{width:${availW}px;overflow:hidden}
-${duas ? '' : orientacao === 'landscape' ? 'table{table-layout:fixed;width:100%}td,th{padding:6px 8px}td.c,th{white-space:nowrap}' : 'table{table-layout:auto;width:auto;margin:0 auto}td,th{padding:2px 8px;overflow-wrap:normal;word-break:normal}td.c,th.c,th{white-space:nowrap}'}
+${duas ? '' : orientacao === 'landscape' ? 'table{table-layout:fixed;width:100%}td,th{padding:1px 8px;line-height:1.1}td{font-size:13px}th{font-size:12.5px}.tag{padding:0 8px}td.c,th{white-space:nowrap}' : 'table{table-layout:auto;width:auto;margin:0 auto}td,th{padding:2px 8px;overflow-wrap:normal;word-break:normal}td.c,th.c,th{white-space:nowrap}'}
 @media screen{.folha{width:${px(pagW)}px;height:${px(pagH)}px;padding:${px(mm)}px;overflow:hidden}}
 @media print{.folha{width:${availW}px;height:auto;padding:0;box-shadow:none}html,body{background:#fff;padding:0;margin:0}}</style></head>
 <body><div class="folha"><div id="wrap"><div id="fit"><h1>${esc((titulo || 'CONTROLE DE CLIENTES').toUpperCase())}</h1>
