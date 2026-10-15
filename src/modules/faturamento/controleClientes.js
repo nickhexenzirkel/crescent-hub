@@ -311,7 +311,7 @@ export const montarHtml = ({ modelo, rows, titulo, orientacao, cores = {}, tema 
     for (const r of dados) {
       const w = pesoPeriodo(r.periodo); const novo = modelo === 'sequencial' && w !== ant;
       if (novo) gi++; ant = w;
-      const cl = modelo === 'sequencial' ? `${novo ? 'ini ' : ''}${blocos.length % 2 ? 'odd' : ''}` : '';
+      const cl = modelo === 'sequencial' && blocos.length % 2 ? 'odd' : '';
       blocos.push(`<tr${cl ? ` class="${cl.trim()}"` : ''}>${celulas(r, true)}</tr>`);
     }
   }
@@ -361,7 +361,7 @@ window.addEventListener('load',ajusta);
 })()`;
 
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>${esc(titulo || 'Controle de Clientes')}</title>
-<style>@page{size:A4 ${orientacao};margin:${mm}mm}${CSS_BASE}${CSS_MODELO[modelo] || ''}${cssTema(modelo, resolverTema(modelo, tema))}
+<style>@page{size:A4 ${orientacao};margin:${mm}mm}${CSS_BASE}${CSS_MODELO[modelo] || ''}${cssTema(modelo, resolverTema(modelo, tema))}${tema.linhasGrossas ? `tbody td{border-top:2px solid ${resolverTema(modelo, tema).head || (MODELOS.find((m) => m.id === modelo) || {}).cor || '#000'}}` : ''}
 #wrap{width:${availW}px;overflow:hidden}
 @media screen{.folha{width:${px(pagW)}px;height:${px(pagH)}px;padding:${px(mm)}px;overflow:hidden}}
 @media print{.folha{width:${availW}px;height:auto;padding:0;box-shadow:none}html,body{background:#fff;padding:0;margin:0}}</style></head>
@@ -461,6 +461,10 @@ export const gerarXlsx = async ({ modelo, rows, titulo, orientacao, cores = {}, 
       c.border = BORDA(e.borda);
       if (e.zebra && par) c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: e.zebra } };
     });
+    if (tema.linhasGrossas) {
+      const topo = { style: 'medium', color: { argb: modelo === 'compacto' ? 'FF000000' : e.head } };
+      row.eachCell({ includeEmpty: true }, (c) => { c.border = { ...c.border, top: topo }; });
+    }
     const corCom = !agrupado && cores[up(r.comercial)];
     if (corCom) {
       const cc = row.getCell(1);
@@ -512,10 +516,6 @@ export const gerarXlsx = async ({ modelo, rows, titulo, orientacao, cores = {}, 
       const w = pesoPeriodo(r.periodo); const novo = modelo === 'sequencial' && w !== ant;
       if (novo) gi++; ant = w;
       escreverLinha(r, i % 2 === 1);
-      if (novo && i > 0) { // linha mais grossa separando um dia do outro
-        const row = ws.getRow(ws.rowCount);
-        for (let c = 1; c <= n; c++) row.getCell(c).border = { ...BORDA(e.borda), top: { style: 'medium', color: { argb: e.head } } };
-      }
     });
   }
 

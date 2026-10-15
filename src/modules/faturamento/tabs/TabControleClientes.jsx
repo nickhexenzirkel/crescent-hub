@@ -270,6 +270,10 @@ export const TabControleClientes = () => {
                 </div>
               ))}
             </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 14, cursor: 'pointer', fontSize: 13.5, color: T.text }}>
+              <input type="checkbox" checked={!!tema.linhasGrossas} onChange={(e) => setTema('linhasGrossas', e.target.checked)} style={{ width: 17, height: 17, cursor: 'pointer' }} />
+              <span><strong>Linhas grossas</strong> separando todas as linhas <span style={{ color: T.textT }}>(desligado por padrão)</span></span>
+            </label>
           </div>
         );
       })()}
