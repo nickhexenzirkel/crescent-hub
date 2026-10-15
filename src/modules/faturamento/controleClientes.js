@@ -302,7 +302,7 @@ export const montarHtml = ({ modelo, rows, titulo, orientacao, cores = {}, tema 
       ? [['COMERCIAL', 10], ['CLIENTE', 22], ['CATEGORIA', 13], ['PERÍODO', 20], ['SETOR', 6], ['MÉTODO', 10], ['OBSERVAÇÃO', 19]]
       : [['COMERCIAL', 11], ['CLIENTE', 24], ['CATEGORIA', 11], ['PERÍODO', 14], ['SETOR', 7], ['MÉTODO', 10], ['OBSERVAÇÃO', 23]];
   /* Colunas que a pessoa escolheu ocultar. */
-  const oculta = { SETOR: tema.ocultaSetor, 'MÉTODO': tema.ocultaMetodo, 'OBSERVAÇÃO': tema.ocultaObs };
+  const oculta = { COMERCIAL: tema.ocultaComercial, SETOR: tema.ocultaSetor, 'MÉTODO': tema.ocultaMetodo, 'OBSERVAÇÃO': tema.ocultaObs };
   const cols = colsTodas.filter(([n]) => !oculta[n]);
   /* Duas colunas: larguras fixas de sempre. Tabela única: sem colgroup, a própria tabela dimensiona pelo conteúdo (table-layout:auto). */
   /* Horizontal em tabela única: a tabela ocupa a folha toda. Colunas curtas ficam do tamanho do texto (px) e
@@ -324,7 +324,7 @@ export const montarHtml = ({ modelo, rows, titulo, orientacao, cores = {}, tema 
     const sim = up(r.setor).startsWith('S');
     const rs = rowspan ? ` rowspan="${rowspan}"` : '';
     const ini = comCom === 'sem' ? ''
-      : (comCom ? `<td${rs} style="font-weight:700${estiloCor(cores[up(r.comercial)])}">${esc(up(r.comercial))}</td>` : '')
+      : (comCom && !oculta.COMERCIAL ? `<td${rs} style="font-weight:700${estiloCor(cores[up(r.comercial)])}">${esc(up(r.comercial))}</td>` : '')
         + `<td${rs}${rowspan ? ' style="font-weight:600"' : ''}>${esc(up(r.cliente))}</td>`;
     return ini
       + `<td class="c"${catStyle}>${esc(up(r.categoria))}</td>`
@@ -472,7 +472,7 @@ export const gerarXlsx = async ({ modelo, rows, titulo, orientacao, cores = {}, 
   ws.columns = cols.map(([, w]) => ({ width: w }));
   // colunas ocultas não aparecem nem imprimem (e a largura da página se ajusta às que sobram)
   cols.forEach(([nome], i) => {
-    if ((nome === 'SETOR' && tema.ocultaSetor) || (nome === 'MÉTODO' && tema.ocultaMetodo) || (nome === 'OBSERVAÇÃO' && tema.ocultaObs)) ws.getColumn(i + 1).hidden = true;
+    if ((nome === 'COMERCIAL' && tema.ocultaComercial) || (nome === 'SETOR' && tema.ocultaSetor) || (nome === 'MÉTODO' && tema.ocultaMetodo) || (nome === 'OBSERVAÇÃO' && tema.ocultaObs)) ws.getColumn(i + 1).hidden = true;
   });
 
   ws.mergeCells(1, 1, 1, n);
