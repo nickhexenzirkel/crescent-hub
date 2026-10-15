@@ -4,7 +4,7 @@ import { Card } from '../../shared/components';
 import {
   DIAS_SEMANA, DIAS_CURTO, MESES, hojeIso, daIso, addDias, iso,
   ehDoFaturamento, carregarLista, salvarLista, carregarTodasListas, carregarCronograma,
-  itensDoDia, resumoDia, resumoPeriodo, pct, serie, listaVazia,
+  itensDoDia, alternarFeita, resumoDia, resumoPeriodo, pct, serie, listaVazia,
 } from '../../shared/listaTarefas';
 
 const VERDE = '#1A9060';
@@ -15,6 +15,8 @@ const btnGold = { padding: '9px 18px', borderRadius: 10, border: 'none', cursor:
 const btnGhost = { padding: '8px 14px', borderRadius: 10, border: `1px solid ${T.border}`, background: 'transparent', cursor: 'pointer', color: T.textS, fontSize: 12.5, fontFamily: 'var(--font-body)' };
 
 const dataBr = (s) => { const d = daIso(s); return `${DIAS_SEMANA[d.getDay()]}, ${d.getDate()} de ${MESES[d.getMonth()].toLowerCase()}`; };
+
+const dataCurta = (s) => { const d = daIso(s); return `${DIAS_CURTO[d.getDay()]} ${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`; };
 
 const Check = ({ on, onClick, disabled }) => (
   <button onClick={onClick} disabled={disabled} aria-label={on ? 'Desmarcar' : 'Marcar como feita'}
@@ -91,6 +93,16 @@ const ListaTarefas = ({ userName, podeVerEquipe }) => {
   const [novo, setNovo] = useState({ titulo: '', freq: 'diaria', dias: [1, 2, 3, 4, 5], data: hojeIso() });
   const salvando = useRef(0);
 
+  /* Passou da meia-noite com a tela aberta: se estava olhando "hoje", acompanha o dia novo. */
+  const hojeRef = useRef(hojeIso());
+  useEffect(() => {
+    const id = setInterval(() => {
+      const novo = hojeIso();
+      if (novo !== hojeRef.current) { const antigo = hojeRef.current; hojeRef.current = novo; setDia((d) => (d === antigo ? novo : d)); }
+    }, 30000);
+    return () => clearInterval(id);
+  }, []);
+
   const meu = alvo === userName;
   const hoje = hojeIso();
 
@@ -120,11 +132,7 @@ const ListaTarefas = ({ userName, podeVerEquipe }) => {
 
   const marcar = (item) => {
     if (!meu || dia > hoje) return;
-    const f = lista.feitas[dia] || { t: [], c: [] };
-    const campo = item.tipo;
-    const atual = f[campo] || [];
-    const novoArr = atual.includes(item.id) ? atual.filter((x) => x !== item.id) : [...atual, item.id];
-    gravar({ ...lista, feitas: { ...lista.feitas, [dia]: { ...f, [campo]: novoArr } } });
+    gravar(alternarFeita(lista, item, dia));
   };
 
   const addTarefa = () => {
@@ -217,6 +225,7 @@ const ListaTarefas = ({ userName, podeVerEquipe }) => {
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: 13.5, fontWeight: 700, color: T.text, textDecoration: it.feita ? 'line-through' : 'none' }}>{it.titulo}</div>
                           <div style={{ fontSize: 11.5, color: T.textT }}>{it.detalhe}{it.obs ? ` — ${it.obs}` : ''}</div>
+                          {it.atrasada && <div style={{ fontSize: 11, fontWeight: 700, color: '#D9822B', marginTop: 2 }}>Acumulada · venceu {dataCurta(it.due)}</div>}
                         </div>
                       </div>
                     ))}
@@ -336,7 +345,7 @@ const ListaTarefas = ({ userName, podeVerEquipe }) => {
             ? <div style={{ fontSize: 13, color: T.textT, padding: '20px 0', textAlign: 'center' }}>Ainda não há tarefas previstas neste período.</div>
             : <Grafico dados={dados} />}
           <div style={{ fontSize: 11.5, color: T.textD, marginTop: 10 }}>
-            {visao === 'dia' ? 'Últimos 14 dias.' : visao === 'mes' ? 'Últimos 12 meses.' : 'Um ano por barra.'} Dias futuros não entram na conta.
+            {visao === 'dia' ? 'Últimos 14 dias.' : visao === 'mes' ? 'Últimos 12 meses.' : 'Um ano por barra.'} Dias futuros não entram na conta. Clientes do faturamento contam no dia do vencimento: se não deu para fazer, ficam acumulados (semanal 1 dia útil, decendial 5, quinzenal 7, mensal 10) e só viram "não feitos" depois do prazo.
           </div>
         </Card>
 

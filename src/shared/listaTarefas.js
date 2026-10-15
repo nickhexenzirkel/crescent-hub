@@ -73,13 +73,44 @@ export const diasDoPeriodo = (periodo) => {
 /* Decendial: dias 1, 11 e 21; quinzenal: dias 1 e 16; mensal: dia 1. Cai em fim de semana → passa para a segunda-feira seguinte. */
 export const diasDoMes = (periodo) => (norm(periodo).includes('decen') ? [1, 11, 21] : norm(periodo).includes('quinzen') ? [1, 16] : norm(periodo).includes('mensal') ? [1] : []);
 
-const venceNoDia = (diasMes, dia) => {
-  if (!diasMes.length) return false;
-  const dt = daIso(dia); const dow = dt.getDay();
-  if (dow === 0 || dow === 6) return false;
-  const nominais = [dt.getDate()];
-  if (dow === 1) nominais.push(addDias(dia, -1).slice(8) * 1, addDias(dia, -2).slice(8) * 1); // domingo e sábado anteriores
-  return nominais.some((n) => diasMes.includes(n));
+/* ── calendário útil: sábado, domingo e feriado nacional acumulam para o próximo dia útil ── */
+const pascoa = (ano) => { // Páscoa (algoritmo de Meeus/Jones/Butcher)
+  const a = ano % 19; const b = Math.floor(ano / 100); const c = ano % 100;
+  const d = Math.floor(b / 4); const e = b % 4; const f = Math.floor((b + 8) / 25); const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30; const i = Math.floor(c / 4); const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7; const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const mes = Math.floor((h + l - 7 * m + 114) / 31); const dd = ((h + l - 7 * m + 114) % 31) + 1;
+  return new Date(ano, mes - 1, dd);
+};
+const feriadosCache = {};
+export const feriadosDoAno = (ano) => {
+  if (feriadosCache[ano]) return feriadosCache[ano];
+  const set = new Set(['01-01', '04-21', '05-01', '09-07', '10-12', '11-02', '11-15', '11-20', '12-25'].map((x) => `${ano}-${x}`));
+  const p = pascoa(ano);
+  [-48, -47, -2, 60].forEach((n) => { const d = new Date(p); d.setDate(d.getDate() + n); set.add(iso(d)); }); // carnaval (2 dias), sexta-feira santa, corpus christi
+  feriadosCache[ano] = set;
+  return set;
+};
+export const ehFeriado = (dia) => feriadosDoAno(Number(dia.slice(0, 4))).has(dia);
+export const ehUtil = (dia) => { const w = daIso(dia).getDay(); return w !== 0 && w !== 6 && !ehFeriado(dia); };
+const addUteis = (dia, n) => { let d = dia; let c = 0; while (c < n) { d = addDias(d, 1); if (ehUtil(d)) c++; } return d; };
+
+/* Prazo, em dias úteis depois do vencimento, em que a tarefa continua valendo (acumulada) antes de contar como não feita. */
+export const PRAZO_UTEIS = { semanal: 1, decendial: 5, quinzenal: 7, mensal: 10 };
+const prazoDias = (it) => {
+  const t = norm(it.periodo);
+  return t.includes('mensal') ? PRAZO_UTEIS.mensal : t.includes('quinzen') ? PRAZO_UTEIS.quinzenal : t.includes('decen') ? PRAZO_UTEIS.decendial : PRAZO_UTEIS.semanal;
+};
+
+/* A data "de calendário" do período cai em x? (dia da semana ou dia do mês) */
+const nominalCai = (it, x) => (it.dias || []).includes(daIso(x).getDay()) || (it.diasMes || []).includes(daIso(x).getDate());
+
+/* O item vence neste dia útil? Inclui o que caiu em sábado/domingo/feriado imediatamente antes. */
+const vencimentoNoDia = (it, dia) => {
+  if (!ehUtil(dia)) return false;
+  if (nominalCai(it, dia)) return true;
+  for (let d = addDias(dia, -1); !ehUtil(d); d = addDias(d, -1)) if (nominalCai(it, d)) return true;
+  return false;
 };
 
 /* Chave = cliente + período: ABAST e MANUT do mesmo cliente no mesmo dia viram UMA tarefa só. */
@@ -138,29 +169,98 @@ export const tarefaValeNoDia = (t, dia) => {
   return true; // diária
 };
 
-export const itensCronogramaDoDia = (crono, dia) => {
-  if (!crono) return [];
-  const dow = daIso(dia).getDay();
-  return crono.itens.filter((it) => (it.dias || []).includes(dow) || venceNoDia(it.diasMes || [], dia));
+/* Quando cada ocorrência (cliente + data de vencimento) foi concluída: Map 'k@vencimento' → dia em que foi marcada.
+   Marcas antigas (só 'k', feitas no próprio dia) valem para o vencimento daquele dia. */
+const idxCache = new WeakMap();
+const indiceFeitas = (lista) => {
+  const ref = lista.feitas || {};
+  let m = idxCache.get(ref);
+  if (m) return m;
+  m = new Map();
+  for (const [dia, f] of Object.entries(ref)) {
+    for (const id of (f.c || [])) {
+      const chave = id.includes('@') ? id : `${id}@${dia}`;
+      if (!m.has(chave) || dia < m.get(chave)) m.set(chave, dia);
+    }
+  }
+  idxCache.set(ref, m);
+  return m;
 };
 
-/* Tudo do dia numa lista só: { id, tipo:'t'|'c', titulo, detalhe, feita } */
+/* Ocorrências do cronograma para um dia: as que vencem nele e — olhando o dia de hoje — as que ficaram
+   pendentes de dias úteis anteriores e ainda estão no prazo (acumuladas). Concluída em outro dia some da lista. */
+export const ocorrenciasDoDia = (lista, crono, dia, acumular = true) => {
+  if (!crono) return [];
+  const idx = indiceFeitas(lista);
+  const out = []; const vistos = new Set();
+  const add = (it, due) => {
+    const id = `${it.k}@${due}`;
+    if (vistos.has(id)) return;
+    vistos.add(id);
+    out.push({ it, due, id, feitaEm: idx.get(id) || null });
+  };
+  for (const it of crono.itens) if (vencimentoNoDia(it, dia)) add(it, dia);
+  if (acumular && dia === hojeIso()) {
+    const ini = crono.desde || addDias(dia, -30);
+    for (let x = addDias(dia, -1), n = 0; n < 45 && x >= ini; x = addDias(x, -1), n++) {
+      if (!ehUtil(x)) continue;
+      for (const it of crono.itens) {
+        if (!vencimentoNoDia(it, x)) continue;
+        const feitaEm = idx.get(`${it.k}@${x}`);
+        if (feitaEm ? feitaEm === dia : addUteis(x, prazoDias(it)) >= dia) add(it, x);
+      }
+    }
+  }
+  return out;
+};
+
+/* Tudo do dia numa lista só: { id, tipo:'t'|'c', titulo, detalhe, feita, due?, atrasada? } */
 export const itensDoDia = (lista, crono, dia) => {
   const f = lista.feitas?.[dia] || { t: [], c: [] };
   const pessoais = lista.tarefas.filter((t) => tarefaValeNoDia(t, dia))
     .map((t) => ({ id: t.id, tipo: 't', titulo: t.titulo, detalhe: '', feita: (f.t || []).includes(t.id) }));
-  const fat = itensCronogramaDoDia(crono, dia)
-    .map((it) => ({ id: it.k, tipo: 'c', titulo: it.cliente, detalhe: [it.categoria, it.periodo, it.metodo].filter(Boolean).join(' · '), obs: it.obs, feita: (f.c || []).includes(it.k) }));
+  const fat = ocorrenciasDoDia(lista, crono, dia)
+    .map((o) => ({ id: o.id, tipo: 'c', titulo: o.it.cliente, detalhe: [o.it.categoria, o.it.periodo, o.it.metodo].filter(Boolean).join(' · '), obs: o.it.obs, feita: !!o.feitaEm, due: o.due, atrasada: o.due < dia }));
   return { pessoais, fat };
 };
 
-/* ── estatísticas ── */
+/* Marca/desmarca. Cliente concluído conta no dia do VENCIMENTO, mesmo feito dias depois (dentro do prazo). */
+export const alternarFeita = (lista, item, dia) => {
+  const feitas = { ...(lista.feitas || {}) };
+  const campo = item.tipo;
+  if (item.feita) {
+    if (campo === 't') {
+      const f = feitas[dia] || { t: [], c: [] };
+      feitas[dia] = { ...f, t: (f.t || []).filter((x) => x !== item.id) };
+    } else {
+      const antigo = item.id.split('@')[0];
+      for (const [d, f] of Object.entries(feitas)) {
+        const arr = f.c || [];
+        const rem = arr.filter((x) => x !== item.id && !(x === antigo && d === item.due));
+        if (rem.length !== arr.length) feitas[d] = { ...f, c: rem };
+      }
+    }
+  } else {
+    const f = feitas[dia] || { t: [], c: [] };
+    feitas[dia] = { ...f, [campo]: [...(f[campo] || []), item.id] };
+  }
+  return { ...lista, feitas };
+};
+
+/* ── estatísticas ──
+   Pessoais: contam no próprio dia. Faturamento: contam no dia do vencimento; ainda dentro do prazo e sem
+   marcar, NÃO contam como não feitas (continuam acumuladas); depois do prazo viram não feitas. */
 export const resumoDia = (lista, crono, dia) => {
-  const { pessoais, fat } = itensDoDia(lista, crono, dia);
-  // antes do 1º envio do cronograma os dias só contam nas estatísticas se algo foi marcado
-  const fatConta = crono?.desde && dia < crono.desde ? fat.filter((x) => x.feita) : fat;
-  const todos = [...pessoais, ...fatConta];
-  return { total: todos.length, feitas: todos.filter((x) => x.feita).length };
+  const hoje = hojeIso();
+  const f = lista.feitas?.[dia] || { t: [] };
+  const pess = lista.tarefas.filter((t) => tarefaValeNoDia(t, dia));
+  let total = pess.length; let feitas = pess.filter((t) => (f.t || []).includes(t.id)).length;
+  for (const o of ocorrenciasDoDia(lista, crono, dia, false)) {
+    const antesDoUso = crono?.desde && dia < crono.desde;
+    const expirou = addUteis(o.due, prazoDias(o.it)) < hoje;
+    if (o.feitaEm) { total++; feitas++; } else if (!antesDoUso && (dia === hoje || expirou)) total++;
+  }
+  return { total, feitas };
 };
 
 /* Soma dos dias de `ini` até `fim` (inclusive). Dias futuros não contam (ainda não dá para ter feito). */

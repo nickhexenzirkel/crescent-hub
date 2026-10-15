@@ -25,3 +25,10 @@ Aba nova em **Portal → Minhas Tarefas (ex-Meus Lembretes)**, ao lado de Anota�
 ## Widget no menu de módulos
 - `WidgetTarefas` em `src/shared/MenuLayoutNovo.jsx` (hook `useTarefasHoje` em `menuWidgets.js`): saudação por horário, "Você tem N tarefas disponíveis para hoje", até 3 pendentes marcáveis direto no cartão, selo vermelho com a contagem; clicar abre Minhas Tarefas (Portal, aba `lembretes`).
 - Aparece só no menu de **computador** (o menu do celular é lista de módulos, sem widgets). O admin liga/desliga em Dashboard RH → Painéis ("Tarefas de hoje"); some também se o cargo não tem a aba `lembretes`.
+
+## Acúmulo de tarefas e dias úteis (lib `listaTarefas.js`)
+- Cada cliente do cronograma gera **ocorrências** (cliente + data de vencimento). Vencimento que cai em sábado, domingo ou **feriado nacional** (fixos + carnaval, sexta santa e corpus christi calculados pela Páscoa; sem feriados estaduais/municipais) passa para o próximo dia útil.
+- Ocorrência não feita **continua valendo** e aparece sozinha em "hoje" com a etiqueta "Acumulada · venceu …". Prazo em dias úteis após o vencimento (`PRAZO_UTEIS`): semanal 1, decendial 5, quinzenal 7, mensal 10. Vencimentos anteriores ao 1º envio do cronograma (`desde`) não acumulam.
+- Estatística: conclui dentro ou depois do vencimento, conta como **feita no dia do vencimento**; dentro do prazo e sem marcar **não conta** como não feita; passou do prazo vira não feita.
+- Marcação guardada como `k@AAAA-MM-DD` em `feitas[dia].c` (marcas antigas só com `k` valem para o próprio dia).
+- A tela acompanha a virada do dia sozinha (se estava em "hoje").

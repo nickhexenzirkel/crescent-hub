@@ -16,7 +16,7 @@ import { isNonCheckinDay, localDateStr } from '../modules/mercado-estelar';
 import { computePontoDays, loadColaboradorPonto } from './pontoCalc';
 import { nomeChamado } from './nomeExibicao';
 import { loadMissionDefs, loadMissionProgress } from './prismaMissions';
-import { carregarLista, carregarCronograma, ehDoFaturamento, itensDoDia, salvarLista, hojeIso } from './listaTarefas';
+import { carregarLista, carregarCronograma, ehDoFaturamento, itensDoDia, alternarFeita, salvarLista, hojeIso } from './listaTarefas';
 
 /* Check-in diário da Prisma Store.
    status: 'carregando' | 'disponivel' | 'feito' | 'folga' (fim de semana/feriado)
@@ -170,10 +170,7 @@ export const useTarefasHoje = (authUser) => {
 
   const marcar = async (item) => {
     const base = ref.current; if (!base) return;
-    const f = base.lista.feitas[dia] || { t: [], c: [] };
-    const atual = f[item.tipo] || [];
-    const novoArr = atual.includes(item.id) ? atual.filter((x) => x !== item.id) : [...atual, item.id];
-    const lista = { ...base.lista, feitas: { ...base.lista.feitas, [dia]: { ...f, [item.tipo]: novoArr } } };
+    const lista = alternarFeita(base.lista, item, dia);
     ref.current = { ...base, lista };
     setEstado((e) => ({ ...e, lista }));
     await salvarLista(nome, lista);
