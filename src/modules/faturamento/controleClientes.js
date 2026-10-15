@@ -213,7 +213,7 @@ h1{margin:0 0 18px;text-align:center;letter-spacing:.04em}
 table{width:100%;border-collapse:collapse;table-layout:fixed}
 thead{display:table-header-group}
 tr{page-break-inside:avoid}
-td,th{padding:3px 6px;vertical-align:middle;word-wrap:break-word;overflow-wrap:anywhere}
+td,th{padding:4px 7px;vertical-align:middle;word-wrap:break-word;overflow-wrap:anywhere}
 td.c,th.c{text-align:center}
 .tag{display:inline-block;padding:2px 9px;border-radius:999px;font-weight:700;font-size:.92em}
 @media screen{ body{background:#e5e7eb;padding:16px} .folha{background:#fff;margin:0 auto;box-shadow:0 4px 22px rgba(0,0,0,.18)} }
@@ -288,11 +288,8 @@ export const montarHtml = ({ modelo, rows, titulo, orientacao, cores = {}, tema 
     : modelo === 'porcliente'
       ? [['COMERCIAL', 10], ['CLIENTE', 22], ['CATEGORIA', 13], ['PERÍODO', 20], ['SETOR', 6], ['MÉTODO', 10], ['OBSERVAÇÃO', 19]]
       : [['COMERCIAL', 11], ['CLIENTE', 24], ['CATEGORIA', 11], ['PERÍODO', 14], ['SETOR', 7], ['MÉTODO', 10], ['OBSERVAÇÃO', 23]];
-  const colgroupHtml = (duas) => {
-    const w = cols.map(([nome]) => caracteresColuna(nome, dados, duas ? 28 : 0));
-    const soma = w.reduce((a, b) => a + b, 0);
-    return `<colgroup>${w.map((x) => `<col style="width:${(x / soma * 100).toFixed(2)}%">`).join('')}</colgroup>`;
-  };
+  /* Duas colunas: larguras fixas de sempre. Tabela única: sem colgroup, a própria tabela dimensiona pelo conteúdo (table-layout:auto). */
+  const colgroupHtml = (duas) => (duas ? `<colgroup>${cols.map(([, w]) => `<col style="width:${w}%">`).join('')}</colgroup>` : '');
   const thead = `<thead><tr>${cols.map(([n]) => `<th class="${['SETOR', 'MÉTODO', 'CATEGORIA'].includes(n) ? 'c' : ''}">${n}</th>`).join('')}</tr></thead>`;
 
   /* ini: 'sem' = linha de continuação de um cliente (comercial/cliente já saíram na linha de cima, via rowspan). */
@@ -367,7 +364,7 @@ export const montarHtml = ({ modelo, rows, titulo, orientacao, cores = {}, tema 
 var AW=${availW},AH=Math.floor(${availH}*0.95),PW=${px(pagW)};
 var wrap=document.getElementById('wrap'),fit=document.getElementById('fit');
 function ajusta(){
-  var s=1.6;fit.style.transform='none';fit.style.width=(AW/s)+'px';
+  var s=${duas ? 1 : 1.6};fit.style.transform='none';fit.style.width=(AW/s)+'px';
   var h=fit.offsetHeight;
   while(h*s>AH&&s>0.25){s-=0.01;fit.style.width=(AW/s)+'px';h=fit.offsetHeight;}
   fit.style.transformOrigin='0 0';fit.style.transform='scale('+s+')';
@@ -385,6 +382,7 @@ window.addEventListener('load',ajusta);
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>${esc(titulo || 'Controle de Clientes')}</title>
 <style>@page{size:A4 ${orientacao};margin:${mm}mm}${CSS_BASE}${CSS_MODELO[modelo] || ''}${cssTema(modelo, resolverTema(modelo, tema))}${separador(tema) ? `tbody td{border-top:${separador(tema) === 'grossa' ? 2 : 1}px solid ${resolverTema(modelo, tema).head || (MODELOS.find((m) => m.id === modelo) || {}).cor || '#000'}}` : ''}
 #wrap{width:${availW}px;overflow:hidden}
+${duas ? '' : 'table{table-layout:auto}td,th{padding:2px 6px}'}
 @media screen{.folha{width:${px(pagW)}px;height:${px(pagH)}px;padding:${px(mm)}px;overflow:hidden}}
 @media print{.folha{width:${availW}px;height:auto;padding:0;box-shadow:none}html,body{background:#fff;padding:0;margin:0}}</style></head>
 <body><div class="folha"><div id="wrap"><div id="fit"><h1>${esc((titulo || 'CONTROLE DE CLIENTES').toUpperCase())}</h1>

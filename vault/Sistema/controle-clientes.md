@@ -10,7 +10,7 @@ Aba `controle-clientes` do módulo faturamento. A pessoa cadastra (ou importa de
 - Cores: tema (principal sincroniza cabeçalho/linhas/zebra/título + fonte do título, do cabeçalho e zebra) e cor por comercial, salvos em localStorage (ctrlcli.tema, ctrlcli.cores). Margem A4 de 5mm (4mm no compacto).
 - Linhas separando todas as linhas na cor do modelo: Sem linhas (padrão) / Finas / Grossas (tema.separador).
 - Horizontal: "Uma coluna só" (tema.colunaUnica) desliga a divisão em 2 tabelas lado a lado.
-- Colunas dimensionadas pelo texto mais longo (caracteresColuna, com tetos); o ajuste de página também AMPLIA (até 1,6x) listas pequenas.
+- Tabela única (uma coluna só ou vertical): table-layout:auto (colunas pelo conteúdo), células compactas e o ajuste de página também AMPLIA (até 1,6x). O modo duas colunas mantém larguras fixas e padding antigos.
 - SEMPRE 1 página: xlsx com fitToHeight=1; HTML encolhe o conteúdo até caber na folha A4 (script em montarHtml).
 - Orientação horizontal/vertical vale para o .xlsx (pageSetup) e para o botão Imprimir.
 - Mesmo HTML (`montarHtml`) alimenta a pré-visualização (iframe) e a impressão (`@page size: A4 <orientação>`).
