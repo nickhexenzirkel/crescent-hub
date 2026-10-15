@@ -124,6 +124,13 @@ const caracteresColuna = (nome, dados, capObs) => {
   return Math.max(nome.length * 1.15, Math.min(max, cap) * negrito) + 2.5;
 };
 
+/* Tamanho da letra: o ajuste de página mantém tudo numa folha, então letra maior = espaçamento vertical das linhas mais justo. */
+export const TAMANHOS_FONTE = [
+  { id: 'p', nome: 'Pequena', fator: 0.85 }, { id: 'm', nome: 'Média', fator: 1 },
+  { id: 'g', nome: 'Grande', fator: 1.2 }, { id: 'xg', nome: 'Extra grande', fator: 1.3 },
+];
+const fatorFonte = (tema) => (TAMANHOS_FONTE.find((t) => t.id === tema.fonte) || { fator: 1 }).fator;
+
 export const linhasValidas = (rows) => rows.filter((r) => (r.cliente || '').trim());
 
 /* Ordem de prioridade das linhas: pelo período (segunda → ... → solicitação). Período fora da lista vai pro fim.
@@ -368,6 +375,11 @@ export const montarHtml = ({ modelo, rows, titulo, orientacao, cores = {}, tema 
   const px = (v) => Math.round(v * 3.7795);
   const availW = px(pagW - 2 * mm); const availH = px(pagH - 2 * mm) - 6;
 
+  const fator = fatorFonte(tema);
+  const unicaPaisagem = !duas && orientacao === 'landscape';
+  const pv = Math.max(1, Math.round(4 / (fator * fator))); // letra maior => menos espaço em cima/embaixo
+  const cssFonte = unicaPaisagem || fator === 1 ? '' : `td,th{padding-top:${pv}px;padding-bottom:${pv}px;font-size:${(11.5 * fator).toFixed(1)}px}`;
+
   /* UMA PÁGINA SÓ: o conteúdo é encolhido até caber inteiro numa folha A4 (na tela e na impressão). */
   const script = `(function(){
 var AW=${availW},AH=Math.floor(${availH}*0.95),PW=${px(pagW)};
@@ -391,9 +403,9 @@ window.addEventListener('load',ajusta);
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>${esc(titulo || 'Controle de Clientes')}</title>
 <style>@page{size:A4 ${orientacao};margin:${mm}mm}${CSS_BASE}${CSS_MODELO[modelo] || ''}${cssTema(modelo, resolverTema(modelo, tema))}${separador(tema) ? `tbody td{border-top:${separador(tema) === 'grossa' ? 2 : 1}px solid ${resolverTema(modelo, tema).head || (MODELOS.find((m) => m.id === modelo) || {}).cor || '#000'}}` : ''}
 #wrap{width:${availW}px;overflow:hidden}
-${duas ? '' : orientacao === 'landscape' ? 'table{table-layout:fixed;width:100%}td,th{padding:0 8px;line-height:1.05}td{font-size:14.5px}th{font-size:13.5px}.tag{padding:0 8px;line-height:1.05;vertical-align:middle}thead th{height:30px;vertical-align:middle}tbody tr{height:20px}tbody td{height:20px;padding-top:0;padding-bottom:0;vertical-align:middle}.tag{display:inline-block;vertical-align:middle}td.c,th,td:nth-child(-n+2){white-space:nowrap}' : 'table{table-layout:auto;width:auto;margin:0 auto}td,th{padding:2px 8px;overflow-wrap:normal;word-break:normal}td.c,th.c,th{white-space:nowrap}'}
+${duas ? '' : orientacao === 'landscape' ? 'table{table-layout:fixed;width:100%}td,th{padding:0 8px;line-height:1.05}td{font-size:' + (14.5 * fator).toFixed(1) + 'px}th{font-size:' + (13.5 * fator).toFixed(1) + 'px}.tag{padding:0 8px;line-height:1.05;vertical-align:middle}thead th{height:30px;vertical-align:middle}tbody tr{height:20px}tbody td{height:20px;padding-top:0;padding-bottom:0;vertical-align:middle}.tag{display:inline-block;vertical-align:middle}td.c,th,td:nth-child(-n+2){white-space:nowrap}' : 'table{table-layout:auto;width:auto;margin:0 auto}td,th{padding:2px 8px;overflow-wrap:normal;word-break:normal}td.c,th.c,th{white-space:nowrap}'}
 @media screen{.folha{width:${px(pagW)}px;height:${px(pagH)}px;padding:${px(mm)}px;overflow:hidden}}
-@media print{.folha{width:${availW}px;height:auto;padding:0;box-shadow:none}html,body{background:#fff;padding:0;margin:0}}</style></head>
+@media print{.folha{width:${availW}px;height:auto;padding:0;box-shadow:none}html,body{background:#fff;padding:0;margin:0}}${cssFonte}</style></head>
 <body><div class="folha"><div id="wrap"><div id="fit"><h1>${esc((titulo || 'CONTROLE DE CLIENTES').toUpperCase())}</h1>
 ${legenda}
 ${tabelas}</div></div></div>
@@ -426,6 +438,8 @@ export const gerarXlsx = async ({ modelo, rows, titulo, orientacao, cores = {}, 
   if (ov.zebra) e.zebra = ar(ov.zebra);
   if (ov.borda) e.borda = ar(ov.borda);
   if (ov.titulo) e.titulo = ar(ov.titulo);
+  const fator = fatorFonte(tema);
+  e.fonte = Math.round(e.fonte * fator);
   const agrupado = modelo === 'agrupado';
   const porPeriodo = modelo === 'porperiodo';
   const dados = porPeriodo ? expandir(lista) : modelo === 'porcliente' ? consolidar(lista) : lista;
@@ -474,7 +488,7 @@ export const gerarXlsx = async ({ modelo, rows, titulo, orientacao, cores = {}, 
   const alturaPara = (vals) => {
     let linhas = 1;
     vals.forEach((v, i) => { linhas = Math.max(linhas, Math.ceil(String(v || '').length / (cols[i][1] * 0.95))); });
-    return Math.max(modelo === 'compacto' ? 16 : 20, linhas * (modelo === 'compacto' ? 13 : 15) + 4);
+    return Math.max((modelo === 'compacto' ? 16 : 20) * fator, linhas * (modelo === 'compacto' ? 13 : 15) * fator + 4);
   };
 
   const escreverLinha = (r, par) => {

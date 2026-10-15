@@ -5,7 +5,7 @@ import { useIsMobile } from '../../../hooks/useIsMobile';
 import { StellarHero } from '../StellarHero';
 import {
   MODELOS, METODOS, CATEGORIAS, PERIODOS, linhaVazia, linhasValidas,
-  importarPlanilha, montarHtml, gerarXlsx,
+  importarPlanilha, montarHtml, gerarXlsx, TAMANHOS_FONTE,
 } from '../controleClientes';
 
 /* ═══════════════════════════════════════════════════════════════
@@ -300,6 +300,18 @@ export const TabControleClientes = () => {
               {nome}
             </button>
           ))}
+        </div>
+        <div title="Tamanho da letra" style={{ display: 'inline-flex', alignItems: 'center', border: `1px solid ${T.border}`, borderRadius: 10, overflow: 'hidden' }}>
+          <span style={{ padding: '0 12px', fontSize: 12, fontWeight: 700, color: T.textT, letterSpacing: '.06em', textTransform: 'uppercase' }}>Letra</span>
+          {TAMANHOS_FONTE.map((t) => {
+            const a = (tema.fonte || 'm') === t.id;
+            return (
+              <button key={t.id} onClick={() => setTema('fonte', t.id === 'm' ? null : t.id)} style={{
+                padding: '10px 14px', border: 'none', borderLeft: `1px solid ${T.border}`, cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: 13.5, fontWeight: 600,
+                background: a ? T.gold : T.surface, color: a ? '#fff' : T.textS,
+              }}>{t.nome}</button>
+            );
+          })}
         </div>
         {orientacao === 'landscape' && (
           <div title="Só no horizontal" style={{ display: 'inline-flex', border: `1px solid ${T.border}`, borderRadius: 10, overflow: 'hidden' }}>
