@@ -17,6 +17,9 @@ import {
 const LS = (k, d) => { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch { return d; } };
 const LSset = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* sem storage */ } };
 
+/* Cor sugerida fixa: um clique aplica como cor principal do modelo. */
+const COR_SUGERIDA = '#103b5b';
+
 const inputStyle = {
   width: '100%', boxSizing: 'border-box', padding: '7px 9px', borderRadius: 8, fontSize: 13,
   border: `1px solid ${T.border}`, background: T.surface, color: T.text, fontFamily: 'var(--font-body)', outline: 'none',
@@ -242,6 +245,17 @@ export const TabControleClientes = () => {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
               <label style={{ ...labelStyle, marginBottom: 0 }}>Cores do modelo</label>
               {Object.keys(tema).length > 0 && <button style={btnGhost} onClick={() => { setTemaS({}); LSset('ctrlcli.tema', {}); }}>Restaurar cores do modelo</button>}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 12.5, color: T.textT }}>Cor sugerida:</span>
+              <button onClick={() => setTema('principal', COR_SUGERIDA)} title={`Usar ${COR_SUGERIDA}`} style={{
+                display: 'inline-flex', alignItems: 'center', gap: 8, padding: '5px 12px 5px 6px', borderRadius: 999, cursor: 'pointer',
+                border: `2px solid ${tema.principal?.toLowerCase() === COR_SUGERIDA ? COR_SUGERIDA : T.border}`, background: T.surface,
+                fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 700, color: T.text,
+              }}>
+                <span style={{ width: 22, height: 22, borderRadius: '50%', background: COR_SUGERIDA, display: 'inline-block' }} />
+                {COR_SUGERIDA.toUpperCase()}
+              </button>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(250px,1fr))', gap: 12 }}>
               {campos.map(([k, nome, dica, padrao]) => (
