@@ -5,7 +5,7 @@ import { useIsMobile } from '../../../hooks/useIsMobile';
 import { StellarHero } from '../StellarHero';
 import {
   MODELOS, METODOS, CATEGORIAS, PERIODOS, linhaVazia, linhasValidas,
-  importarPlanilha, montarHtml, gerarXlsx, TAMANHOS_FONTE,
+  importarPlanilha, montarHtml, gerarXlsx,
 } from '../controleClientes';
 
 /* ═══════════════════════════════════════════════════════════════
@@ -35,6 +35,22 @@ const btnGhost = {
   border: `1px solid ${T.border}`, borderRadius: 9, padding: '8px 14px', fontSize: 13, fontWeight: 600,
   cursor: 'pointer', fontFamily: 'var(--font-body)',
 };
+/* Controle em %: barra + número. Largura fixa (o ✕ ocupa lugar mesmo escondido) pra o card não pular quando a barra mexe. */
+const PctCard = ({ nome, valor, onChange }) => {
+  const v = valor || 100;
+  const set = (n) => onChange(n === 100 ? null : n);
+  return (
+    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, border: `1px solid ${T.border}`, borderRadius: 10, padding: '6px 12px', background: T.surface, width: 380, boxSizing: 'border-box', flexShrink: 0 }}>
+      <span style={{ fontSize: 12, fontWeight: 700, color: T.textT, letterSpacing: '.06em', textTransform: 'uppercase', width: 82, lineHeight: 1.2 }}>{nome}</span>
+      <input type="range" min="30" max="300" step="5" value={v} onChange={(e) => set(Number(e.target.value))} style={{ width: 120, cursor: 'pointer' }} />
+      <input type="number" min="30" max="300" step="5" value={v} onChange={(e) => set(Math.min(300, Math.max(30, Number(e.target.value) || 100)))}
+        style={{ ...inputStyle, width: 64, padding: '6px 8px', textAlign: 'right' }} />
+      <span style={{ fontSize: 13, color: T.textS, width: 14 }}>%</span>
+      <button onClick={() => set(100)} title="Voltar a 100%" style={{ background: 'none', border: 'none', color: T.textD, cursor: 'pointer', fontSize: 14, width: 18, padding: 0, visibility: valor ? 'visible' : 'hidden' }}>✕</button>
+    </div>
+  );
+};
+
 const secTitulo = (n, t) => (
   <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '30px 0 14px' }}>
     <span style={{ fontSize: 12, fontWeight: 700, color: T.textD, letterSpacing: '.1em', textTransform: 'uppercase' }}>{n}. {t}</span>
@@ -331,26 +347,8 @@ export const TabControleClientes = () => {
             </button>
           ))}
         </div>
-        <div title="Tamanho da letra" style={{ display: 'inline-flex', alignItems: 'center', border: `1px solid ${T.border}`, borderRadius: 10, overflow: 'hidden' }}>
-          <span style={{ padding: '0 12px', fontSize: 12, fontWeight: 700, color: T.textT, letterSpacing: '.06em', textTransform: 'uppercase' }}>Letra</span>
-          {TAMANHOS_FONTE.map((t) => {
-            const a = (tema.fonte || 'm') === t.id;
-            return (
-              <button key={t.id} onClick={() => setTema('fonte', t.id === 'm' ? null : t.id)} style={{
-                padding: '10px 14px', border: 'none', borderLeft: `1px solid ${T.border}`, cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: 13.5, fontWeight: 600,
-                background: a ? T.gold : T.surface, color: a ? '#fff' : T.textS,
-              }}>{t.nome}</button>
-            );
-          })}
-        </div>
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, border: `1px solid ${T.border}`, borderRadius: 10, padding: '6px 12px', background: T.surface }}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: T.textT, letterSpacing: '.06em', textTransform: 'uppercase' }}>Altura das linhas</span>
-          <input type="range" min="30" max="300" step="5" value={tema.altura || 100} onChange={(e) => setTema('altura', Number(e.target.value) === 100 ? null : Number(e.target.value))} style={{ width: 130, cursor: 'pointer' }} />
-          <input type="number" min="30" max="300" step="5" value={tema.altura || 100} onChange={(e) => { const n = Math.min(300, Math.max(30, Number(e.target.value) || 100)); setTema('altura', n === 100 ? null : n); }}
-            style={{ ...inputStyle, width: 64, padding: '6px 8px', textAlign: 'right' }} />
-          <span style={{ fontSize: 13, color: T.textS }}>%</span>
-          {tema.altura && <button onClick={() => setTema('altura', null)} title="Voltar a 100%" style={{ background: 'none', border: 'none', color: T.textD, cursor: 'pointer', fontSize: 14 }}>✕</button>}
-        </div>
+        <PctCard nome="Letra" valor={tema.fontePct} onChange={(v) => setTema('fontePct', v)} />
+        <PctCard nome="Altura das linhas" valor={tema.altura} onChange={(v) => setTema('altura', v)} />
         {orientacao === 'landscape' && (
           <div title="Só no horizontal" style={{ display: 'inline-flex', border: `1px solid ${T.border}`, borderRadius: 10, overflow: 'hidden' }}>
             {[[false, 'Duas colunas se for grande'], [true, 'Uma coluna só']].map(([v, nome]) => (

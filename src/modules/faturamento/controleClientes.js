@@ -129,7 +129,10 @@ export const TAMANHOS_FONTE = [
   { id: 'p', nome: 'Pequena', fator: 0.85 }, { id: 'm', nome: 'Média', fator: 1 },
   { id: 'g', nome: 'Grande', fator: 1.2 }, { id: 'xg', nome: 'Extra grande', fator: 1.3 },
 ];
-const fatorFonte = (tema) => (TAMANHOS_FONTE.find((t) => t.id === tema.fonte) || { fator: 1 }).fator;
+/* Letra em % (tema.fontePct, 100 = padrão). Aceita também o 'fonte' antigo (p/m/g/xg) de cópias salvas. */
+const fatorFonte = (tema) => (Number(tema.fontePct)
+  ? Math.min(3, Math.max(0.4, Number(tema.fontePct) / 100))
+  : (TAMANHOS_FONTE.find((t) => t.id === tema.fonte) || { fator: 1 }).fator);
 
 /* Altura das linhas escolhida à mão, em % (100 = padrão). */
 export const alturaFator = (tema) => Math.min(3, Math.max(0.3, (Number(tema.altura) || 100) / 100));
