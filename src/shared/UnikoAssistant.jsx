@@ -112,7 +112,7 @@ const KB = [
   { k: ['capture o uniko', 'capturar uniko', 'como capturo', 'arremessar uniko', 'pega o uniko', 'como pego o uniko que apareceu'],
     a: 'Quando um Uniko aparece (card na aba Início), arraste o assistente UNIKO (canto da tela) e solte em cima dele pra arremessar. Você tem 2 tentativas: a 1ª pode escapar, a 2ª é garantida. Só quem captura primeiro ganha — os outros só veem quem pegou.' },
   { k: ['lembrete', 'lembrar', 'lembre', 'agendar', 'alarme', 'apagar lembrete', 'deletar lembrete', 'remover lembrete', 'meus lembretes'],
-    a: 'Posso criar lembretes pra você — diga "me lembre de bater o ponto às 14:30". Para ver, editar ou apagar seus lembretes (inclusive todos), use o módulo Meus Lembretes no Portal. Por aqui eu só crio lembretes novos.' },
+    a: 'Posso criar lembretes pra você — diga "me lembre de bater o ponto às 14:30". Para ver, editar ou apagar seus lembretes (inclusive todos), use o módulo Minhas Tarefas no Portal. Por aqui eu só crio lembretes novos.' },
   { k: ['foto de perfil', 'mudar foto', 'trocar foto', 'imagem de perfil', 'alterar foto'],
     a: 'Pra trocar sua foto de perfil: no Portal do Colaborador, aba Início, clique na sua foto/avatar pra abrir o editor — escolha a imagem em "Trocar imagem", ajuste o recorte e salve. Também dá pra usar um Uniko capturado como foto, pela Coleção de Unikos (My Uniko).' },
   { k: ['tema', 'cor do site', 'aparencia', 'modo escuro', 'modo claro', 'tema escuro', 'tema claro'],

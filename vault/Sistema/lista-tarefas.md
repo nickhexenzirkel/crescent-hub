@@ -3,7 +3,7 @@ title: Lista de Tarefas (Meus Lembretes)
 ---
 # Lista de Tarefas
 
-Aba nova em **Portal → Meus Lembretes**, ao lado de Anotações. Código: `src/modules/central-lembretes/ListaTarefas.jsx` e `src/shared/listaTarefas.js`.
+Aba nova em **Portal → Minhas Tarefas (ex-Meus Lembretes)**, ao lado de Anotações. Código: `src/modules/central-lembretes/ListaTarefas.jsx` e `src/shared/listaTarefas.js`.
 
 ## O que faz
 - Checklist do dia (navega para dias anteriores e marca/desmarca), tarefas pessoais (todo dia / dias da semana / uma vez só).

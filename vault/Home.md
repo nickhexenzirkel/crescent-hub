@@ -46,7 +46,7 @@ Abra a pasta `vault/` como um cofre (vault) no Obsidian.
 - [[oficina-estelar-modulo]] — Modulo "Oficina Estelar" (id interno faturamento) — assinatura automatica de PDF e historico
 - [[oficio-emissao]] — Aba "Ofício de Emissão" na Oficina Estelar — porte da Solicitação de Pagamento do Uniko Detetive (Electron), 2 modelos (Eusébio e Juazeiro do Piauí)
 - [[controle-clientes]] — Aba "Controle de Clientes" na Oficina Estelar: carteira (comercial/cliente/categoria/período/setor/método) em 4 modelos de planilha, impressão horizontal/vertical
-- [[lista-tarefas]] — Aba "Lista de Tarefas" em Meus Lembretes: checklist diário, gráficos dia/mês/ano por pessoa e cronograma de faturamento vindo do Controle de Clientes
+- [[lista-tarefas]] — Aba "Lista de Tarefas" em Minhas Tarefas (ex-Meus Lembretes; abas: Lista de Tarefas, Lembretes, Anotações): checklist diário, gráficos dia/mês/ano por pessoa e cronograma de faturamento vindo do Controle de Clientes
 - [[operacao-manutencao]] — Estado operacional/manutenção do crescent-hub — o que roda sozinho e o que pede atenção manual (VPS, tokens, Spotify, yt-dlp)
 - [[ponto-eletronico-persistencia]] — Como o módulo Ponto Eletrônico persiste banco de horas/justificativas no Supabase e qual SQL rodar
 - [[ponto-justificativa-modal]] — Modal grande de justificativa no módulo admin do Ponto (mostra motivo + anexo do colaborador)

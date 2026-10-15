@@ -804,7 +804,7 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
           </div>
           <div style={{flex:1,display:'flex',flexDirection:'column',justifyContent:upcoming.length===0?'center':'flex-start'}}>
           {upcoming.length===0
-            ?<EmptyW icon={<Ico size={26} d={<><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></>}/>} text="Nenhum lembrete próximo" sub="Crie em Meus Lembretes"/>
+            ?<EmptyW icon={<Ico size={26} d={<><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></>}/>} text="Nenhum lembrete próximo" sub="Crie em Minhas Tarefas"/>
             :upcoming.slice(0,3).map((r,i,arr)=>(
               <div key={r.id} style={{display:'flex',alignItems:'center',gap:8,paddingTop:i===0?0:6,paddingBottom:i<arr.length-1?6:0,borderBottom:i<arr.length-1?`1px solid ${T.border}`:'none'}}>
                 <div style={{background:T.goldGl,border:`1px solid ${T.gold}28`,borderRadius:6,padding:'3px 6px',flexShrink:0,minWidth:38,textAlign:'center'}}>

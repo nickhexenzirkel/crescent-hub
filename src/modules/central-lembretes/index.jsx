@@ -32,7 +32,7 @@ const Ico = ({ d, size=14, stroke='currentColor' }) => (
 /* ═══════════════════════════════════════════════════════════════ */
 const CentralLembretes = ({ onBack, authUser }) => {
   const userName = authUser?.name || 'Colaborador';
-  const [activeTab, setActiveTab] = useState('lembretes');
+  const [activeTab, setActiveTab] = useState('tarefas');
   const [notifPerm, setNotifPerm] = useState(notifyPermission());
   const [extStatus, setExtStatus] = useState('checking'); // checking | ok | missing | reload
   const [extVersion, setExtVersion] = useState(null);
@@ -192,7 +192,7 @@ const CentralLembretes = ({ onBack, authUser }) => {
         <img src="/UNIKO_LOGO.png" alt="Uniko" style={{ width:40, height:40, borderRadius:10, objectFit:'contain' }}/>
         <div>
           <div style={{ fontFamily:'var(--font-brand)', fontSize:22, fontWeight:700, color:T.text, letterSpacing:'.04em' }}>
-            {activeTab === 'lembretes' ? 'Meus Lembretes' : activeTab === 'tarefas' ? 'Lista de Tarefas' : 'Minhas Anotações'}
+            Minhas Tarefas
           </div>
           <div style={{ fontSize:13, color:T.textT, marginTop:2 }}>
             {activeTab === 'lembretes' ? 'O Uniko te avisa no horário' : activeTab === 'tarefas' ? 'Seu checklist diário e o quanto você concluiu' : 'Suas notas pessoais'} · {userName}
@@ -272,6 +272,13 @@ const CentralLembretes = ({ onBack, authUser }) => {
       <div style={{ display:'flex', gap:4, marginBottom:22, padding:'4px', background:T.surfaceSub||'rgba(0,0,0,0.04)', borderRadius:14, width:'fit-content' }}>
         {[
           {
+            id:'tarefas',
+            label: <span style={{display:'flex',alignItems:'center',gap:6}}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+              Lista de Tarefas
+            </span>,
+          },
+          {
             id:'lembretes',
             label: <span style={{display:'flex',alignItems:'center',gap:6}}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 15.5"/></svg>
@@ -283,13 +290,6 @@ const CentralLembretes = ({ onBack, authUser }) => {
             label: <span style={{display:'flex',alignItems:'center',gap:6}}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
               Anotações
-            </span>,
-          },
-          {
-            id:'tarefas',
-            label: <span style={{display:'flex',alignItems:'center',gap:6}}>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
-              Lista de Tarefas
             </span>,
           },
         ].map(tab => (

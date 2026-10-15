@@ -31,7 +31,7 @@ export const MODULE_TABS_CATALOG = {
     { id: 'financeiro', label: 'Financeiro' },
     { id: 'horas', label: 'Banco de Horas' },
     { id: 'ponto', label: 'Ponto Eletrônico' },
-    { id: 'lembretes', label: 'Meus Lembretes' },
+    { id: 'lembretes', label: 'Minhas Tarefas' },
     { id: 'comunicados', label: 'Comunicados' },
     { id: 'eventos', label: 'Eventos' },
     { id: 'colegas', label: 'Colegas' },

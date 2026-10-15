@@ -92,7 +92,7 @@ export const TabControleClientes = () => {
   const comerciais = useMemo(() => [...new Set(rows.map((r) => (r.comercial || '').trim().toUpperCase()).filter(Boolean))], [rows]);
   const html = useMemo(() => montarHtml({ modelo, rows, titulo, orientacao, cores, tema }), [modelo, rows, titulo, orientacao, cores, tema]);
 
-  /* Setor de faturamento: a carteira vira o cronograma pessoal em Meus Lembretes → Lista de Tarefas
+  /* Setor de faturamento: a carteira vira o cronograma pessoal em Minhas Tarefas → Lista de Tarefas
      (clientes do dia da semana). Só envia para quem está marcado como Faturamento em Colegas. */
   const [ehFat, setEhFat] = useState(false);
   const [cronoStatus, setCronoStatus] = useState(''); // '' | 'ok' | 'erro'
@@ -254,7 +254,7 @@ export const TabControleClientes = () => {
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '10px 4px 0' }}>
           <button style={btnGhost} onClick={adicionar}>+ Adicionar cliente</button>
           <span style={{ fontSize: 12.5, color: T.textT }}>{validas.length} {validas.length === 1 ? 'cliente' : 'clientes'} · salvo automaticamente neste computador</span>
-          {ehFat && <span style={{ fontSize: 12.5, color: cronoStatus === 'erro' ? '#C04050' : '#1A9060' }}>{cronoStatus === 'erro' ? 'Não consegui enviar o cronograma para a Lista de Tarefas' : cronoStatus === 'ok' ? '✓ Cronograma enviado para Meus Lembretes → Lista de Tarefas' : 'Seu cronograma vai para Meus Lembretes → Lista de Tarefas'}</span>}
+          {ehFat && <span style={{ fontSize: 12.5, color: cronoStatus === 'erro' ? '#C04050' : '#1A9060' }}>{cronoStatus === 'erro' ? 'Não consegui enviar o cronograma para a Lista de Tarefas' : cronoStatus === 'ok' ? '✓ Cronograma enviado para Minhas Tarefas → Lista de Tarefas' : 'Seu cronograma vai para Minhas Tarefas → Lista de Tarefas'}</span>}
         </div>
       </div>
 
