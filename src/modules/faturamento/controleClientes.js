@@ -1,0 +1,313 @@
+/* ═══════════════════════════════════════════════════════════════
+   CONTROLE DE CLIENTES — dados, 4 modelos visuais e geradores.
+   O MESMO documento HTML alimenta a pré-visualização e a impressão
+   (horizontal/vertical via @page); a planilha .xlsx sai do ExcelJS
+   com a orientação gravada na configuração de página.
+═══════════════════════════════════════════════════════════════ */
+
+export const METODOS = ['MIA', 'MISA', 'MANUAL', 'MISA / MIA', 'MIA / MANUAL'];
+export const CATEGORIAS = ['ABAST', 'MANUT', 'ABAST/MANUT'];
+export const PERIODOS = [
+  'SEGUNDA-FEIRA', 'TERÇA-FEIRA', 'QUARTA-FEIRA', 'QUINTA-FEIRA', 'SEXTA-FEIRA',
+  'SEMANAL', 'QUINZENAL', 'DECENDIAL', 'MENSAL',
+];
+
+export const MODELOS = [
+  { id: 'classico', titulo: 'Clássico', sub: 'Cabeçalho azul-marinho e linhas alternadas. Direto ao ponto.', cor: '#1F3A5F' },
+  { id: 'agrupado', titulo: 'Agrupado por comercial', sub: 'Uma faixa colorida por comercial, com os clientes dele logo abaixo.', cor: '#0E8FA8' },
+  { id: 'colorido', titulo: 'Colorido por categoria', sub: 'Abastecimento, manutenção e os dois juntos com cores diferentes.', cor: '#E08A1E' },
+  { id: 'compacto', titulo: 'Compacto P&B', sub: 'Preto e branco, bordas finas e letra menor. Gasta pouca tinta.', cor: '#222222' },
+];
+
+export const linhaVazia = () => ({
+  id: Math.random().toString(36).slice(2, 10),
+  comercial: '', cliente: '', categoria: 'ABAST', periodo: '', setor: 'NÃO', metodo: 'MIA', obs: '',
+});
+
+const norm = (s) => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+const up = (s) => String(s ?? '').trim().toUpperCase();
+
+/* Tipo da categoria: define a cor nos modelos coloridos. */
+export const tipoCategoria = (cat) => {
+  const c = norm(cat);
+  const ab = c.includes('abast'); const ma = c.includes('manut');
+  if (ab && ma) return 'ambos';
+  if (ab) return 'abast';
+  if (ma) return 'manut';
+  return 'outro';
+};
+
+const COR_CAT = {
+  abast: { bg: '#FDE7C8', fg: '#8A4B00', argb: 'FFFDE7C8', fgArgb: 'FF8A4B00' },
+  manut: { bg: '#D6E8FB', fg: '#124B8A', argb: 'FFD6E8FB', fgArgb: 'FF124B8A' },
+  ambos: { bg: '#E6DCF8', fg: '#52318F', argb: 'FFE6DCF8', fgArgb: 'FF52318F' },
+  outro: { bg: '#E7E9ED', fg: '#444444', argb: 'FFE7E9ED', fgArgb: 'FF444444' },
+};
+
+/* Cores das faixas por comercial (modelo agrupado), em ciclo. */
+const CORES_GRUPO = [
+  { hex: '#0E8FA8', argb: 'FF0E8FA8' }, { hex: '#C0307A', argb: 'FFC0307A' },
+  { hex: '#5B60D0', argb: 'FF5B60D0' }, { hex: '#2E8B57', argb: 'FF2E8B57' },
+  { hex: '#D9822B', argb: 'FFD9822B' }, { hex: '#7A4FB5', argb: 'FF7A4FB5' },
+];
+
+/* Agrupa mantendo a ordem em que cada comercial apareceu. */
+export const agruparPorComercial = (rows) => {
+  const mapa = new Map();
+  for (const r of rows) {
+    const k = up(r.comercial) || 'SEM COMERCIAL';
+    if (!mapa.has(k)) mapa.set(k, []);
+    mapa.get(k).push(r);
+  }
+  return [...mapa.entries()].map(([nome, itens]) => ({ nome, itens }));
+};
+
+export const linhasValidas = (rows) => rows.filter((r) => (r.cliente || '').trim());
+
+/* ─── Importar planilha existente (.xlsx/.csv) ─────────────────── */
+export const importarPlanilha = async (file) => {
+  const XLSX = await import('xlsx');
+  const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const m = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+  let h = m.findIndex((r) => r.some((c) => norm(c) === 'comercial') && r.some((c) => /municipio|cliente/.test(norm(c))));
+  let titulo = '';
+  if (h < 0) h = 0;
+  else if (m[0] && String(m[0][0] || '').trim() && h > 0) titulo = String(m[0][0]).trim();
+  const cab = (m[h] || []).map(norm);
+  const col = (re, padrao) => { const i = cab.findIndex((c) => re.test(c)); return i >= 0 ? i : padrao; };
+  const ix = {
+    comercial: col(/^comercial/, 0), cliente: col(/municipio|cliente|nome/, 1), categoria: col(/categoria/, 2),
+    periodo: col(/periodo/, 3), setor: col(/^setor/, 4), metodo: col(/metodo/, 5), obs: col(/observ/, 6),
+  };
+  const rows = [];
+  for (const r of m.slice(h + 1)) {
+    const cliente = String(r[ix.cliente] ?? '').trim();
+    if (!cliente) continue;
+    const setor = up(r[ix.setor]);
+    rows.push({
+      ...linhaVazia(),
+      comercial: up(r[ix.comercial]), cliente: cliente.toUpperCase(), categoria: up(r[ix.categoria]),
+      periodo: up(r[ix.periodo]), setor: setor.startsWith('S') ? 'SIM' : 'NÃO',
+      metodo: up(r[ix.metodo]) || 'MIA', obs: String(r[ix.obs] ?? '').trim().toUpperCase(),
+    });
+  }
+  return { rows, titulo };
+};
+
+/* ─── HTML (pré-visualização + impressão) ───────────────────────── */
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+const CSS_BASE = `
+*{box-sizing:border-box}
+body{margin:0;font-family:'Segoe UI',Arial,Helvetica,sans-serif;color:#1b2430}
+h1{margin:0 0 4px;text-align:center;letter-spacing:.04em}
+.sub{text-align:center;color:#6b7280;font-size:11px;margin-bottom:14px}
+table{width:100%;border-collapse:collapse;table-layout:fixed}
+thead{display:table-header-group}
+tr{page-break-inside:avoid}
+td,th{padding:6px 8px;vertical-align:middle;word-wrap:break-word;overflow-wrap:anywhere}
+td.c,th.c{text-align:center}
+.tag{display:inline-block;padding:2px 9px;border-radius:999px;font-weight:700;font-size:.92em}
+@media screen{
+  body{background:#e5e7eb;padding:16px}
+  .folha{background:#fff;margin:0 auto;padding:28px 30px;box-shadow:0 4px 22px rgba(0,0,0,.18)}
+}
+@media print{ .folha{padding:0} body{-webkit-print-color-adjust:exact;print-color-adjust:exact} }
+`;
+
+const CSS_MODELO = {
+  classico: `
+h1{font-size:20px;color:#1F3A5F}
+th{background:#1F3A5F;color:#fff;font-size:11.5px;letter-spacing:.05em;text-transform:uppercase;border:1px solid #1F3A5F}
+td{font-size:11.5px;border:1px solid #C9D2DF}
+tbody tr:nth-child(even) td{background:#EEF2F8}
+.tag.sim{background:#D8F0DF;color:#1E6B36}.tag.nao{background:#F6DADA;color:#9B2B2B}
+`,
+  agrupado: `
+h1{font-size:20px;color:#17324D}
+th{background:#17324D;color:#fff;font-size:11.5px;letter-spacing:.05em;text-transform:uppercase;border:1px solid #17324D}
+td{font-size:11.5px;border:1px solid #D5DBE4}
+tr.grp td{color:#fff;font-weight:800;font-size:12.5px;letter-spacing:.06em;border:none;padding:8px 10px}
+tr.grp td span{font-weight:500;opacity:.85;margin-left:8px;font-size:11px}
+tbody tr.it:nth-child(even) td{background:#F5F7FA}
+.tag.sim{background:#D8F0DF;color:#1E6B36}.tag.nao{background:#F6DADA;color:#9B2B2B}
+`,
+  colorido: `
+h1{font-size:20px;color:#3a2a14}
+th{background:#3a2a14;color:#fff;font-size:11.5px;letter-spacing:.05em;text-transform:uppercase;border:1px solid #3a2a14}
+td{font-size:11.5px;border:1px solid #E1D8CA}
+.leg{display:flex;gap:14px;justify-content:center;margin:0 0 12px;font-size:11px;flex-wrap:wrap}
+.leg i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.tag.sim{background:#D8F0DF;color:#1E6B36}.tag.nao{background:#F6DADA;color:#9B2B2B}
+`,
+  compacto: `
+h1{font-size:16px;color:#000;text-align:left}
+.sub{text-align:left;margin-bottom:8px}
+th{background:#fff;color:#000;font-size:10.5px;text-transform:uppercase;border:1px solid #000;border-bottom:2px solid #000}
+td{font-size:10.5px;padding:3px 6px;border:1px solid #777}
+.tag{padding:0;border-radius:0;font-weight:700}
+`,
+};
+
+export const montarHtml = ({ modelo, rows, titulo, orientacao }) => {
+  const lista = linhasValidas(rows);
+  const hoje = new Date().toLocaleDateString('pt-BR');
+  const agrupado = modelo === 'agrupado';
+  const cols = agrupado
+    ? [['CLIENTE', 27], ['CATEGORIA', 13], ['PERÍODO', 17], ['SETOR', 8], ['MÉTODO', 11], ['OBSERVAÇÃO', 24]]
+    : [['COMERCIAL', 11], ['CLIENTE', 24], ['CATEGORIA', 11], ['PERÍODO', 14], ['SETOR', 7], ['MÉTODO', 10], ['OBSERVAÇÃO', 23]];
+  const colgroup = `<colgroup>${cols.map(([, w]) => `<col style="width:${w}%">`).join('')}</colgroup>`;
+  const thead = `<thead><tr>${cols.map(([n]) => `<th class="${['SETOR', 'MÉTODO', 'CATEGORIA'].includes(n) ? 'c' : ''}">${n}</th>`).join('')}</tr></thead>`;
+
+  const celulas = (r, comCom) => {
+    const t = tipoCategoria(r.categoria);
+    const catStyle = modelo === 'colorido' ? ` style="background:${COR_CAT[t].bg};color:${COR_CAT[t].fg};font-weight:700"` : '';
+    const sim = up(r.setor).startsWith('S');
+    return (comCom ? `<td style="font-weight:700">${esc(up(r.comercial))}</td>` : '')
+      + `<td>${esc(up(r.cliente))}</td>`
+      + `<td class="c"${catStyle}>${esc(up(r.categoria))}</td>`
+      + `<td class="c">${esc(up(r.periodo))}</td>`
+      + `<td class="c"><span class="tag ${sim ? 'sim' : 'nao'}">${sim ? 'SIM' : 'NÃO'}</span></td>`
+      + `<td class="c" style="font-weight:700">${esc(up(r.metodo))}</td>`
+      + `<td>${esc(r.obs)}</td>`;
+  };
+
+  let corpo = '';
+  if (agrupado) {
+    agruparPorComercial(lista).forEach((g, i) => {
+      const cor = CORES_GRUPO[i % CORES_GRUPO.length].hex;
+      corpo += `<tr class="grp"><td colspan="6" style="background:${cor}">${esc(g.nome)}<span>${g.itens.length} ${g.itens.length === 1 ? 'cliente' : 'clientes'}</span></td></tr>`;
+      for (const r of g.itens) corpo += `<tr class="it">${celulas(r, false)}</tr>`;
+    });
+  } else {
+    for (const r of lista) corpo += `<tr>${celulas(r, true)}</tr>`;
+  }
+  if (!lista.length) corpo = `<tr><td colspan="${cols.length}" style="text-align:center;color:#888;padding:28px">Adicione clientes para ver o documento aqui.</td></tr>`;
+
+  const legenda = modelo === 'colorido'
+    ? `<div class="leg"><span><i style="background:${COR_CAT.abast.bg}"></i>Abastecimento</span><span><i style="background:${COR_CAT.manut.bg}"></i>Manutenção</span><span><i style="background:${COR_CAT.ambos.bg}"></i>Abast. + Manut.</span></div>`
+    : '';
+  const largura = orientacao === 'landscape' ? 1040 : 730;
+
+  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>${esc(titulo || 'Controle de Clientes')}</title>
+<style>@page{size:A4 ${orientacao};margin:${modelo === 'compacto' ? '8mm' : '12mm'}}${CSS_BASE}${CSS_MODELO[modelo] || ''}.folha{width:${largura}px}@media print{.folha{width:auto}}</style></head>
+<body><div class="folha" id="folha"><h1>${esc((titulo || 'CONTROLE DE CLIENTES').toUpperCase())}</h1>
+<div class="sub">${lista.length} ${lista.length === 1 ? 'cliente' : 'clientes'} · atualizado em ${hoje}</div>${legenda}
+<table>${colgroup}${thead}<tbody>${corpo}</tbody></table></div>
+<script>(function(){function z(){var f=document.getElementById('folha');var w=f.offsetWidth+32;document.body.style.zoom=Math.min(1,window.innerWidth/w)}window.addEventListener('resize',z);z()})()</script>
+</body></html>`;
+};
+
+/* ─── Planilha (.xlsx) ──────────────────────────────────────────── */
+const BORDA = (argb) => ({ top: { style: 'thin', color: { argb } }, left: { style: 'thin', color: { argb } }, bottom: { style: 'thin', color: { argb } }, right: { style: 'thin', color: { argb } } });
+
+const ESTILO_XLSX = {
+  classico: { head: 'FF1F3A5F', headFg: 'FFFFFFFF', zebra: 'FFEEF2F8', borda: 'FFC9D2DF', titulo: 'FF1F3A5F', fonte: 11 },
+  agrupado: { head: 'FF17324D', headFg: 'FFFFFFFF', zebra: 'FFF5F7FA', borda: 'FFD5DBE4', titulo: 'FF17324D', fonte: 11 },
+  colorido: { head: 'FF3A2A14', headFg: 'FFFFFFFF', zebra: null, borda: 'FFE1D8CA', titulo: 'FF3A2A14', fonte: 11 },
+  compacto: { head: 'FFFFFFFF', headFg: 'FF000000', zebra: null, borda: 'FF777777', titulo: 'FF000000', fonte: 10 },
+};
+
+export const gerarXlsx = async ({ modelo, rows, titulo, orientacao }) => {
+  const { default: ExcelJS } = await import('exceljs');
+  const lista = linhasValidas(rows);
+  const e = ESTILO_XLSX[modelo] || ESTILO_XLSX.classico;
+  const agrupado = modelo === 'agrupado';
+  const cols = agrupado
+    ? [['CLIENTE', 36], ['CATEGORIA', 15], ['PERÍODO', 20], ['SETOR', 9], ['MÉTODO', 13], ['OBSERVAÇÃO', 42]]
+    : [['COMERCIAL', 15], ['CLIENTE', 36], ['CATEGORIA', 15], ['PERÍODO', 20], ['SETOR', 9], ['MÉTODO', 13], ['OBSERVAÇÃO', 42]];
+  const n = cols.length;
+
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Controle de Clientes', {
+    pageSetup: {
+      paperSize: 9, orientation: orientacao, fitToPage: true, fitToWidth: 1, fitToHeight: 0,
+      horizontalCentered: true, margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 },
+    },
+    views: [{ state: 'frozen', ySplit: 3 }],
+  });
+  ws.columns = cols.map(([, w]) => ({ width: w }));
+
+  ws.mergeCells(1, 1, 1, n);
+  const t = ws.getCell(1, 1);
+  t.value = (titulo || 'CONTROLE DE CLIENTES').toUpperCase();
+  t.font = { bold: true, size: modelo === 'compacto' ? 14 : 18, color: { argb: e.titulo } };
+  t.alignment = { horizontal: modelo === 'compacto' ? 'left' : 'center', vertical: 'middle' };
+  ws.getRow(1).height = 30;
+
+  ws.mergeCells(2, 1, 2, n);
+  const s = ws.getCell(2, 1);
+  s.value = `${lista.length} ${lista.length === 1 ? 'cliente' : 'clientes'} · atualizado em ${new Date().toLocaleDateString('pt-BR')}`;
+  s.font = { italic: true, size: 9, color: { argb: 'FF6B7280' } };
+  s.alignment = { horizontal: modelo === 'compacto' ? 'left' : 'center' };
+
+  const hr = ws.getRow(3);
+  hr.height = 22;
+  cols.forEach(([nome], i) => {
+    const c = hr.getCell(i + 1);
+    c.value = nome;
+    c.font = { bold: true, size: e.fonte, color: { argb: e.headFg } };
+    c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: e.head } };
+    c.alignment = { horizontal: ['CATEGORIA', 'PERÍODO', 'SETOR', 'MÉTODO'].includes(nome) ? 'center' : 'left', vertical: 'middle' };
+    c.border = modelo === 'compacto'
+      ? { top: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' }, bottom: { style: 'medium' } }
+      : BORDA(e.head);
+  });
+  ws.pageSetup.printTitlesRow = '3:3';
+
+  const alturaPara = (vals) => {
+    let linhas = 1;
+    vals.forEach((v, i) => { linhas = Math.max(linhas, Math.ceil(String(v || '').length / (cols[i][1] * 0.95))); });
+    return Math.max(modelo === 'compacto' ? 16 : 20, linhas * (modelo === 'compacto' ? 13 : 15) + 4);
+  };
+
+  const escreverLinha = (r, par) => {
+    const vals = agrupado
+      ? [up(r.cliente), up(r.categoria), up(r.periodo), up(r.setor).startsWith('S') ? 'SIM' : 'NÃO', up(r.metodo), r.obs]
+      : [up(r.comercial), up(r.cliente), up(r.categoria), up(r.periodo), up(r.setor).startsWith('S') ? 'SIM' : 'NÃO', up(r.metodo), r.obs];
+    const row = ws.addRow(vals);
+    row.height = alturaPara(vals);
+    const off = agrupado ? 0 : 1;
+    row.eachCell({ includeEmpty: true }, (c, ci) => {
+      const nome = cols[ci - 1][0];
+      c.font = { size: e.fonte, bold: nome === 'COMERCIAL' || nome === 'MÉTODO' };
+      c.alignment = { vertical: 'middle', wrapText: true, horizontal: ['CATEGORIA', 'PERÍODO', 'SETOR', 'MÉTODO'].includes(nome) ? 'center' : 'left' };
+      c.border = BORDA(e.borda);
+      if (e.zebra && par) c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: e.zebra } };
+    });
+    const setorCel = row.getCell(4 + off);
+    const sim = vals[3 + off] === 'SIM';
+    if (modelo !== 'compacto') {
+      setorCel.font = { size: e.fonte, bold: true, color: { argb: sim ? 'FF1E6B36' : 'FF9B2B2B' } };
+      setorCel.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: sim ? 'FFD8F0DF' : 'FFF6DADA' } };
+    } else {
+      setorCel.font = { size: e.fonte, bold: true };
+    }
+    if (modelo === 'colorido') {
+      const cor = COR_CAT[tipoCategoria(r.categoria)];
+      const cc = row.getCell(2 + off);
+      cc.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: cor.argb } };
+      cc.font = { size: e.fonte, bold: true, color: { argb: cor.fgArgb } };
+    }
+  };
+
+  if (agrupado) {
+    agruparPorComercial(lista).forEach((g, gi) => {
+      const cor = CORES_GRUPO[gi % CORES_GRUPO.length].argb;
+      const row = ws.addRow([`${g.nome}  ·  ${g.itens.length} ${g.itens.length === 1 ? 'cliente' : 'clientes'}`]);
+      ws.mergeCells(row.number, 1, row.number, n);
+      row.height = 24;
+      const c = row.getCell(1);
+      c.font = { bold: true, size: 12, color: { argb: 'FFFFFFFF' } };
+      c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: cor } };
+      c.alignment = { vertical: 'middle', indent: 1 };
+      g.itens.forEach((r, i) => escreverLinha(r, i % 2 === 1));
+    });
+  } else {
+    lista.forEach((r, i) => escreverLinha(r, i % 2 === 1));
+  }
+
+  ws.headerFooter.oddFooter = '&L&8Uniko · Controle de Clientes&R&8Página &P de &N';
+  return wb.xlsx.writeBuffer();
+};

@@ -9,6 +9,7 @@ import { TabAssinatura } from './tabs/TabAssinatura';
 import { TabOficioEmissao } from './tabs/TabOficioEmissao';
 import { TabEmpenho } from './tabs/TabEmpenho';
 import { TabBaixarOS } from './tabs/TabBaixarOS';
+import { TabControleClientes } from './tabs/TabControleClientes';
 import { TabHistoricoAssinatura } from './tabs/TabHistoricoAssinatura';
 import { refletirAbaNaUrl } from './rotaFerramenta';
 
@@ -92,6 +93,7 @@ const FaturamentoPortal = ({ onBack, authUser, initialTab, restrictedTabs, cargo
       case 'oficio-emissao': return <TabOficioEmissao/>;
       case 'empenho':        return <TabEmpenho/>;
       case 'baixar-os':      return <TabBaixarOS/>;
+      case 'controle-clientes': return <TabControleClientes/>;
       case 'inicio':
       default:            return <TabInicio setTab={safeSetTab} isAdmin={isAdmin} authUser={authUser} hidden={hiddenTabs}/>;
     }

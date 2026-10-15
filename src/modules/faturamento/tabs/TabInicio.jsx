@@ -143,6 +143,19 @@ const FEATURES = [
       </svg>
     ),
   },
+  {
+    id: 'controle-clientes',
+    color: '#2E8B57',
+    bg: 'rgba(46,139,87,0.10)',
+    title: 'Controle de Clientes',
+    desc: 'Monte a sua carteira com comercial, categoria, período, setor e método (MIA, MISA ou manual) e baixe a planilha em 4 modelos ou imprima.',
+    steps: ['Cadastre os clientes', 'Escolha o modelo e a orientação', 'Baixe ou imprima'],
+    icon: (c) => (
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
+      </svg>
+    ),
+  },
 ];
 
 export const TabInicio = ({ setTab, isAdmin, authUser, hidden = [] }) => {
