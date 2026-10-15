@@ -18,6 +18,7 @@ export const MODELOS = [
   { id: 'colorido', titulo: 'Colorido por categoria', sub: 'Abastecimento, manutenção e os dois juntos com cores diferentes.', cor: '#E08A1E' },
   { id: 'compacto', titulo: 'Compacto P&B', sub: 'Preto e branco, bordas finas e letra menor. Gasta pouca tinta.', cor: '#222222' },
   { id: 'porperiodo', titulo: 'Uma linha por período', sub: 'Cada cliente ganha uma linha para cada categoria/período (ex.: Eusébio abast. mensal e manut. segunda-feira).', cor: '#0B5D6B' },
+  { id: 'sequencial', titulo: 'Uma linha por período sequencial', sub: 'Segue a ordem do dia de faturamento: segunda, terça... decendial, quinzenal, mensal. Cada cliente aparece no seu dia.', cor: '#B45309' },
   { id: 'porcliente', titulo: 'Uma linha por cliente', sub: 'O cliente aparece uma vez só, com tudo junto: ABAST/MANUT · MENSAL/SEGUNDA-FEIRA.', cor: '#6A2C70' },
 ];
 
@@ -69,7 +70,7 @@ export const linhasValidas = (rows) => rows.filter((r) => (r.cliente || '').trim
 /* Ordem de prioridade das linhas: pelo período (segunda → ... → solicitação). Período fora da lista vai pro fim.
    'TERÇA E SEXTA' vale pelo primeiro dia que aparece na prioridade. Ordenação estável: empate mantém a ordem digitada. */
 const PRIORIDADE_PERIODO = ['segunda', 'terca', 'quarta', 'quinta', 'sexta', 'decen', 'quinzen', 'mensal', 'solicit'];
-const pesoPeriodo = (p) => {
+export const pesoPeriodo = (p) => {
   const t = norm(p);
   const i = PRIORIDADE_PERIODO.map((k) => (t.includes(k) ? PRIORIDADE_PERIODO.indexOf(k) : 99));
   return Math.min(...i);
@@ -193,6 +194,14 @@ tr.ini td{border-top:2px solid #0B5D6B}
 tr.odd td{background:#EAF4F6}
 .tag.sim{background:#D8F0DF;color:#1E6B36}.tag.nao{background:#F6DADA;color:#9B2B2B}
 `,
+  sequencial: `
+h1{font-size:20px;color:#B45309}
+th{background:#B45309;color:#fff;font-size:11.5px;letter-spacing:.05em;text-transform:uppercase;border:1px solid #B45309}
+td{font-size:11.5px;border:1px solid #EBD9C4}
+tr.ini td{border-top:2px solid #B45309}
+tr.odd td{background:#FDF3E6}
+.tag.sim{background:#D8F0DF;color:#1E6B36}.tag.nao{background:#F6DADA;color:#9B2B2B}
+`,
   porcliente: `
 h1{font-size:20px;color:#6A2C70}
 th{background:#6A2C70;color:#fff;font-size:11.5px;letter-spacing:.05em;text-transform:uppercase;border:1px solid #6A2C70}
@@ -258,7 +267,13 @@ export const montarHtml = ({ modelo, rows, titulo, orientacao }) => {
       blocos.push(b);
     });
   } else {
-    for (const r of dados) blocos.push(`<tr>${celulas(r, true)}</tr>`);
+    let ant = null; let gi = -1;
+    for (const r of dados) {
+      const w = pesoPeriodo(r.periodo); const novo = modelo === 'sequencial' && w !== ant;
+      if (novo) gi++; ant = w;
+      const cl = modelo === 'sequencial' ? `${novo ? 'ini ' : ''}${gi % 2 ? 'odd' : ''}` : '';
+      blocos.push(`<tr${cl ? ` class="${cl.trim()}"` : ''}>${celulas(r, true)}</tr>`);
+    }
   }
   const tabela = (bl) => `<table>${colgroup}${thead}<tbody>${bl.join('')}</tbody></table>`;
   const totalTr = blocos.reduce((n, b) => n + (b.match(/<tr/g) || []).length, 0);
@@ -325,6 +340,7 @@ const ESTILO_XLSX = {
   colorido: { head: 'FF3A2A14', headFg: 'FFFFFFFF', zebra: null, borda: 'FFE1D8CA', titulo: 'FF3A2A14', fonte: 11 },
   porperiodo: { head: 'FF0B5D6B', headFg: 'FFFFFFFF', zebra: 'FFEAF4F6', borda: 'FFC5DADF', titulo: 'FF0B5D6B', fonte: 11 },
   porcliente: { head: 'FF6A2C70', headFg: 'FFFFFFFF', zebra: 'FFF6EEF7', borda: 'FFDCCBDD', titulo: 'FF6A2C70', fonte: 11 },
+  sequencial: { head: 'FFB45309', headFg: 'FFFFFFFF', zebra: 'FFFDF3E6', borda: 'FFEBD9C4', titulo: 'FFB45309', fonte: 11 },
   compacto: { head: 'FFFFFFFF', headFg: 'FF000000', zebra: null, borda: 'FF777777', titulo: 'FF000000', fonte: 10 },
 };
 
@@ -440,7 +456,16 @@ export const gerarXlsx = async ({ modelo, rows, titulo, orientacao }) => {
       for (let c = 1; c <= n; c++) ws.getCell(ini, c).border = { ...BORDA(e.borda), top: { style: 'medium', color: { argb: e.head } } };
     });
   } else {
-    dados.forEach((r, i) => escreverLinha(r, i % 2 === 1));
+    let ant = null; let gi = -1;
+    dados.forEach((r, i) => {
+      const w = pesoPeriodo(r.periodo); const novo = modelo === 'sequencial' && w !== ant;
+      if (novo) gi++; ant = w;
+      escreverLinha(r, modelo === 'sequencial' ? gi % 2 === 1 : i % 2 === 1);
+      if (novo && i > 0) { // linha mais grossa separando um dia do outro
+        const row = ws.getRow(ws.rowCount);
+        for (let c = 1; c <= n; c++) row.getCell(c).border = { ...BORDA(e.borda), top: { style: 'medium', color: { argb: e.head } } };
+      }
+    });
   }
 
   ws.headerFooter.oddFooter = '&L&8Uniko · Controle de Clientes&R&8Página &P de &N';

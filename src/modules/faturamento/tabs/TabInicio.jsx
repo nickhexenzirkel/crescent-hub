@@ -148,7 +148,7 @@ const FEATURES = [
     color: '#2E8B57',
     bg: 'rgba(46,139,87,0.10)',
     title: 'Controle de Clientes',
-    desc: 'Monte a sua carteira com comercial, categoria, período, setor e método (MIA, MISA ou manual) e baixe a planilha em 6 modelos ou imprima.',
+    desc: 'Monte a sua carteira com comercial, categoria, período, setor e método (MIA, MISA ou manual) e baixe a planilha em 7 modelos ou imprima.',
     steps: ['Cadastre os clientes', 'Escolha o modelo e a orientação', 'Baixe ou imprima'],
     icon: (c) => (
       <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
