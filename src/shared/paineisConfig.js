@@ -13,6 +13,7 @@ export const PAINEIS = [
   { grupo: 'Menu de módulos', itens: [
     { id: 'perfil',    label: 'Perfil e relógio',  desc: 'Card de boas-vindas com a foto, o relógio e os atalhos' },
     { id: 'eventos',   label: 'Eventos de hoje',   desc: 'Aparece só nos dias em que há evento na agenda' },
+    { id: 'tarefas',   label: 'Tarefas de hoje',   desc: 'Saudação e checklist do dia (Minhas Tarefas)' },
     { id: 'caixa',     label: 'Caixa de entrada',  desc: 'Avisos, convites, horas lançadas e prismas recebidos' },
     { id: 'checkin',   label: 'Check-in',          desc: 'Check-in diário da Prisma Store' },
     { id: 'horas',     label: 'Banco de Horas',    desc: 'Saldo de horas extras e ponto' },

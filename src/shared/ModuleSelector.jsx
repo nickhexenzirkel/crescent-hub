@@ -1028,6 +1028,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto, cargoModules, 
           horas: !abaPermitida('colaborador', 'horas'),
           ponto: !abaPermitida('colaborador', 'ponto'),
           avisos: !abaPermitida('colaborador', 'comunicados'),
+          tarefas: !abaPermitida('colaborador', 'lembretes'),
         }}
         acoes={acoesCard}
         tamanhos={tamNovo} onTamanhos={mudarTamNovo}

@@ -4,7 +4,7 @@ import { T } from '../contexts/theme';
 import { AvatarCircle } from './components';
 import { NAV } from '../modules/central-colaborador/Sidebar';
 import { novidadesAtivas } from './novidades';
-import { useCheckinHoje, usePrismaResumo, usePontoResumo, useComunicadosResumo, useMissoesAndamento, useCaixaEntrada, useEventosHoje } from './menuWidgets';
+import { useCheckinHoje, usePrismaResumo, usePontoResumo, useComunicadosResumo, useMissoesAndamento, useCaixaEntrada, useEventosHoje, useTarefasHoje } from './menuWidgets';
 import { usePaineisOcultos } from './paineisConfig';
 import { setPendingJoin } from './gameInvites';
 import { setPendingListInvite } from './listShares';
@@ -63,6 +63,7 @@ const WIDGETS = {
   ponto:      { p:[1, 1], g:[2, 2], padrao:'p' },
   avisos:     { p:[1, 1], g:[2, 2], padrao:'p' },
   missoes:    { p:[1, 1], g:[2, 2], padrao:'g' },
+  tarefas:    { p:[1, 1], g:[2, 2], padrao:'g' },
   novidades:  { p:[1, 2], g:[2, 2], padrao:'g' },
 };
 /* Prefixo das chaves de widget no mapa de tamanhos (o mesmo mapa guarda os
@@ -582,6 +583,62 @@ const WidgetMissoes = ({ tam, authUser, ...moldura }) => {
             })}
           </div>
         ) : <div style={{ fontSize:13, color:T.textT }}>{resumo ? 'Nenhuma missão em andamento' : 'Carregando…'}</div>
+      )}
+    </Moldura>
+  );
+};
+
+/* ── Widget: tarefas de hoje ─────────────────────────────────────────────────
+   Saudação + quantas tarefas faltam hoje, com as primeiras pendentes pra
+   marcar direto daqui (sem abrir a aba). Clicar no cartão abre Minhas Tarefas. */
+const COR_TAREFAS = '#30B0C7';
+const IcoTarefas = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
+  </svg>
+);
+
+const WidgetTarefas = ({ tam, authUser, ...moldura }) => {
+  const t = useTarefasHoje(authUser);
+  const [c, l] = WIDGETS.tarefas[tam];
+  const nome = authUser?.name ? nomeChamado(authUser.name) : '';
+  const pend = t.itens.filter((x) => !x.feita);
+  const n = pend.length;
+  const sub = t.carregando ? 'Carregando…' : !t.total ? 'Nada para hoje' : n ? `${n} ${n === 1 ? 'pendente' : 'pendentes'} hoje` : 'Tudo feito hoje! 🎉';
+  const hora = new Date().getHours();
+  const saud = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite';
+  const mostrar = pend.slice(0, 3);
+  return (
+    <Moldura tam={tam} colunas={c} linhas={l} cor={COR_TAREFAS} {...moldura}
+      style={{ padding: tam === 'p' ? '11px 12px' : '13px 14px', display:'flex', flexDirection:'column', justifyContent: tam === 'p' ? 'center' : 'flex-start', gap:8 }}>
+      <Cabeca cor={COR_TAREFAS} icone={IcoTarefas} titulo="Tarefas de hoje" sub={sub} pontoCor={n ? COR_TAREFAS : null} pulso={!!n}
+        direita={n > 0 ? <span style={{ minWidth:20, height:20, padding:'0 6px', borderRadius:10, background:'#FF375F', color:'#fff',
+          fontSize:11.5, fontWeight:800, display:'flex', alignItems:'center', justifyContent:'center', boxSizing:'border-box' }}>{n}</span> : null}/>
+      {tam === 'g' && (
+        t.carregando ? <div style={{ fontSize:13, color:T.textT }}>Carregando…</div> : (
+          <>
+            <div style={{ fontSize:14.5, fontWeight:700, color:T.text, letterSpacing:'-.01em', lineHeight:1.25 }}>
+              {saud}{nome ? `, ${nome}` : ''}! 👋
+              <div style={{ fontSize:12.5, fontWeight:500, color:T.textS, marginTop:2 }}>
+                {!t.total ? 'Você não tem tarefas para hoje. Que tal criar uma?' : n ? `Você tem ${n} ${n === 1 ? 'tarefa disponível' : 'tarefas disponíveis'} para hoje.` : 'Missão cumprida: todas as tarefas de hoje estão feitas!'}
+              </div>
+            </div>
+            {mostrar.length > 0 && (
+              <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+                {mostrar.map((it) => (
+                  <div key={it.tipo + it.id} onClick={(e) => { e.stopPropagation(); t.marcar(it); }}
+                    style={{ display:'flex', alignItems:'center', gap:9, padding:'5px 8px', borderRadius:10, cursor:'pointer',
+                      border:`1px solid ${T.border}`, background:T.surfaceSub || 'transparent' }}>
+                    <span style={{ width:16, height:16, borderRadius:5, flexShrink:0, border:`2px solid ${COR_TAREFAS}` }}/>
+                    <span style={{ fontSize:12.5, color:T.text, fontWeight:600, ...umaLinha }}>{it.titulo}</span>
+                    {it.detalhe && <span style={{ fontSize:11, color:T.textT, flexShrink:0, maxWidth:'38%', ...umaLinha }}>{it.detalhe.split(' · ')[0]}</span>}
+                  </div>
+                ))}
+                {n > mostrar.length && <div style={{ fontSize:11.5, color:T.textT, paddingLeft:4 }}>+ {n - mostrar.length} {n - mostrar.length === 1 ? 'outra' : 'outras'} — toque para ver todas</div>}
+              </div>
+            )}
+          </>
+        )
       )}
     </Moldura>
   );
@@ -1478,6 +1535,7 @@ const MenuLayoutNovo = ({ mods, onSelect, getModuleColor, authUser, userPhoto, a
             gap:VAO_W, gridAutoFlow:'row dense' }}>
             {!off.perfil && <WidgetPerfil {...widget('perfil', 0)} authUser={authUser} userPhoto={userPhoto} acoes={acoes}/>}
             {!off.eventos && <WidgetEventosHoje i={1} onAbrir={abrir('colaborador', 'eventos')}/>}
+            {!off.tarefas && <WidgetTarefas {...widget('tarefas', 1)} authUser={authUser} onAbrir={abrir('colaborador', 'lembretes')}/>}
             {!off.caixa && <WidgetCaixa {...widget('caixa', 1)} authUser={authUser} onSelect={onSelect}/>}
             {!off.checkin && <WidgetCheckin {...widget('checkin', 2)} authUser={authUser} onAbrir={abrir('mercado-estelar', 'checkin')}/>}
             {!off.horas && <WidgetHoras {...widget('horas', 3)} ponto={ponto} onAbrir={abrir('colaborador', 'horas')}/>}

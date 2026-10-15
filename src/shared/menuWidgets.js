@@ -16,6 +16,7 @@ import { isNonCheckinDay, localDateStr } from '../modules/mercado-estelar';
 import { computePontoDays, loadColaboradorPonto } from './pontoCalc';
 import { nomeChamado } from './nomeExibicao';
 import { loadMissionDefs, loadMissionProgress } from './prismaMissions';
+import { carregarLista, carregarCronograma, ehDoFaturamento, itensDoDia, salvarLista, hojeIso } from './listaTarefas';
 
 /* Check-in diário da Prisma Store.
    status: 'carregando' | 'disponivel' | 'feito' | 'folga' (fim de semana/feriado)
@@ -137,6 +138,48 @@ export const useMissoesAndamento = (authUser, max = 3) => {
     return () => { vivo = false; };
   }, [nome, authUser?.cpf, max]);
   return resumo;
+};
+
+/* Tarefas de HOJE (Minhas Tarefas → Lista de Tarefas): as pessoais + o cronograma de faturamento
+   do dia da semana (só pra quem é do setor). Dá pra marcar direto daqui. Recarrega ao voltar pra aba. */
+export const useTarefasHoje = (authUser) => {
+  const nome = authUser?.name;
+  const [estado, setEstado] = useState({ carregando: true, lista: null, fat: false });
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!nome) return undefined;
+    let vivo = true;
+    const ler = async () => {
+      try {
+        const [lista, fatSetor] = await Promise.all([carregarLista(nome), ehDoFaturamento(nome)]);
+        const crono = fatSetor ? await carregarCronograma(nome) : null;
+        if (!vivo) return;
+        ref.current = { lista, crono };
+        setEstado({ carregando: false, lista, crono, fat: fatSetor });
+      } catch { if (vivo) setEstado({ carregando: false, lista: null, fat: false, erro: true }); }
+    };
+    ler();
+    const volta = () => { if (document.visibilityState === 'visible') ler(); };
+    document.addEventListener('visibilitychange', volta);
+    return () => { vivo = false; document.removeEventListener('visibilitychange', volta); };
+  }, [nome]);
+
+  const dia = hojeIso();
+  const { pessoais, fat } = estado.lista ? itensDoDia(estado.lista, estado.crono, dia) : { pessoais: [], fat: [] };
+  const itens = [...fat, ...pessoais];
+
+  const marcar = async (item) => {
+    const base = ref.current; if (!base) return;
+    const f = base.lista.feitas[dia] || { t: [], c: [] };
+    const atual = f[item.tipo] || [];
+    const novoArr = atual.includes(item.id) ? atual.filter((x) => x !== item.id) : [...atual, item.id];
+    const lista = { ...base.lista, feitas: { ...base.lista.feitas, [dia]: { ...f, [item.tipo]: novoArr } } };
+    ref.current = { ...base, lista };
+    setEstado((e) => ({ ...e, lista }));
+    await salvarLista(nome, lista);
+  };
+
+  return { carregando: estado.carregando, erro: estado.erro, itens, total: itens.length, feitas: itens.filter((x) => x.feita).length, marcar };
 };
 
 /* Eventos do calendário da empresa marcados pra HOJE. [] enquanto carrega ou se

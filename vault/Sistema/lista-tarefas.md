@@ -21,3 +21,7 @@ Aba nova em **Portal → Minhas Tarefas (ex-Meus Lembretes)**, ao lado de Anota�
 ## Layout (atualizado)
 - Gráficos, porcentagens e ranking da equipe **só aparecem** no botão de gráfico (ícone de barras) do cabeçalho do dia, numa janela com fundo desfocado. A tela principal mostra só o checklist.
 - Desktop em 2 colunas (checklist do dia | nova tarefa + cadastradas); as listas rolam por dentro, a página não cresce. Mobile empilha.
+
+## Widget no menu de módulos
+- `WidgetTarefas` em `src/shared/MenuLayoutNovo.jsx` (hook `useTarefasHoje` em `menuWidgets.js`): saudação por horário, "Você tem N tarefas disponíveis para hoje", até 3 pendentes marcáveis direto no cartão, selo vermelho com a contagem; clicar abre Minhas Tarefas (Portal, aba `lembretes`).
+- Aparece só no menu de **computador** (o menu do celular é lista de módulos, sem widgets). O admin liga/desliga em Dashboard RH → Painéis ("Tarefas de hoje"); some também se o cargo não tem a aba `lembretes`.
