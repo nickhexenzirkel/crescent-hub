@@ -17,3 +17,7 @@ Aba nova em **Portal → Minhas Tarefas (ex-Meus Lembretes)**, ao lado de Anota�
 - `cronograma_faturamento:<nome>` → `{ atualizado, desde, itens }`. `desde` = 1º envio; dias antes dele não contam como "não feitos".
 - Remover tarefa só põe `removida` (histórico dos gráficos preservado).
 - O ranking da equipe soma só tarefas pessoais (sem o cronograma de cada um).
+
+## Layout (atualizado)
+- Gráficos, porcentagens e ranking da equipe **só aparecem** no botão de gráfico (ícone de barras) do cabeçalho do dia, numa janela com fundo desfocado. A tela principal mostra só o checklist.
+- Desktop em 2 colunas (checklist do dia | nova tarefa + cadastradas); as listas rolam por dentro, a página não cresce. Mobile empilha.

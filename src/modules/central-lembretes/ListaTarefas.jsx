@@ -87,6 +87,7 @@ const ListaTarefas = ({ userName, podeVerEquipe }) => {
   const [equipe, setEquipe] = useState([]);
   const [erro, setErro] = useState('');
   const [semFixo, setSemFixo] = useState(false);
+  const [grafOpen, setGrafOpen] = useState(false);
   const [novo, setNovo] = useState({ titulo: '', freq: 'diaria', dias: [1, 2, 3, 4, 5], data: hojeIso() });
   const salvando = useRef(0);
 
@@ -164,7 +165,8 @@ const ListaTarefas = ({ userName, podeVerEquipe }) => {
   }
 
   return (
-    <div style={{ maxWidth: 860, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 18 }}>
+    <div style={{ maxWidth: 1120, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <style>{`.lt-grid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:18px;align-items:start}@media(max-width:900px){.lt-grid{grid-template-columns:1fr}}`}</style>
       {podeVerEquipe && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 12, fontWeight: 700, color: T.textD, textTransform: 'uppercase', letterSpacing: '.08em' }}>Ver lista de</span>
@@ -177,16 +179,14 @@ const ListaTarefas = ({ userName, podeVerEquipe }) => {
 
       {erro && <div style={{ fontSize: 12.5, color: VERM, padding: '8px 12px', borderRadius: 8, background: 'rgba(192,64,80,0.07)' }}>{erro}</div>}
 
-      {/* ── resumo ── */}
-      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-        <Kpi titulo={dia === hoje ? 'Hoje' : 'Dia selecionado'} r={r} />
-        <Kpi titulo="Este mês" r={rMes} />
-        <Kpi titulo="Este ano" r={rAno} />
-      </div>
-
+      <div className={meu ? 'lt-grid' : ''}>
       {/* ── checklist do dia ── */}
       <Card style={{ padding: '18px 20px' }} elevated>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
+          <button onClick={() => setGrafOpen(true)} title="Ver gráficos e porcentagens" aria-label="Ver gráficos"
+            style={{ ...btnGhost, padding: '6px 10px', display: 'flex', alignItems: 'center', color: T.gold, borderColor: T.gold }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" /></svg>
+          </button>
           <button onClick={() => setDia(addDias(dia, -1))} style={{ ...btnGhost, padding: '6px 10px' }} aria-label="Dia anterior">‹</button>
           <div style={{ flex: 1, minWidth: 180 }}>
             <div style={{ fontFamily: 'var(--font-brand)', fontSize: 17, fontWeight: 700, color: T.text }}>{dia === hoje ? 'Hoje' : dataBr(dia)}</div>
@@ -198,6 +198,7 @@ const ListaTarefas = ({ userName, podeVerEquipe }) => {
           {dia !== hoje && <button onClick={() => setDia(hoje)} style={btnGhost}>Voltar para hoje</button>}
         </div>
 
+        <div style={{ maxHeight: 'calc(100vh - 340px)', minHeight: 260, overflowY: 'auto', paddingRight: 4 }}>
         {fat && (
           <div style={{ marginBottom: 16 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: '#2E8DD4', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 8 }}>
@@ -239,7 +240,7 @@ const ListaTarefas = ({ userName, podeVerEquipe }) => {
 
         <div style={{ fontSize: 12, fontWeight: 700, color: T.gold, textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 8 }}>Minhas tarefas</div>
         {pessoais.length === 0
-          ? <div style={{ fontSize: 13, color: T.textT }}>Nenhuma tarefa para este dia. Crie uma abaixo.</div>
+          ? <div style={{ fontSize: 13, color: T.textT }}>Nenhuma tarefa para este dia. Crie uma nova.</div>
           : <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {pessoais.map((it) => (
                 <div key={it.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '9px 12px', borderRadius: 10, border: `1px solid ${T.border}`, opacity: it.feita ? 0.62 : 1 }}>
@@ -248,13 +249,7 @@ const ListaTarefas = ({ userName, podeVerEquipe }) => {
                 </div>
               ))}
             </div>}
-
-        {r.total > 0 && (
-          <div style={{ marginTop: 14 }}>
-            <Barra valor={pct(r)} cor={corPct(pct(r), r.total)} />
-            <div style={{ fontSize: 12, color: T.textT, marginTop: 5 }}>{r.feitas} de {r.total} concluídas ({pct(r)}%)</div>
-          </div>
-        )}
+        </div>
       </Card>
 
       {/* ── nova tarefa / tarefas cadastradas ── */}
@@ -286,7 +281,7 @@ const ListaTarefas = ({ userName, podeVerEquipe }) => {
           )}
 
           {tarefasAtivas.length > 0 && (
-            <div style={{ marginTop: 16 }}>
+            <div style={{ marginTop: 16, maxHeight: 'calc(100vh - 520px)', minHeight: 120, overflowY: 'auto' }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: T.textD, textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 6 }}>Tarefas cadastradas</div>
               {tarefasAtivas.map((t) => (
                 <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', borderTop: `1px solid ${T.border}` }}>
@@ -302,41 +297,69 @@ const ListaTarefas = ({ userName, podeVerEquipe }) => {
         </Card>
       )}
 
-      {/* ── gráficos ── */}
-      <Card style={{ padding: '18px 20px' }} elevated>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
-          <div style={{ fontFamily: 'var(--font-brand)', fontSize: 15, fontWeight: 700, color: T.text, flex: 1 }}>
-            Tarefas concluídas{!meu ? ` — ${alvo}` : ''}
-          </div>
-          {[['dia', 'Diário'], ['mes', 'Mensal'], ['ano', 'Anual']].map(([id, nm]) => (
-            <button key={id} onClick={() => setVisao(id)} style={{ ...btnGhost, padding: '6px 14px', fontWeight: visao === id ? 700 : 400,
-              color: visao === id ? T.gold : T.textS, borderColor: visao === id ? T.gold : T.border }}>{nm}</button>
-          ))}
-        </div>
-        {dados.every((d) => !d.total)
-          ? <div style={{ fontSize: 13, color: T.textT, padding: '20px 0', textAlign: 'center' }}>Ainda não há tarefas previstas neste período.</div>
-          : <Grafico dados={dados} />}
-        <div style={{ fontSize: 11.5, color: T.textD, marginTop: 10 }}>
-          {visao === 'dia' ? 'Últimos 14 dias.' : visao === 'mes' ? 'Últimos 12 meses.' : 'Um ano por barra.'} Dias futuros não entram na conta.
-        </div>
-      </Card>
+      </div>
 
-      {/* ── equipe (admin/moderador) ── */}
-      {podeVerEquipe && rankingEquipe.length > 0 && (
-        <Card style={{ padding: '18px 20px' }} elevated>
-          <div style={{ fontFamily: 'var(--font-brand)', fontSize: 15, fontWeight: 700, color: T.text, marginBottom: 12 }}>Equipe · {MESES[daIso(hoje).getMonth()]}</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {rankingEquipe.map((x) => (
-              <div key={x.nome} onClick={() => setAlvo(x.nome)} style={{ cursor: 'pointer' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: T.text, marginBottom: 4 }}>
-                  <span>{x.nome}</span><span style={{ color: corPct(pct(x), x.total), fontWeight: 700 }}>{pct(x)}% · {x.feitas}/{x.total}</span>
-                </div>
-                <Barra valor={pct(x)} cor={corPct(pct(x), x.total)} alt={6} />
+      {/* ── tela de gráficos (fundo desfocado) ── */}
+      {grafOpen && (
+        <div onClick={() => setGrafOpen(false)}
+          style={{ position: 'fixed', inset: 0, zIndex: 999, background: 'rgba(10,15,25,0.38)', backdropFilter: 'blur(9px)', WebkitBackdropFilter: 'blur(9px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div onClick={(e) => e.stopPropagation()}
+            style={{ width: '100%', maxWidth: 860, maxHeight: '92vh', overflowY: 'auto', borderRadius: 20, padding: '22px 22px 26px',
+              background: T.surface || 'white', border: `1px solid ${T.border}`, boxShadow: '0 24px 70px rgba(0,0,0,0.35)', display: 'flex', flexDirection: 'column', gap: 18 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontFamily: 'var(--font-brand)', fontSize: 19, fontWeight: 700, color: T.text }}>Desempenho das tarefas</div>
+                <div style={{ fontSize: 12.5, color: T.textT }}>{meu ? 'Você' : alvo}</div>
               </div>
+              <button onClick={() => setGrafOpen(false)} aria-label="Fechar" style={{ ...btnGhost, padding: '6px 12px' }}>✕</button>
+            </div>
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+          <Kpi titulo={dia === hoje ? 'Hoje' : 'Dia selecionado'} r={r} />
+          <Kpi titulo="Este mês" r={rMes} />
+          <Kpi titulo="Este ano" r={rAno} />
+        </div>
+
+
+        {/* ── gráficos ── */}
+        <Card style={{ padding: '18px 20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
+            <div style={{ fontFamily: 'var(--font-brand)', fontSize: 15, fontWeight: 700, color: T.text, flex: 1 }}>
+              Tarefas concluídas{!meu ? ` — ${alvo}` : ''}
+            </div>
+            {[['dia', 'Diário'], ['mes', 'Mensal'], ['ano', 'Anual']].map(([id, nm]) => (
+              <button key={id} onClick={() => setVisao(id)} style={{ ...btnGhost, padding: '6px 14px', fontWeight: visao === id ? 700 : 400,
+                color: visao === id ? T.gold : T.textS, borderColor: visao === id ? T.gold : T.border }}>{nm}</button>
             ))}
           </div>
-          <div style={{ fontSize: 11.5, color: T.textD, marginTop: 10 }}>Conta só as tarefas pessoais de cada pessoa; clique em um nome para ver a lista e os gráficos dela.</div>
+          {dados.every((d) => !d.total)
+            ? <div style={{ fontSize: 13, color: T.textT, padding: '20px 0', textAlign: 'center' }}>Ainda não há tarefas previstas neste período.</div>
+            : <Grafico dados={dados} />}
+          <div style={{ fontSize: 11.5, color: T.textD, marginTop: 10 }}>
+            {visao === 'dia' ? 'Últimos 14 dias.' : visao === 'mes' ? 'Últimos 12 meses.' : 'Um ano por barra.'} Dias futuros não entram na conta.
+          </div>
         </Card>
+
+        {/* ── equipe (admin/moderador) ── */}
+        {podeVerEquipe && rankingEquipe.length > 0 && (
+          <Card style={{ padding: '18px 20px' }}>
+            <div style={{ fontFamily: 'var(--font-brand)', fontSize: 15, fontWeight: 700, color: T.text, marginBottom: 12 }}>Equipe · {MESES[daIso(hoje).getMonth()]}</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {rankingEquipe.map((x) => (
+                <div key={x.nome} onClick={() => { setAlvo(x.nome); setGrafOpen(false); }} style={{ cursor: 'pointer' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: T.text, marginBottom: 4 }}>
+                    <span>{x.nome}</span><span style={{ color: corPct(pct(x), x.total), fontWeight: 700 }}>{pct(x)}% · {x.feitas}/{x.total}</span>
+                  </div>
+                  <Barra valor={pct(x)} cor={corPct(pct(x), x.total)} alt={6} />
+                </div>
+              ))}
+            </div>
+            <div style={{ fontSize: 11.5, color: T.textD, marginTop: 10 }}>Conta só as tarefas pessoais de cada pessoa; clique em um nome para ver a lista e os gráficos dela.</div>
+          </Card>
+        )}
+
+          </div>
+        </div>
       )}
     </div>
   );
