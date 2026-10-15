@@ -14,6 +14,7 @@ Aba `controle-clientes` do módulo faturamento. A pessoa cadastra (ou importa de
 - Horizontal em tabela única: tabela 100% da folha, colunas curtas em px pelo texto e Cliente/Observação dividem o resto (a linha do título fica na largura da tabela). Vertical: tabela só do tamanho do conteúdo, centralizada.
 - Persistência: tudo em localStorage (ctrlcli.*) + "Salvar cópia (.json)" / "Abrir cópia" como backup em arquivo. Letra em % (tema.fontePct; tema.fonte p/m/g/xg é legado).
 - Altura das linhas manual em % (tema.altura, 30–300, 100 = padrão): multiplica altura das linhas e do cabeçalho (HTML e xlsx).
+- Ocultar colunas Setor/Método/Observação: tema.ocultaSetor/ocultaMetodo/ocultaObs (HTML tira a coluna; xlsx esconde a coluna).
 - SEMPRE 1 página: xlsx com fitToHeight=1; HTML encolhe o conteúdo até caber na folha A4 (script em montarHtml).
 - Orientação horizontal/vertical vale para o .xlsx (pageSetup) e para o botão Imprimir.
 - Mesmo HTML (`montarHtml`) alimenta a pré-visualização (iframe) e a impressão (`@page size: A4 <orientação>`).

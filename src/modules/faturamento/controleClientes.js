@@ -296,16 +296,19 @@ export const montarHtml = ({ modelo, rows, titulo, orientacao, cores = {}, tema 
   const agrupado = modelo === 'agrupado';
   const porPeriodo = modelo === 'porperiodo';
   const dados = porPeriodo ? expandir(lista) : modelo === 'porcliente' ? consolidar(lista) : lista;
-  const cols = agrupado
+  const colsTodas = agrupado
     ? [['CLIENTE', 27], ['CATEGORIA', 13], ['PERÍODO', 17], ['SETOR', 8], ['MÉTODO', 11], ['OBSERVAÇÃO', 24]]
     : modelo === 'porcliente'
       ? [['COMERCIAL', 10], ['CLIENTE', 22], ['CATEGORIA', 13], ['PERÍODO', 20], ['SETOR', 6], ['MÉTODO', 10], ['OBSERVAÇÃO', 19]]
       : [['COMERCIAL', 11], ['CLIENTE', 24], ['CATEGORIA', 11], ['PERÍODO', 14], ['SETOR', 7], ['MÉTODO', 10], ['OBSERVAÇÃO', 23]];
+  /* Colunas que a pessoa escolheu ocultar. */
+  const oculta = { SETOR: tema.ocultaSetor, 'MÉTODO': tema.ocultaMetodo, 'OBSERVAÇÃO': tema.ocultaObs };
+  const cols = colsTodas.filter(([n]) => !oculta[n]);
   /* Duas colunas: larguras fixas de sempre. Tabela única: sem colgroup, a própria tabela dimensiona pelo conteúdo (table-layout:auto). */
   /* Horizontal em tabela única: a tabela ocupa a folha toda. Colunas curtas ficam do tamanho do texto (px) e
      Cliente/Observação (sem largura) dividem o resto. No vertical a tabela é só do tamanho do conteúdo. */
   const colgroupHtml = (duas) => {
-    if (duas) return `<colgroup>${cols.map(([, w]) => `<col style="width:${w}%">`).join('')}</colgroup>`;
+    if (duas) { const t = cols.reduce((a, [, w]) => a + w, 0); return `<colgroup>${cols.map(([, w]) => `<col style="width:${(w / t * 100).toFixed(2)}%">`).join('')}</colgroup>`; }
     if (orientacao !== 'landscape') return '';
     // larguras proporcionais ao texto de cada coluna: a sobra da folha se reparte igual, sem inflar só a Observação
     const w = cols.map(([nome]) => caracteresColuna(nome, dados, 36));
@@ -326,16 +329,16 @@ export const montarHtml = ({ modelo, rows, titulo, orientacao, cores = {}, tema 
     return ini
       + `<td class="c"${catStyle}>${esc(up(r.categoria))}</td>`
       + `<td class="c">${esc(up(r.periodo))}</td>`
-      + `<td class="c"><span class="tag ${sim ? 'sim' : 'nao'}">${sim ? 'SIM' : 'NÃO'}</span></td>`
-      + `<td class="c" style="font-weight:700">${esc(up(r.metodo))}</td>`
-      + `<td>${esc(r.obs)}</td>`;
+      + (oculta.SETOR ? '' : `<td class="c"><span class="tag ${sim ? 'sim' : 'nao'}">${sim ? 'SIM' : 'NÃO'}</span></td>`)
+      + (oculta['MÉTODO'] ? '' : `<td class="c" style="font-weight:700">${esc(up(r.metodo))}</td>`)
+      + (oculta['OBSERVAÇÃO'] ? '' : `<td>${esc(r.obs)}</td>`);
   };
 
   const blocos = []; // cada bloco é um pedaço que não pode ser cortado ao meio (linha, cliente ou comercial)
   if (agrupado) {
     gruposComercial(validas).forEach((g, i) => {
       const cor = cores[g.nome] || CORES_GRUPO[i % CORES_GRUPO.length].hex;
-      let b = `<tr class="grp"><td colspan="6" style="background:${cor}">${esc(g.nome)}<span>${g.itens.length} ${g.itens.length === 1 ? 'cliente' : 'clientes'}</span></td></tr>`;
+      let b = `<tr class="grp"><td colspan="${cols.length}" style="background:${cor}">${esc(g.nome)}<span>${g.itens.length} ${g.itens.length === 1 ? 'cliente' : 'clientes'}</span></td></tr>`;
       for (const r of g.itens) b += `<tr class="it">${celulas(r, false)}</tr>`;
       blocos.push(b);
     });
@@ -467,6 +470,10 @@ export const gerarXlsx = async ({ modelo, rows, titulo, orientacao, cores = {}, 
     views: [{ state: 'frozen', ySplit: 3 }],
   });
   ws.columns = cols.map(([, w]) => ({ width: w }));
+  // colunas ocultas não aparecem nem imprimem (e a largura da página se ajusta às que sobram)
+  cols.forEach(([nome], i) => {
+    if ((nome === 'SETOR' && tema.ocultaSetor) || (nome === 'MÉTODO' && tema.ocultaMetodo) || (nome === 'OBSERVAÇÃO' && tema.ocultaObs)) ws.getColumn(i + 1).hidden = true;
+  });
 
   ws.mergeCells(1, 1, 1, n);
   const t = ws.getCell(1, 1);

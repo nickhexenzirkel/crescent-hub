@@ -349,6 +349,15 @@ export const TabControleClientes = () => {
         </div>
         <PctCard nome="Letra" valor={tema.fontePct} onChange={(v) => setTema('fontePct', v)} />
         <PctCard nome="Altura das linhas" valor={tema.altura} onChange={(v) => setTema('altura', v)} />
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 14, border: `1px solid ${T.border}`, borderRadius: 10, padding: '10px 14px', background: T.surface, flexShrink: 0 }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: T.textT, letterSpacing: '.06em', textTransform: 'uppercase' }}>Ocultar</span>
+          {[['ocultaSetor', 'Setor'], ['ocultaMetodo', 'Método'], ['ocultaObs', 'Observação']].map(([k, nome]) => (
+            <label key={k} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13.5, color: T.text }}>
+              <input type="checkbox" checked={!!tema[k]} onChange={(e) => setTema(k, e.target.checked)} style={{ width: 16, height: 16, cursor: 'pointer' }} />
+              {nome}
+            </label>
+          ))}
+        </div>
         {orientacao === 'landscape' && (
           <div title="Só no horizontal" style={{ display: 'inline-flex', border: `1px solid ${T.border}`, borderRadius: 10, overflow: 'hidden' }}>
             {[[false, 'Duas colunas se for grande'], [true, 'Uma coluna só']].map(([v, nome]) => (
