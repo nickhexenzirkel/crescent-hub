@@ -109,6 +109,21 @@ const cssTema = (modelo, o) => {
 /* Linha de separação na cor do modelo: '' (nenhuma, padrão), 'fina' ou 'grossa'. linhasGrossas é o nome antigo da opção. */
 const separador = (tema) => tema.separador || (tema.linhasGrossas ? 'grossa' : '');
 
+/* ─── Largura das colunas pelo tamanho do conteúdo ─────────────────
+   Cada coluna ganha o espaço do texto mais longo dela (com um teto pras colunas de texto livre, que quebram linha),
+   nunca menos que o título. O que sobra da folha é repartido na mesma proporção. */
+const GET_COL = {
+  COMERCIAL: (r) => up(r.comercial), CLIENTE: (r) => up(r.cliente), CATEGORIA: (r) => up(r.categoria),
+  'PERÍODO': (r) => up(r.periodo), SETOR: () => 'SIM', 'MÉTODO': (r) => up(r.metodo), 'OBSERVAÇÃO': (r) => String(r.obs || ''),
+};
+const CAP_COL = { CLIENTE: 38, 'OBSERVAÇÃO': 40, 'PERÍODO': 22, CATEGORIA: 16, 'MÉTODO': 14, COMERCIAL: 16 };
+const caracteresColuna = (nome, dados, capObs) => {
+  const cap = nome === 'OBSERVAÇÃO' && capObs ? capObs : (CAP_COL[nome] || 99);
+  const max = dados.reduce((m, r) => Math.max(m, GET_COL[nome](r).length), 0);
+  const negrito = nome === 'COMERCIAL' || nome === 'MÉTODO' ? 1.12 : 1;
+  return Math.max(nome.length * 1.15, Math.min(max, cap) * negrito) + 2.5;
+};
+
 export const linhasValidas = (rows) => rows.filter((r) => (r.cliente || '').trim());
 
 /* Ordem de prioridade das linhas: pelo período (segunda → ... → solicitação). Período fora da lista vai pro fim.
@@ -198,7 +213,7 @@ h1{margin:0 0 18px;text-align:center;letter-spacing:.04em}
 table{width:100%;border-collapse:collapse;table-layout:fixed}
 thead{display:table-header-group}
 tr{page-break-inside:avoid}
-td,th{padding:4px 7px;vertical-align:middle;word-wrap:break-word;overflow-wrap:anywhere}
+td,th{padding:3px 6px;vertical-align:middle;word-wrap:break-word;overflow-wrap:anywhere}
 td.c,th.c{text-align:center}
 .tag{display:inline-block;padding:2px 9px;border-radius:999px;font-weight:700;font-size:.92em}
 @media screen{ body{background:#e5e7eb;padding:16px} .folha{background:#fff;margin:0 auto;box-shadow:0 4px 22px rgba(0,0,0,.18)} }
@@ -273,7 +288,11 @@ export const montarHtml = ({ modelo, rows, titulo, orientacao, cores = {}, tema 
     : modelo === 'porcliente'
       ? [['COMERCIAL', 10], ['CLIENTE', 22], ['CATEGORIA', 13], ['PERÍODO', 20], ['SETOR', 6], ['MÉTODO', 10], ['OBSERVAÇÃO', 19]]
       : [['COMERCIAL', 11], ['CLIENTE', 24], ['CATEGORIA', 11], ['PERÍODO', 14], ['SETOR', 7], ['MÉTODO', 10], ['OBSERVAÇÃO', 23]];
-  const colgroup = `<colgroup>${cols.map(([, w]) => `<col style="width:${w}%">`).join('')}</colgroup>`;
+  const colgroupHtml = (duas) => {
+    const w = cols.map(([nome]) => caracteresColuna(nome, dados, duas ? 28 : 0));
+    const soma = w.reduce((a, b) => a + b, 0);
+    return `<colgroup>${w.map((x) => `<col style="width:${(x / soma * 100).toFixed(2)}%">`).join('')}</colgroup>`;
+  };
   const thead = `<thead><tr>${cols.map(([n]) => `<th class="${['SETOR', 'MÉTODO', 'CATEGORIA'].includes(n) ? 'c' : ''}">${n}</th>`).join('')}</tr></thead>`;
 
   /* ini: 'sem' = linha de continuação de um cliente (comercial/cliente já saíram na linha de cima, via rowspan). */
@@ -318,7 +337,7 @@ export const montarHtml = ({ modelo, rows, titulo, orientacao, cores = {}, tema 
       blocos.push(`<tr${cl ? ` class="${cl.trim()}"` : ''}>${celulas(r, true)}</tr>`);
     }
   }
-  const tabela = (bl) => `<table>${colgroup}${thead}<tbody>${bl.join('')}</tbody></table>`;
+  const tabela = (bl) => `<table>${colgroupHtml(duas)}${thead}<tbody>${bl.join('')}</tbody></table>`;
   const totalTr = blocos.reduce((n, b) => n + (b.match(/<tr/g) || []).length, 0);
   /* Horizontal com lista grande: duas tabelas lado a lado. A folha deitada é larga e baixa; numa coluna só a letra
      precisava encolher demais pra caber a lista inteira na altura. */
@@ -348,7 +367,7 @@ export const montarHtml = ({ modelo, rows, titulo, orientacao, cores = {}, tema 
 var AW=${availW},AH=Math.floor(${availH}*0.95),PW=${px(pagW)};
 var wrap=document.getElementById('wrap'),fit=document.getElementById('fit');
 function ajusta(){
-  var s=1;fit.style.transform='none';fit.style.width=AW+'px';
+  var s=1.6;fit.style.transform='none';fit.style.width=(AW/s)+'px';
   var h=fit.offsetHeight;
   while(h*s>AH&&s>0.25){s-=0.01;fit.style.width=(AW/s)+'px';h=fit.offsetHeight;}
   fit.style.transformOrigin='0 0';fit.style.transform='scale('+s+')';
@@ -409,6 +428,7 @@ export const gerarXlsx = async ({ modelo, rows, titulo, orientacao, cores = {}, 
       ? [['COMERCIAL', 15], ['CLIENTE', 36], ['CATEGORIA', 18], ['PERÍODO', 32], ['SETOR', 9], ['MÉTODO', 15], ['OBSERVAÇÃO', 38]]
       : [['COMERCIAL', 15], ['CLIENTE', 36], ['CATEGORIA', 15], ['PERÍODO', 20], ['SETOR', 9], ['MÉTODO', 13], ['OBSERVAÇÃO', 42]];
   const n = cols.length;
+  cols.forEach((c) => { c[1] = Math.round(caracteresColuna(c[0], dados, 0) * 1.1); });
 
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('Controle de Clientes', {
