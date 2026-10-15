@@ -150,7 +150,7 @@ const ListaTarefas = ({ userName, podeVerEquipe }) => {
   const rAno = useMemo(() => resumoPeriodo(lista, crono, `${daIso(hoje).getFullYear()}-01-01`, hoje), [lista, crono, hoje]);
   const dados = useMemo(() => serie(lista, crono, visao), [lista, crono, visao]);
   const tarefasAtivas = lista.tarefas.filter((t) => !t.removida);
-  const semDiaFixo = crono ? crono.itens.filter((i) => !(i.dias || []).length) : [];
+  const semDiaFixo = crono ? crono.itens.filter((i) => !(i.dias || []).length && !(i.diasMes || []).length) : [];
 
   const rankingEquipe = useMemo(() => {
     const d = daIso(hoje); const ini = iso(new Date(d.getFullYear(), d.getMonth(), 1));
@@ -209,7 +209,7 @@ const ListaTarefas = ({ userName, podeVerEquipe }) => {
                   Ainda não há cronograma. Monte sua carteira em <b>Oficina Estelar → Controle de Clientes</b> e os clientes de cada dia aparecem aqui sozinhos.
                 </div>
               : itensFat.length === 0
-                ? <div style={{ fontSize: 13, color: T.textT }}>{[0, 6].includes(daIso(dia).getDay()) ? 'Fim de semana: nenhum cliente para faturar.' : 'Nenhum cliente com faturamento neste dia da semana.'}</div>
+                ? <div style={{ fontSize: 13, color: T.textT }}>{[0, 6].includes(daIso(dia).getDay()) ? 'Fim de semana: nenhum cliente para faturar.' : 'Nenhum cliente para faturar neste dia.'}</div>
                 : <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {itensFat.map((it) => (
                       <div key={it.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '9px 12px', borderRadius: 10, border: `1px solid ${T.border}`, opacity: it.feita ? 0.62 : 1 }}>
@@ -224,7 +224,7 @@ const ListaTarefas = ({ userName, podeVerEquipe }) => {
             {semDiaFixo.length > 0 && (
               <div style={{ marginTop: 10 }}>
                 <button onClick={() => setSemFixo((v) => !v)} style={{ ...btnGhost, padding: '5px 10px', fontSize: 12 }}>
-                  {semFixo ? 'Esconder' : 'Ver'} {semDiaFixo.length} sem dia fixo da semana (mensal, quinzenal, decendial, solicitação)
+                  {semFixo ? 'Esconder' : 'Ver'} {semDiaFixo.length} sem dia fixo (solicitação)
                 </button>
                 {semFixo && (
                   <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>

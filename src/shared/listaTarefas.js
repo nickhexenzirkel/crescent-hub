@@ -70,6 +70,18 @@ export const diasDoPeriodo = (periodo) => {
   return DIA_POR_NOME.filter(([n]) => t.includes(n)).map(([, d]) => d);
 };
 
+/* Decendial: dias 1, 11 e 21; quinzenal: dias 1 e 16; mensal: dia 1. Cai em fim de semana → passa para a segunda-feira seguinte. */
+export const diasDoMes = (periodo) => (norm(periodo).includes('decen') ? [1, 11, 21] : norm(periodo).includes('quinzen') ? [1, 16] : norm(periodo).includes('mensal') ? [1] : []);
+
+const venceNoDia = (diasMes, dia) => {
+  if (!diasMes.length) return false;
+  const dt = daIso(dia); const dow = dt.getDay();
+  if (dow === 0 || dow === 6) return false;
+  const nominais = [dt.getDate()];
+  if (dow === 1) nominais.push(addDias(dia, -1).slice(8) * 1, addDias(dia, -2).slice(8) * 1); // domingo e sábado anteriores
+  return nominais.some((n) => diasMes.includes(n));
+};
+
 /* Chave = cliente + período: ABAST e MANUT do mesmo cliente no mesmo dia viram UMA tarefa só. */
 export const chaveItem = (it) => `${norm(it.cliente)}|${norm(it.periodo)}`;
 
@@ -82,6 +94,7 @@ export const montarCronograma = (linhas) => juntarRepetidos(linhas.map((r) => ({
   metodo: String(r.metodo || '').trim().toUpperCase(),
   obs: String(r.obs || '').trim(),
   dias: diasDoPeriodo(r.periodo),
+  diasMes: diasDoMes(r.periodo),
 })));
 
 /* Junta linhas repetidas (mesmo cliente e período): categorias viram 'ABAST/MANUT', sem duplicar. */
@@ -102,7 +115,7 @@ export const carregarCronograma = async (nome) => {
   try {
     const { data } = await supabase.from('settings').select('value').eq('key', KEY_CRONO + nome).maybeSingle();
     const v = parse(data?.value, null);
-    return v && Array.isArray(v.itens) ? { ...v, itens: juntarRepetidos(v.itens.map((i) => ({ ...i, k: chaveItem(i) }))) } : null; // também limpa duplicados de envios antigos
+    return v && Array.isArray(v.itens) ? { ...v, itens: juntarRepetidos(v.itens.map((i) => ({ ...i, k: chaveItem(i), diasMes: diasDoMes(i.periodo) }))) } : null; // também limpa duplicados de envios antigos
   } catch { return null; }
 };
 
@@ -128,7 +141,7 @@ export const tarefaValeNoDia = (t, dia) => {
 export const itensCronogramaDoDia = (crono, dia) => {
   if (!crono) return [];
   const dow = daIso(dia).getDay();
-  return crono.itens.filter((it) => (it.dias || []).includes(dow));
+  return crono.itens.filter((it) => (it.dias || []).includes(dow) || venceNoDia(it.diasMes || [], dia));
 };
 
 /* Tudo do dia numa lista só: { id, tipo:'t'|'c', titulo, detalhe, feita } */

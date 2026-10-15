@@ -10,7 +10,7 @@ Aba nova em **Portal → Minhas Tarefas (ex-Meus Lembretes)**, ao lado de Anota�
 - Gráficos de barras **diário (14 dias), mensal (12 meses) e anual**, mais cartões Hoje/Mês/Ano.
 - **Cada pessoa vê o próprio**; admin/moderador escolhe qualquer pessoa (somente leitura) e vê o ranking da equipe no mês.
 - **Setor Faturamento**: quem está marcado como Faturamento (Portal → Colegas, chave `colegas_setores`) recebe o cronograma do [[controle-clientes]]: a aba Controle de Clientes envia a carteira (1,5 s depois de mexer) e a lista mostra os clientes do dia da semana (segunda a sexta; "TERÇA E SEXTA" vale nos dois dias).
-- Períodos sem dia fixo (mensal, quinzenal, decendial, solicitação) ficam numa lista recolhida e **não entram na contagem** — não há regra de dia definida para eles.
+- Dias do mês: **decendial 1, 11 e 21; quinzenal 1 e 16; mensal 1** (caindo em sábado/domingo, passa para a segunda seguinte). Só "solicitação" fica numa lista recolhida, fora da contagem.
 
 ## Dados (sem SQL novo, tabela `settings`)
 - `lista_tarefas:<nome>` → `{ tarefas:[{id,titulo,freq,dias,data,criada,removida}], feitas:{ 'AAAA-MM-DD': {t:[ids], c:[chaves de cliente]} } }`
