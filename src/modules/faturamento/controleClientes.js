@@ -17,6 +17,8 @@ export const MODELOS = [
   { id: 'agrupado', titulo: 'Agrupado por comercial', sub: 'Uma faixa colorida por comercial, com os clientes dele logo abaixo.', cor: '#0E8FA8' },
   { id: 'colorido', titulo: 'Colorido por categoria', sub: 'Abastecimento, manutenção e os dois juntos com cores diferentes.', cor: '#E08A1E' },
   { id: 'compacto', titulo: 'Compacto P&B', sub: 'Preto e branco, bordas finas e letra menor. Gasta pouca tinta.', cor: '#222222' },
+  { id: 'porperiodo', titulo: 'Uma linha por período', sub: 'Cada cliente ganha uma linha para cada categoria/período (ex.: Eusébio abast. mensal e manut. segunda-feira).', cor: '#0B5D6B' },
+  { id: 'porcliente', titulo: 'Uma linha por cliente', sub: 'O cliente aparece uma vez só, com tudo junto: ABAST/MANUT · MENSAL/SEGUNDA-FEIRA.', cor: '#6A2C70' },
 ];
 
 export const linhaVazia = () => ({
@@ -64,6 +66,36 @@ export const agruparPorComercial = (rows) => {
 
 export const linhasValidas = (rows) => rows.filter((r) => (r.cliente || '').trim());
 
+const partes = (s) => String(s ?? '').split('/').map((x) => x.trim()).filter(Boolean);
+const unicos = (a) => [...new Set(a)];
+
+/* Linha com 'ABAST/MANUT' + 'MENSAL/SEGUNDA-FEIRA' vira uma linha por par; só separa quando as contagens batem. */
+export const expandir = (rows) => rows.flatMap((r) => {
+  const c = partes(r.categoria); const p = partes(r.periodo);
+  if (c.length > 1 && c.length === p.length) return c.map((cat, i) => ({ ...r, categoria: up(cat), periodo: up(p[i]) }));
+  return [r];
+});
+
+export const agruparPorCliente = (rows) => {
+  const mapa = new Map();
+  for (const r of rows) {
+    const k = up(r.comercial) + '|' + up(r.cliente);
+    if (!mapa.has(k)) mapa.set(k, []);
+    mapa.get(k).push(r);
+  }
+  return [...mapa.values()].map((itens) => ({ itens }));
+};
+
+/* Uma linha por cliente: categorias, períodos, métodos e observações viram listas separadas por '/'. */
+export const consolidar = (rows) => agruparPorCliente(expandir(rows)).map(({ itens }) => ({
+  ...itens[0],
+  categoria: unicos(itens.map((r) => up(r.categoria)).filter(Boolean)).join('/'),
+  periodo: unicos(itens.map((r) => up(r.periodo)).filter(Boolean)).join('/'),
+  setor: itens.some((r) => up(r.setor).startsWith('S')) ? 'SIM' : 'NÃO',
+  metodo: unicos(itens.flatMap((r) => partes(up(r.metodo)))).join(' / '),
+  obs: unicos(itens.map((r) => String(r.obs || '').trim()).filter(Boolean)).join(' | '),
+}));
+
 /* ─── Importar planilha existente (.xlsx/.csv) ─────────────────── */
 export const importarPlanilha = async (file) => {
   const XLSX = await import('xlsx');
@@ -109,11 +141,8 @@ tr{page-break-inside:avoid}
 td,th{padding:6px 8px;vertical-align:middle;word-wrap:break-word;overflow-wrap:anywhere}
 td.c,th.c{text-align:center}
 .tag{display:inline-block;padding:2px 9px;border-radius:999px;font-weight:700;font-size:.92em}
-@media screen{
-  body{background:#e5e7eb;padding:16px}
-  .folha{background:#fff;margin:0 auto;padding:28px 30px;box-shadow:0 4px 22px rgba(0,0,0,.18)}
-}
-@media print{ .folha{padding:0} body{-webkit-print-color-adjust:exact;print-color-adjust:exact} }
+@media screen{ body{background:#e5e7eb;padding:16px} .folha{background:#fff;margin:0 auto;box-shadow:0 4px 22px rgba(0,0,0,.18)} }
+@media print{ body{-webkit-print-color-adjust:exact;print-color-adjust:exact} }
 `;
 
 const CSS_MODELO = {
@@ -141,6 +170,21 @@ td{font-size:11.5px;border:1px solid #E1D8CA}
 .leg i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;vertical-align:-1px}
 .tag.sim{background:#D8F0DF;color:#1E6B36}.tag.nao{background:#F6DADA;color:#9B2B2B}
 `,
+  porperiodo: `
+h1{font-size:20px;color:#0B5D6B}
+th{background:#0B5D6B;color:#fff;font-size:11.5px;letter-spacing:.05em;text-transform:uppercase;border:1px solid #0B5D6B}
+td{font-size:11.5px;border:1px solid #C5DADF}
+tr.ini td{border-top:2px solid #0B5D6B}
+tr.odd td{background:#EAF4F6}
+.tag.sim{background:#D8F0DF;color:#1E6B36}.tag.nao{background:#F6DADA;color:#9B2B2B}
+`,
+  porcliente: `
+h1{font-size:20px;color:#6A2C70}
+th{background:#6A2C70;color:#fff;font-size:11.5px;letter-spacing:.05em;text-transform:uppercase;border:1px solid #6A2C70}
+td{font-size:11.5px;border:1px solid #DCCBDD}
+tbody tr:nth-child(even) td{background:#F6EEF7}
+.tag.sim{background:#D8F0DF;color:#1E6B36}.tag.nao{background:#F6DADA;color:#9B2B2B}
+`,
   compacto: `
 h1{font-size:16px;color:#000;text-align:left}
 .sub{text-align:left;margin-bottom:8px}
@@ -154,18 +198,26 @@ export const montarHtml = ({ modelo, rows, titulo, orientacao }) => {
   const lista = linhasValidas(rows);
   const hoje = new Date().toLocaleDateString('pt-BR');
   const agrupado = modelo === 'agrupado';
+  const porPeriodo = modelo === 'porperiodo';
+  const dados = porPeriodo ? expandir(lista) : modelo === 'porcliente' ? consolidar(lista) : lista;
   const cols = agrupado
     ? [['CLIENTE', 27], ['CATEGORIA', 13], ['PERÍODO', 17], ['SETOR', 8], ['MÉTODO', 11], ['OBSERVAÇÃO', 24]]
-    : [['COMERCIAL', 11], ['CLIENTE', 24], ['CATEGORIA', 11], ['PERÍODO', 14], ['SETOR', 7], ['MÉTODO', 10], ['OBSERVAÇÃO', 23]];
+    : modelo === 'porcliente'
+      ? [['COMERCIAL', 10], ['CLIENTE', 22], ['CATEGORIA', 13], ['PERÍODO', 20], ['SETOR', 6], ['MÉTODO', 10], ['OBSERVAÇÃO', 19]]
+      : [['COMERCIAL', 11], ['CLIENTE', 24], ['CATEGORIA', 11], ['PERÍODO', 14], ['SETOR', 7], ['MÉTODO', 10], ['OBSERVAÇÃO', 23]];
   const colgroup = `<colgroup>${cols.map(([, w]) => `<col style="width:${w}%">`).join('')}</colgroup>`;
   const thead = `<thead><tr>${cols.map(([n]) => `<th class="${['SETOR', 'MÉTODO', 'CATEGORIA'].includes(n) ? 'c' : ''}">${n}</th>`).join('')}</tr></thead>`;
 
-  const celulas = (r, comCom) => {
+  /* ini: 'sem' = linha de continuação de um cliente (comercial/cliente já saíram na linha de cima, via rowspan). */
+  const celulas = (r, comCom, rowspan) => {
     const t = tipoCategoria(r.categoria);
     const catStyle = modelo === 'colorido' ? ` style="background:${COR_CAT[t].bg};color:${COR_CAT[t].fg};font-weight:700"` : '';
     const sim = up(r.setor).startsWith('S');
-    return (comCom ? `<td style="font-weight:700">${esc(up(r.comercial))}</td>` : '')
-      + `<td>${esc(up(r.cliente))}</td>`
+    const rs = rowspan ? ` rowspan="${rowspan}"` : '';
+    const ini = comCom === 'sem' ? ''
+      : (comCom ? `<td${rs} style="font-weight:700">${esc(up(r.comercial))}</td>` : '')
+        + `<td${rs}${rowspan ? ' style="font-weight:600"' : ''}>${esc(up(r.cliente))}</td>`;
+    return ini
       + `<td class="c"${catStyle}>${esc(up(r.categoria))}</td>`
       + `<td class="c">${esc(up(r.periodo))}</td>`
       + `<td class="c"><span class="tag ${sim ? 'sim' : 'nao'}">${sim ? 'SIM' : 'NÃO'}</span></td>`
@@ -175,27 +227,59 @@ export const montarHtml = ({ modelo, rows, titulo, orientacao }) => {
 
   let corpo = '';
   if (agrupado) {
-    agruparPorComercial(lista).forEach((g, i) => {
+    agruparPorComercial(dados).forEach((g, i) => {
       const cor = CORES_GRUPO[i % CORES_GRUPO.length].hex;
       corpo += `<tr class="grp"><td colspan="6" style="background:${cor}">${esc(g.nome)}<span>${g.itens.length} ${g.itens.length === 1 ? 'cliente' : 'clientes'}</span></td></tr>`;
       for (const r of g.itens) corpo += `<tr class="it">${celulas(r, false)}</tr>`;
     });
+  } else if (porPeriodo) {
+    agruparPorCliente(dados).forEach((g, gi) => {
+      g.itens.forEach((r, i) => {
+        corpo += `<tr class="${i === 0 ? 'ini ' : ''}${gi % 2 ? 'odd' : ''}">${i === 0 ? celulas(r, true, g.itens.length) : celulas(r, 'sem')}</tr>`;
+      });
+    });
   } else {
-    for (const r of lista) corpo += `<tr>${celulas(r, true)}</tr>`;
+    for (const r of dados) corpo += `<tr>${celulas(r, true)}</tr>`;
   }
-  if (!lista.length) corpo = `<tr><td colspan="${cols.length}" style="text-align:center;color:#888;padding:28px">Adicione clientes para ver o documento aqui.</td></tr>`;
+  if (!dados.length) corpo = `<tr><td colspan="${cols.length}" style="text-align:center;color:#888;padding:28px">Adicione clientes para ver o documento aqui.</td></tr>`;
 
   const legenda = modelo === 'colorido'
     ? `<div class="leg"><span><i style="background:${COR_CAT.abast.bg}"></i>Abastecimento</span><span><i style="background:${COR_CAT.manut.bg}"></i>Manutenção</span><span><i style="background:${COR_CAT.ambos.bg}"></i>Abast. + Manut.</span></div>`
     : '';
-  const largura = orientacao === 'landscape' ? 1040 : 730;
+  const land = orientacao === 'landscape';
+  const mm = modelo === 'compacto' ? 8 : 12;
+  const pagW = land ? 297 : 210; const pagH = land ? 210 : 297;
+  const px = (v) => Math.round(v * 3.7795);
+  const availW = px(pagW - 2 * mm); const availH = px(pagH - 2 * mm) - 6;
+  const nCli = new Set(lista.map((r) => `${up(r.comercial)}|${up(r.cliente)}`)).size;
+
+  /* UMA PÁGINA SÓ: o conteúdo é encolhido até caber inteiro numa folha A4 (na tela e na impressão). */
+  const script = `(function(){
+var AW=${availW},AH=${availH},PW=${px(pagW)};
+var wrap=document.getElementById('wrap'),fit=document.getElementById('fit');
+function ajusta(){
+  var s=1;fit.style.transform='none';fit.style.width=AW+'px';
+  var h=fit.offsetHeight;
+  while(h*s>AH&&s>0.25){s-=0.02;fit.style.width=(AW/s)+'px';h=fit.offsetHeight;}
+  fit.style.transformOrigin='0 0';fit.style.transform='scale('+s+')';
+  wrap.style.height=Math.min(AH,Math.ceil(h*s))+'px';
+}
+function zoomTela(){document.body.style.zoom=Math.min(1,window.innerWidth/(PW+32));}
+window.addEventListener('beforeprint',function(){document.body.style.zoom=1;ajusta()});
+window.addEventListener('afterprint',zoomTela);
+window.addEventListener('resize',zoomTela);
+ajusta();zoomTela();
+})()`;
 
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>${esc(titulo || 'Controle de Clientes')}</title>
-<style>@page{size:A4 ${orientacao};margin:${modelo === 'compacto' ? '8mm' : '12mm'}}${CSS_BASE}${CSS_MODELO[modelo] || ''}.folha{width:${largura}px}@media print{.folha{width:auto}}</style></head>
-<body><div class="folha" id="folha"><h1>${esc((titulo || 'CONTROLE DE CLIENTES').toUpperCase())}</h1>
-<div class="sub">${lista.length} ${lista.length === 1 ? 'cliente' : 'clientes'} · atualizado em ${hoje}</div>${legenda}
-<table>${colgroup}${thead}<tbody>${corpo}</tbody></table></div>
-<script>(function(){function z(){var f=document.getElementById('folha');var w=f.offsetWidth+32;document.body.style.zoom=Math.min(1,window.innerWidth/w)}window.addEventListener('resize',z);z()})()</script>
+<style>@page{size:A4 ${orientacao};margin:${mm}mm}${CSS_BASE}${CSS_MODELO[modelo] || ''}
+#wrap{width:${availW}px;overflow:hidden}
+@media screen{.folha{width:${px(pagW)}px;height:${px(pagH)}px;padding:${px(mm)}px;overflow:hidden}}
+@media print{.folha{width:${availW}px;height:auto;padding:0;box-shadow:none}html,body{background:#fff;padding:0;margin:0}}</style></head>
+<body><div class="folha"><div id="wrap"><div id="fit"><h1>${esc((titulo || 'CONTROLE DE CLIENTES').toUpperCase())}</h1>
+<div class="sub">${nCli} ${nCli === 1 ? 'cliente' : 'clientes'} · atualizado em ${hoje}</div>${legenda}
+<table>${colgroup}${thead}<tbody>${corpo}</tbody></table></div></div></div>
+<script>${script}</script>
 </body></html>`;
 };
 
@@ -206,6 +290,8 @@ const ESTILO_XLSX = {
   classico: { head: 'FF1F3A5F', headFg: 'FFFFFFFF', zebra: 'FFEEF2F8', borda: 'FFC9D2DF', titulo: 'FF1F3A5F', fonte: 11 },
   agrupado: { head: 'FF17324D', headFg: 'FFFFFFFF', zebra: 'FFF5F7FA', borda: 'FFD5DBE4', titulo: 'FF17324D', fonte: 11 },
   colorido: { head: 'FF3A2A14', headFg: 'FFFFFFFF', zebra: null, borda: 'FFE1D8CA', titulo: 'FF3A2A14', fonte: 11 },
+  porperiodo: { head: 'FF0B5D6B', headFg: 'FFFFFFFF', zebra: 'FFEAF4F6', borda: 'FFC5DADF', titulo: 'FF0B5D6B', fonte: 11 },
+  porcliente: { head: 'FF6A2C70', headFg: 'FFFFFFFF', zebra: 'FFF6EEF7', borda: 'FFDCCBDD', titulo: 'FF6A2C70', fonte: 11 },
   compacto: { head: 'FFFFFFFF', headFg: 'FF000000', zebra: null, borda: 'FF777777', titulo: 'FF000000', fonte: 10 },
 };
 
@@ -214,15 +300,19 @@ export const gerarXlsx = async ({ modelo, rows, titulo, orientacao }) => {
   const lista = linhasValidas(rows);
   const e = ESTILO_XLSX[modelo] || ESTILO_XLSX.classico;
   const agrupado = modelo === 'agrupado';
+  const porPeriodo = modelo === 'porperiodo';
+  const dados = porPeriodo ? expandir(lista) : modelo === 'porcliente' ? consolidar(lista) : lista;
   const cols = agrupado
     ? [['CLIENTE', 36], ['CATEGORIA', 15], ['PERÍODO', 20], ['SETOR', 9], ['MÉTODO', 13], ['OBSERVAÇÃO', 42]]
-    : [['COMERCIAL', 15], ['CLIENTE', 36], ['CATEGORIA', 15], ['PERÍODO', 20], ['SETOR', 9], ['MÉTODO', 13], ['OBSERVAÇÃO', 42]];
+    : modelo === 'porcliente'
+      ? [['COMERCIAL', 15], ['CLIENTE', 36], ['CATEGORIA', 18], ['PERÍODO', 32], ['SETOR', 9], ['MÉTODO', 15], ['OBSERVAÇÃO', 38]]
+      : [['COMERCIAL', 15], ['CLIENTE', 36], ['CATEGORIA', 15], ['PERÍODO', 20], ['SETOR', 9], ['MÉTODO', 13], ['OBSERVAÇÃO', 42]];
   const n = cols.length;
 
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('Controle de Clientes', {
     pageSetup: {
-      paperSize: 9, orientation: orientacao, fitToPage: true, fitToWidth: 1, fitToHeight: 0,
+      paperSize: 9, orientation: orientacao, fitToPage: true, fitToWidth: 1, fitToHeight: 1, // sempre 1 página só
       horizontalCentered: true, margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 },
     },
     views: [{ state: 'frozen', ySplit: 3 }],
@@ -293,7 +383,7 @@ export const gerarXlsx = async ({ modelo, rows, titulo, orientacao }) => {
   };
 
   if (agrupado) {
-    agruparPorComercial(lista).forEach((g, gi) => {
+    agruparPorComercial(dados).forEach((g, gi) => {
       const cor = CORES_GRUPO[gi % CORES_GRUPO.length].argb;
       const row = ws.addRow([`${g.nome}  ·  ${g.itens.length} ${g.itens.length === 1 ? 'cliente' : 'clientes'}`]);
       ws.mergeCells(row.number, 1, row.number, n);
@@ -304,8 +394,19 @@ export const gerarXlsx = async ({ modelo, rows, titulo, orientacao }) => {
       c.alignment = { vertical: 'middle', indent: 1 };
       g.itens.forEach((r, i) => escreverLinha(r, i % 2 === 1));
     });
+  } else if (porPeriodo) {
+    // cliente com várias linhas: comercial e cliente viram células mescladas na vertical
+    agruparPorCliente(dados).forEach((g, gi) => {
+      const ini = ws.rowCount + 1;
+      g.itens.forEach((r) => escreverLinha(r, gi % 2 === 1));
+      const fim = ws.rowCount;
+      for (let r = ini + 1; r <= fim; r++) { ws.getCell(r, 1).value = null; ws.getCell(r, 2).value = null; }
+      if (fim > ini) { ws.mergeCells(ini, 1, fim, 1); ws.mergeCells(ini, 2, fim, 2); }
+      for (const c of [1, 2]) ws.getCell(ini, c).alignment = { vertical: 'middle', wrapText: true };
+      for (let c = 1; c <= n; c++) ws.getCell(ini, c).border = { ...BORDA(e.borda), top: { style: 'medium', color: { argb: e.head } } };
+    });
   } else {
-    lista.forEach((r, i) => escreverLinha(r, i % 2 === 1));
+    dados.forEach((r, i) => escreverLinha(r, i % 2 === 1));
   }
 
   ws.headerFooter.oddFooter = '&L&8Uniko · Controle de Clientes&R&8Página &P de &N';

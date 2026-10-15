@@ -232,7 +232,7 @@ export const TabControleClientes = () => {
         {msg && <span style={{ fontSize: 13, color: T.textS }}>{msg}</span>}
       </div>
       <div style={{ fontSize: 12.5, color: T.textT, marginTop: 10, lineHeight: 1.5 }}>
-        A orientação vale para a planilha (já vem configurada para imprimir em A4 {orientacao === 'landscape' ? 'deitada' : 'em pé'}) e para o botão Imprimir. Na janela de impressão, deixe a escala em 100%.
+        A orientação vale para a planilha (já vem configurada para imprimir em A4 {orientacao === 'landscape' ? 'deitada' : 'em pé'}) e para o botão Imprimir. O controle sempre sai em UMA página só: se tiver muitos clientes, a letra diminui automaticamente para caber. Na janela de impressão, deixe a escala em 100%.
       </div>
 
       {secTitulo(4, 'Pré-visualização')}
