@@ -11,6 +11,7 @@ Aba `controle-clientes` do módulo faturamento. A pessoa cadastra (ou importa de
 - Linhas separando todas as linhas na cor do modelo: Sem linhas (padrão) / Finas / Grossas (tema.separador).
 - Horizontal: "Uma coluna só" (tema.colunaUnica) desliga a divisão em 2 tabelas lado a lado.
 - Tabela única (uma coluna só ou vertical): table-layout:auto + width:auto (colunas do tamanho do texto, tabela centralizada, sem esticar até a borda), células compactas e o ajuste de página também AMPLIA (até 1,6x). O modo duas colunas mantém larguras fixas e padding antigos.
+- Horizontal em tabela única: tabela 100% da folha, colunas curtas em px pelo texto e Cliente/Observação dividem o resto (a linha do título fica na largura da tabela). Vertical: tabela só do tamanho do conteúdo, centralizada.
 - SEMPRE 1 página: xlsx com fitToHeight=1; HTML encolhe o conteúdo até caber na folha A4 (script em montarHtml).
 - Orientação horizontal/vertical vale para o .xlsx (pageSetup) e para o botão Imprimir.
 - Mesmo HTML (`montarHtml`) alimenta a pré-visualização (iframe) e a impressão (`@page size: A4 <orientação>`).

@@ -289,7 +289,13 @@ export const montarHtml = ({ modelo, rows, titulo, orientacao, cores = {}, tema 
       ? [['COMERCIAL', 10], ['CLIENTE', 22], ['CATEGORIA', 13], ['PERÍODO', 20], ['SETOR', 6], ['MÉTODO', 10], ['OBSERVAÇÃO', 19]]
       : [['COMERCIAL', 11], ['CLIENTE', 24], ['CATEGORIA', 11], ['PERÍODO', 14], ['SETOR', 7], ['MÉTODO', 10], ['OBSERVAÇÃO', 23]];
   /* Duas colunas: larguras fixas de sempre. Tabela única: sem colgroup, a própria tabela dimensiona pelo conteúdo (table-layout:auto). */
-  const colgroupHtml = (duas) => (duas ? `<colgroup>${cols.map(([, w]) => `<col style="width:${w}%">`).join('')}</colgroup>` : '');
+  /* Horizontal em tabela única: a tabela ocupa a folha toda. Colunas curtas ficam do tamanho do texto (px) e
+     Cliente/Observação (sem largura) dividem o resto. No vertical a tabela é só do tamanho do conteúdo. */
+  const colgroupHtml = (duas) => {
+    if (duas) return `<colgroup>${cols.map(([, w]) => `<col style="width:${w}%">`).join('')}</colgroup>`;
+    if (orientacao !== 'landscape') return '';
+    return `<colgroup>${cols.map(([nome]) => (nome === 'CLIENTE' || nome === 'OBSERVAÇÃO' ? '<col>' : `<col style="width:${Math.round(caracteresColuna(nome, dados, 0) * 7.6 + 18)}px">`)).join('')}</colgroup>`;
+  };
   const thead = `<thead><tr>${cols.map(([n]) => `<th class="${['SETOR', 'MÉTODO', 'CATEGORIA'].includes(n) ? 'c' : ''}">${n}</th>`).join('')}</tr></thead>`;
 
   /* ini: 'sem' = linha de continuação de um cliente (comercial/cliente já saíram na linha de cima, via rowspan). */
@@ -382,7 +388,7 @@ window.addEventListener('load',ajusta);
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>${esc(titulo || 'Controle de Clientes')}</title>
 <style>@page{size:A4 ${orientacao};margin:${mm}mm}${CSS_BASE}${CSS_MODELO[modelo] || ''}${cssTema(modelo, resolverTema(modelo, tema))}${separador(tema) ? `tbody td{border-top:${separador(tema) === 'grossa' ? 2 : 1}px solid ${resolverTema(modelo, tema).head || (MODELOS.find((m) => m.id === modelo) || {}).cor || '#000'}}` : ''}
 #wrap{width:${availW}px;overflow:hidden}
-${duas ? '' : 'table{table-layout:auto;width:auto;margin:0 auto}td,th{padding:2px 8px;overflow-wrap:normal;word-break:normal}td.c,th.c,th{white-space:nowrap}'}
+${duas ? '' : orientacao === 'landscape' ? 'table{table-layout:fixed;width:100%}td,th{padding:2px 8px}td.c,th{white-space:nowrap}' : 'table{table-layout:auto;width:auto;margin:0 auto}td,th{padding:2px 8px;overflow-wrap:normal;word-break:normal}td.c,th.c,th{white-space:nowrap}'}
 @media screen{.folha{width:${px(pagW)}px;height:${px(pagH)}px;padding:${px(mm)}px;overflow:hidden}}
 @media print{.folha{width:${availW}px;height:auto;padding:0;box-shadow:none}html,body{background:#fff;padding:0;margin:0}}</style></head>
 <body><div class="folha"><div id="wrap"><div id="fit"><h1>${esc((titulo || 'CONTROLE DE CLIENTES').toUpperCase())}</h1>
