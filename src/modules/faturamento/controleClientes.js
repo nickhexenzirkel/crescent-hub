@@ -74,6 +74,38 @@ export const corTexto = (hex) => {
 };
 const estiloCor = (hex) => (hex ? `;background:${hex};color:${corTexto(hex)}` : '');
 
+/* ─── Tema escolhido pela pessoa ───────────────────────────────────
+   principal: sincroniza cabeçalho, linhas de separação, bordas, linhas alternadas e título.
+   titulo / zebra / cabTexto: ajustes finos por cima da principal. Sem nada escolhido, vale a cor de fábrica do modelo. */
+const misturaBranco = (hex, t) => {
+  const h = hex.slice(1);
+  return '#' + [0, 2, 4].map((i) => Math.round(parseInt(h.slice(i, i + 2), 16) * (1 - t) + 255 * t).toString(16).padStart(2, '0')).join('');
+};
+export const resolverTema = (modelo, tema = {}) => {
+  const o = {};
+  if (modelo !== 'compacto' && tema.principal) {
+    o.head = tema.principal; o.headFg = corTexto(tema.principal); o.titulo = tema.principal;
+    o.zebra = misturaBranco(tema.principal, 0.9); o.borda = misturaBranco(tema.principal, 0.72);
+  }
+  if (tema.titulo) o.titulo = tema.titulo;
+  if (tema.zebra) o.zebra = tema.zebra;
+  if (modelo !== 'compacto' && tema.cabTexto) o.headFg = tema.cabTexto;
+  return o;
+};
+const SELETOR_ZEBRA = {
+  classico: 'tbody tr:nth-child(even) td', porcliente: 'tbody tr:nth-child(even) td', colorido: 'tbody tr:nth-child(even) td',
+  agrupado: 'tbody tr.it:nth-child(even) td', porperiodo: 'tr.odd td', sequencial: 'tr.odd td',
+};
+const cssTema = (modelo, o) => {
+  let c = '';
+  if (o.titulo) c += `h1{color:${o.titulo}}`;
+  if (o.head) c += `th{background:${o.head};color:${o.headFg};border-color:${o.head}}tr.ini td{border-top-color:${o.head}}`;
+  else if (o.headFg) c += `th{color:${o.headFg}}`;
+  if (o.borda) c += `td{border-color:${o.borda}}`;
+  if (o.zebra && SELETOR_ZEBRA[modelo]) c += `${SELETOR_ZEBRA[modelo]}{background:${o.zebra}}`;
+  return c;
+};
+
 export const linhasValidas = (rows) => rows.filter((r) => (r.cliente || '').trim());
 
 /* Ordem de prioridade das linhas: pelo período (segunda → ... → solicitação). Período fora da lista vai pro fim.
@@ -227,7 +259,7 @@ td{font-size:10.5px;padding:3px 6px;border:1px solid #777}
 `,
 };
 
-export const montarHtml = ({ modelo, rows, titulo, orientacao, cores = {} }) => {
+export const montarHtml = ({ modelo, rows, titulo, orientacao, cores = {}, tema = {} }) => {
   const validas = linhasValidas(rows);
   const lista = ordenarPorPeriodo(validas);
   const hoje = new Date().toLocaleDateString('pt-BR');
@@ -304,7 +336,7 @@ export const montarHtml = ({ modelo, rows, titulo, orientacao, cores = {} }) => 
     ? `<div class="leg"><span><i style="background:${COR_CAT.abast.bg}"></i>Abastecimento</span><span><i style="background:${COR_CAT.manut.bg}"></i>Manutenção</span><span><i style="background:${COR_CAT.ambos.bg}"></i>Abast. + Manut.</span></div>`
     : '';
   const land = orientacao === 'landscape';
-  const mm = modelo === 'compacto' ? 8 : 12;
+  const mm = modelo === 'compacto' ? 4 : 5; // margem da folha A4 (mm): bem junto da borda pra sobrar espaço pro texto
   const pagW = land ? 297 : 210; const pagH = land ? 210 : 297;
   const px = (v) => Math.round(v * 3.7795);
   const availW = px(pagW - 2 * mm); const availH = px(pagH - 2 * mm) - 6;
@@ -312,7 +344,7 @@ export const montarHtml = ({ modelo, rows, titulo, orientacao, cores = {} }) => 
 
   /* UMA PÁGINA SÓ: o conteúdo é encolhido até caber inteiro numa folha A4 (na tela e na impressão). */
   const script = `(function(){
-var AW=${availW},AH=Math.floor(${availH}*0.92),PW=${px(pagW)};
+var AW=${availW},AH=Math.floor(${availH}*0.95),PW=${px(pagW)};
 var wrap=document.getElementById('wrap'),fit=document.getElementById('fit');
 function ajusta(){
   var s=1;fit.style.transform='none';fit.style.width=AW+'px';
@@ -331,7 +363,7 @@ window.addEventListener('load',ajusta);
 })()`;
 
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>${esc(titulo || 'Controle de Clientes')}</title>
-<style>@page{size:A4 ${orientacao};margin:${mm}mm}${CSS_BASE}${CSS_MODELO[modelo] || ''}
+<style>@page{size:A4 ${orientacao};margin:${mm}mm}${CSS_BASE}${CSS_MODELO[modelo] || ''}${cssTema(modelo, resolverTema(modelo, tema))}
 #wrap{width:${availW}px;overflow:hidden}
 @media screen{.folha{width:${px(pagW)}px;height:${px(pagH)}px;padding:${px(mm)}px;overflow:hidden}}
 @media print{.folha{width:${availW}px;height:auto;padding:0;box-shadow:none}html,body{background:#fff;padding:0;margin:0}}</style></head>
@@ -355,11 +387,18 @@ const ESTILO_XLSX = {
   compacto: { head: 'FFFFFFFF', headFg: 'FF000000', zebra: null, borda: 'FF777777', titulo: 'FF000000', fonte: 10 },
 };
 
-export const gerarXlsx = async ({ modelo, rows, titulo, orientacao, cores = {} }) => {
+export const gerarXlsx = async ({ modelo, rows, titulo, orientacao, cores = {}, tema = {} }) => {
   const { default: ExcelJS } = await import('exceljs');
   const validas = linhasValidas(rows);
   const lista = ordenarPorPeriodo(validas);
-  const e = ESTILO_XLSX[modelo] || ESTILO_XLSX.classico;
+  const ov = resolverTema(modelo, tema);
+  const ar = (h) => 'FF' + h.slice(1).toUpperCase();
+  const e = { ...(ESTILO_XLSX[modelo] || ESTILO_XLSX.classico) };
+  if (ov.head) e.head = ar(ov.head);
+  if (ov.headFg) e.headFg = ar(ov.headFg);
+  if (ov.zebra) e.zebra = ar(ov.zebra);
+  if (ov.borda) e.borda = ar(ov.borda);
+  if (ov.titulo) e.titulo = ar(ov.titulo);
   const agrupado = modelo === 'agrupado';
   const porPeriodo = modelo === 'porperiodo';
   const dados = porPeriodo ? expandir(lista) : modelo === 'porcliente' ? consolidar(lista) : lista;
@@ -383,7 +422,7 @@ export const gerarXlsx = async ({ modelo, rows, titulo, orientacao, cores = {} }
   ws.mergeCells(1, 1, 1, n);
   const t = ws.getCell(1, 1);
   t.value = (titulo || 'CONTROLE DE CLIENTES').toUpperCase();
-  t.font = { bold: true, size: modelo === 'compacto' ? 20 : 28, color: { argb: modelo === 'compacto' ? e.titulo : e.headFg } };
+  t.font = { bold: true, size: modelo === 'compacto' ? 20 : 28, color: { argb: modelo === 'compacto' || tema.titulo ? e.titulo : e.headFg } };
   if (modelo !== 'compacto') t.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: e.head } };
   t.alignment = { horizontal: modelo === 'compacto' ? 'left' : 'center', vertical: 'middle' };
   ws.getRow(1).height = 46;

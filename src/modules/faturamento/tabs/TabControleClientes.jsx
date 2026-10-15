@@ -46,6 +46,7 @@ export const TabControleClientes = () => {
   const [modelo, setModeloS] = useState(() => LS('ctrlcli.modelo', 'classico'));
   const [orientacao, setOrientacaoS] = useState(() => LS('ctrlcli.orient', 'landscape'));
   const [cores, setCoresS] = useState(() => LS('ctrlcli.cores', {}));
+  const [tema, setTemaS] = useState(() => LS('ctrlcli.tema', {}));
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
   const fileRef = useRef();
@@ -54,6 +55,7 @@ export const TabControleClientes = () => {
   const setTitulo = (v) => { setTituloS(v); LSset('ctrlcli.titulo', v); };
   const setRows = (fn) => setRowsS((rs) => { const n = typeof fn === 'function' ? fn(rs) : fn; LSset('ctrlcli.rows', n); return n; });
   const setCor = (nome, hex) => setCoresS((c) => { const n = { ...c }; if (hex) n[nome] = hex; else delete n[nome]; LSset('ctrlcli.cores', n); return n; });
+  const setTema = (k, v) => setTemaS((t) => { const n = { ...t }; if (v) n[k] = v; else delete n[k]; LSset('ctrlcli.tema', n); return n; });
   const setModelo = (v) => { setModeloS(v); LSset('ctrlcli.modelo', v); };
   const setOrientacao = (v) => { setOrientacaoS(v); LSset('ctrlcli.orient', v); };
 
@@ -67,7 +69,7 @@ export const TabControleClientes = () => {
 
   const validas = linhasValidas(rows);
   const comerciais = useMemo(() => [...new Set(rows.map((r) => (r.comercial || '').trim().toUpperCase()).filter(Boolean))], [rows]);
-  const html = useMemo(() => montarHtml({ modelo, rows, titulo, orientacao, cores }), [modelo, rows, titulo, orientacao, cores]);
+  const html = useMemo(() => montarHtml({ modelo, rows, titulo, orientacao, cores, tema }), [modelo, rows, titulo, orientacao, cores, tema]);
 
   useEffect(() => { if (!msg) return undefined; const t = setTimeout(() => setMsg(''), 5000); return () => clearTimeout(t); }, [msg]);
 
@@ -87,7 +89,7 @@ export const TabControleClientes = () => {
   const baixar = async () => {
     setBusy(true);
     try {
-      const buf = await gerarXlsx({ modelo, rows, titulo, orientacao, cores });
+      const buf = await gerarXlsx({ modelo, rows, titulo, orientacao, cores, tema });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
       a.download = `${(titulo || 'Controle de Clientes').replace(/[\\/:*?"<>|]+/g, ' ').trim()}.xlsx`;
@@ -226,6 +228,37 @@ export const TabControleClientes = () => {
           );
         })}
       </div>
+
+      {(() => {
+        const cm = MODELOS.find((m) => m.id === modelo)?.cor || '#1F3A5F';
+        const campos = [
+          ['principal', 'Cor principal', 'cabeçalho, linhas de separação, bordas, linhas alternadas e título — tudo acompanha', cm],
+          ['titulo', 'Fonte do título', 'só a cor das letras do título', cm],
+          ['cabTexto', 'Fonte do cabeçalho', 'cor das letras de COMERCIAL, CLIENTE...', '#ffffff'],
+          ['zebra', 'Linhas alternadas', 'cor das linhas coloridas (ajuste fino)', '#eef2f8'],
+        ];
+        return (
+          <div style={{ marginTop: 18, padding: '14px 16px', border: `1px solid ${T.border}`, borderRadius: 14, background: T.surface }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <label style={{ ...labelStyle, marginBottom: 0 }}>Cores do modelo</label>
+              {Object.keys(tema).length > 0 && <button style={btnGhost} onClick={() => { setTemaS({}); LSset('ctrlcli.tema', {}); }}>Restaurar cores do modelo</button>}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(250px,1fr))', gap: 12 }}>
+              {campos.map(([k, nome, dica, padrao]) => (
+                <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', border: `1px solid ${T.border}`, borderRadius: 10 }}>
+                  <input type="color" value={tema[k] || padrao} onChange={(e) => setTema(k, e.target.value)}
+                    style={{ width: 34, height: 30, padding: 0, border: 'none', background: 'none', cursor: 'pointer', flexShrink: 0 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{nome}</div>
+                    <div style={{ fontSize: 11.5, color: T.textT, lineHeight: 1.35 }}>{dica}</div>
+                  </div>
+                  {tema[k] && <button onClick={() => setTema(k, null)} title="Voltar ao padrão" style={{ background: 'none', border: 'none', color: T.textD, cursor: 'pointer', fontSize: 14 }}>✕</button>}
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       {secTitulo(3, 'Orientação, planilha e impressão')}
       <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center' }}>
