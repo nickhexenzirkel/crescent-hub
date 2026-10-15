@@ -118,7 +118,7 @@ const ListaTarefas = ({ userName, podeVerEquipe }) => {
   };
 
   const marcar = (item) => {
-    if (!meu) return;
+    if (!meu || dia > hoje) return;
     const f = lista.feitas[dia] || { t: [], c: [] };
     const campo = item.tipo;
     const atual = f[campo] || [];
@@ -192,8 +192,9 @@ const ListaTarefas = ({ userName, podeVerEquipe }) => {
             <div style={{ fontFamily: 'var(--font-brand)', fontSize: 17, fontWeight: 700, color: T.text }}>{dia === hoje ? 'Hoje' : dataBr(dia)}</div>
             {dia === hoje && <div style={{ fontSize: 12.5, color: T.textT }}>{dataBr(dia)}</div>}
           </div>
-          <input type="date" value={dia} max={hoje} onChange={(e) => e.target.value && setDia(e.target.value)} style={{ ...inputSt, padding: '6px 10px' }} />
-          <button onClick={() => setDia(addDias(dia, 1))} disabled={dia >= hoje} style={{ ...btnGhost, padding: '6px 10px', opacity: dia >= hoje ? 0.4 : 1 }} aria-label="Próximo dia">›</button>
+          <input type="date" value={dia} onChange={(e) => e.target.value && setDia(e.target.value)} style={{ ...inputSt, padding: '6px 10px' }} />
+          <button onClick={() => setDia(addDias(dia, 1))} style={{ ...btnGhost, padding: '6px 10px' }} aria-label="Próximo dia">›</button>
+          {dia > hoje && <span style={{ fontSize: 12, color: T.textT }}>Dia futuro: só para consulta.</span>}
           {dia !== hoje && <button onClick={() => setDia(hoje)} style={btnGhost}>Voltar para hoje</button>}
         </div>
 
@@ -211,7 +212,7 @@ const ListaTarefas = ({ userName, podeVerEquipe }) => {
                 : <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {itensFat.map((it) => (
                       <div key={it.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '9px 12px', borderRadius: 10, border: `1px solid ${T.border}`, opacity: it.feita ? 0.62 : 1 }}>
-                        <Check on={it.feita} onClick={() => marcar(it)} disabled={!meu} />
+                        <Check on={it.feita} onClick={() => marcar(it)} disabled={!meu || dia > hoje} />
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: 13.5, fontWeight: 700, color: T.text, textDecoration: it.feita ? 'line-through' : 'none' }}>{it.titulo}</div>
                           <div style={{ fontSize: 11.5, color: T.textT }}>{it.detalhe}{it.obs ? ` — ${it.obs}` : ''}</div>
@@ -242,7 +243,7 @@ const ListaTarefas = ({ userName, podeVerEquipe }) => {
           : <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {pessoais.map((it) => (
                 <div key={it.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '9px 12px', borderRadius: 10, border: `1px solid ${T.border}`, opacity: it.feita ? 0.62 : 1 }}>
-                  <Check on={it.feita} onClick={() => marcar(it)} disabled={!meu} />
+                  <Check on={it.feita} onClick={() => marcar(it)} disabled={!meu || dia > hoje} />
                   <div style={{ flex: 1, minWidth: 0, fontSize: 13.5, color: T.text, textDecoration: it.feita ? 'line-through' : 'none', wordBreak: 'break-word' }}>{it.titulo}</div>
                 </div>
               ))}

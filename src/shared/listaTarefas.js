@@ -70,9 +70,10 @@ export const diasDoPeriodo = (periodo) => {
   return DIA_POR_NOME.filter(([n]) => t.includes(n)).map(([, d]) => d);
 };
 
-export const chaveItem = (it) => `${norm(it.cliente)}|${norm(it.categoria)}|${norm(it.periodo)}`;
+/* Chave = cliente + período: ABAST e MANUT do mesmo cliente no mesmo dia viram UMA tarefa só. */
+export const chaveItem = (it) => `${norm(it.cliente)}|${norm(it.periodo)}`;
 
-export const montarCronograma = (linhas) => linhas.map((r) => ({
+export const montarCronograma = (linhas) => juntarRepetidos(linhas.map((r) => ({
   k: chaveItem(r),
   cliente: String(r.cliente || '').trim().toUpperCase(),
   categoria: String(r.categoria || '').trim().toUpperCase(),
@@ -81,13 +82,27 @@ export const montarCronograma = (linhas) => linhas.map((r) => ({
   metodo: String(r.metodo || '').trim().toUpperCase(),
   obs: String(r.obs || '').trim(),
   dias: diasDoPeriodo(r.periodo),
-}));
+})));
+
+/* Junta linhas repetidas (mesmo cliente e período): categorias viram 'ABAST/MANUT', sem duplicar. */
+function juntarRepetidos(itens) {
+  const mapa = new Map();
+  for (const it of itens) {
+    const ant = mapa.get(it.k);
+    if (!ant) { mapa.set(it.k, { ...it }); continue; }
+    const cats = [...new Set([...ant.categoria.split('/'), ...it.categoria.split('/')].map((x) => x.trim()).filter(Boolean))];
+    ant.categoria = cats.join('/');
+    if (it.metodo && !ant.metodo.includes(it.metodo)) ant.metodo = [ant.metodo, it.metodo].filter(Boolean).join(' / ');
+    if (it.obs && !ant.obs.includes(it.obs)) ant.obs = [ant.obs, it.obs].filter(Boolean).join(' | ');
+  }
+  return [...mapa.values()];
+}
 
 export const carregarCronograma = async (nome) => {
   try {
     const { data } = await supabase.from('settings').select('value').eq('key', KEY_CRONO + nome).maybeSingle();
     const v = parse(data?.value, null);
-    return v && Array.isArray(v.itens) ? v : null;
+    return v && Array.isArray(v.itens) ? { ...v, itens: juntarRepetidos(v.itens.map((i) => ({ ...i, k: chaveItem(i) }))) } : null; // também limpa duplicados de envios antigos
   } catch { return null; }
 };
 
@@ -111,7 +126,7 @@ export const tarefaValeNoDia = (t, dia) => {
 };
 
 export const itensCronogramaDoDia = (crono, dia) => {
-  if (!crono || (crono.desde && dia < crono.desde)) return [];
+  if (!crono) return [];
   const dow = daIso(dia).getDay();
   return crono.itens.filter((it) => (it.dias || []).includes(dow));
 };
@@ -129,7 +144,9 @@ export const itensDoDia = (lista, crono, dia) => {
 /* ── estatísticas ── */
 export const resumoDia = (lista, crono, dia) => {
   const { pessoais, fat } = itensDoDia(lista, crono, dia);
-  const todos = [...pessoais, ...fat];
+  // antes do 1º envio do cronograma os dias só contam nas estatísticas se algo foi marcado
+  const fatConta = crono?.desde && dia < crono.desde ? fat.filter((x) => x.feita) : fat;
+  const todos = [...pessoais, ...fatConta];
   return { total: todos.length, feitas: todos.filter((x) => x.feita).length };
 };
 
