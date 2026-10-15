@@ -322,7 +322,7 @@ export const montarHtml = ({ modelo, rows, titulo, orientacao, cores = {}, tema 
   const totalTr = blocos.reduce((n, b) => n + (b.match(/<tr/g) || []).length, 0);
   /* Horizontal com lista grande: duas tabelas lado a lado. A folha deitada é larga e baixa; numa coluna só a letra
      precisava encolher demais pra caber a lista inteira na altura. */
-  const duas = orientacao === 'landscape' && totalTr > 16;
+  const duas = orientacao === 'landscape' && totalTr > 16 && !tema.colunaUnica;
   let tabelas;
   if (!dados.length) {
     tabelas = tabela([`<tr><td colspan="${cols.length}" style="text-align:center;color:#888;padding:28px">Adicione clientes para ver o documento aqui.</td></tr>`]);

@@ -301,6 +301,16 @@ export const TabControleClientes = () => {
             </button>
           ))}
         </div>
+        {orientacao === 'landscape' && (
+          <div title="Só no horizontal" style={{ display: 'inline-flex', border: `1px solid ${T.border}`, borderRadius: 10, overflow: 'hidden' }}>
+            {[[false, 'Duas colunas se for grande'], [true, 'Uma coluna só']].map(([v, nome]) => (
+              <button key={nome} onClick={() => setTema('colunaUnica', v)} style={{
+                padding: '10px 16px', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: 13.5, fontWeight: 600,
+                background: !!tema.colunaUnica === v ? T.gold : T.surface, color: !!tema.colunaUnica === v ? '#fff' : T.textS,
+              }}>{nome}</button>
+            ))}
+          </div>
+        )}
         <button style={{ ...btnPrimary, opacity: validas.length && !busy ? 1 : 0.5 }} disabled={!validas.length || busy} onClick={baixar}>
           {busy ? 'Gerando…' : 'Baixar planilha (.xlsx)'}
         </button>
