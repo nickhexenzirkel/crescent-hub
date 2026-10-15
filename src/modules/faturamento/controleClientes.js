@@ -131,6 +131,9 @@ export const TAMANHOS_FONTE = [
 ];
 const fatorFonte = (tema) => (TAMANHOS_FONTE.find((t) => t.id === tema.fonte) || { fator: 1 }).fator;
 
+/* Altura das linhas escolhida à mão, em % (100 = padrão). */
+export const alturaFator = (tema) => Math.min(3, Math.max(0.3, (Number(tema.altura) || 100) / 100));
+
 export const linhasValidas = (rows) => rows.filter((r) => (r.cliente || '').trim());
 
 /* Ordem de prioridade das linhas: pelo período (segunda → ... → solicitação). Período fora da lista vai pro fim.
@@ -377,8 +380,9 @@ export const montarHtml = ({ modelo, rows, titulo, orientacao, cores = {}, tema 
 
   const fator = fatorFonte(tema);
   const unicaPaisagem = !duas && orientacao === 'landscape';
-  const pv = Math.max(1, Math.round(4 / (fator * fator))); // letra maior => menos espaço em cima/embaixo
-  const cssFonte = unicaPaisagem || fator === 1 ? '' : `td,th{padding-top:${pv}px;padding-bottom:${pv}px;font-size:${(11.5 * fator).toFixed(1)}px}`;
+  const alt = alturaFator(tema);
+  const pv = ((4 / (fator * fator)) * alt).toFixed(1); // letra maior => menos espaço em cima/embaixo; alt = ajuste manual em %
+  const cssFonte = unicaPaisagem || (fator === 1 && alt === 1) ? '' : `td,th{padding-top:${pv}px;padding-bottom:${pv}px;font-size:${(11.5 * fator).toFixed(1)}px}`;
 
   /* UMA PÁGINA SÓ: o conteúdo é encolhido até caber inteiro numa folha A4 (na tela e na impressão). */
   const script = `(function(){
@@ -403,7 +407,7 @@ window.addEventListener('load',ajusta);
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>${esc(titulo || 'Controle de Clientes')}</title>
 <style>@page{size:A4 ${orientacao};margin:${mm}mm}${CSS_BASE}${CSS_MODELO[modelo] || ''}${cssTema(modelo, resolverTema(modelo, tema))}${separador(tema) ? `tbody td{border-top:${separador(tema) === 'grossa' ? 2 : 1}px solid ${resolverTema(modelo, tema).head || (MODELOS.find((m) => m.id === modelo) || {}).cor || '#000'}}` : ''}
 #wrap{width:${availW}px;overflow:hidden}
-${duas ? '' : orientacao === 'landscape' ? 'table{table-layout:fixed;width:100%}td,th{padding:0 8px;line-height:1.05}td{font-size:' + (14.5 * fator).toFixed(1) + 'px}th{font-size:' + (13.5 * fator).toFixed(1) + 'px}.tag{padding:0 8px;line-height:1.05;vertical-align:middle}thead th{height:30px;vertical-align:middle}tbody tr{height:20px}tbody td{height:20px;padding-top:0;padding-bottom:0;vertical-align:middle}.tag{display:inline-block;vertical-align:middle}td.c,th,td:nth-child(-n+2){white-space:nowrap}' : 'table{table-layout:auto;width:auto;margin:0 auto}td,th{padding:2px 8px;overflow-wrap:normal;word-break:normal}td.c,th.c,th{white-space:nowrap}'}
+${duas ? '' : orientacao === 'landscape' ? 'table{table-layout:fixed;width:100%}td,th{padding:0 8px;line-height:1.05}td{font-size:' + (14.5 * fator).toFixed(1) + 'px}th{font-size:' + (13.5 * fator).toFixed(1) + 'px}.tag{padding:0 8px;line-height:1.05;vertical-align:middle}thead th{height:' + (30 * alt).toFixed(1) + 'px;vertical-align:middle}tbody tr{height:' + (20 * alt).toFixed(1) + 'px}tbody td{height:' + (20 * alt).toFixed(1) + 'px;padding-top:0;padding-bottom:0;vertical-align:middle}.tag{display:inline-block;vertical-align:middle}td.c,th,td:nth-child(-n+2){white-space:nowrap}' : 'table{table-layout:auto;width:auto;margin:0 auto}td,th{padding:2px 8px;overflow-wrap:normal;word-break:normal}td.c,th.c,th{white-space:nowrap}'}
 @media screen{.folha{width:${px(pagW)}px;height:${px(pagH)}px;padding:${px(mm)}px;overflow:hidden}}
 @media print{.folha{width:${availW}px;height:auto;padding:0;box-shadow:none}html,body{background:#fff;padding:0;margin:0}}${cssFonte}</style></head>
 <body><div class="folha"><div id="wrap"><div id="fit"><h1>${esc((titulo || 'CONTROLE DE CLIENTES').toUpperCase())}</h1>
@@ -472,7 +476,7 @@ export const gerarXlsx = async ({ modelo, rows, titulo, orientacao, cores = {}, 
   ws.getRow(2).height = 16; // respiro entre o título e o cabeçalho
 
   const hr = ws.getRow(3);
-  hr.height = 22;
+  hr.height = 22 * alturaFator(tema);
   cols.forEach(([nome], i) => {
     const c = hr.getCell(i + 1);
     c.value = nome;
@@ -496,7 +500,7 @@ export const gerarXlsx = async ({ modelo, rows, titulo, orientacao, cores = {}, 
       ? [up(r.cliente), up(r.categoria), up(r.periodo), up(r.setor).startsWith('S') ? 'SIM' : 'NÃO', up(r.metodo), r.obs]
       : [up(r.comercial), up(r.cliente), up(r.categoria), up(r.periodo), up(r.setor).startsWith('S') ? 'SIM' : 'NÃO', up(r.metodo), r.obs];
     const row = ws.addRow(vals);
-    row.height = alturaPara(vals);
+    row.height = alturaPara(vals) * alturaFator(tema);
     const off = agrupado ? 0 : 1;
     row.eachCell({ includeEmpty: true }, (c, ci) => {
       const nome = cols[ci - 1][0];

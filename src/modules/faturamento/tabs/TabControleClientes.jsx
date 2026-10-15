@@ -343,6 +343,14 @@ export const TabControleClientes = () => {
             );
           })}
         </div>
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, border: `1px solid ${T.border}`, borderRadius: 10, padding: '6px 12px', background: T.surface }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: T.textT, letterSpacing: '.06em', textTransform: 'uppercase' }}>Altura das linhas</span>
+          <input type="range" min="30" max="300" step="5" value={tema.altura || 100} onChange={(e) => setTema('altura', Number(e.target.value) === 100 ? null : Number(e.target.value))} style={{ width: 130, cursor: 'pointer' }} />
+          <input type="number" min="30" max="300" step="5" value={tema.altura || 100} onChange={(e) => { const n = Math.min(300, Math.max(30, Number(e.target.value) || 100)); setTema('altura', n === 100 ? null : n); }}
+            style={{ ...inputStyle, width: 64, padding: '6px 8px', textAlign: 'right' }} />
+          <span style={{ fontSize: 13, color: T.textS }}>%</span>
+          {tema.altura && <button onClick={() => setTema('altura', null)} title="Voltar a 100%" style={{ background: 'none', border: 'none', color: T.textD, cursor: 'pointer', fontSize: 14 }}>✕</button>}
+        </div>
         {orientacao === 'landscape' && (
           <div title="Só no horizontal" style={{ display: 'inline-flex', border: `1px solid ${T.border}`, borderRadius: 10, overflow: 'hidden' }}>
             {[[false, 'Duas colunas se for grande'], [true, 'Uma coluna só']].map(([v, nome]) => (

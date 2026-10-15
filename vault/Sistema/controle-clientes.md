@@ -13,6 +13,7 @@ Aba `controle-clientes` do módulo faturamento. A pessoa cadastra (ou importa de
 - Tabela única (uma coluna só ou vertical): table-layout:auto + width:auto (colunas do tamanho do texto, tabela centralizada, sem esticar até a borda), células compactas e o ajuste de página também AMPLIA (até 1,6x). O modo duas colunas mantém larguras fixas e padding antigos.
 - Horizontal em tabela única: tabela 100% da folha, colunas curtas em px pelo texto e Cliente/Observação dividem o resto (a linha do título fica na largura da tabela). Vertical: tabela só do tamanho do conteúdo, centralizada.
 - Persistência: tudo em localStorage (ctrlcli.*) + "Salvar cópia (.json)" / "Abrir cópia" como backup em arquivo. Tamanho da letra: tema.fonte (p/m/g/xg).
+- Altura das linhas manual em % (tema.altura, 30–300, 100 = padrão): multiplica altura das linhas e do cabeçalho (HTML e xlsx).
 - SEMPRE 1 página: xlsx com fitToHeight=1; HTML encolhe o conteúdo até caber na folha A4 (script em montarHtml).
 - Orientação horizontal/vertical vale para o .xlsx (pageSetup) e para o botão Imprimir.
 - Mesmo HTML (`montarHtml`) alimenta a pré-visualização (iframe) e a impressão (`@page size: A4 <orientação>`).
