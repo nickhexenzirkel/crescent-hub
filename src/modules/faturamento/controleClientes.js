@@ -413,7 +413,7 @@ export const gerarXlsx = async ({ modelo, rows, titulo, orientacao, cores = {}, 
   const ws = wb.addWorksheet('Controle de Clientes', {
     pageSetup: {
       paperSize: 9, orientation: orientacao, fitToPage: true, fitToWidth: 1, fitToHeight: 1, // sempre 1 página só
-      horizontalCentered: true, margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 },
+      horizontalCentered: true, margins: { left: 0.2, right: 0.2, top: 0.25, bottom: 0.35, header: 0.1, footer: 0.15 },
     },
     views: [{ state: 'frozen', ySplit: 3 }],
   });
