@@ -303,12 +303,12 @@ export const montarHtml = ({ modelo, rows, titulo, orientacao }) => {
 
   /* UMA PÁGINA SÓ: o conteúdo é encolhido até caber inteiro numa folha A4 (na tela e na impressão). */
   const script = `(function(){
-var AW=${availW},AH=${availH},PW=${px(pagW)};
+var AW=${availW},AH=Math.floor(${availH}*0.92),PW=${px(pagW)};
 var wrap=document.getElementById('wrap'),fit=document.getElementById('fit');
 function ajusta(){
   var s=1;fit.style.transform='none';fit.style.width=AW+'px';
   var h=fit.offsetHeight;
-  while(h*s>AH&&s>0.25){s-=0.02;fit.style.width=(AW/s)+'px';h=fit.offsetHeight;}
+  while(h*s>AH&&s>0.25){s-=0.01;fit.style.width=(AW/s)+'px';h=fit.offsetHeight;}
   fit.style.transformOrigin='0 0';fit.style.transform='scale('+s+')';
   wrap.style.height=Math.min(AH,Math.ceil(h*s))+'px';
 }
@@ -317,6 +317,8 @@ window.addEventListener('beforeprint',function(){document.body.style.zoom=1;ajus
 window.addEventListener('afterprint',zoomTela);
 window.addEventListener('resize',zoomTela);
 ajusta();zoomTela();
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(ajusta);
+window.addEventListener('load',ajusta);
 })()`;
 
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>${esc(titulo || 'Controle de Clientes')}</title>
