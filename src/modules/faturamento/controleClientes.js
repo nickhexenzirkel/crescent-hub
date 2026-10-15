@@ -262,7 +262,6 @@ td{font-size:10.5px;padding:3px 6px;border:1px solid #777}
 export const montarHtml = ({ modelo, rows, titulo, orientacao, cores = {}, tema = {} }) => {
   const validas = linhasValidas(rows);
   const lista = ordenarPorPeriodo(validas);
-  const hoje = new Date().toLocaleDateString('pt-BR');
   const agrupado = modelo === 'agrupado';
   const porPeriodo = modelo === 'porperiodo';
   const dados = porPeriodo ? expandir(lista) : modelo === 'porcliente' ? consolidar(lista) : lista;
@@ -340,7 +339,6 @@ export const montarHtml = ({ modelo, rows, titulo, orientacao, cores = {}, tema 
   const pagW = land ? 297 : 210; const pagH = land ? 210 : 297;
   const px = (v) => Math.round(v * 3.7795);
   const availW = px(pagW - 2 * mm); const availH = px(pagH - 2 * mm) - 6;
-  const nCli = new Set(lista.map((r) => `${up(r.comercial)}|${up(r.cliente)}`)).size;
 
   /* UMA PÁGINA SÓ: o conteúdo é encolhido até caber inteiro numa folha A4 (na tela e na impressão). */
   const script = `(function(){
@@ -368,7 +366,7 @@ window.addEventListener('load',ajusta);
 @media screen{.folha{width:${px(pagW)}px;height:${px(pagH)}px;padding:${px(mm)}px;overflow:hidden}}
 @media print{.folha{width:${availW}px;height:auto;padding:0;box-shadow:none}html,body{background:#fff;padding:0;margin:0}}</style></head>
 <body><div class="folha"><div id="wrap"><div id="fit"><h1>${esc((titulo || 'CONTROLE DE CLIENTES').toUpperCase())}</h1>
-<div class="sub">${nCli} ${nCli === 1 ? 'cliente' : 'clientes'} · atualizado em ${hoje}</div>${legenda}
+${legenda}
 ${tabelas}</div></div></div>
 <script>${script}</script>
 </body></html>`;
@@ -427,11 +425,7 @@ export const gerarXlsx = async ({ modelo, rows, titulo, orientacao, cores = {}, 
   t.alignment = { horizontal: modelo === 'compacto' ? 'left' : 'center', vertical: 'middle' };
   ws.getRow(1).height = 46;
 
-  ws.mergeCells(2, 1, 2, n);
-  const s = ws.getCell(2, 1);
-  s.value = `${lista.length} ${lista.length === 1 ? 'cliente' : 'clientes'} · atualizado em ${new Date().toLocaleDateString('pt-BR')}`;
-  s.font = { italic: true, size: 9, color: { argb: 'FF6B7280' } };
-  s.alignment = { horizontal: modelo === 'compacto' ? 'left' : 'center' };
+  ws.getRow(2).height = 6; // respiro entre o título e o cabeçalho
 
   const hr = ws.getRow(3);
   hr.height = 22;
