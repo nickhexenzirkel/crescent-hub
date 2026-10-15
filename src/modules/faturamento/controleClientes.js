@@ -190,7 +190,7 @@ const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 const CSS_BASE = `
 *{box-sizing:border-box}
 body{margin:0;font-family:'Segoe UI',Arial,Helvetica,sans-serif;color:#1b2430}
-h1{margin:0 0 4px;text-align:center;letter-spacing:.04em}
+h1{margin:0 0 18px;text-align:center;letter-spacing:.04em}
 .sub{text-align:center;color:#6b7280;font-size:11px;margin-bottom:14px}
 table{width:100%;border-collapse:collapse;table-layout:fixed}
 thead{display:table-header-group}
@@ -425,7 +425,7 @@ export const gerarXlsx = async ({ modelo, rows, titulo, orientacao, cores = {}, 
   t.alignment = { horizontal: modelo === 'compacto' ? 'left' : 'center', vertical: 'middle' };
   ws.getRow(1).height = 46;
 
-  ws.getRow(2).height = 6; // respiro entre o título e o cabeçalho
+  ws.getRow(2).height = 16; // respiro entre o título e o cabeçalho
 
   const hr = ws.getRow(3);
   hr.height = 22;
