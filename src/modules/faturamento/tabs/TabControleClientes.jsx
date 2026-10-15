@@ -111,6 +111,33 @@ export const TabControleClientes = () => {
     w.print();
   };
 
+  /* Cópia de segurança em arquivo: o navegador guarda tudo sozinho, mas limpar dados do site apaga. */
+  const salvarCopia = () => {
+    const dados = { app: 'uniko-controle-clientes', versao: 1, titulo, rows, cores, tema, modelo, orientacao };
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(dados, null, 2)], { type: 'application/json' }));
+    a.download = 'controle-de-clientes.json';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  };
+  const abrirCopia = async (file) => {
+    if (!file) return;
+    try {
+      const d = JSON.parse(await file.text());
+      if (d?.app !== 'uniko-controle-clientes' || !Array.isArray(d.rows)) throw new Error('não é uma cópia do Controle de Clientes');
+      setTitulo(d.titulo || 'CONTROLE DE CLIENTES');
+      setRows(d.rows.length ? d.rows : [linhaVazia()]);
+      setCoresS(d.cores || {}); LSset('ctrlcli.cores', d.cores || {});
+      setTemaS(d.tema || {}); LSset('ctrlcli.tema', d.tema || {});
+      if (d.modelo) setModelo(d.modelo);
+      if (d.orientacao) setOrientacao(d.orientacao);
+      setMsg('Cópia aberta.');
+    } catch (e) {
+      setMsg(`Não consegui abrir a cópia (${e?.message || 'arquivo inválido'}).`);
+    }
+  };
+  const copiaRef = useRef();
+
   const limpar = () => {
     if (!window.confirm('Apagar todos os clientes desta lista?')) return;
     setRows([linhaVazia()]);
@@ -141,6 +168,9 @@ export const TabControleClientes = () => {
         </div>
         <button style={btnGhost} onClick={() => fileRef.current?.click()}>Importar planilha existente</button>
         <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" style={{ display: 'none' }} onChange={(e) => { importar(e.target.files?.[0]); e.target.value = ''; }} />
+        <button style={btnGhost} onClick={salvarCopia}>Salvar cópia (.json)</button>
+        <button style={btnGhost} onClick={() => copiaRef.current?.click()}>Abrir cópia</button>
+        <input ref={copiaRef} type="file" accept=".json,application/json" style={{ display: 'none' }} onChange={(e) => { abrirCopia(e.target.files?.[0]); e.target.value = ''; }} />
         <button style={{ ...btnGhost, color: T.danger }} onClick={limpar}>Limpar lista</button>
       </div>
 
@@ -191,7 +221,7 @@ export const TabControleClientes = () => {
         <datalist id="cc-categorias">{CATEGORIAS.map((c) => <option key={c} value={c} />)}</datalist>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '10px 4px 0' }}>
           <button style={btnGhost} onClick={adicionar}>+ Adicionar cliente</button>
-          <span style={{ fontSize: 12.5, color: T.textT }}>{validas.length} {validas.length === 1 ? 'cliente' : 'clientes'} · salvo automaticamente neste navegador</span>
+          <span style={{ fontSize: 12.5, color: T.textT }}>{validas.length} {validas.length === 1 ? 'cliente' : 'clientes'} · salvo automaticamente neste computador</span>
         </div>
       </div>
 
