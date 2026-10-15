@@ -45,6 +45,7 @@ export const TabControleClientes = () => {
   const [rows, setRowsS] = useState(() => { const r = LS('ctrlcli.rows', null); return Array.isArray(r) && r.length ? r : [linhaVazia()]; });
   const [modelo, setModeloS] = useState(() => LS('ctrlcli.modelo', 'classico'));
   const [orientacao, setOrientacaoS] = useState(() => LS('ctrlcli.orient', 'landscape'));
+  const [cores, setCoresS] = useState(() => LS('ctrlcli.cores', {}));
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
   const fileRef = useRef();
@@ -52,6 +53,7 @@ export const TabControleClientes = () => {
 
   const setTitulo = (v) => { setTituloS(v); LSset('ctrlcli.titulo', v); };
   const setRows = (fn) => setRowsS((rs) => { const n = typeof fn === 'function' ? fn(rs) : fn; LSset('ctrlcli.rows', n); return n; });
+  const setCor = (nome, hex) => setCoresS((c) => { const n = { ...c }; if (hex) n[nome] = hex; else delete n[nome]; LSset('ctrlcli.cores', n); return n; });
   const setModelo = (v) => { setModeloS(v); LSset('ctrlcli.modelo', v); };
   const setOrientacao = (v) => { setOrientacaoS(v); LSset('ctrlcli.orient', v); };
 
@@ -65,7 +67,7 @@ export const TabControleClientes = () => {
 
   const validas = linhasValidas(rows);
   const comerciais = useMemo(() => [...new Set(rows.map((r) => (r.comercial || '').trim().toUpperCase()).filter(Boolean))], [rows]);
-  const html = useMemo(() => montarHtml({ modelo, rows, titulo, orientacao }), [modelo, rows, titulo, orientacao]);
+  const html = useMemo(() => montarHtml({ modelo, rows, titulo, orientacao, cores }), [modelo, rows, titulo, orientacao, cores]);
 
   useEffect(() => { if (!msg) return undefined; const t = setTimeout(() => setMsg(''), 5000); return () => clearTimeout(t); }, [msg]);
 
@@ -85,7 +87,7 @@ export const TabControleClientes = () => {
   const baixar = async () => {
     setBusy(true);
     try {
-      const buf = await gerarXlsx({ modelo, rows, titulo, orientacao });
+      const buf = await gerarXlsx({ modelo, rows, titulo, orientacao, cores });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
       a.download = `${(titulo || 'Controle de Clientes').replace(/[\\/:*?"<>|]+/g, ' ').trim()}.xlsx`;
@@ -187,6 +189,22 @@ export const TabControleClientes = () => {
           <span style={{ fontSize: 12.5, color: T.textT }}>{validas.length} {validas.length === 1 ? 'cliente' : 'clientes'} · salvo automaticamente neste navegador</span>
         </div>
       </div>
+
+      {comerciais.length > 0 && (
+        <div style={{ marginTop: 16, padding: '14px 16px', border: `1px solid ${T.border}`, borderRadius: 14, background: T.surface }}>
+          <label style={labelStyle}>Cor de cada comercial (destaca a célula do nome)</label>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+            {comerciais.map((nome) => (
+              <div key={nome} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '6px 10px', border: `1px solid ${T.border}`, borderRadius: 10 }}>
+                <input type="color" value={cores[nome] || '#cccccc'} onChange={(e) => setCor(nome, e.target.value)}
+                  style={{ width: 30, height: 26, padding: 0, border: 'none', background: 'none', cursor: 'pointer' }} />
+                <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{nome}</span>
+                {cores[nome] && <button onClick={() => setCor(nome, null)} title="Tirar a cor" style={{ background: 'none', border: 'none', color: T.textD, cursor: 'pointer', fontSize: 14 }}>✕</button>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {secTitulo(2, 'Escolha o modelo')}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(250px,1fr))', gap: 14 }}>

@@ -65,6 +65,15 @@ export const agruparPorComercial = (rows) => {
   return [...mapa.entries()].map(([nome, itens]) => ({ nome, itens }));
 };
 
+/* Cor escolhida pra um comercial: fundo + texto branco ou escuro conforme o brilho. */
+export const corTexto = (hex) => {
+  const h = String(hex || '').replace('#', '');
+  if (h.length !== 6) return '#1b2430';
+  const [r, g, b] = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16));
+  return (r * 299 + g * 587 + b * 114) / 1000 > 150 ? '#1b2430' : '#ffffff';
+};
+const estiloCor = (hex) => (hex ? `;background:${hex};color:${corTexto(hex)}` : '');
+
 export const linhasValidas = (rows) => rows.filter((r) => (r.cliente || '').trim());
 
 /* Ordem de prioridade das linhas: pelo período (segunda → ... → solicitação). Período fora da lista vai pro fim.
@@ -163,14 +172,14 @@ td.c,th.c{text-align:center}
 
 const CSS_MODELO = {
   classico: `
-h1{font-size:20px;color:#1F3A5F}
+h1{font-size:30px;font-weight:900;letter-spacing:.06em;border-bottom:3px solid currentColor;padding-bottom:6px;color:#1F3A5F}
 th{background:#1F3A5F;color:#fff;font-size:11.5px;letter-spacing:.05em;text-transform:uppercase;border:1px solid #1F3A5F}
 td{font-size:11.5px;border:1px solid #C9D2DF}
 tbody tr:nth-child(even) td{background:#EEF2F8}
 .tag.sim{background:#D8F0DF;color:#1E6B36}.tag.nao{background:#F6DADA;color:#9B2B2B}
 `,
   agrupado: `
-h1{font-size:20px;color:#17324D}
+h1{font-size:30px;font-weight:900;letter-spacing:.06em;border-bottom:3px solid currentColor;padding-bottom:6px;color:#17324D}
 th{background:#17324D;color:#fff;font-size:11.5px;letter-spacing:.05em;text-transform:uppercase;border:1px solid #17324D}
 td{font-size:11.5px;border:1px solid #D5DBE4}
 tr.grp td{color:#fff;font-weight:800;font-size:12.5px;letter-spacing:.06em;border:none;padding:8px 10px}
@@ -179,7 +188,7 @@ tbody tr.it:nth-child(even) td{background:#F5F7FA}
 .tag.sim{background:#D8F0DF;color:#1E6B36}.tag.nao{background:#F6DADA;color:#9B2B2B}
 `,
   colorido: `
-h1{font-size:20px;color:#3a2a14}
+h1{font-size:30px;font-weight:900;letter-spacing:.06em;border-bottom:3px solid currentColor;padding-bottom:6px;color:#3a2a14}
 th{background:#3a2a14;color:#fff;font-size:11.5px;letter-spacing:.05em;text-transform:uppercase;border:1px solid #3a2a14}
 td{font-size:11.5px;border:1px solid #E1D8CA}
 .leg{display:flex;gap:14px;justify-content:center;margin:0 0 12px;font-size:11px;flex-wrap:wrap}
@@ -187,7 +196,7 @@ td{font-size:11.5px;border:1px solid #E1D8CA}
 .tag.sim{background:#D8F0DF;color:#1E6B36}.tag.nao{background:#F6DADA;color:#9B2B2B}
 `,
   porperiodo: `
-h1{font-size:20px;color:#0B5D6B}
+h1{font-size:30px;font-weight:900;letter-spacing:.06em;border-bottom:3px solid currentColor;padding-bottom:6px;color:#0B5D6B}
 th{background:#0B5D6B;color:#fff;font-size:11.5px;letter-spacing:.05em;text-transform:uppercase;border:1px solid #0B5D6B}
 td{font-size:11.5px;border:1px solid #C5DADF}
 tr.ini td{border-top:2px solid #0B5D6B}
@@ -195,7 +204,7 @@ tr.odd td{background:#EAF4F6}
 .tag.sim{background:#D8F0DF;color:#1E6B36}.tag.nao{background:#F6DADA;color:#9B2B2B}
 `,
   sequencial: `
-h1{font-size:20px;color:#B45309}
+h1{font-size:30px;font-weight:900;letter-spacing:.06em;border-bottom:3px solid currentColor;padding-bottom:6px;color:#B45309}
 th{background:#B45309;color:#fff;font-size:11.5px;letter-spacing:.05em;text-transform:uppercase;border:1px solid #B45309}
 td{font-size:11.5px;border:1px solid #EBD9C4}
 tr.ini td{border-top:2px solid #B45309}
@@ -203,14 +212,14 @@ tr.odd td{background:#FDF3E6}
 .tag.sim{background:#D8F0DF;color:#1E6B36}.tag.nao{background:#F6DADA;color:#9B2B2B}
 `,
   porcliente: `
-h1{font-size:20px;color:#6A2C70}
+h1{font-size:30px;font-weight:900;letter-spacing:.06em;border-bottom:3px solid currentColor;padding-bottom:6px;color:#6A2C70}
 th{background:#6A2C70;color:#fff;font-size:11.5px;letter-spacing:.05em;text-transform:uppercase;border:1px solid #6A2C70}
 td{font-size:11.5px;border:1px solid #DCCBDD}
 tbody tr:nth-child(even) td{background:#F6EEF7}
 .tag.sim{background:#D8F0DF;color:#1E6B36}.tag.nao{background:#F6DADA;color:#9B2B2B}
 `,
   compacto: `
-h1{font-size:16px;color:#000;text-align:left}
+h1{font-size:24px;font-weight:900;border-bottom:3px solid #000;padding-bottom:4px;color:#000;text-align:left}
 .sub{text-align:left;margin-bottom:8px}
 th{background:#fff;color:#000;font-size:10.5px;text-transform:uppercase;border:1px solid #000;border-bottom:2px solid #000}
 td{font-size:10.5px;padding:3px 6px;border:1px solid #777}
@@ -218,7 +227,7 @@ td{font-size:10.5px;padding:3px 6px;border:1px solid #777}
 `,
 };
 
-export const montarHtml = ({ modelo, rows, titulo, orientacao }) => {
+export const montarHtml = ({ modelo, rows, titulo, orientacao, cores = {} }) => {
   const validas = linhasValidas(rows);
   const lista = ordenarPorPeriodo(validas);
   const hoje = new Date().toLocaleDateString('pt-BR');
@@ -240,7 +249,7 @@ export const montarHtml = ({ modelo, rows, titulo, orientacao }) => {
     const sim = up(r.setor).startsWith('S');
     const rs = rowspan ? ` rowspan="${rowspan}"` : '';
     const ini = comCom === 'sem' ? ''
-      : (comCom ? `<td${rs} style="font-weight:700">${esc(up(r.comercial))}</td>` : '')
+      : (comCom ? `<td${rs} style="font-weight:700${estiloCor(cores[up(r.comercial)])}">${esc(up(r.comercial))}</td>` : '')
         + `<td${rs}${rowspan ? ' style="font-weight:600"' : ''}>${esc(up(r.cliente))}</td>`;
     return ini
       + `<td class="c"${catStyle}>${esc(up(r.categoria))}</td>`
@@ -253,7 +262,7 @@ export const montarHtml = ({ modelo, rows, titulo, orientacao }) => {
   const blocos = []; // cada bloco é um pedaço que não pode ser cortado ao meio (linha, cliente ou comercial)
   if (agrupado) {
     gruposComercial(validas).forEach((g, i) => {
-      const cor = CORES_GRUPO[i % CORES_GRUPO.length].hex;
+      const cor = cores[g.nome] || CORES_GRUPO[i % CORES_GRUPO.length].hex;
       let b = `<tr class="grp"><td colspan="6" style="background:${cor}">${esc(g.nome)}<span>${g.itens.length} ${g.itens.length === 1 ? 'cliente' : 'clientes'}</span></td></tr>`;
       for (const r of g.itens) b += `<tr class="it">${celulas(r, false)}</tr>`;
       blocos.push(b);
@@ -271,7 +280,7 @@ export const montarHtml = ({ modelo, rows, titulo, orientacao }) => {
     for (const r of dados) {
       const w = pesoPeriodo(r.periodo); const novo = modelo === 'sequencial' && w !== ant;
       if (novo) gi++; ant = w;
-      const cl = modelo === 'sequencial' ? `${novo ? 'ini ' : ''}${gi % 2 ? 'odd' : ''}` : '';
+      const cl = modelo === 'sequencial' ? `${novo ? 'ini ' : ''}${blocos.length % 2 ? 'odd' : ''}` : '';
       blocos.push(`<tr${cl ? ` class="${cl.trim()}"` : ''}>${celulas(r, true)}</tr>`);
     }
   }
@@ -346,7 +355,7 @@ const ESTILO_XLSX = {
   compacto: { head: 'FFFFFFFF', headFg: 'FF000000', zebra: null, borda: 'FF777777', titulo: 'FF000000', fonte: 10 },
 };
 
-export const gerarXlsx = async ({ modelo, rows, titulo, orientacao }) => {
+export const gerarXlsx = async ({ modelo, rows, titulo, orientacao, cores = {} }) => {
   const { default: ExcelJS } = await import('exceljs');
   const validas = linhasValidas(rows);
   const lista = ordenarPorPeriodo(validas);
@@ -374,9 +383,10 @@ export const gerarXlsx = async ({ modelo, rows, titulo, orientacao }) => {
   ws.mergeCells(1, 1, 1, n);
   const t = ws.getCell(1, 1);
   t.value = (titulo || 'CONTROLE DE CLIENTES').toUpperCase();
-  t.font = { bold: true, size: modelo === 'compacto' ? 14 : 18, color: { argb: e.titulo } };
+  t.font = { bold: true, size: modelo === 'compacto' ? 20 : 28, color: { argb: modelo === 'compacto' ? e.titulo : e.headFg } };
+  if (modelo !== 'compacto') t.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: e.head } };
   t.alignment = { horizontal: modelo === 'compacto' ? 'left' : 'center', vertical: 'middle' };
-  ws.getRow(1).height = 30;
+  ws.getRow(1).height = 46;
 
   ws.mergeCells(2, 1, 2, n);
   const s = ws.getCell(2, 1);
@@ -418,6 +428,12 @@ export const gerarXlsx = async ({ modelo, rows, titulo, orientacao }) => {
       c.border = BORDA(e.borda);
       if (e.zebra && par) c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: e.zebra } };
     });
+    const corCom = !agrupado && cores[up(r.comercial)];
+    if (corCom) {
+      const cc = row.getCell(1);
+      cc.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + corCom.slice(1).toUpperCase() } };
+      cc.font = { size: e.fonte, bold: true, color: { argb: corTexto(corCom) === '#ffffff' ? 'FFFFFFFF' : 'FF1B2430' } };
+    }
     const setorCel = row.getCell(4 + off);
     const sim = vals[3 + off] === 'SIM';
     if (modelo !== 'compacto') {
@@ -436,7 +452,7 @@ export const gerarXlsx = async ({ modelo, rows, titulo, orientacao }) => {
 
   if (agrupado) {
     gruposComercial(validas).forEach((g, gi) => {
-      const cor = CORES_GRUPO[gi % CORES_GRUPO.length].argb;
+      const cor = cores[g.nome] ? 'FF' + cores[g.nome].slice(1).toUpperCase() : CORES_GRUPO[gi % CORES_GRUPO.length].argb;
       const row = ws.addRow([`${g.nome}  ·  ${g.itens.length} ${g.itens.length === 1 ? 'cliente' : 'clientes'}`]);
       ws.mergeCells(row.number, 1, row.number, n);
       row.height = 24;
@@ -462,7 +478,7 @@ export const gerarXlsx = async ({ modelo, rows, titulo, orientacao }) => {
     dados.forEach((r, i) => {
       const w = pesoPeriodo(r.periodo); const novo = modelo === 'sequencial' && w !== ant;
       if (novo) gi++; ant = w;
-      escreverLinha(r, modelo === 'sequencial' ? gi % 2 === 1 : i % 2 === 1);
+      escreverLinha(r, i % 2 === 1);
       if (novo && i > 0) { // linha mais grossa separando um dia do outro
         const row = ws.getRow(ws.rowCount);
         for (let c = 1; c <= n; c++) row.getCell(c).border = { ...BORDA(e.borda), top: { style: 'medium', color: { argb: e.head } } };
