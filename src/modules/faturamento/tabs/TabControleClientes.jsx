@@ -3,9 +3,11 @@ import { T } from '../../../contexts/theme';
 import { StarDivider } from '../../../shared/components';
 import { useIsMobile } from '../../../hooks/useIsMobile';
 import { StellarHero } from '../StellarHero';
+import { USER } from '../../../contexts/user';
+import { ehDoFaturamento, salvarCronograma, montarCronograma } from '../../../shared/listaTarefas';
 import {
   MODELOS, METODOS, CATEGORIAS, PERIODOS, linhaVazia, linhasValidas,
-  importarPlanilha, montarHtml, gerarXlsx,
+  importarPlanilha, montarHtml, gerarXlsx, expandir,
 } from '../controleClientes';
 
 /* ═══════════════════════════════════════════════════════════════
@@ -89,6 +91,20 @@ export const TabControleClientes = () => {
   const validas = linhasValidas(rows);
   const comerciais = useMemo(() => [...new Set(rows.map((r) => (r.comercial || '').trim().toUpperCase()).filter(Boolean))], [rows]);
   const html = useMemo(() => montarHtml({ modelo, rows, titulo, orientacao, cores, tema }), [modelo, rows, titulo, orientacao, cores, tema]);
+
+  /* Setor de faturamento: a carteira vira o cronograma pessoal em Meus Lembretes → Lista de Tarefas
+     (clientes do dia da semana). Só envia para quem está marcado como Faturamento em Colegas. */
+  const [ehFat, setEhFat] = useState(false);
+  const [cronoStatus, setCronoStatus] = useState(''); // '' | 'ok' | 'erro'
+  useEffect(() => { let vivo = true; ehDoFaturamento(USER.name).then((v) => { if (vivo) setEhFat(v); }); return () => { vivo = false; }; }, []);
+  useEffect(() => {
+    if (!ehFat || !validas.length) return undefined;
+    const t = setTimeout(async () => {
+      const ok = await salvarCronograma(USER.name, montarCronograma(expandir(validas)));
+      setCronoStatus(ok ? 'ok' : 'erro');
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [ehFat, rows]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { if (!msg) return undefined; const t = setTimeout(() => setMsg(''), 5000); return () => clearTimeout(t); }, [msg]);
 
@@ -238,6 +254,7 @@ export const TabControleClientes = () => {
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '10px 4px 0' }}>
           <button style={btnGhost} onClick={adicionar}>+ Adicionar cliente</button>
           <span style={{ fontSize: 12.5, color: T.textT }}>{validas.length} {validas.length === 1 ? 'cliente' : 'clientes'} · salvo automaticamente neste computador</span>
+          {ehFat && <span style={{ fontSize: 12.5, color: cronoStatus === 'erro' ? '#C04050' : '#1A9060' }}>{cronoStatus === 'erro' ? 'Não consegui enviar o cronograma para a Lista de Tarefas' : cronoStatus === 'ok' ? '✓ Cronograma enviado para Meus Lembretes → Lista de Tarefas' : 'Seu cronograma vai para Meus Lembretes → Lista de Tarefas'}</span>}
         </div>
       </div>
 

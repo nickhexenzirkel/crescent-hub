@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { T } from '../../contexts/theme';
-import { supabase as _supabase } from '../../contexts/user';
+import { supabase as _supabase, getAuthUser } from '../../contexts/user';
+import ListaTarefas from './ListaTarefas';
 import { Card, StarDivider } from '../../shared/components';
 import { notifyDesktop, ensureNotifyPermission, notifyPermission } from '../../utils/desktopNotify';
 import { checkExtensionInfo, extensaoDesatualizada, LATEST_EXTENSION_VERSION } from '../../utils/checkExtension';
@@ -191,10 +192,10 @@ const CentralLembretes = ({ onBack, authUser }) => {
         <img src="/UNIKO_LOGO.png" alt="Uniko" style={{ width:40, height:40, borderRadius:10, objectFit:'contain' }}/>
         <div>
           <div style={{ fontFamily:'var(--font-brand)', fontSize:22, fontWeight:700, color:T.text, letterSpacing:'.04em' }}>
-            {activeTab === 'lembretes' ? 'Meus Lembretes' : 'Minhas Anotações'}
+            {activeTab === 'lembretes' ? 'Meus Lembretes' : activeTab === 'tarefas' ? 'Lista de Tarefas' : 'Minhas Anotações'}
           </div>
           <div style={{ fontSize:13, color:T.textT, marginTop:2 }}>
-            {activeTab === 'lembretes' ? 'O Uniko te avisa no horário' : 'Suas notas pessoais'} · {userName}
+            {activeTab === 'lembretes' ? 'O Uniko te avisa no horário' : activeTab === 'tarefas' ? 'Seu checklist diário e o quanto você concluiu' : 'Suas notas pessoais'} · {userName}
           </div>
         </div>
         <div style={{ flex:1 }}/>
@@ -244,10 +245,10 @@ const CentralLembretes = ({ onBack, authUser }) => {
             </div>
           )}
         </div>
-        <button onClick={activeTab === 'lembretes' ? openNewL : openNewN} style={{ display:'flex', alignItems:'center', gap:7, padding:'10px 20px', borderRadius:12, border:'none', cursor:'pointer', background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`, color:'white', fontWeight:700, fontSize:13, fontFamily:'var(--font-body)', boxShadow:`0 3px 12px ${T.gold}44` }}>
+        {activeTab !== 'tarefas' && <button onClick={activeTab === 'lembretes' ? openNewL : openNewN} style={{ display:'flex', alignItems:'center', gap:7, padding:'10px 20px', borderRadius:12, border:'none', cursor:'pointer', background:`linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)`, color:'white', fontWeight:700, fontSize:13, fontFamily:'var(--font-body)', boxShadow:`0 3px 12px ${T.gold}44` }}>
           <Ico d={<><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></>} size={12} stroke="white"/>
           {activeTab === 'lembretes' ? 'Novo Lembrete' : 'Nova Anotação'}
-        </button>
+        </button>}
       </div>
 
       {extDesatualizada && (
@@ -282,6 +283,13 @@ const CentralLembretes = ({ onBack, authUser }) => {
             label: <span style={{display:'flex',alignItems:'center',gap:6}}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
               Anotações
+            </span>,
+          },
+          {
+            id:'tarefas',
+            label: <span style={{display:'flex',alignItems:'center',gap:6}}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+              Lista de Tarefas
             </span>,
           },
         ].map(tab => (
@@ -411,6 +419,11 @@ const CentralLembretes = ({ onBack, authUser }) => {
                 </div>
           }
         </>
+      )}
+
+      {/* ══════════════ ABA LISTA DE TAREFAS ══════════════ */}
+      {activeTab === 'tarefas' && (
+        <ListaTarefas userName={userName} podeVerEquipe={['admin', 'moderador'].includes(getAuthUser()?.role)}/>
       )}
 
       {/* ══════════════ MODAL LEMBRETE ══════════════ */}
