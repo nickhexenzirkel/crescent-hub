@@ -106,6 +106,9 @@ const cssTema = (modelo, o) => {
   return c;
 };
 
+/* Linha de separação na cor do modelo: '' (nenhuma, padrão), 'fina' ou 'grossa'. linhasGrossas é o nome antigo da opção. */
+const separador = (tema) => tema.separador || (tema.linhasGrossas ? 'grossa' : '');
+
 export const linhasValidas = (rows) => rows.filter((r) => (r.cliente || '').trim());
 
 /* Ordem de prioridade das linhas: pelo período (segunda → ... → solicitação). Período fora da lista vai pro fim.
@@ -361,7 +364,7 @@ window.addEventListener('load',ajusta);
 })()`;
 
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>${esc(titulo || 'Controle de Clientes')}</title>
-<style>@page{size:A4 ${orientacao};margin:${mm}mm}${CSS_BASE}${CSS_MODELO[modelo] || ''}${cssTema(modelo, resolverTema(modelo, tema))}${tema.linhasGrossas ? `tbody td{border-top:2px solid ${resolverTema(modelo, tema).head || (MODELOS.find((m) => m.id === modelo) || {}).cor || '#000'}}` : ''}
+<style>@page{size:A4 ${orientacao};margin:${mm}mm}${CSS_BASE}${CSS_MODELO[modelo] || ''}${cssTema(modelo, resolverTema(modelo, tema))}${separador(tema) ? `tbody td{border-top:${separador(tema) === 'grossa' ? 2 : 1}px solid ${resolverTema(modelo, tema).head || (MODELOS.find((m) => m.id === modelo) || {}).cor || '#000'}}` : ''}
 #wrap{width:${availW}px;overflow:hidden}
 @media screen{.folha{width:${px(pagW)}px;height:${px(pagH)}px;padding:${px(mm)}px;overflow:hidden}}
 @media print{.folha{width:${availW}px;height:auto;padding:0;box-shadow:none}html,body{background:#fff;padding:0;margin:0}}</style></head>
@@ -461,8 +464,8 @@ export const gerarXlsx = async ({ modelo, rows, titulo, orientacao, cores = {}, 
       c.border = BORDA(e.borda);
       if (e.zebra && par) c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: e.zebra } };
     });
-    if (tema.linhasGrossas) {
-      const topo = { style: 'medium', color: { argb: modelo === 'compacto' ? 'FF000000' : e.head } };
+    if (separador(tema)) {
+      const topo = { style: separador(tema) === 'grossa' ? 'medium' : 'thin', color: { argb: modelo === 'compacto' ? 'FF000000' : e.head } };
       row.eachCell({ includeEmpty: true }, (c) => { c.border = { ...c.border, top: topo }; });
     }
     const corCom = !agrupado && cores[up(r.comercial)];

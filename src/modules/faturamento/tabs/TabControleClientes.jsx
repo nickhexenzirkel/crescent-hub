@@ -270,11 +270,20 @@ export const TabControleClientes = () => {
                 </div>
               ))}
             </div>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 14, cursor: 'pointer', fontSize: 13.5, color: T.text }}>
-              <input type="checkbox" checked={!!tema.linhasGrossas} onChange={(e) => setTema('linhasGrossas', e.target.checked)} style={{ width: 17, height: 17, cursor: 'pointer' }} />
-              <span><strong>Linhas grossas</strong> separando todas as linhas <span style={{ color: T.textT }}>(desligado por padrão)</span></span>
-            </label>
-          </div>
+            <div style={{ marginTop: 16 }}>
+              <label style={labelStyle}>Linhas separando as linhas (na cor do modelo)</label>
+              <div style={{ display: 'inline-flex', border: `1px solid ${T.border}`, borderRadius: 10, overflow: 'hidden' }}>
+                {[['', 'Sem linhas'], ['fina', 'Finas'], ['grossa', 'Grossas']].map(([id, nome]) => {
+                  const atual = tema.separador || (tema.linhasGrossas ? 'grossa' : '');
+                  return (
+                    <button key={id || 'nenhuma'} onClick={() => { setTema('linhasGrossas', null); setTema('separador', id); }} style={{
+                      padding: '8px 18px', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: 13.5, fontWeight: 600,
+                      background: atual === id ? T.gold : T.surface, color: atual === id ? '#fff' : T.textS,
+                    }}>{nome}</button>
+                  );
+                })}
+              </div>
+            </div>          </div>
         );
       })()}
 
