@@ -66,6 +66,21 @@ export const agruparPorComercial = (rows) => {
 
 export const linhasValidas = (rows) => rows.filter((r) => (r.cliente || '').trim());
 
+/* Ordem de prioridade das linhas: pelo período (segunda → ... → solicitação). Período fora da lista vai pro fim.
+   'TERÇA E SEXTA' vale pelo primeiro dia que aparece na prioridade. Ordenação estável: empate mantém a ordem digitada. */
+const PRIORIDADE_PERIODO = ['segunda', 'terca', 'quarta', 'quinta', 'sexta', 'decen', 'quinzen', 'mensal', 'solicit'];
+const pesoPeriodo = (p) => {
+  const t = norm(p);
+  const i = PRIORIDADE_PERIODO.map((k) => (t.includes(k) ? PRIORIDADE_PERIODO.indexOf(k) : 99));
+  return Math.min(...i);
+};
+export const ordenarPorPeriodo = (rows) => rows
+  .map((r, i) => ({ r, i, w: pesoPeriodo(r.periodo) }))
+  .sort((a, b) => a.w - b.w || a.i - b.i)
+  .map((x) => x.r);
+/* Comercial na ordem em que foram digitados; dentro de cada um, por período. */
+const gruposComercial = (validas) => agruparPorComercial(validas).map((g) => ({ ...g, itens: ordenarPorPeriodo(g.itens) }));
+
 const partes = (s) => String(s ?? '').split('/').map((x) => x.trim()).filter(Boolean);
 const unicos = (a) => [...new Set(a)];
 
@@ -138,7 +153,7 @@ h1{margin:0 0 4px;text-align:center;letter-spacing:.04em}
 table{width:100%;border-collapse:collapse;table-layout:fixed}
 thead{display:table-header-group}
 tr{page-break-inside:avoid}
-td,th{padding:6px 8px;vertical-align:middle;word-wrap:break-word;overflow-wrap:anywhere}
+td,th{padding:4px 7px;vertical-align:middle;word-wrap:break-word;overflow-wrap:anywhere}
 td.c,th.c{text-align:center}
 .tag{display:inline-block;padding:2px 9px;border-radius:999px;font-weight:700;font-size:.92em}
 @media screen{ body{background:#e5e7eb;padding:16px} .folha{background:#fff;margin:0 auto;box-shadow:0 4px 22px rgba(0,0,0,.18)} }
@@ -195,7 +210,8 @@ td{font-size:10.5px;padding:3px 6px;border:1px solid #777}
 };
 
 export const montarHtml = ({ modelo, rows, titulo, orientacao }) => {
-  const lista = linhasValidas(rows);
+  const validas = linhasValidas(rows);
+  const lista = ordenarPorPeriodo(validas);
   const hoje = new Date().toLocaleDateString('pt-BR');
   const agrupado = modelo === 'agrupado';
   const porPeriodo = modelo === 'porperiodo';
@@ -225,23 +241,40 @@ export const montarHtml = ({ modelo, rows, titulo, orientacao }) => {
       + `<td>${esc(r.obs)}</td>`;
   };
 
-  let corpo = '';
+  const blocos = []; // cada bloco é um pedaço que não pode ser cortado ao meio (linha, cliente ou comercial)
   if (agrupado) {
-    agruparPorComercial(dados).forEach((g, i) => {
+    gruposComercial(validas).forEach((g, i) => {
       const cor = CORES_GRUPO[i % CORES_GRUPO.length].hex;
-      corpo += `<tr class="grp"><td colspan="6" style="background:${cor}">${esc(g.nome)}<span>${g.itens.length} ${g.itens.length === 1 ? 'cliente' : 'clientes'}</span></td></tr>`;
-      for (const r of g.itens) corpo += `<tr class="it">${celulas(r, false)}</tr>`;
+      let b = `<tr class="grp"><td colspan="6" style="background:${cor}">${esc(g.nome)}<span>${g.itens.length} ${g.itens.length === 1 ? 'cliente' : 'clientes'}</span></td></tr>`;
+      for (const r of g.itens) b += `<tr class="it">${celulas(r, false)}</tr>`;
+      blocos.push(b);
     });
   } else if (porPeriodo) {
     agruparPorCliente(dados).forEach((g, gi) => {
+      let b = '';
       g.itens.forEach((r, i) => {
-        corpo += `<tr class="${i === 0 ? 'ini ' : ''}${gi % 2 ? 'odd' : ''}">${i === 0 ? celulas(r, true, g.itens.length) : celulas(r, 'sem')}</tr>`;
+        b += `<tr class="${i === 0 ? 'ini ' : ''}${gi % 2 ? 'odd' : ''}">${i === 0 ? celulas(r, true, g.itens.length) : celulas(r, 'sem')}</tr>`;
       });
+      blocos.push(b);
     });
   } else {
-    for (const r of dados) corpo += `<tr>${celulas(r, true)}</tr>`;
+    for (const r of dados) blocos.push(`<tr>${celulas(r, true)}</tr>`);
   }
-  if (!dados.length) corpo = `<tr><td colspan="${cols.length}" style="text-align:center;color:#888;padding:28px">Adicione clientes para ver o documento aqui.</td></tr>`;
+  const tabela = (bl) => `<table>${colgroup}${thead}<tbody>${bl.join('')}</tbody></table>`;
+  const totalTr = blocos.reduce((n, b) => n + (b.match(/<tr/g) || []).length, 0);
+  /* Horizontal com lista grande: duas tabelas lado a lado. A folha deitada é larga e baixa; numa coluna só a letra
+     precisava encolher demais pra caber a lista inteira na altura. */
+  const duas = orientacao === 'landscape' && totalTr > 16;
+  let tabelas;
+  if (!dados.length) {
+    tabelas = tabela([`<tr><td colspan="${cols.length}" style="text-align:center;color:#888;padding:28px">Adicione clientes para ver o documento aqui.</td></tr>`]);
+  } else if (duas) {
+    const a = []; const b = []; let n = 0;
+    for (const bl of blocos) { (n < totalTr / 2 ? a : b).push(bl); n += (bl.match(/<tr/g) || []).length; }
+    tabelas = `<div style="display:flex;gap:16px;align-items:flex-start"><div style="flex:1;min-width:0">${tabela(a)}</div>${b.length ? `<div style="flex:1;min-width:0">${tabela(b)}</div>` : ''}</div>`;
+  } else {
+    tabelas = tabela(blocos);
+  }
 
   const legenda = modelo === 'colorido'
     ? `<div class="leg"><span><i style="background:${COR_CAT.abast.bg}"></i>Abastecimento</span><span><i style="background:${COR_CAT.manut.bg}"></i>Manutenção</span><span><i style="background:${COR_CAT.ambos.bg}"></i>Abast. + Manut.</span></div>`
@@ -278,7 +311,7 @@ ajusta();zoomTela();
 @media print{.folha{width:${availW}px;height:auto;padding:0;box-shadow:none}html,body{background:#fff;padding:0;margin:0}}</style></head>
 <body><div class="folha"><div id="wrap"><div id="fit"><h1>${esc((titulo || 'CONTROLE DE CLIENTES').toUpperCase())}</h1>
 <div class="sub">${nCli} ${nCli === 1 ? 'cliente' : 'clientes'} · atualizado em ${hoje}</div>${legenda}
-<table>${colgroup}${thead}<tbody>${corpo}</tbody></table></div></div></div>
+${tabelas}</div></div></div>
 <script>${script}</script>
 </body></html>`;
 };
@@ -297,7 +330,8 @@ const ESTILO_XLSX = {
 
 export const gerarXlsx = async ({ modelo, rows, titulo, orientacao }) => {
   const { default: ExcelJS } = await import('exceljs');
-  const lista = linhasValidas(rows);
+  const validas = linhasValidas(rows);
+  const lista = ordenarPorPeriodo(validas);
   const e = ESTILO_XLSX[modelo] || ESTILO_XLSX.classico;
   const agrupado = modelo === 'agrupado';
   const porPeriodo = modelo === 'porperiodo';
@@ -383,7 +417,7 @@ export const gerarXlsx = async ({ modelo, rows, titulo, orientacao }) => {
   };
 
   if (agrupado) {
-    agruparPorComercial(dados).forEach((g, gi) => {
+    gruposComercial(validas).forEach((g, gi) => {
       const cor = CORES_GRUPO[gi % CORES_GRUPO.length].argb;
       const row = ws.addRow([`${g.nome}  ·  ${g.itens.length} ${g.itens.length === 1 ? 'cliente' : 'clientes'}`]);
       ws.mergeCells(row.number, 1, row.number, n);
