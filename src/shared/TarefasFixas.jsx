@@ -18,6 +18,8 @@ const lerGeo = () => {
   return null;
 };
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const CHAVE_MIN_POS = 'uniko_tarefas_fixas_min_pos';
+const ajustarMin = (p) => ({ x: clamp(p.x, 4, Math.max(4, window.innerWidth - 68)), y: clamp(p.y, 4, Math.max(4, window.innerHeight - 64)) });
 // Mantém o card dentro da janela (a tela pode ter ficado menor desde a última vez).
 const ajustar = (g) => {
   const w = clamp(g.w, LIM.wMin, Math.max(LIM.wMin, Math.min(LIM.wMax, window.innerWidth - 8)));
@@ -62,8 +64,27 @@ function Painel({ authUser, desafixar }) {
     window.addEventListener('pointermove', mexe); window.addEventListener('pointerup', solta);
   };
 
+  // Ícone minimizado: posição própria, arrastável (clique sem mover abre).
+  const [pm, setPm] = useState(() => { try { const g = JSON.parse(localStorage.getItem(CHAVE_MIN_POS)); if (g && isFinite(g.x) && isFinite(g.y)) return g; } catch {} return null; });
+  const posMin = ajustarMin(pm || { x:geo.x + geo.w - 64, y:geo.y });
+  const pmRef = useRef(posMin); pmRef.current = posMin;
+  const arrastarMin = (e) => {
+    if (e.button !== undefined && e.button !== 0) return;
+    const x0 = e.clientX, y0 = e.clientY, p0 = pmRef.current; let moveu = false;
+    const mexe = (ev) => {
+      const dx = ev.clientX - x0, dy = ev.clientY - y0;
+      if (!moveu && Math.hypot(dx, dy) < 5) return;
+      moveu = true; setPm(ajustarMin({ x:p0.x + dx, y:p0.y + dy }));
+    };
+    const solta = () => {
+      window.removeEventListener('pointermove', mexe); window.removeEventListener('pointerup', solta);
+      if (moveu) { try { localStorage.setItem(CHAVE_MIN_POS, JSON.stringify(pmRef.current)); } catch {} } else trocar();
+    };
+    window.addEventListener('pointermove', mexe); window.addEventListener('pointerup', solta);
+  };
+
   if (min) return (
-    <button onClick={trocar} title="Abrir tarefas de hoje" style={{ position:'fixed', left:geo.x + geo.w - 64, top:geo.y, zIndex:9000, width:64, padding:'8px 0 6px', borderRadius:16, border:'none', cursor:'pointer',
+    <button onPointerDown={arrastarMin} title="Arraste para mover · clique para abrir" style={{ position:'fixed', left:posMin.x, top:posMin.y, zIndex:9000, touchAction:'none', userSelect:'none', width:64, padding:'8px 0 6px', borderRadius:16, border:'none', cursor:'grab',
       background:COR, color:'#fff', fontFamily:'inherit', display:'flex', flexDirection:'column', alignItems:'center', gap:3, boxShadow:'0 6px 20px rgba(0,0,0,.25)' }}>
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
         <rect x="5" y="4" width="14" height="17" rx="2.5"/><path d="M9 4V3h6v1"/><polyline points="9 13 11.2 15.2 15.2 10.8"/>

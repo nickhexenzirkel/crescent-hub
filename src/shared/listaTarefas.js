@@ -40,17 +40,38 @@ export const ehDoFaturamento = async (nome) => {
 /* ── lista pessoal ── */
 export const listaVazia = () => ({ tarefas: [], feitas: {} });
 
+/* Cópia local de segurança: se a leitura do Supabase falhar, a tela mostra isto e NÃO deixa salvar por cima. */
+const bkKey = (nome) => 'uniko_lista_tarefas_bk:' + nome;
+const lerBackup = (nome) => { try { const v = JSON.parse(localStorage.getItem(bkKey(nome))); if (v && Array.isArray(v.tarefas)) return { tarefas: v.tarefas, feitas: v.feitas || {} }; } catch {} return null; };
+const gravarBackup = (nome, l) => { try { localStorage.setItem(bkKey(nome), JSON.stringify({ tarefas: l.tarefas, feitas: l.feitas })); } catch {} };
+
 export const carregarLista = async (nome) => {
   try {
-    const { data } = await supabase.from('settings').select('value').eq('key', KEY_LISTA + nome).maybeSingle();
+    const { data, error } = await supabase.from('settings').select('value').eq('key', KEY_LISTA + nome).maybeSingle();
+    if (error) throw error;
     const v = parse(data?.value, null);
-    return v && Array.isArray(v.tarefas) ? { tarefas: v.tarefas, feitas: v.feitas || {} } : listaVazia();
-  } catch { return listaVazia(); }
+    const l = v && Array.isArray(v.tarefas) ? { tarefas: v.tarefas, feitas: v.feitas || {} } : listaVazia();
+    gravarBackup(nome, l);
+    return l;
+  } catch { return { ...(lerBackup(nome) || listaVazia()), falhou: true }; } // falhou: leitura não deu certo, não regravar
 };
 
 export const salvarLista = async (nome, lista) => {
-  const { error } = await supabase.from('settings').upsert({ key: KEY_LISTA + nome, value: JSON.stringify(lista) }, { onConflict: 'key' });
-  return !error;
+  if (lista.falhou) return false;
+  try {
+    // Junta tarefas criadas em outra tela/aparelho que esta cópia ainda não conhecia (evita apagar por cópia velha).
+    const { data } = await supabase.from('settings').select('value').eq('key', KEY_LISTA + nome).maybeSingle();
+    const remoto = parse(data?.value, null);
+    let tarefas = lista.tarefas;
+    if (remoto && Array.isArray(remoto.tarefas)) {
+      const ids = new Set(tarefas.map((t) => t.id));
+      tarefas = [...tarefas, ...remoto.tarefas.filter((t) => !ids.has(t.id))];
+    }
+    const final = { tarefas, feitas: lista.feitas || {} };
+    gravarBackup(nome, final);
+    const { error } = await supabase.from('settings').upsert({ key: KEY_LISTA + nome, value: JSON.stringify(final) }, { onConflict: 'key' });
+    return !error;
+  } catch { return false; }
 };
 
 /* Todas as listas (para o admin/moderador comparar a equipe). */
