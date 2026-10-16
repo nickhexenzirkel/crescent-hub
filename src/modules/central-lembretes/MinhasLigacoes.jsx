@@ -73,7 +73,14 @@ export default function MinhasLigacoes() {
     }
     setCarregando(false);
   }, [eu?.id]);
-  useEffect(() => { carregar(); const t = setInterval(carregar, 60000); return () => clearInterval(t); }, [carregar]);
+  // Ligação nova entra sozinha: atualiza a cada poucos segundos (aba visível) e ao voltar pra aba.
+  useEffect(() => {
+    carregar();
+    const tick = () => { if (!document.hidden) carregar(); };
+    const t = setInterval(tick, 6000);
+    document.addEventListener('visibilitychange', tick); window.addEventListener('focus', tick);
+    return () => { clearInterval(t); document.removeEventListener('visibilitychange', tick); window.removeEventListener('focus', tick); };
+  }, [carregar]);
 
   const contatos = useMemo(() => {
     const m = new Map();

@@ -196,8 +196,8 @@ const btnStyle = (variant) => {
   return { ...base, background: T.surfaceSub || 'rgba(0,0,0,0.04)', color: T.textS, border: `1px solid ${T.border}` };
 };
 
-const CONTACTS_POLL_MS = 25000;
-const CALLS_POLL_MS = 10000; // mais rápido que o Security — transcrição pode terminar minutos depois da chamada
+const CONTACTS_POLL_MS = 5000; // ligação nova aparece em poucos segundos, sem F5
+const CALLS_POLL_MS = 4000; // transcrição pode terminar minutos depois da chamada
 
 const UnikoCall = ({ onBack }) => {
   const isMobile = useIsMobile();
@@ -245,7 +245,16 @@ const UnikoCall = ({ onBack }) => {
     setLoadingRecs(false);
   };
   useEffect(() => { loadContacts(); loadRecs(); }, []);
-  useEffect(() => { const t = setInterval(() => { loadContacts(); loadRecs(); }, CONTACTS_POLL_MS); return () => clearInterval(t); }, []);
+  // Atualiza sozinho: a cada poucos segundos com a aba visível e na hora que volta pra ela (aba em segundo
+  // plano tem timers adiados pelo navegador — era por isso que a ligação "não aparecia" sem F5).
+  useEffect(() => {
+    // contatos a cada 5 s (leve); o resumo de todas as chamadas (até 5000 linhas) só a cada ~30 s ou ao voltar pra aba.
+    let n = 0;
+    const tick = () => { if (document.hidden) return; loadContacts(); if (n++ % 6 === 0) loadRecs(); };
+    const t = setInterval(tick, CONTACTS_POLL_MS);
+    document.addEventListener('visibilitychange', tick); window.addEventListener('focus', tick);
+    return () => { clearInterval(t); document.removeEventListener('visibilitychange', tick); window.removeEventListener('focus', tick); };
+  }, []);
 
   const loadCalls = async (contactId, { silent = false } = {}) => {
     if (!silent) setLoadingCalls(true);
@@ -257,8 +266,10 @@ const UnikoCall = ({ onBack }) => {
   const selectContact = (id) => { setSelectedContactId(id); setChatFrom(''); setChatTo(''); setFocusCallId(null); loadCalls(id); };
   useEffect(() => {
     if (!selectedContactId) return;
-    const t = setInterval(() => loadCalls(selectedContactId, { silent: true }), CALLS_POLL_MS);
-    return () => clearInterval(t);
+    const tick = () => { if (!document.hidden) loadCalls(selectedContactId, { silent: true }); };
+    const t = setInterval(tick, CALLS_POLL_MS);
+    document.addEventListener('visibilitychange', tick); window.addEventListener('focus', tick);
+    return () => { clearInterval(t); document.removeEventListener('visibilitychange', tick); window.removeEventListener('focus', tick); };
   }, [selectedContactId]);
   useEffect(() => { const el = chatScrollRef.current; if (el) el.scrollTop = el.scrollHeight; }, [calls]);
 
