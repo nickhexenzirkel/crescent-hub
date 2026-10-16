@@ -61,7 +61,8 @@ async function startCapture(streamId, contactName, avisoRecent = false, attendan
   // Somar duas vozes no volume cheio estoura 100% e distorce ("grunhidos" na voz de quem está na linha).
   // Cada fonte entra com ganho 0,8 e um limitador suave segura os picos antes de gravar.
   const tabGain = audioContext.createGain(); tabGain.gain.value = 0.7;
-  const micGain = audioContext.createGain(); micGain.gain.value = 0.7;
+  const micGain = audioContext.createGain(); micGain.gain.value = 1.5;
+  startMicAgc(micSrc, micGain);
   const limiter = audioContext.createDynamicsCompressor();
   // Limitador SUAVE (joelho largo, taxa moderada): o duro anterior (joelho 0, taxa 20) distorcia nos picos.
   // O ganho de saída 0,9 garante que nada passe de 0 dBFS (a gravação anterior chegou a +2,4 dB).
@@ -87,6 +88,29 @@ async function startCapture(streamId, contactName, avisoRecent = false, attendan
   chrome.runtime.sendMessage({ type: 'UNIKO_CALL_STATE', state: 'recording' }).catch(() => {});
 }
 
+// Nivelador automático do microfone (v1.7.6). Com ganho automático do navegador DESLIGADO (ele bombeava e
+// distorcia), a voz de quem fala baixo ou com o mic do Windows em nível baixo saía "no fundo de um quarto" e
+// a transcrição errava. Aqui o ganho sobe devagar até a voz ficar num nível alto e constante (alvo ~ -18 dBFS)
+// e desce RÁPIDO se estourar; abaixo do piso de ruído (-44 dBFS) o ganho não sobe — não amplifica chiado.
+let agcTimer = null;
+function startMicAgc(micSrc, micGain) {
+  const an = audioContext.createAnalyser(); an.fftSize = 2048; micSrc.connect(an);
+  const buf = new Float32Array(2048);
+  const ALVO = 0.125, PISO = 0.006, G_MIN = 1, G_MAX = 10;
+  let nivel = 0, ganho = 1.5;
+  clearInterval(agcTimer);
+  agcTimer = setInterval(() => {
+    an.getFloatTimeDomainData(buf);
+    let q = 0; for (let i = 0; i < buf.length; i++) q += buf[i] * buf[i];
+    const rms = Math.sqrt(q / buf.length);
+    nivel = Math.max(rms, nivel * 0.92); // segura o nível entre palavras (~1 s) pra não "puxar" o ganho nas pausas
+    if (nivel < PISO) return;
+    const desejado = Math.min(G_MAX, Math.max(G_MIN, ALVO / nivel));
+    ganho += (desejado - ganho) * (desejado < ganho ? 0.35 : 0.04);
+    micGain.gain.setTargetAtTime(ganho, audioContext.currentTime, 0.08);
+  }, 100);
+}
+
 // Mede o pico de volume da aba e do microfone durante a gravação e loga ao parar —
 // mostra de que lado vem o silêncio, se voltar a acontecer.
 let levelTimer = null;
@@ -107,7 +131,7 @@ function startLevelMeter(tabSrc, micSrc) {
 }
 
 function stopCapture() {
-  clearInterval(levelTimer);
+  clearInterval(levelTimer); clearInterval(agcTimer);
   console.log('[uniko-call] picos de volume — aba:', peaks.tab.toFixed(3), 'microfone:', peaks.mic.toFixed(3), '(0 = mudo)');
   console.log('[uniko-call] stopCapture() chamado — recorder existe?', !!recorder, 'state:', recorder?.state);
   if (recorder && recorder.state !== 'inactive') recorder.stop();
