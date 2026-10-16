@@ -509,7 +509,23 @@ const UnikoFace = ({ size, src, talking, skin }) => {
 };
 
 const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) => {
-  const [open, setOpen] = useState(false);          // painel de chat aberto?
+  const lerFixado = () => { try { return localStorage.getItem('uniko_assistente_fixado') === '1'; } catch { return false; } };
+  const [fixado, setFixado] = useState(lerFixado);         // painel fixo: fica aberto, sem fechar sozinho
+  const fixadoRef = useRef(fixado); fixadoRef.current = fixado;
+  const alternarFixado = () => setFixado((f) => { try { localStorage.setItem('uniko_assistente_fixado', f ? '0' : '1'); } catch {} return !f; });
+  const [open, setOpen] = useState(lerFixado);          // painel de chat aberto?
+  const GEO_KEY = 'uniko_assistente_geo';
+  const ajustaGeo = (g) => { const w = Math.max(300, Math.min(g.w, window.innerWidth - 8)); const h = Math.max(280, Math.min(g.h, window.innerHeight - 8)); return { w, h, x: Math.max(4, Math.min(g.x, window.innerWidth - w - 4)), y: Math.max(4, Math.min(g.y, window.innerHeight - h - 4)) }; };
+  const [geo, setGeo] = useState(() => { let g = null; try { g = JSON.parse(localStorage.getItem(GEO_KEY)); } catch {} return ajustaGeo(g && isFinite(g.x) && isFinite(g.w) ? g : { w: 380, h: 480, x: window.innerWidth - 420, y: window.innerHeight - 560 }); });
+  const geoRef = useRef(geo); geoRef.current = geo;
+  const iniciarGeo = (modo) => (e) => {
+    if (!fixadoRef.current || (e.button !== undefined && e.button !== 0)) return;
+    e.preventDefault();
+    const x0 = e.clientX, y0 = e.clientY, g0 = geoRef.current;
+    const mexe = (ev) => { const dx = ev.clientX - x0, dy = ev.clientY - y0; setGeo(ajustaGeo(modo === 'mover' ? { ...g0, x: g0.x + dx, y: g0.y + dy } : { ...g0, w: g0.w + dx, h: g0.h + dy })); };
+    const solta = () => { window.removeEventListener('pointermove', mexe); window.removeEventListener('pointerup', solta); try { localStorage.setItem(GEO_KEY, JSON.stringify(geoRef.current)); } catch {} };
+    window.addEventListener('pointermove', mexe); window.addEventListener('pointerup', solta);
+  };
   const [skinId, setSkinId] = useState(getActiveAssistantSkinId); // skin do assistente (default | uniko capturado)
   const [scale, setScale] = useState(getAssistantScale); // preferência pessoal de tamanho (Coleção)
   const [captureAlert, setCaptureAlert] = useState(null); // Uniko disponível pra capturar (só no Portal)
@@ -693,7 +709,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
       ? `${notif.title}: ${notif.message}`
       : `Ei, lembra de: ${notif.message}`;
     say(txt, { sprite: imgRef.current[notifSprite(notif)], dismissable: true, onOk: () => onDismissNotif && onDismissNotif(notif.id) });
-    if (openRef.current) setOpen(false);
+    if (openRef.current && !fixadoRef.current) setOpen(false);
   }, [notif, say]);
 
   // Skin do assistente pode mudar (quando o usuário "usa como assistente" um Uniko capturado).
@@ -1149,7 +1165,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
       dragRef.current = null;
       setDragging(false);
       if (!d) return;
-      if (!d.moved) { setOpen(o => !o); return; } // foi um toque/clique → abre o chat
+      if (!d.moved) { setOpen(o => (fixadoRef.current ? true : !o)); return; } // foi um toque/clique → abre o chat
 
       // ── ARREMESSO: soltou o assistente em cima do Uniko OU do Número do widget? ──
       // Os dois alvos possíveis, na mesma ordem/forma de captureBarriers() acima —
@@ -1225,7 +1241,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
   // OU zoom do navegador) — recalcula do dock salvo em vez de só limitar a posição antiga
   // (isso é o que fazia o robô "flutuar" no meio da tela ao encolher a janela pela metade).
   useEffect(() => {
-    const onResize = () => setPos(dockToPixels(loadDock(), iconRef.current, marginRef.current));
+    const onResize = () => { setPos(dockToPixels(loadDock(), iconRef.current, marginRef.current)); setGeo((g) => ajustaGeo(g)); };
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
@@ -1390,15 +1406,16 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
 
       {/* ── Painel de chat ── */}
       {open && (
-        <div style={{ pointerEvents: 'auto', position: 'absolute', ...(onLeft ? { left: 0 } : { right: 0 }), ...(onTop ? { top: ICON + 22 } : { bottom: ICON + 22 }), width: chatMode === 'blog' ? 'min(460px, calc(100vw - 36px))' : 'min(360px, calc(100vw - 36px))', height: chatMode === 'blog' ? 560 : 440, maxHeight: 'calc(100vh - 160px)', background: panelBg, border: `1px solid ${T.border || 'rgba(0,0,0,.1)'}`, borderRadius: 18, boxShadow: '0 18px 60px rgba(0,0,0,0.28)', display: 'flex', flexDirection: 'column', overflow: 'hidden', transition: 'width .22s ease, height .22s ease', animation: 'uaPop .25s ease' }}>
+        <div style={{ pointerEvents: 'auto', position: 'absolute', ...(onLeft ? { left: 0 } : { right: 0 }), ...(onTop ? { top: ICON + 22 } : { bottom: ICON + 22 }), width: chatMode === 'blog' ? 'min(460px, calc(100vw - 36px))' : 'min(360px, calc(100vw - 36px))', height: chatMode === 'blog' ? 560 : 440, maxHeight: 'calc(100vh - 160px)', background: panelBg, border: `1px solid ${T.border || 'rgba(0,0,0,.1)'}`, borderRadius: 18, boxShadow: '0 18px 60px rgba(0,0,0,0.28)', display: 'flex', flexDirection: 'column', overflow: 'hidden', transition: 'width .22s ease, height .22s ease', animation: 'uaPop .25s ease', ...(fixado ? { position: 'fixed', left: geo.x, top: geo.y, right: 'auto', bottom: 'auto', width: geo.w, height: geo.h, maxHeight: 'none', transition: 'none' } : {}) }}>
           {/* header */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderBottom: `1px solid ${T.border || 'rgba(0,0,0,.08)'}`, background: `linear-gradient(135deg,${accent}22,transparent)` }}>
+          <div onPointerDown={iniciarGeo('mover')} title={fixado ? 'Arraste para mover' : undefined} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', cursor: fixado ? 'grab' : 'default', touchAction: fixado ? 'none' : 'auto', userSelect: fixado ? 'none' : 'auto', borderBottom: `1px solid ${T.border || 'rgba(0,0,0,.08)'}`, background: `linear-gradient(135deg,${accent}22,transparent)` }}>
             <div style={{ width: 30, height: 30, position: 'relative', flexShrink: 0 }}><UnikoFace size={30} src={sprite} talking={talking} skin={skin} /></div>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 13.5, fontWeight: 800, color: T.text }}>UNIKO</div>
               <div style={{ fontSize: 10.5, color: T.textT || '#8a8', fontWeight: 600 }}>{chatMode === 'blog' ? 'Chat anônimo' : 'Assistente do sistema'}</div>
             </div>
-            <button onClick={() => setOpen(false)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: T.textS || '#888', fontSize: 20, lineHeight: 1, padding: 4 }}>×</button>
+            <button onPointerDown={(e) => e.stopPropagation()} onClick={alternarFixado} title={fixado ? 'Desafixar (volta a fechar normalmente)' : 'Fixar o painel aberto'} style={{ border: 'none', background: fixado ? accent : 'transparent', borderRadius: 8, cursor: 'pointer', color: fixado ? (T.dark ? '#3a2a05' : '#fff') : (T.textS || '#888'), fontSize: 14, lineHeight: 1, padding: '4px 6px', opacity: fixado ? 1 : .8 }}>📌</button>
+            <button onPointerDown={(e) => e.stopPropagation()} onClick={() => { setOpen(false); if (fixadoRef.current) alternarFixado(); }} title="Fechar" style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: T.textS || '#888', fontSize: 20, lineHeight: 1, padding: 4 }}>×</button>
           </div>
 
           {/* sub-abas: Perguntas vs Blog Secreto */}
@@ -1602,6 +1619,11 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
             </button>
           </div>
           </>)}
+          {fixado && (
+            <div onPointerDown={iniciarGeo('tamanho')} title="Arraste para redimensionar"
+              style={{ position: 'absolute', right: 2, bottom: 2, width: 18, height: 18, cursor: 'nwse-resize', touchAction: 'none', zIndex: 2,
+                background: `linear-gradient(135deg, transparent 55%, ${T.textT || '#999'} 55%, ${T.textT || '#999'} 62%, transparent 62%, transparent 75%, ${T.textT || '#999'} 75%, ${T.textT || '#999'} 82%, transparent 82%)` }} />
+          )}
         </div>
       )}
 
