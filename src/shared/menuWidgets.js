@@ -571,3 +571,22 @@ export const useCaixaEntrada = (authUser) => {
     restaurar: (ids) => salvar({ ...lidos, excluidos: lidos.excluidos.filter(x => !ids.includes(x)) }),
   };
 };
+
+/* Fixar "Tarefas de hoje" na tela (flutua em qualquer módulo). Preferência por
+   aparelho, em localStorage; o evento mantém o botão do menu e o flutuante em sincronia. */
+const CHAVE_FIXAR = 'uniko_tarefas_fixas';
+const lerFixada = () => { try { return localStorage.getItem(CHAVE_FIXAR) === '1'; } catch { return false; } };
+export const useTarefasFixadas = () => {
+  const [fixada, setFixada] = useState(lerFixada);
+  useEffect(() => {
+    const sync = () => setFixada(lerFixada());
+    window.addEventListener('uniko-tarefas-fixas', sync);
+    return () => window.removeEventListener('uniko-tarefas-fixas', sync);
+  }, []);
+  const alternar = (v) => {
+    const novo = typeof v === 'boolean' ? v : !lerFixada();
+    try { localStorage.setItem(CHAVE_FIXAR, novo ? '1' : '0'); } catch {}
+    window.dispatchEvent(new Event('uniko-tarefas-fixas'));
+  };
+  return [fixada, alternar];
+};

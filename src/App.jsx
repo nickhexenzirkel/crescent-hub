@@ -25,6 +25,7 @@ import PrestacaoContas from './modules/prestacao-contas';
 import { notifyDesktop, ensureNotifyPermission } from './utils/desktopNotify';
 import { useIsMobile } from './hooks/useIsMobile';
 import UnikoAssistant from './shared/UnikoAssistant';
+import TarefasFixas from './shared/TarefasFixas';
 import { usePaineisOcultos } from './shared/paineisConfig';
 
 // Assistente UNIKO, a não ser que o admin tenha desligado (Dashboard RH → Painéis).
@@ -778,6 +779,9 @@ export default function CrescentHub() {
         {/* Some dentro do Uniko Fit e do Uniko Safer (pedido explícito — layout próprio, sem espaço pro robô). */}
         {/* Também some no módulo 7 Benefícios: lá só o assistente virtual da própria 7 Benefícios deve aparecer (pedido explícito). */}
         {screen!=='uniko-fit' && screen!=='uniko-safer' && screen!=='uniko-security' && screen!=='uniko-call' && screen!=='7-beneficios' && !(isMobile && screen==='alexa') && <AssistenteGlobal authUser={authUser} notif={lembreteNotif} onDismissNotif={dismissNotif} inPortal={screen==='colaborador'} />}
+
+        {/* ── Tarefas de hoje fixadas (alfinete no widget do menu) — flutua em qualquer tela ── */}
+        {authUser && <TarefasFixas authUser={authUser} />}
 
         {/* ── Capture o Uniko — widget GLOBAL (aparece em qualquer tela, com som) ── */}
         {authUser && captureCfg && <CaptureUnikoWidget cfg={captureCfg} inPortal={screen==='colaborador'} />}

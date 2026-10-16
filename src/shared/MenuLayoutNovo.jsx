@@ -4,7 +4,7 @@ import { T } from '../contexts/theme';
 import { AvatarCircle } from './components';
 import { NAV } from '../modules/central-colaborador/Sidebar';
 import { novidadesAtivas } from './novidades';
-import { useCheckinHoje, usePrismaResumo, usePontoResumo, useComunicadosResumo, useMissoesAndamento, useCaixaEntrada, useEventosHoje, useTarefasHoje } from './menuWidgets';
+import { useCheckinHoje, usePrismaResumo, usePontoResumo, useComunicadosResumo, useMissoesAndamento, useCaixaEntrada, useEventosHoje, useTarefasHoje, useTarefasFixadas } from './menuWidgets';
 import { usePaineisOcultos } from './paineisConfig';
 import { setPendingJoin } from './gameInvites';
 import { setPendingListInvite } from './listShares';
@@ -600,6 +600,7 @@ const IcoTarefas = (
 
 const WidgetTarefas = ({ tam, authUser, ...moldura }) => {
   const t = useTarefasHoje(authUser);
+  const [fixada, alternarFixa] = useTarefasFixadas();
   const [c, l] = WIDGETS.tarefas[tam];
   const nome = authUser?.name ? nomeChamado(authUser.name) : '';
   const pend = t.itens.filter((x) => !x.feita);
@@ -612,8 +613,14 @@ const WidgetTarefas = ({ tam, authUser, ...moldura }) => {
     <Moldura tam={tam} colunas={c} linhas={l} cor={COR_TAREFAS} {...moldura}
       style={{ padding: tam === 'p' ? '11px 12px' : '13px 14px', display:'flex', flexDirection:'column', justifyContent: tam === 'p' ? 'center' : 'flex-start', gap:8, overflow:'hidden' }}>
       <Cabeca cor={COR_TAREFAS} icone={IcoTarefas} titulo="Tarefas de hoje" sub={sub} pontoCor={n ? COR_TAREFAS : null} pulso={!!n}
-        direita={n > 0 ? <span style={{ minWidth:20, height:20, padding:'0 6px', borderRadius:10, background:'#FF375F', color:'#fff',
-          fontSize:11.5, fontWeight:800, display:'flex', alignItems:'center', justifyContent:'center', boxSizing:'border-box' }}>{n}</span> : null}/>
+        direita={
+          <span style={{ display:'flex', alignItems:'center', gap:6 }}>
+            <span role="button" title={fixada ? 'Desafixar da tela' : 'Fixar na tela'}
+              onClick={(e) => { e.stopPropagation(); alternarFixa(); }}
+              style={{ fontSize:14, cursor:'pointer', opacity: fixada ? 1 : .45, filter: fixada ? 'none' : 'grayscale(1)', lineHeight:1 }}>📌</span>
+            {n > 0 && <span style={{ minWidth:20, height:20, padding:'0 6px', borderRadius:10, background:'#FF375F', color:'#fff',
+              fontSize:11.5, fontWeight:800, display:'flex', alignItems:'center', justifyContent:'center', boxSizing:'border-box' }}>{n}</span>}
+          </span>}/>
       {tam === 'g' && (
         t.carregando ? <div style={{ fontSize:13, color:T.textT }}>Carregando…</div> : (
           <>
