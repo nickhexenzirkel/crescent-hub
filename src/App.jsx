@@ -240,8 +240,23 @@ export default function CrescentHub() {
       setAuthChecked(true);
       return;
     }
-    fetch(`${SERVER_URL}/api/auth/me`, { headers:{ Authorization:`Bearer ${token}` } })
-      .then(r => r.ok ? r.json() : null)
+    // Só um 401/403 (token inválido/expirado) derruba o login. Servidor fora do ar, 5xx
+    // ou rede caída NÃO apagam o token (senão cada soluço do servidor força login de novo):
+    // tenta algumas vezes e, se não der, só mostra a tela inicial mantendo o token salvo.
+    const verificarSessao = async () => {
+      for (let i = 0; i < 4; i++) {
+        try {
+          const ctrl = new AbortController(); const to = setTimeout(() => ctrl.abort(), 8000);
+          const r = await fetch(`${SERVER_URL}/api/auth/me`, { headers:{ Authorization:`Bearer ${token}` }, signal: ctrl.signal });
+          clearTimeout(to);
+          if (r.ok) return await r.json();
+          if (r.status === 401 || r.status === 403) return null; // sessão inválida de verdade
+        } catch { /* rede/timeout: tenta de novo */ }
+        await new Promise(res => setTimeout(res, 1500));
+      }
+      throw new Error('servidor indisponível');
+    };
+    verificarSessao()
       .then(d => {
         if (d?.user) {
           setAuthUser(d.user);
