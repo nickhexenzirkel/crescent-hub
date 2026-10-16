@@ -63,7 +63,7 @@ const WIDGETS = {
   ponto:      { p:[1, 1], g:[2, 2], padrao:'p' },
   avisos:     { p:[1, 1], g:[2, 2], padrao:'p' },
   missoes:    { p:[1, 1], g:[2, 2], padrao:'g' },
-  tarefas:    { p:[1, 1], g:[2, 2], padrao:'g' },
+  tarefas:    { p:[1, 1], g:[2, 3], padrao:'g' },
   novidades:  { p:[1, 2], g:[2, 2], padrao:'g' },
 };
 /* Prefixo das chaves de widget no mapa de tamanhos (o mesmo mapa guarda os
@@ -610,7 +610,7 @@ const WidgetTarefas = ({ tam, authUser, ...moldura }) => {
   const mostrar = pend.slice(0, 3);
   return (
     <Moldura tam={tam} colunas={c} linhas={l} cor={COR_TAREFAS} {...moldura}
-      style={{ padding: tam === 'p' ? '11px 12px' : '13px 14px', display:'flex', flexDirection:'column', justifyContent: tam === 'p' ? 'center' : 'flex-start', gap:8 }}>
+      style={{ padding: tam === 'p' ? '11px 12px' : '13px 14px', display:'flex', flexDirection:'column', justifyContent: tam === 'p' ? 'center' : 'flex-start', gap:8, overflow:'hidden' }}>
       <Cabeca cor={COR_TAREFAS} icone={IcoTarefas} titulo="Tarefas de hoje" sub={sub} pontoCor={n ? COR_TAREFAS : null} pulso={!!n}
         direita={n > 0 ? <span style={{ minWidth:20, height:20, padding:'0 6px', borderRadius:10, background:'#FF375F', color:'#fff',
           fontSize:11.5, fontWeight:800, display:'flex', alignItems:'center', justifyContent:'center', boxSizing:'border-box' }}>{n}</span> : null}/>
