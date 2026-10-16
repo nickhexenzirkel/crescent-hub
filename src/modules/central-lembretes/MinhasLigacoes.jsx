@@ -22,6 +22,20 @@ const STATUS = [['todas', 'Todas'], ['ok', 'Transcritas'], ['semaviso', 'Sem avi
 const DURACOES = [['0', 'Qualquer duração'], ['60000', '+1 min'], ['300000', '+5 min'], ['600000', '+10 min']];
 const ORDENS = [['novas', 'Mais recentes'], ['antigas', 'Mais antigas'], ['longas', 'Mais longas']];
 
+const Ico = ({ d, size = 14, children, sw = 2 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink:0, verticalAlign:'-2px' }}>{d ? <path d={d}/> : children}</svg>
+);
+const IcoFone = (p) => <Ico {...p} d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.13.96.36 1.9.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0122 16.92z"/>;
+const IcoBusca = (p) => <Ico {...p}><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></Ico>;
+const IcoFiltro = (p) => <Ico {...p} d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/>;
+const IcoChat = (p) => <Ico {...p} d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>;
+const IcoLista = (p) => <Ico {...p}><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="3.5" cy="6" r="1"/><circle cx="3.5" cy="12" r="1"/><circle cx="3.5" cy="18" r="1"/></Ico>;
+const IcoX = (p) => <Ico {...p}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></Ico>;
+const IcoVolta = (p) => <Ico {...p}><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></Ico>;
+const IcoSeta = ({ aberto, ...p }) => <Ico {...p}><polyline points={aberto ? '18 15 12 9 6 15' : '6 9 12 15 18 9'}/></Ico>;
+const IcoCadeado = (p) => <Ico {...p}><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></Ico>;
+const IcoAviso = (p) => <Ico {...p}><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="12.5"/><line x1="12" y1="16" x2="12.01" y2="16"/></Ico>;
+
 const useEstreito = () => {
   const [e, setE] = useState(() => window.innerWidth < 760);
   useEffect(() => { const f = () => setE(window.innerWidth < 760); window.addEventListener('resize', f); return () => window.removeEventListener('resize', f); }, []);
@@ -40,6 +54,7 @@ export default function MinhasLigacoes() {
   const [aberta, setAberta] = useState({});
   const [vista, setVista] = useState('conversas'); // conversas (estilo chat por contato) | lista
   const [sel, setSel] = useState(null);
+  const [filtrosAbertos, setFiltrosAbertos] = useState(false);
   const [f, setF] = useState({ busca:'', periodo:'tudo', de:'', ate:'', contato:'', status:'todas', dur:'0', ordem:'novas' });
   const mudar = (p) => { setF((x) => ({ ...x, ...p })); setLimite(POR_PAGINA); };
 
@@ -89,6 +104,7 @@ export default function MinhasLigacoes() {
     return out;
   }, [itens, nomes, f]);
 
+  const nFiltros = [f.periodo !== 'tudo', f.status !== 'todas', !!f.contato, f.dur !== '0', f.ordem !== 'novas'].filter(Boolean).length;
   const filtrando = f.busca || f.periodo !== 'tudo' || f.contato || f.status !== 'todas' || f.dur !== '0' || f.ordem !== 'novas';
   const limpar = () => mudar({ busca:'', periodo:'tudo', de:'', ate:'', contato:'', status:'todas', dur:'0', ordem:'novas' });
   const visiveis = filtradas.slice(0, limite);
@@ -121,11 +137,11 @@ export default function MinhasLigacoes() {
     return (
       <div style={{ padding:'12px 14px', borderRadius: mostrarContato ? 14 : '16px 16px 16px 4px', marginBottom:8, marginTop: mostrarContato ? 0 : 8, maxWidth: mostrarContato ? 'none' : '92%', background:T.surface, border:`1px solid ${semAviso ? T.danger : T.border}`, borderLeft:`4px solid ${semAviso ? T.danger : VERDE}` }}>
         <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', fontSize:12, marginBottom:6 }}>
-          <b style={{ color:VERDE_DK, fontSize:13 }}>📞 {mostrarContato ? (nomes[r.contact_id] || 'Contato') : 'Ligação'}</b>
+          <b style={{ color:VERDE_DK, fontSize:13, display:'inline-flex', alignItems:'center', gap:6 }}><IcoFone size={13}/> {mostrarContato ? (nomes[r.contact_id] || 'Contato') : 'Ligação'}</b>
           <span style={{ color:T.textT }}>{mostrarContato && f.ordem === 'longas' ? `${dia(r.started_at)} · ` : ''}{hora(r.started_at)}{dur ? ` · ${totalLabel(dur)}` : ''}{r.protocol ? ` · Protocolo #${r.protocol}` : ''}</span>
         </div>
         {semAviso ? (
-          <div style={{ color:T.danger, fontSize:12.5 }}>❌ Aviso prévio não dito — ligação não registrada.</div>
+          <div style={{ color:T.danger, fontSize:12.5 }} ><span style={{ display:'inline-flex', alignItems:'center', gap:6 }}><IcoAviso size={14}/> Aviso prévio não dito — ligação não registrada.</span></div>
         ) : (<>
           {r.audio_url && <AudioPlayer src={r.audio_url} fileName={`chamada-${r.protocol || r.id}`} />}
           {r.status === 'processing' ? <span style={{ color:T.textT, fontStyle:'italic', fontSize:12.5 }}>Transcrevendo…</span>
@@ -146,76 +162,79 @@ export default function MinhasLigacoes() {
 
   return (
     <div>
-      {/* cabeçalho com mascote */}
-      <div style={{ position:'relative', overflow:'hidden', display:'flex', alignItems:'center', gap:16, padding:'16px 18px', borderRadius:20, marginBottom:16,
-        background:`linear-gradient(135deg, ${VERDE}26, ${VERDE_DK}12 60%, transparent)`, border:`1px solid ${VERDE}55` }}>
-        <div style={{ position:'absolute', right:-30, top:-40, width:140, height:140, borderRadius:'50%', background:`${VERDE}18`, filter:'blur(2px)' }}/>
-        <img src="/UNIKO_CALL.png" alt="Uniko Call" style={{ width:84, height:84, objectFit:'contain', flexShrink:0, filter:`drop-shadow(0 6px 14px ${VERDE}55)` }}/>
-        <div style={{ minWidth:0, flex:1, position:'relative' }}>
-          <div style={{ fontSize:18, fontWeight:800, color:T.text, lineHeight:1.2 }}>Minhas ligações</div>
-          <div style={{ fontSize:12.5, fontWeight:700, color:VERDE_DK, marginBottom:8 }}>Uniko Call · áudio e transcrição das suas chamadas</div>
-          <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-            {[[itens.length, 'no total'], [hojeN, 'hoje'], [semana, 'na semana']].map(([n, l]) => (
-              <span key={l} style={{ padding:'4px 11px', borderRadius:20, background:T.surface, border:`1px solid ${VERDE}44`, fontSize:11.5, color:T.textS }}>
-                <b style={{ color:VERDE_DK }}>{n}</b> {l}
-              </span>
-            ))}
+      {/* cabeçalho compacto com mascote */}
+      <div style={{ display:'flex', alignItems:'center', gap:12, padding:'8px 14px', borderRadius:16, marginBottom:10,
+        background:`linear-gradient(135deg, ${VERDE}26, ${VERDE_DK}10 60%, transparent)`, border:`1px solid ${VERDE}55` }}>
+        <img src="/UNIKO_CALL.png" alt="Uniko Call" style={{ width:48, height:48, objectFit:'contain', flexShrink:0, filter:`drop-shadow(0 4px 10px ${VERDE}55)` }}/>
+        <div style={{ minWidth:0, flex:1 }}>
+          <div style={{ fontSize:15, fontWeight:800, color:T.text, lineHeight:1.2 }}>Minhas ligações</div>
+          <div style={{ fontSize:11.5, color:T.textT, display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' }}>
+            <span><b style={{ color:VERDE_DK }}>{itens.length}</b> no total · <b style={{ color:VERDE_DK }}>{hojeN}</b> hoje · <b style={{ color:VERDE_DK }}>{semana}</b> na semana</span>
+            <span style={{ display:'inline-flex', alignItems:'center', gap:4 }}><IcoCadeado size={11}/> só você vê</span>
           </div>
         </div>
       </div>
 
-      {/* filtros */}
-      <div style={{ padding:'14px 16px', borderRadius:16, background:T.surface, border:`1px solid ${T.border}`, marginBottom:12, display:'flex', flexDirection:'column', gap:12 }}>
-        <input value={f.busca} onChange={(e) => mudar({ busca:e.target.value })} placeholder="🔎 Buscar por contato, protocolo ou trecho da conversa…" style={{ ...campo, width:'100%', boxSizing:'border-box', fontSize:13 }}/>
-        <div>
-          <div style={rotulo}>Período</div>
-          <div style={{ display:'flex', gap:6, flexWrap:'wrap', alignItems:'center' }}>
-            {PERIODOS.map(([id, l]) => <button key={id} onClick={() => mudar({ periodo:id })} style={chip(f.periodo === id)}>{l}</button>)}
-            {f.periodo === 'custom' && (<>
-              <input type="date" value={f.de} max={f.ate || undefined} onChange={(e) => mudar({ de:e.target.value })} style={campo}/>
-              <span style={{ color:T.textT, fontSize:12 }}>até</span>
-              <input type="date" value={f.ate} min={f.de || undefined} onChange={(e) => mudar({ ate:e.target.value })} style={campo}/>
-            </>)}
-          </div>
+      {/* barra enxuta: visão + busca + filtros (recolhidos) */}
+      <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', marginBottom:filtrosAbertos ? 8 : 12 }}>
+        <div style={{ display:'flex', gap:6 }}>
+          <button onClick={() => setVista('conversas')} style={{ ...chip(vista === 'conversas'), display:'inline-flex', alignItems:'center', gap:6 }}><IcoChat size={13}/> Conversas</button>
+          <button onClick={() => setVista('lista')} style={{ ...chip(vista === 'lista'), display:'inline-flex', alignItems:'center', gap:6 }}><IcoLista size={13}/> Lista</button>
         </div>
-        <div>
-          <div style={rotulo}>Situação</div>
-          <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
-            {STATUS.map(([id, l]) => <button key={id} onClick={() => mudar({ status:id })} style={chip(f.status === id)}>{l}</button>)}
-          </div>
+        <div style={{ position:'relative', flex:'1 1 200px', minWidth:160 }}>
+          <span style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', color:T.textT, display:'flex' }}><IcoBusca size={14}/></span>
+          <input value={f.busca} onChange={(e) => mudar({ busca:e.target.value })} placeholder="Buscar contato, protocolo ou conversa" style={{ ...campo, width:'100%', boxSizing:'border-box', paddingLeft:32 }}/>
         </div>
-        <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
-          <div style={{ flex:'1 1 180px' }}>
-            <div style={rotulo}>Contato</div>
-            <select value={f.contato} onChange={(e) => mudar({ contato:e.target.value })} style={{ ...campo, width:'100%' }}>
-              <option value="">Todos os contatos ({contatos.length})</option>
-              {contatos.map((c) => <option key={c.id} value={String(c.id)}>{c.nome} ({c.n})</option>)}
-            </select>
-          </div>
-          <div style={{ flex:'1 1 150px' }}>
-            <div style={rotulo}>Duração</div>
-            <select value={f.dur} onChange={(e) => mudar({ dur:e.target.value })} style={{ ...campo, width:'100%' }}>
-              {DURACOES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-            </select>
-          </div>
-          <div style={{ flex:'1 1 150px' }}>
-            <div style={rotulo}>Ordenar por</div>
-            <select value={f.ordem} onChange={(e) => mudar({ ordem:e.target.value })} style={{ ...campo, width:'100%' }}>
-              {ORDENS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-            </select>
-          </div>
-        </div>
-        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:8, flexWrap:'wrap', fontSize:12, color:T.textT }}>
-          <span>{filtradas.length} {filtradas.length === 1 ? 'ligação' : 'ligações'}{totalMs ? ` · ${totalLabel(totalMs)} de conversa` : ''} · 🔒 só você vê estas ligações</span>
-          {filtrando && <button onClick={limpar} style={{ border:'none', background:'none', cursor:'pointer', color:VERDE_DK, fontWeight:800, fontSize:12, fontFamily:'inherit' }}>✕ Limpar filtros</button>}
-        </div>
+        <button onClick={() => setFiltrosAbertos((v) => !v)} title={filtrosAbertos ? 'Esconder filtros' : 'Mostrar filtros'}
+          style={{ ...chip(filtrosAbertos || nFiltros > 0), display:'inline-flex', alignItems:'center', gap:6 }}>
+          <IcoFiltro size={13}/> Filtros{nFiltros > 0 ? ` (${nFiltros})` : ''} <IcoSeta size={12} aberto={filtrosAbertos}/>
+        </button>
+        {filtrando && <button onClick={limpar} title="Limpar filtros e busca" style={{ border:'none', background:'none', cursor:'pointer', color:VERDE_DK, fontWeight:800, fontSize:12, fontFamily:'inherit', display:'inline-flex', alignItems:'center', gap:4 }}><IcoX size={12}/> Limpar</button>}
       </div>
 
-
-      {/* alternar visão */}
-      <div style={{ display:'flex', gap:6, marginBottom:12 }}>
-        {[['conversas', '💬 Conversas'], ['lista', '📋 Lista']].map(([id, l]) => <button key={id} onClick={() => setVista(id)} style={chip(vista === id)}>{l}</button>)}
-      </div>
+      {filtrosAbertos && (
+        <div style={{ padding:'12px 14px', borderRadius:14, background:T.surface, border:`1px solid ${T.border}`, marginBottom:12, display:'flex', flexDirection:'column', gap:10 }}>
+          <div>
+            <div style={rotulo}>Período</div>
+            <div style={{ display:'flex', gap:6, flexWrap:'wrap', alignItems:'center' }}>
+              {PERIODOS.map(([id, l]) => <button key={id} onClick={() => mudar({ periodo:id })} style={chip(f.periodo === id)}>{l}</button>)}
+              {f.periodo === 'custom' && (<>
+                <input type="date" value={f.de} max={f.ate || undefined} onChange={(e) => mudar({ de:e.target.value })} style={campo}/>
+                <span style={{ color:T.textT, fontSize:12 }}>até</span>
+                <input type="date" value={f.ate} min={f.de || undefined} onChange={(e) => mudar({ ate:e.target.value })} style={campo}/>
+              </>)}
+            </div>
+          </div>
+          <div>
+            <div style={rotulo}>Situação</div>
+            <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+              {STATUS.map(([id, l]) => <button key={id} onClick={() => mudar({ status:id })} style={chip(f.status === id)}>{l}</button>)}
+            </div>
+          </div>
+          <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
+            <div style={{ flex:'1 1 180px' }}>
+              <div style={rotulo}>Contato</div>
+              <select value={f.contato} onChange={(e) => mudar({ contato:e.target.value })} style={{ ...campo, width:'100%' }}>
+                <option value="">Todos os contatos ({contatos.length})</option>
+                {contatos.map((c) => <option key={c.id} value={String(c.id)}>{c.nome} ({c.n})</option>)}
+              </select>
+            </div>
+            <div style={{ flex:'1 1 150px' }}>
+              <div style={rotulo}>Duração</div>
+              <select value={f.dur} onChange={(e) => mudar({ dur:e.target.value })} style={{ ...campo, width:'100%' }}>
+                {DURACOES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              </select>
+            </div>
+            <div style={{ flex:'1 1 150px' }}>
+              <div style={rotulo}>Ordenar por</div>
+              <select value={f.ordem} onChange={(e) => mudar({ ordem:e.target.value })} style={{ ...campo, width:'100%' }}>
+                {ORDENS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              </select>
+            </div>
+          </div>
+          <div style={{ fontSize:11.5, color:T.textT }}>{filtradas.length} {filtradas.length === 1 ? 'ligação encontrada' : 'ligações encontradas'}{totalMs ? ` · ${totalLabel(totalMs)} de conversa` : ''}</div>
+        </div>
+      )}
 
       {vista === 'lista' ? (<>
         {!visiveis.length
@@ -256,7 +275,7 @@ export default function MinhasLigacoes() {
               })}
           </div>
           {/* conversa */}
-          <div style={{ flex:'2 1 340px', minWidth:0, display: !sel && estreito ? 'none' : 'flex', flexDirection:'column', borderRadius:18, border:`1px solid ${T.border}`, background:T.surfaceSub, overflow:'hidden', minHeight:320 }}>
+          <div style={{ flex:'2 1 340px', minWidth:0, display: !sel && estreito ? 'none' : 'flex', flexDirection:'column', borderRadius:18, border:`1px solid ${T.border}`, background:T.surfaceSub, overflow:'hidden', minHeight:420 }}>
             {!atual ? (
               <div style={{ margin:'auto', textAlign:'center', padding:30, color:T.textT, fontSize:13 }}>
                 <img src="/UNIKO_CALL.png" alt="" style={{ width:90, height:90, objectFit:'contain', opacity:.85 }}/>
@@ -264,14 +283,14 @@ export default function MinhasLigacoes() {
               </div>
             ) : (<>
               <div style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px', background:`linear-gradient(135deg,${VERDE}26,transparent)`, borderBottom:`1px solid ${T.border}` }}>
-                {estreito && <button onClick={() => setSel(null)} style={{ border:'none', background:'none', cursor:'pointer', fontSize:18, color:VERDE_DK, padding:0 }}>←</button>}
+                {estreito && <button onClick={() => setSel(null)} style={{ border:'none', background:'none', cursor:'pointer', color:VERDE_DK, padding:0, display:'flex' }}><IcoVolta size={18}/></button>}
                 <span style={{ width:34, height:34, borderRadius:'50%', background:`linear-gradient(135deg,${VERDE},${VERDE_DK})`, color:'#fff', fontWeight:800, display:'flex', alignItems:'center', justifyContent:'center' }}>{(atual.nome.trim()[0] || '?').toUpperCase()}</span>
                 <div style={{ minWidth:0 }}>
                   <div style={{ fontSize:14, fontWeight:800, color:T.text }}>{atual.nome}</div>
                   <div style={{ fontSize:11.5, color:T.textT }}>{atual.lista.length} {atual.lista.length === 1 ? 'ligação' : 'ligações'}{atual.ms ? ` · ${totalLabel(atual.ms)} de conversa` : ''}</div>
                 </div>
               </div>
-              <div ref={fimRef} style={{ flex:1, overflowY:'auto', maxHeight:520, padding:'4px 14px 14px' }}>
+              <div ref={fimRef} style={{ flex:1, overflowY:'auto', height:'calc(100vh - 330px)', minHeight:380, padding:'4px 14px 14px' }}>
                 {(() => { let ultimo = null; return [...atual.lista].sort((a, b) => new Date(a.started_at) - new Date(b.started_at)).map((r) => {
                   const k = dia(r.started_at); const novoDia = k !== ultimo; ultimo = k;
                   return (<div key={r.id}>
