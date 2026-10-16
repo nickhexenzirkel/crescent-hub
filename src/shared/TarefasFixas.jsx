@@ -69,8 +69,6 @@ function Painel({ authUser, desafixar }) {
         <rect x="5" y="4" width="14" height="17" rx="2.5"/><path d="M9 4V3h6v1"/><polyline points="9 13 11.2 15.2 15.2 10.8"/>
       </svg>
       <span style={{ fontSize:11, fontWeight:700, lineHeight:1 }}>Tarefas</span>
-      {!t.carregando && n > 0 && <span style={{ position:'absolute', top:-6, right:-6, minWidth:20, height:20, padding:'0 5px', borderRadius:10, background:'#FF375F', color:'#fff',
-        fontSize:11, fontWeight:800, display:'flex', alignItems:'center', justifyContent:'center', boxSizing:'border-box' }}>{n}</span>}
     </button>
   );
   return (
