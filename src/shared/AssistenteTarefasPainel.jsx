@@ -53,7 +53,7 @@ export default function AssistenteTarefasPainel({ authUser, accent }) {
     <div style={{ flex:1, minHeight:0, display:'flex', flexDirection:'column' }}>
       <div style={{ display:'flex', gap:6, padding:'10px 12px 0' }}>
         {[['tarefas', '✅ Tarefas de hoje'], ['lembretes', '⏰ Lembretes']].map(([id, l]) => (
-          <button key={id} onClick={() => setAba(id)} style={btn({ flex:1, padding:'7px 0', background: aba === id ? accent : (T.surfaceSub || 'rgba(0,0,0,.05)'), color: aba === id ? '#3a2a05' : T.textS })}>{l}</button>
+          <button key={id} onClick={() => setAba(id)} style={btn({ flex:1, padding:'7px 0', background: aba === id ? accent : (T.surfaceSub || 'rgba(0,0,0,.05)'), color: aba === id ? (T.dark ? '#3a2a05' : '#fff') : T.textS })}>{l}</button>
         ))}
       </div>
       <div style={{ flex:1, overflowY:'auto', padding:'10px 12px', display:'flex', flexDirection:'column', gap:6 }}>
@@ -82,7 +82,7 @@ export default function AssistenteTarefasPainel({ authUser, accent }) {
         {aba === 'tarefas' ? (<>
           <div style={{ display:'flex', gap:6 }}>
             <input value={titulo} onChange={(e) => setTitulo(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') addTarefa(); }} placeholder="Nova tarefa…" style={{ ...campo, flex:1 }}/>
-            <button onClick={addTarefa} style={btn({ padding:'0 14px', background:accent, color:'#3a2a05' })}>Adicionar</button>
+            <button onClick={addTarefa} style={btn({ padding:'0 14px', background:accent, color:(T.dark ? '#3a2a05' : '#fff') })}>Adicionar</button>
           </div>
           <div style={{ display:'flex', gap:6 }}>
             {[['hoje', 'Hoje'], ['amanha', 'Amanhã'], ['diaria', 'Todo dia']].map(([id, l]) => (
@@ -93,7 +93,7 @@ export default function AssistenteTarefasPainel({ authUser, accent }) {
           <div style={{ display:'flex', gap:6 }}>
             <input value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="Do que lembrar?" style={{ ...campo, flex:1 }}/>
             <input type="time" value={hora} onChange={(e) => setHora(e.target.value)} style={{ ...campo, width:92 }}/>
-            <button onClick={addLemb} style={btn({ padding:'0 12px', background:accent, color:'#3a2a05' })}>Criar</button>
+            <button onClick={addLemb} style={btn({ padding:'0 12px', background:accent, color:(T.dark ? '#3a2a05' : '#fff') })}>Criar</button>
           </div>
         )}
       </div>

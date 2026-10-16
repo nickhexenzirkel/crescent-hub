@@ -1380,7 +1380,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
             <div style={{ fontSize: balaoFonte, lineHeight: 1.55 }}><Typer text={bubble.text} onStart={() => setTalking(true)} onDone={() => setTalking(false)} /></div>
             {bubble.dismissable && (
               <button onClick={() => { const ok = bubble.onOk; setBubble(null); setSprite(null); ok && ok(); }}
-                style={{ marginTop: Math.max(6, Math.round(9 * balao)), padding: `${Math.max(4, Math.round(5 * balao))}px ${Math.max(11, Math.round(16 * balao))}px`, borderRadius: 8, border: 'none', background: `linear-gradient(135deg,${accent},${T.goldLine || accent})`, color: '#3a2a05', fontSize: Math.max(11, +(12 * balao).toFixed(1)), fontWeight: 800, cursor: 'pointer', fontFamily: 'var(--font-body)' }}>
+                style={{ marginTop: Math.max(6, Math.round(9 * balao)), padding: `${Math.max(4, Math.round(5 * balao))}px ${Math.max(11, Math.round(16 * balao))}px`, borderRadius: 8, border: 'none', background: `linear-gradient(135deg,${accent},${T.goldLine || accent})`, color: (T.dark ? '#3a2a05' : '#fff'), fontSize: Math.max(11, +(12 * balao).toFixed(1)), fontWeight: 800, cursor: 'pointer', fontFamily: 'var(--font-body)' }}>
                 Ok
               </button>
             )}
@@ -1431,7 +1431,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
           {/* mensagens */}
           <div ref={listRef} style={{ flex: 1, overflowY: 'auto', padding: '12px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
             {messages.map((m, i) => (
-              <div key={i} style={{ alignSelf: m.from === 'me' ? 'flex-end' : 'flex-start', maxWidth: '84%', background: m.from === 'me' ? `linear-gradient(135deg,${accent},${T.goldLine || accent})` : (T.surfaceSub || 'rgba(0,0,0,0.05)'), color: m.from === 'me' ? '#3a2a05' : (T.text || '#222'), borderRadius: m.from === 'me' ? '14px 14px 4px 14px' : '14px 14px 14px 4px', padding: '8px 12px', fontSize: 13, lineHeight: 1.5 }}>
+              <div key={i} style={{ alignSelf: m.from === 'me' ? 'flex-end' : 'flex-start', maxWidth: '84%', background: m.from === 'me' ? `linear-gradient(135deg,${accent},${T.goldLine || accent})` : (T.surfaceSub || 'rgba(0,0,0,0.05)'), color: m.from === 'me' ? (T.dark ? '#3a2a05' : '#fff') : (T.text || '#222'), borderRadius: m.from === 'me' ? '14px 14px 4px 14px' : '14px 14px 14px 4px', padding: '8px 12px', fontSize: 13, lineHeight: 1.5 }}>
                 {m.from === 'uniko' && i === messages.length - 1 ? <Typer text={m.text} onTick={scrollDown} onStart={() => setTalking(true)} onDone={() => setTalking(false)} /> : m.text}
               </div>
             ))}
@@ -1441,7 +1441,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
             <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') handleSend(); }}
               placeholder="Pergunte ou peça um lembrete..."
               style={{ flex: 1, padding: '9px 12px', borderRadius: 10, border: `1px solid ${T.border || 'rgba(0,0,0,.15)'}`, background: T.surfaceSub || 'rgba(0,0,0,0.03)', color: T.text, fontSize: 13, outline: 'none', fontFamily: 'var(--font-body)' }} />
-            <button onClick={handleSend} style={{ border: 'none', borderRadius: 10, padding: '0 16px', background: `linear-gradient(135deg,${accent},${T.goldLine || accent})`, color: '#3a2a05', fontWeight: 800, fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font-body)' }}>
+            <button onClick={handleSend} style={{ border: 'none', borderRadius: 10, padding: '0 16px', background: `linear-gradient(135deg,${accent},${T.goldLine || accent})`, color: (T.dark ? '#3a2a05' : '#fff'), fontWeight: 800, fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font-body)' }}>
               Enviar
             </button>
           </div>
@@ -1499,7 +1499,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
                       {mine ? 'VOCÊ' : 'ANÔNIMO'}
                     </div>
                   )}
-                  <div style={{ background: mine ? `linear-gradient(135deg,${accent},${T.goldLine || accent})` : (T.surfaceSub || 'rgba(0,0,0,0.05)'), color: mine ? '#3a2a05' : (T.text || '#222'), borderRadius: bubbleRadius, padding: m.media_url ? 6 : '8px 12px', fontSize: 13, lineHeight: 1.5, wordBreak: 'break-word', borderLeft: mine ? undefined : `3px solid ${color}` }}>
+                  <div style={{ background: mine ? `linear-gradient(135deg,${accent},${T.goldLine || accent})` : (T.surfaceSub || 'rgba(0,0,0,0.05)'), color: mine ? (T.dark ? '#3a2a05' : '#fff') : (T.text || '#222'), borderRadius: bubbleRadius, padding: m.media_url ? 6 : '8px 12px', fontSize: 13, lineHeight: 1.5, wordBreak: 'break-word', borderLeft: mine ? undefined : `3px solid ${color}` }}>
                     {m.media_url && m.media_type === 'video' && (
                       <video src={m.media_url} controls autoPlay muted loop playsInline style={{ display: 'block', maxWidth: '100%', maxHeight: 220, borderRadius: 10, marginBottom: (m.text || editing) ? 6 : 0 }} />
                     )}
@@ -1514,7 +1514,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
                           style={{ width: '100%', resize: 'none', border: `1px solid ${mine ? 'rgba(58,42,5,.3)' : (T.border || 'rgba(0,0,0,.2)')}`, borderRadius: 8, padding: 6, fontSize: 13, fontFamily: 'var(--font-body)', background: mine ? 'rgba(255,255,255,.4)' : (T.surface || '#fff'), color: 'inherit', boxSizing: 'border-box' }} />
                         <div style={{ display: 'flex', gap: 6, marginTop: 4, justifyContent: mine ? 'flex-end' : 'flex-start' }}>
                           <button onClick={cancelEditBlogMessage} style={{ border: 'none', borderRadius: 7, padding: '3px 9px', background: 'rgba(0,0,0,.12)', color: 'inherit', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-body)' }}>Cancelar</button>
-                          <button onClick={() => saveEditBlogMessage(m.id)} style={{ border: 'none', borderRadius: 7, padding: '3px 9px', background: mine ? 'rgba(0,0,0,.28)' : accent, color: mine ? '#fff' : '#3a2a05', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-body)' }}>Salvar</button>
+                          <button onClick={() => saveEditBlogMessage(m.id)} style={{ border: 'none', borderRadius: 7, padding: '3px 9px', background: mine ? 'rgba(0,0,0,.28)' : accent, color: mine ? '#fff' : (T.dark ? '#3a2a05' : '#fff'), fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-body)' }}>Salvar</button>
                         </div>
                       </div>
                     ) : m.text && (
@@ -1597,7 +1597,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
             <input value={blogInput} onChange={e => { setBlogInput(e.target.value); if (blogModerationErr) setBlogModerationErr(''); }} onKeyDown={e => { if (e.key === 'Enter') sendBlogMessage(); }} onPaste={onBlogInputPaste}
               maxLength={500} placeholder="Escreva algo anônimo... (Ctrl+V cola imagem)"
               style={{ flex: 1, minWidth: 0, padding: '9px 12px', borderRadius: 10, border: `1px solid ${T.border || 'rgba(0,0,0,.15)'}`, background: T.surfaceSub || 'rgba(0,0,0,0.03)', color: T.text, fontSize: 13, outline: 'none', fontFamily: 'var(--font-body)' }} />
-            <button onClick={sendBlogMessage} style={{ border: 'none', borderRadius: 10, padding: '0 16px', background: `linear-gradient(135deg,${accent},${T.goldLine || accent})`, color: '#3a2a05', fontWeight: 800, fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font-body)', flexShrink: 0 }}>
+            <button onClick={sendBlogMessage} style={{ border: 'none', borderRadius: 10, padding: '0 16px', background: `linear-gradient(135deg,${accent},${T.goldLine || accent})`, color: (T.dark ? '#3a2a05' : '#fff'), fontWeight: 800, fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font-body)', flexShrink: 0 }}>
               Enviar
             </button>
           </div>
