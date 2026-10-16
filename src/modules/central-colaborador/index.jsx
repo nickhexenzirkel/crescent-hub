@@ -87,6 +87,13 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange, initialTab, restri
   // abre o Portal carregaria o iframe do jogo à toa) — mas depois disso NUNCA
   // desmonta de novo, só fica escondido (ver <TabUnikoWave active=.../> abaixo).
   // Assim trocar de aba e voltar não reaparece a tela de carregamento do jogo.
+  // Minhas Tarefas → aba Uniko Call pede a barra lateral encolhida (só ícones) pra dar espaço ao chat.
+  const [lembCompacto, setLembCompacto] = useState(false);
+  useEffect(() => {
+    const h = (e) => setLembCompacto(!!e.detail);
+    window.addEventListener('uniko-portal-compacto', h);
+    return () => window.removeEventListener('uniko-portal-compacto', h);
+  }, []);
   const [waveVisited, setWaveVisited] = useState(() => (initialTab || 'inicio') === 'unikowave');
   if (tab === 'unikowave' && !waveVisited) setWaveVisited(true);
   const [activeTheme,setActiveTheme]=useState(()=>{ const s=localStorage.getItem('ch_theme')||'blue'; applyTheme(s); return s; });
@@ -284,12 +291,13 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange, initialTab, restri
   // Onboarding), que ficam fora dele e continuam no tamanho real da tela —
   // modal encolhido junto seria estranho de usar.
   const isGameTab = tab==='unikowave';
+  const barraCompacta = tab==='unikowave' || tab==='unikocamera' || (tab==='lembretes' && lembCompacto);
   const zoomOut = !isMobile && !isGameTab;
   return(
     <>
     <div key={activeTheme} style={{display:'flex',minHeight:zoomOut?'calc(100vh / 0.8)':'100vh',background:T.page,fontFamily:'var(--font-body)',zoom:zoomOut?0.8:undefined}}>
-      {!(tab==='unikowave' && celularDeitado) && <Sidebar tab={tab} setTab={st} onBack={onBack} activeTheme={activeTheme} onTheme={handleTheme} onOpenSettings={()=>setShowSettings(true)} userPhoto={userPhoto} profileComplete={profileComplete} collapsed={tab==='unikowave'||tab==='unikocamera'} desligado={desligado.off} only={restrictedTabs}/>}
-      <div className="portal-conteudo" style={{marginLeft:isMobile?0:(tab==='unikocamera'?76:(tab==='unikowave'?(celularDeitado?0:76):280)),flex:1,display:'flex',flexDirection:'column',minHeight:zoomOut?'calc(100vh / 0.8)':'100vh',
+      {!(tab==='unikowave' && celularDeitado) && <Sidebar tab={tab} setTab={st} onBack={onBack} activeTheme={activeTheme} onTheme={handleTheme} onOpenSettings={()=>setShowSettings(true)} userPhoto={userPhoto} profileComplete={profileComplete} collapsed={barraCompacta} desligado={desligado.off} only={restrictedTabs}/>}
+      <div className="portal-conteudo" style={{marginLeft:isMobile?0:((tab==='unikocamera'||(tab==='lembretes'&&lembCompacto))?76:(tab==='unikowave'?(celularDeitado?0:76):280)),flex:1,display:'flex',flexDirection:'column',minHeight:zoomOut?'calc(100vh / 0.8)':'100vh',
         // minWidth:0 é o que de fato faz a página respeitar a tela: sem isso,
         // um item flex ('flex:1') tem largura mínima automática = a largura
         // do conteúdo mais largo lá dentro (min-content), IGNORANDO o

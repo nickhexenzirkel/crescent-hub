@@ -34,6 +34,11 @@ const Ico = ({ d, size=14, stroke='currentColor' }) => (
 const CentralLembretes = ({ onBack, authUser }) => {
   const userName = authUser?.name || 'Colaborador';
   const [activeTab, setActiveTab] = useState('tarefas');
+  // Aba Uniko Call: pede ao Portal pra encolher a barra lateral (só ícones) e devolve ao sair.
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('uniko-portal-compacto', { detail: activeTab === 'unikocall' }));
+  }, [activeTab]);
+  useEffect(() => () => { window.dispatchEvent(new CustomEvent('uniko-portal-compacto', { detail: false })); }, []);
   const [notifPerm, setNotifPerm] = useState(notifyPermission());
   const [extStatus, setExtStatus] = useState('checking'); // checking | ok | missing | reload
   const [extVersion, setExtVersion] = useState(null);

@@ -119,10 +119,10 @@ export default function MinhasLigacoes() {
   const hojeN = itens.filter((r) => ymd(r.started_at) === hojeYmd()).length;
   const semana = itens.filter((r) => ymd(r.started_at) >= somaDias(6)).length;
 
-  const chip = (on) => ({ padding:'6px 12px', borderRadius:20, cursor:'pointer', fontSize:12, fontWeight:700, fontFamily:'var(--font-body)', whiteSpace:'nowrap',
+  const chip = (on) => ({ padding:'8px 14px', borderRadius:20, cursor:'pointer', fontSize:14, fontWeight:700, fontFamily:'var(--font-body)', whiteSpace:'nowrap',
     border:`1px solid ${on ? VERDE : T.border}`, background: on ? VERDE : 'transparent', color: on ? '#fff' : T.textS });
-  const campo = { padding:'8px 10px', borderRadius:10, border:`1px solid ${T.border}`, background:T.surfaceSub, color:T.text, fontSize:12.5, outline:'none', fontFamily:'var(--font-body)' };
-  const rotulo = { fontSize:10.5, fontWeight:800, letterSpacing:.5, textTransform:'uppercase', color:T.textT, marginBottom:5 };
+  const campo = { padding:'8px 10px', borderRadius:10, border:`1px solid ${T.border}`, background:T.surfaceSub, color:T.text, fontSize:14.5, outline:'none', fontFamily:'var(--font-body)' };
+  const rotulo = { fontSize:12, fontWeight:800, letterSpacing:.5, textTransform:'uppercase', color:T.textT, marginBottom:5 };
 
   const estreito = useEstreito();
   const fimRef = useRef(null);
@@ -140,23 +140,23 @@ export default function MinhasLigacoes() {
   const cartao = (r, mostrarContato) => {
     const dur = callMs(r); const semAviso = r.consent_given === false;
     const aberto = !!aberta[r.id]; const txt = r.transcript || '';
-    const longo = txt.length > 280;
+    const longo = txt.length > 600;
     return (
-      <div style={{ padding:'12px 14px', borderRadius: mostrarContato ? 14 : '16px 16px 16px 4px', marginBottom:8, marginTop: mostrarContato ? 0 : 8, maxWidth: mostrarContato ? 'none' : '92%', background:T.surface, border:`1px solid ${semAviso ? T.danger : T.border}`, borderLeft:`4px solid ${semAviso ? T.danger : VERDE}` }}>
-        <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', fontSize:12, marginBottom:6 }}>
-          <b style={{ color:VERDE_DK, fontSize:13, display:'inline-flex', alignItems:'center', gap:6 }}><IcoFone size={13}/> {mostrarContato ? (nomes[r.contact_id] || 'Contato') : 'Ligação'}</b>
+      <div style={{ padding:'16px 20px', borderRadius: mostrarContato ? 16 : '18px 18px 18px 4px', marginBottom:10, marginTop: mostrarContato ? 0 : 10, maxWidth: mostrarContato ? 'none' : '96%', background:T.surface, border:`1px solid ${semAviso ? T.danger : T.border}`, borderLeft:`4px solid ${semAviso ? T.danger : VERDE}` }}>
+        <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', fontSize:14, marginBottom:8 }}>
+          <b style={{ color:VERDE_DK, fontSize:16, display:'inline-flex', alignItems:'center', gap:6 }}><IcoFone size={13}/> {mostrarContato ? (nomes[r.contact_id] || 'Contato') : 'Ligação'}</b>
           <span style={{ color:T.textT }}>{mostrarContato && f.ordem === 'longas' ? `${dia(r.started_at)} · ` : ''}{hora(r.started_at)}{dur ? ` · ${totalLabel(dur)}` : ''}{r.protocol ? ` · Protocolo #${r.protocol}` : ''}</span>
         </div>
         {semAviso ? (
-          <div style={{ color:T.danger, fontSize:12.5 }} ><span style={{ display:'inline-flex', alignItems:'center', gap:6 }}><IcoAviso size={14}/> Aviso prévio não dito — ligação não registrada.</span></div>
+          <div style={{ color:T.danger, fontSize:15 }}><span style={{ display:'inline-flex', alignItems:'center', gap:6 }}><IcoAviso size={14}/> Aviso prévio não dito — ligação não registrada.</span></div>
         ) : (<>
           {r.audio_url && <AudioPlayer src={r.audio_url} fileName={`chamada-${r.protocol || r.id}`} />}
-          {r.status === 'processing' ? <span style={{ color:T.textT, fontStyle:'italic', fontSize:12.5 }}>Transcrevendo…</span>
-            : r.status === 'error' ? <span style={{ color:T.danger, fontSize:12.5 }}>Não foi possível transcrever esta ligação.</span>
+          {r.status === 'processing' ? <span style={{ color:T.textT, fontStyle:'italic', fontSize:15 }}>Transcrevendo…</span>
+            : r.status === 'error' ? <span style={{ color:T.danger, fontSize:15 }}>Não foi possível transcrever esta ligação.</span>
             : (
-              <div style={{ fontSize:13, lineHeight:1.5, color:T.text, whiteSpace:'pre-wrap', wordBreak:'break-word', marginTop:r.audio_url ? 8 : 0 }}>
-                {txt ? (longo && !aberto ? txt.slice(0, 280) + '…' : txt) : <i style={{ color:T.textT }}>(sem fala reconhecida)</i>}
-                {longo && <button onClick={() => setAberta((a) => ({ ...a, [r.id]: !aberto }))} style={{ display:'block', border:'none', background:'none', cursor:'pointer', color:VERDE_DK, fontWeight:700, fontSize:12, padding:'4px 0 0', fontFamily:'inherit' }}>{aberto ? 'Ver menos' : 'Ver transcrição completa'}</button>}
+              <div style={{ fontSize:16, lineHeight:1.75, color:T.text, whiteSpace:'pre-wrap', wordBreak:'break-word', marginTop:r.audio_url ? 8 : 0 }}>
+                {txt ? (longo && !aberto ? txt.slice(0, 600) + '…' : txt) : <i style={{ color:T.textT }}>(sem fala reconhecida)</i>}
+                {longo && <button onClick={() => setAberta((a) => ({ ...a, [r.id]: !aberto }))} style={{ display:'block', border:'none', background:'none', cursor:'pointer', color:VERDE_DK, fontWeight:700, fontSize:14, padding:'8px 0 0', fontFamily:'inherit' }}>{aberto ? 'Ver menos' : 'Ver transcrição completa'}</button>}
               </div>
             )}
         </>)}
@@ -259,21 +259,21 @@ export default function MinhasLigacoes() {
       </>) : (
         <div style={{ display:'flex', gap:12, alignItems:'stretch', flexWrap:'wrap' }}>
           {/* contatos */}
-          <div style={{ flex:'1 1 240px', maxWidth: estreito ? 'none' : 340, minWidth:0, display: sel && estreito ? 'none' : 'block' }}>
+          <div style={{ flex:'1 1 280px', maxWidth: estreito ? 'none' : 380, minWidth:0, display: sel && estreito ? 'none' : 'block' }}>
             {!conversas.length
               ? <div style={{ textAlign:'center', padding:36, color:T.textT, fontSize:13 }}>{itens.length ? 'Nenhum contato com esses filtros.' : 'Você ainda não tem ligações gravadas.'}</div>
               : conversas.map((c) => {
                 const on = sel === c.id;
                 return (
-                  <button key={c.id} onClick={() => setSel(c.id)} style={{ display:'flex', alignItems:'center', gap:10, width:'100%', textAlign:'left', padding:'10px 12px', marginBottom:6, borderRadius:14, cursor:'pointer', fontFamily:'var(--font-body)',
+                  <button key={c.id} onClick={() => setSel(c.id)} style={{ display:'flex', alignItems:'center', gap:10, width:'100%', textAlign:'left', padding:'12px 14px', marginBottom:8, borderRadius:16, cursor:'pointer', fontFamily:'var(--font-body)',
                     border:`1px solid ${on ? VERDE : T.border}`, background: on ? `${VERDE}18` : T.surface }}>
-                    <span style={{ width:38, height:38, borderRadius:'50%', flexShrink:0, background:`linear-gradient(135deg,${VERDE},${VERDE_DK})`, color:'#fff', fontWeight:800, fontSize:14, display:'flex', alignItems:'center', justifyContent:'center' }}>{(c.nome.trim()[0] || '?').toUpperCase()}</span>
+                    <span style={{ width:44, height:44, borderRadius:'50%', flexShrink:0, background:`linear-gradient(135deg,${VERDE},${VERDE_DK})`, color:'#fff', fontWeight:800, fontSize:14, display:'flex', alignItems:'center', justifyContent:'center' }}>{(c.nome.trim()[0] || '?').toUpperCase()}</span>
                     <span style={{ minWidth:0, flex:1 }}>
                       <span style={{ display:'flex', justifyContent:'space-between', gap:6 }}>
-                        <b style={{ fontSize:13, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{c.nome}</b>
-                        <span style={{ fontSize:10.5, color:T.textT, flexShrink:0 }}>{ymd(c.ultima.started_at) === hojeYmd() ? hora(c.ultima.started_at) : new Date(c.ultima.started_at).toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit' })}</span>
+                        <b style={{ fontSize:15, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{c.nome}</b>
+                        <span style={{ fontSize:12, color:T.textT, flexShrink:0 }}>{ymd(c.ultima.started_at) === hojeYmd() ? hora(c.ultima.started_at) : new Date(c.ultima.started_at).toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit' })}</span>
                       </span>
-                      <span style={{ display:'block', fontSize:11.5, color:T.textT, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                      <span style={{ display:'block', fontSize:13, color:T.textT, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                         {c.lista.length} {c.lista.length === 1 ? 'ligação' : 'ligações'} · {(c.ultima.transcript || '').trim().slice(0, 50) || 'sem transcrição'}
                       </span>
                     </span>
@@ -282,7 +282,7 @@ export default function MinhasLigacoes() {
               })}
           </div>
           {/* conversa */}
-          <div style={{ flex:'2 1 340px', minWidth:0, display: !sel && estreito ? 'none' : 'flex', flexDirection:'column', borderRadius:18, border:`1px solid ${T.border}`, background:T.surfaceSub, overflow:'hidden', minHeight:420 }}>
+          <div style={{ flex:'3 1 420px', minWidth:0, display: !sel && estreito ? 'none' : 'flex', flexDirection:'column', borderRadius:18, border:`1px solid ${T.border}`, background:T.surfaceSub, overflow:'hidden', minHeight:420 }}>
             {!atual ? (
               <div style={{ margin:'auto', textAlign:'center', padding:30, color:T.textT, fontSize:13 }}>
                 <img src="/UNIKO_CALL.png" alt="" style={{ width:90, height:90, objectFit:'contain', opacity:.85 }}/>
@@ -293,15 +293,15 @@ export default function MinhasLigacoes() {
                 {estreito && <button onClick={() => setSel(null)} style={{ border:'none', background:'none', cursor:'pointer', color:VERDE_DK, padding:0, display:'flex' }}><IcoVolta size={18}/></button>}
                 <span style={{ width:34, height:34, borderRadius:'50%', background:`linear-gradient(135deg,${VERDE},${VERDE_DK})`, color:'#fff', fontWeight:800, display:'flex', alignItems:'center', justifyContent:'center' }}>{(atual.nome.trim()[0] || '?').toUpperCase()}</span>
                 <div style={{ minWidth:0 }}>
-                  <div style={{ fontSize:14, fontWeight:800, color:T.text }}>{atual.nome}</div>
-                  <div style={{ fontSize:11.5, color:T.textT }}>{atual.lista.length} {atual.lista.length === 1 ? 'ligação' : 'ligações'}{atual.ms ? ` · ${totalLabel(atual.ms)} de conversa` : ''}</div>
+                  <div style={{ fontSize:17, fontWeight:800, color:T.text }}>{atual.nome}</div>
+                  <div style={{ fontSize:13, color:T.textT }}>{atual.lista.length} {atual.lista.length === 1 ? 'ligação' : 'ligações'}{atual.ms ? ` · ${totalLabel(atual.ms)} de conversa` : ''}</div>
                 </div>
               </div>
-              <div ref={fimRef} style={{ flex:1, overflowY:'auto', height:'calc(100vh - 330px)', minHeight:380, padding:'4px 14px 14px' }}>
+              <div ref={fimRef} style={{ flex:1, overflowY:'auto', height:'calc(100vh - 330px)', minHeight:380, padding:'4px 20px 20px' }}>
                 {(() => { let ultimo = null; return [...atual.lista].sort((a, b) => new Date(a.started_at) - new Date(b.started_at)).map((r) => {
                   const k = dia(r.started_at); const novoDia = k !== ultimo; ultimo = k;
                   return (<div key={r.id}>
-                    {novoDia && <div style={{ textAlign:'center', fontSize:11, fontWeight:700, color:T.textT, background:T.surface, border:`1px solid ${T.border}`, borderRadius:20, padding:'4px 14px', margin:'14px auto 6px', width:'fit-content' }}>{k}</div>}
+                    {novoDia && <div style={{ textAlign:'center', fontSize:13, fontWeight:700, color:T.textT, background:T.surface, border:`1px solid ${T.border}`, borderRadius:20, padding:'4px 14px', margin:'14px auto 6px', width:'fit-content' }}>{k}</div>}
                     {cartao(r, false)}
                   </div>);
                 }); })()}
