@@ -323,3 +323,84 @@ export const serie = (lista, crono, visao) => {
   }
   return out;
 };
+
+/* ── Assistente UNIKO: criar / concluir / listar tarefas por frase ──
+   Devolve o texto da resposta, ou null se a frase não é sobre tarefas. */
+const EVENTO = 'uniko-tarefas-mudou';
+export const aoMudarTarefas = (fn) => { window.addEventListener(EVENTO, fn); return () => window.removeEventListener(EVENTO, fn); };
+const avisarMudou = () => { try { window.dispatchEvent(new Event(EVENTO)); } catch {} };
+const limparTitulo = (s) => s.replace(/^[\s:,\-–—"“']+|[\s."”'!?]+$/g, '').replace(/^(?:de|chamada|chamado|para|pra|que|:)\s+/i, '').trim();
+const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+
+/* Cria uma tarefa pessoal (usado pelos botões do assistente). */
+export const criarTarefa = async (nome, { titulo, freq = 'unica', data }) => {
+  const lista = await carregarLista(nome);
+  if (lista.falhou) return false;
+  const dia = hojeIso();
+  const t = { id: 't' + Date.now().toString(36), titulo: cap(titulo.trim()), freq, criada: dia };
+  if (freq === 'unica') t.data = data || dia;
+  const ok = await salvarLista(nome, { ...lista, tarefas: [...lista.tarefas, t] });
+  if (ok) avisarMudou();
+  return ok;
+};
+
+export const tarefaPorFrase = async (nome, texto) => {
+  const t = norm(texto);
+  const querCriar = /\b(adicion|cri[ae]|nova|novo|anot|coloc|inclu|registr)\w*\b/.test(t) && /\btarefa\b/.test(t);
+  const querConcluir = /\b(terminei|conclui|concluir|finalizei|finalizar|completei|acabei|marc(?:a|ar|e)\b.*\b(?:feita|concluida|pronta)|fiz)\b/.test(t) && (/\btarefa\b/.test(t) || /\b(terminei|conclui|finalizei|completei|acabei)\b/.test(t));
+  const querListar = /\b(minhas tarefas|tarefas de hoje|tarefas pendentes|quais (?:sao )?(?:as )?(?:minhas )?tarefas|o que (?:eu )?(?:tenho|falta)(?: pra| para)? (?:fazer )?hoje)\b/.test(t);
+  if (!querCriar && !querConcluir && !querListar) return null;
+
+  const dia = hojeIso();
+  const lista = await carregarLista(nome);
+  if (lista.falhou) return 'Não consegui acessar suas tarefas agora. Confira a internet e tente de novo.';
+
+  if (querCriar) {
+    // pega o texto depois de "tarefa" (ex.: "adicione uma tarefa de ligar pro cliente")
+    const m = texto.match(/tarefa\s*(?:nova\s*)?(?:chamada\s*)?(?::|-|de|para|pra|que|:)?\s*(.+)$/i) || texto.match(/(?:adicion\w*|cri\w*|anot\w*|coloc\w*|inclu\w*)\s+(.+?)\s+(?:como|nas?|em)\s+(?:minhas\s+)?tarefas?/i);
+    let titulo = m ? m[1] : '';
+    let freq = 'unica'; let data = dia; let quando = 'para hoje';
+    if (/\b(todo\s+dia|todos\s+os\s+dias|diari[ao]|diariamente)\b/i.test(titulo + ' ' + texto)) { freq = 'diaria'; quando = 'todos os dias'; }
+    else if (/\bamanh[ãa]\b/i.test(texto)) { data = addDias(dia, 1); quando = 'para amanhã'; }
+    titulo = limparTitulo(titulo.replace(/\b(todo\s+dia|todos\s+os\s+dias|diariamente|amanh[ãa]|hoje)\b/gi, ''));
+    if (!titulo) return 'Claro! Qual é a tarefa? Ex.: "adicione uma tarefa de enviar a planilha".';
+    titulo = cap(titulo);
+    const nova = { id: 't' + Date.now().toString(36), titulo, freq, criada: dia };
+    if (freq === 'unica') nova.data = data;
+    const ok = await salvarLista(nome, { ...lista, tarefas: [...lista.tarefas, nova] });
+    if (!ok) return 'Ops, não consegui salvar a tarefa agora. Tenta de novo?';
+    avisarMudou();
+    return `Pronto! Adicionei a tarefa "${titulo}" ${quando}. ✅`;
+  }
+
+  const fatSetor = await ehDoFaturamento(nome);
+  const crono = fatSetor ? await carregarCronograma(nome) : null;
+  const { pessoais, fat } = itensDoDia(lista, crono, dia);
+  const itens = [...fat, ...pessoais];
+  const pend = itens.filter((x) => !x.feita);
+
+  if (querListar && !querConcluir) {
+    if (!itens.length) return 'Você não tem tarefas para hoje. 🎉';
+    if (!pend.length) return 'Todas as tarefas de hoje já estão feitas! 🎉';
+    return `Faltam ${pend.length} tarefa${pend.length > 1 ? 's' : ''} hoje:\n` + pend.slice(0, 10).map((x) => `• ${x.titulo}`).join('\n') + (pend.length > 10 ? `\n… e mais ${pend.length - 10}.` : '');
+  }
+
+  // concluir: texto depois de "tarefa" ou do verbo
+  const alvoTxt = norm(texto.replace(/^.*?\b(?:tarefa|terminei|conclu[ií]|finalizei|completei|acabei(?: de)?|fiz)\b/i, ' ').replace(/\b(?:a|o|de|da|do|essa|esta|minha|tarefa|como|feita|concluida|pronta|marque|marca|marcar)\b/gi, ' '));
+  const palavras = alvoTxt.split(/\s+/).filter((w) => w.length > 2);
+  if (!palavras.length) return pend.length ? 'Qual tarefa você terminou? Pendentes: ' + pend.slice(0, 6).map((x) => `"${x.titulo}"`).join(', ') + '.' : 'Você não tem tarefas pendentes hoje. 🎉';
+  const pontua = (x) => { const tt = norm(x.titulo); return palavras.filter((w) => tt.includes(w)).length / palavras.length; };
+  const ranque = pend.map((x) => ({ x, p: pontua(x) })).filter((r) => r.p >= 0.5).sort((a, b) => b.p - a.p);
+  if (!ranque.length) {
+    const jaFeita = itens.find((x) => x.feita && pontua(x) >= 0.5);
+    if (jaFeita) return `A tarefa "${jaFeita.titulo}" já está marcada como feita. ✅`;
+    return 'Não achei essa tarefa entre as pendentes de hoje.' + (pend.length ? ' Pendentes: ' + pend.slice(0, 6).map((x) => `"${x.titulo}"`).join(', ') + '.' : '');
+  }
+  if (ranque.length > 1 && ranque[0].p === ranque[1].p) return 'Achei mais de uma: ' + ranque.slice(0, 4).map((r) => `"${r.x.titulo}"`).join(', ') + '. Qual delas você terminou?';
+  const alvo = ranque[0].x;
+  const ok = await salvarLista(nome, alternarFeita(lista, alvo, dia));
+  if (!ok) return 'Ops, não consegui marcar agora. Tenta de novo?';
+  avisarMudou();
+  const falta = pend.length - 1;
+  return `Marquei "${alvo.titulo}" como feita! ✅ ${falta ? `Ainda faltam ${falta} hoje.` : 'Acabaram as tarefas de hoje! 🎉'}`;
+};

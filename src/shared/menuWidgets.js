@@ -16,7 +16,7 @@ import { isNonCheckinDay, localDateStr } from '../modules/mercado-estelar';
 import { computePontoDays, loadColaboradorPonto } from './pontoCalc';
 import { nomeChamado } from './nomeExibicao';
 import { loadMissionDefs, loadMissionProgress } from './prismaMissions';
-import { carregarLista, carregarCronograma, ehDoFaturamento, itensDoDia, alternarFeita, salvarLista, hojeIso } from './listaTarefas';
+import { carregarLista, carregarCronograma, ehDoFaturamento, itensDoDia, alternarFeita, salvarLista, hojeIso, aoMudarTarefas } from './listaTarefas';
 
 /* Check-in diário da Prisma Store.
    status: 'carregando' | 'disponivel' | 'feito' | 'folga' (fim de semana/feriado)
@@ -161,7 +161,8 @@ export const useTarefasHoje = (authUser) => {
     ler();
     const volta = () => { if (document.visibilityState === 'visible') ler(); };
     document.addEventListener('visibilitychange', volta);
-    return () => { vivo = false; document.removeEventListener('visibilitychange', volta); };
+    const sair = aoMudarTarefas(ler);
+    return () => { vivo = false; sair(); document.removeEventListener('visibilitychange', volta); };
   }, [nome]);
 
   const dia = hojeIso();

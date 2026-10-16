@@ -14,6 +14,8 @@ import { onCaptureNumeroState, getCaptureNumeroTargetRect, emitCaptureNumeroThro
 import { getAssistantSkin, getActiveAssistantSkinId, onAssistantSkinChange, getAssistantScale, onAssistantScaleChange, getFalasAutomaticas, onFalasAutomaticasChange } from './assistantSkin';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { setContadorTitulo } from './tituloAba';
+import { tarefaPorFrase } from './listaTarefas';
+import AssistenteTarefasPainel from './AssistenteTarefasPainel';
 
 // Borda do balão de fala (gradiente cônico) e cor do label "UNIKO" — por SKIN ativa.
 // Sem entrada aqui → cai no `default` (azul clássico).
@@ -1264,6 +1266,12 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
       return;
     }
 
+    // 1b) Tarefas (criar / concluir / listar) — também local, sem IA
+    try {
+      const tarefaReply = authUser?.name ? await tarefaPorFrase(authUser.name, text) : null;
+      if (tarefaReply) { setMessages(m => [...m, { from: 'uniko', text: tarefaReply }]); return; }
+    } catch {}
+
     // 2) Resposta REGISTRADA pelo admin (override) e 3) FAQ curada — a mais
     // específica (maior score) vence; empate favorece o override (é uma
     // correção deliberada do admin). Ver comentário em overrideMatch acima.
@@ -1397,6 +1405,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
           <div style={{ display: 'flex', gap: 4, padding: '8px 10px 0', borderBottom: `1px solid ${T.border || 'rgba(0,0,0,.08)'}` }}>
             {[
               { id: 'perguntas', label: '💬 Perguntas' },
+              { id: 'tarefas', label: '✅ Tarefas' },
               { id: 'blog', label: '🤫 Blog Secreto' },
             ].map(v => {
               const on = chatMode === v.id;
@@ -1415,6 +1424,8 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
               );
             })}
           </div>
+
+          {chatMode === 'tarefas' && <AssistenteTarefasPainel authUser={authUser} accent={accent} />}
 
           {chatMode === 'perguntas' && (<>
           {/* mensagens */}
