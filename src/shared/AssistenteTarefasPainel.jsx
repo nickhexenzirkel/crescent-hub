@@ -63,7 +63,12 @@ export default function AssistenteTarefasPainel({ authUser, accent }) {
             : [...pend, ...feitas].map((it) => (
               <div key={it.tipo + it.id} onClick={() => t.marcar(it)} style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 10px', borderRadius:10, cursor:'pointer', border:`1px solid ${T.border}`, background:T.surfaceSub || 'transparent', opacity: it.feita ? .55 : 1 }}>
                 <span style={{ width:16, height:16, borderRadius:5, flexShrink:0, border:`2px solid ${COR}`, background: it.feita ? COR : 'transparent', color:'#fff', fontSize:11, lineHeight:'12px', textAlign:'center' }}>{it.feita ? '✓' : ''}</span>
-                <span style={{ fontSize:13, color:T.text, fontWeight:600, textDecoration: it.feita ? 'line-through' : 'none' }}>{it.titulo}</span>
+                <div style={{ minWidth:0, flex:1 }}>
+                  <div style={{ fontSize:13, color:T.text, fontWeight:600, textDecoration: it.feita ? 'line-through' : 'none' }}>{it.titulo}</div>
+                  {it.detalhe && <div style={{ fontSize:11, color:T.textT }}>{it.detalhe}</div>}
+                  {it.atrasada && <div style={{ fontSize:11, color:'#E0A030', fontWeight:700 }}>Venceu em {it.due.slice(8)}/{it.due.slice(5, 7)}</div>}
+                  {it.obs && <div style={{ fontSize:11, color:T.textS }}>Obs.: {it.obs}</div>}
+                </div>
               </div>
             ))}
         </>)}

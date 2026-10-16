@@ -113,7 +113,12 @@ function Painel({ authUser, desafixar }) {
                   style={{ display:'flex', alignItems:'center', gap:8, padding:'5px 8px', borderRadius:10, cursor:'pointer',
                     border:`1px solid ${T.border}`, background:T.surfaceSub || 'transparent' }}>
                   <span style={{ width:14, height:14, borderRadius:4, flexShrink:0, border:`2px solid ${COR}` }}/>
-                  <span style={{ fontSize:12, color:T.text, fontWeight:600, ...linha }}>{it.titulo}</span>
+                  <div style={{ minWidth:0, flex:1 }}>
+                    <div style={{ fontSize:12, color:T.text, fontWeight:600, ...linha }}>{it.titulo}</div>
+                    {(it.detalhe || it.atrasada) && <div title={it.obs || it.detalhe} style={{ fontSize:10.5, color:T.textT, ...linha }}>
+                      {[it.detalhe, it.atrasada ? `venceu ${it.due.slice(8)}/${it.due.slice(5, 7)}` : ''].filter(Boolean).join(' · ')}
+                    </div>}
+                  </div>
                 </div>
               ))}
             </div>

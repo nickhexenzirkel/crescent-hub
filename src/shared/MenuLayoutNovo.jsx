@@ -637,8 +637,12 @@ const WidgetTarefas = ({ tam, authUser, ...moldura }) => {
                     style={{ display:'flex', alignItems:'center', gap:9, padding:'5px 8px', borderRadius:10, cursor:'pointer',
                       border:`1px solid ${T.border}`, background:T.surfaceSub || 'transparent' }}>
                     <span style={{ width:16, height:16, borderRadius:5, flexShrink:0, border:`2px solid ${COR_TAREFAS}` }}/>
-                    <span style={{ fontSize:12.5, color:T.text, fontWeight:600, ...umaLinha }}>{it.titulo}</span>
-                    {it.detalhe && <span style={{ fontSize:11, color:T.textT, flexShrink:0, maxWidth:'38%', ...umaLinha }}>{it.detalhe.split(' · ')[0]}</span>}
+                    <div style={{ minWidth:0, flex:1 }}>
+                      <div style={{ fontSize:12.5, color:T.text, fontWeight:600, ...umaLinha }}>{it.titulo}</div>
+                      {(it.detalhe || it.atrasada) && <div title={it.obs || it.detalhe} style={{ fontSize:10.5, color:T.textT, ...umaLinha }}>
+                        {[it.detalhe, it.atrasada ? `venceu ${it.due.slice(8)}/${it.due.slice(5, 7)}` : ''].filter(Boolean).join(' · ')}
+                      </div>}
+                    </div>
                   </div>
                 ))}
                 {n > mostrar.length && <div style={{ fontSize:11.5, color:T.textT, paddingLeft:4 }}>+ {n - mostrar.length} {n - mostrar.length === 1 ? 'outra' : 'outras'} — toque para ver todas</div>}

@@ -382,7 +382,7 @@ export const tarefaPorFrase = async (nome, texto) => {
   if (querListar && !querConcluir) {
     if (!itens.length) return 'Você não tem tarefas para hoje. 🎉';
     if (!pend.length) return 'Todas as tarefas de hoje já estão feitas! 🎉';
-    return `Faltam ${pend.length} tarefa${pend.length > 1 ? 's' : ''} hoje:\n` + pend.slice(0, 10).map((x) => `• ${x.titulo}`).join('\n') + (pend.length > 10 ? `\n… e mais ${pend.length - 10}.` : '');
+    return `Faltam ${pend.length} tarefa${pend.length > 1 ? 's' : ''} hoje:\n` + pend.slice(0, 10).map((x) => `• ${x.titulo}${x.detalhe ? " — " + x.detalhe : ""}`).join('\n') + (pend.length > 10 ? `\n… e mais ${pend.length - 10}.` : '');
   }
 
   // concluir: texto depois de "tarefa" ou do verbo
