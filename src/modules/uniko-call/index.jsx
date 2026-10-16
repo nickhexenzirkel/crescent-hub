@@ -79,7 +79,7 @@ const fmtDuration = (s) => {
 
 const IcoDownload = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12" /><polyline points="7 11 12 16 17 11" /><path d="M5 21h14" /></svg>);
 
-const AudioPlayer = ({ src, fileName = 'chamada' }) => {
+export const AudioPlayer = ({ src, fileName = 'chamada' }) => {
   const audioRef = useRef(null);
   const [downloading, setDownloading] = useState(false);
   const [playing, setPlaying] = useState(false);

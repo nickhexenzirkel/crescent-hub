@@ -10,3 +10,5 @@ Em 07/out/2026: extensão v1.7.0 tem card de login no popup (CPF+senha do Portal
 **Why:** usuário queria ver ligações organizadas por atendente e setor; escolheu login no popup (mais confiável que seleção de nome) e abas na tela.
 
 **How to apply:** PRECISA rodar `supabase_uniko_call_atendente.sql` (projeto Safer) + deploy na VPS (git pull + pm2 restart) + atendentes reinstalarem a extensão (zip da Vercel) e logarem. Lista de setores duplicada em `src/modules/uniko-call/index.jsx` (SETORES) — atualizar junto com TabColegas. Veja [[uniko-call-transcricao]].
+
+**Minhas ligações (16/out/2026):** aba "Uniko Call" em Minhas Tarefas (central-lembretes/MinhasLigacoes.jsx) é espelho só de leitura: lê as mesmas tabelas/áudio, sem copiar nada. Privacidade pelo RLS (attendant_id = id do token) — PRECISA rodar supabase_uniko_call_minhas.sql.
