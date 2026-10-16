@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { T } from '../../contexts/theme';
 import { getAuthUser } from '../../contexts/user';
 import { supabase as callDb } from '../uniko-call/callSupabase';
@@ -22,6 +22,12 @@ const STATUS = [['todas', 'Todas'], ['ok', 'Transcritas'], ['semaviso', 'Sem avi
 const DURACOES = [['0', 'Qualquer duração'], ['60000', '+1 min'], ['300000', '+5 min'], ['600000', '+10 min']];
 const ORDENS = [['novas', 'Mais recentes'], ['antigas', 'Mais antigas'], ['longas', 'Mais longas']];
 
+const useEstreito = () => {
+  const [e, setE] = useState(() => window.innerWidth < 760);
+  useEffect(() => { const f = () => setE(window.innerWidth < 760); window.addEventListener('resize', f); return () => window.removeEventListener('resize', f); }, []);
+  return e;
+};
+
 const statusDe = (r) => (r.consent_given === false ? 'semaviso' : r.status === 'error' ? 'erro' : r.status === 'processing' ? 'proc' : 'ok');
 
 export default function MinhasLigacoes() {
@@ -32,6 +38,8 @@ export default function MinhasLigacoes() {
   const [erro, setErro] = useState('');
   const [limite, setLimite] = useState(POR_PAGINA);
   const [aberta, setAberta] = useState({});
+  const [vista, setVista] = useState('conversas'); // conversas (estilo chat por contato) | lista
+  const [sel, setSel] = useState(null);
   const [f, setF] = useState({ busca:'', periodo:'tudo', de:'', ate:'', contato:'', status:'todas', dur:'0', ordem:'novas' });
   const mudar = (p) => { setF((x) => ({ ...x, ...p })); setLimite(POR_PAGINA); };
 
@@ -93,10 +101,49 @@ export default function MinhasLigacoes() {
   const campo = { padding:'8px 10px', borderRadius:10, border:`1px solid ${T.border}`, background:T.surfaceSub, color:T.text, fontSize:12.5, outline:'none', fontFamily:'var(--font-body)' };
   const rotulo = { fontSize:10.5, fontWeight:800, letterSpacing:.5, textTransform:'uppercase', color:T.textT, marginBottom:5 };
 
+  const estreito = useEstreito();
+  const fimRef = useRef(null);
+  const conversas = useMemo(() => {
+    const m = new Map();
+    filtradas.forEach((r) => { if (!m.has(r.contact_id)) m.set(r.contact_id, []); m.get(r.contact_id).push(r); });
+    return [...m.entries()].map(([id, lista]) => ({ id, lista, nome: nomes[id] || 'Contato', ms: lista.reduce((t, r) => t + callMs(r), 0),
+      ultima: lista.reduce((a, b) => (new Date(b.started_at) > new Date(a.started_at) ? b : a)) }))
+      .sort((a, b) => new Date(b.ultima.started_at) - new Date(a.ultima.started_at));
+  }, [filtradas, nomes]);
+  useEffect(() => { if (!estreito && !sel && conversas.length) setSel(conversas[0].id); }, [estreito, sel, conversas]);
+  const atual = conversas.find((c) => c.id === sel) || null;
+  useEffect(() => { const el = fimRef.current; if (el) el.scrollTop = el.scrollHeight; }, [sel, vista, atual?.lista.length]);
+
+  const cartao = (r, mostrarContato) => {
+    const dur = callMs(r); const semAviso = r.consent_given === false;
+    const aberto = !!aberta[r.id]; const txt = r.transcript || '';
+    const longo = txt.length > 280;
+    return (
+      <div style={{ padding:'12px 14px', borderRadius: mostrarContato ? 14 : '16px 16px 16px 4px', marginBottom:8, marginTop: mostrarContato ? 0 : 8, maxWidth: mostrarContato ? 'none' : '92%', background:T.surface, border:`1px solid ${semAviso ? T.danger : T.border}`, borderLeft:`4px solid ${semAviso ? T.danger : VERDE}` }}>
+        <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', fontSize:12, marginBottom:6 }}>
+          <b style={{ color:VERDE_DK, fontSize:13 }}>📞 {mostrarContato ? (nomes[r.contact_id] || 'Contato') : 'Ligação'}</b>
+          <span style={{ color:T.textT }}>{mostrarContato && f.ordem === 'longas' ? `${dia(r.started_at)} · ` : ''}{hora(r.started_at)}{dur ? ` · ${totalLabel(dur)}` : ''}{r.protocol ? ` · Protocolo #${r.protocol}` : ''}</span>
+        </div>
+        {semAviso ? (
+          <div style={{ color:T.danger, fontSize:12.5 }}>❌ Aviso prévio não dito — ligação não registrada.</div>
+        ) : (<>
+          {r.audio_url && <AudioPlayer src={r.audio_url} fileName={`chamada-${r.protocol || r.id}`} />}
+          {r.status === 'processing' ? <span style={{ color:T.textT, fontStyle:'italic', fontSize:12.5 }}>Transcrevendo…</span>
+            : r.status === 'error' ? <span style={{ color:T.danger, fontSize:12.5 }}>Não foi possível transcrever esta ligação.</span>
+            : (
+              <div style={{ fontSize:13, lineHeight:1.5, color:T.text, whiteSpace:'pre-wrap', wordBreak:'break-word', marginTop:r.audio_url ? 8 : 0 }}>
+                {txt ? (longo && !aberto ? txt.slice(0, 280) + '…' : txt) : <i style={{ color:T.textT }}>(sem fala reconhecida)</i>}
+                {longo && <button onClick={() => setAberta((a) => ({ ...a, [r.id]: !aberto }))} style={{ display:'block', border:'none', background:'none', cursor:'pointer', color:VERDE_DK, fontWeight:700, fontSize:12, padding:'4px 0 0', fontFamily:'inherit' }}>{aberto ? 'Ver menos' : 'Ver transcrição completa'}</button>}
+              </div>
+            )}
+        </>)}
+      </div>
+    );
+  };
+
   if (carregando) return <div style={{ textAlign:'center', padding:60, color:T.textT }}>Carregando...</div>;
   if (erro) return <div style={{ padding:20, color:T.textS }}>{erro}</div>;
 
-  let ultimoDia = null;
   return (
     <div>
       {/* cabeçalho com mascote */}
@@ -164,40 +211,78 @@ export default function MinhasLigacoes() {
         </div>
       </div>
 
-      {!visiveis.length
-        ? <div style={{ textAlign:'center', padding:50, color:T.textT, fontSize:13 }}>{itens.length ? 'Nada encontrado com esses filtros.' : 'Você ainda não tem ligações gravadas.'}</div>
-        : visiveis.map((r) => {
-          const k = dia(r.started_at); const novoDia = k !== ultimoDia && f.ordem !== 'longas'; if (f.ordem !== 'longas') ultimoDia = k;
-          const dur = callMs(r); const semAviso = r.consent_given === false;
-          const aberto = !!aberta[r.id]; const txt = r.transcript || '';
-          const longo = txt.length > 280;
-          return (
-            <div key={r.id}>
+
+      {/* alternar visão */}
+      <div style={{ display:'flex', gap:6, marginBottom:12 }}>
+        {[['conversas', '💬 Conversas'], ['lista', '📋 Lista']].map(([id, l]) => <button key={id} onClick={() => setVista(id)} style={chip(vista === id)}>{l}</button>)}
+      </div>
+
+      {vista === 'lista' ? (<>
+        {!visiveis.length
+          ? <div style={{ textAlign:'center', padding:50, color:T.textT, fontSize:13 }}>{itens.length ? 'Nada encontrado com esses filtros.' : 'Você ainda não tem ligações gravadas.'}</div>
+          : (() => { let ultimo = null; return visiveis.map((r) => {
+            const k = dia(r.started_at); const novoDia = k !== ultimo && f.ordem !== 'longas'; if (f.ordem !== 'longas') ultimo = k;
+            return (<div key={r.id}>
               {novoDia && <div style={{ fontSize:11, fontWeight:800, color:VERDE_DK, margin:'16px 0 6px' }}>{k}</div>}
-              <div style={{ padding:'12px 14px', borderRadius:14, marginBottom:8, background:T.surface, border:`1px solid ${semAviso ? T.danger : T.border}`, borderLeft:`4px solid ${semAviso ? T.danger : VERDE}` }}>
-                <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', fontSize:12, marginBottom:6 }}>
-                  <b style={{ color:VERDE_DK, fontSize:13 }}>📞 {nomes[r.contact_id] || 'Contato'}</b>
-                  <span style={{ color:T.textT }}>{f.ordem === 'longas' ? `${k} · ` : ''}{hora(r.started_at)}{dur ? ` · ${totalLabel(dur)}` : ''}{r.protocol ? ` · Protocolo #${r.protocol}` : ''}</span>
-                </div>
-                {semAviso ? (
-                  <div style={{ color:T.danger, fontSize:12.5 }}>❌ Aviso prévio não dito — ligação não registrada.</div>
-                ) : (<>
-                  {r.audio_url && <AudioPlayer src={r.audio_url} fileName={`chamada-${r.protocol || r.id}`} />}
-                  {r.status === 'processing' ? <span style={{ color:T.textT, fontStyle:'italic', fontSize:12.5 }}>Transcrevendo…</span>
-                    : r.status === 'error' ? <span style={{ color:T.danger, fontSize:12.5 }}>Não foi possível transcrever esta ligação.</span>
-                    : (
-                      <div style={{ fontSize:13, lineHeight:1.5, color:T.text, whiteSpace:'pre-wrap', wordBreak:'break-word', marginTop:r.audio_url ? 8 : 0 }}>
-                        {txt ? (longo && !aberto ? txt.slice(0, 280) + '…' : txt) : <i style={{ color:T.textT }}>(sem fala reconhecida)</i>}
-                        {longo && <button onClick={() => setAberta((a) => ({ ...a, [r.id]: !aberto }))} style={{ display:'block', border:'none', background:'none', cursor:'pointer', color:VERDE_DK, fontWeight:700, fontSize:12, padding:'4px 0 0', fontFamily:'inherit' }}>{aberto ? 'Ver menos' : 'Ver transcrição completa'}</button>}
-                      </div>
-                    )}
-                </>)}
+              {cartao(r, true)}
+            </div>);
+          }); })()}
+        {filtradas.length > limite && (
+          <button onClick={() => setLimite((l) => l + POR_PAGINA)} style={{ display:'block', margin:'10px auto', padding:'9px 22px', borderRadius:10, border:'none', background:`linear-gradient(135deg,${VERDE},${VERDE_DK})`, color:'#fff', fontWeight:800, cursor:'pointer', fontFamily:'var(--font-body)', fontSize:13 }}>Mostrar mais ({filtradas.length - limite})</button>
+        )}
+      </>) : (
+        <div style={{ display:'flex', gap:12, alignItems:'stretch', flexWrap:'wrap' }}>
+          {/* contatos */}
+          <div style={{ flex:'1 1 240px', maxWidth: estreito ? 'none' : 340, minWidth:0, display: sel && estreito ? 'none' : 'block' }}>
+            {!conversas.length
+              ? <div style={{ textAlign:'center', padding:36, color:T.textT, fontSize:13 }}>{itens.length ? 'Nenhum contato com esses filtros.' : 'Você ainda não tem ligações gravadas.'}</div>
+              : conversas.map((c) => {
+                const on = sel === c.id;
+                return (
+                  <button key={c.id} onClick={() => setSel(c.id)} style={{ display:'flex', alignItems:'center', gap:10, width:'100%', textAlign:'left', padding:'10px 12px', marginBottom:6, borderRadius:14, cursor:'pointer', fontFamily:'var(--font-body)',
+                    border:`1px solid ${on ? VERDE : T.border}`, background: on ? `${VERDE}18` : T.surface }}>
+                    <span style={{ width:38, height:38, borderRadius:'50%', flexShrink:0, background:`linear-gradient(135deg,${VERDE},${VERDE_DK})`, color:'#fff', fontWeight:800, fontSize:14, display:'flex', alignItems:'center', justifyContent:'center' }}>{(c.nome.trim()[0] || '?').toUpperCase()}</span>
+                    <span style={{ minWidth:0, flex:1 }}>
+                      <span style={{ display:'flex', justifyContent:'space-between', gap:6 }}>
+                        <b style={{ fontSize:13, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{c.nome}</b>
+                        <span style={{ fontSize:10.5, color:T.textT, flexShrink:0 }}>{ymd(c.ultima.started_at) === hojeYmd() ? hora(c.ultima.started_at) : new Date(c.ultima.started_at).toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit' })}</span>
+                      </span>
+                      <span style={{ display:'block', fontSize:11.5, color:T.textT, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                        {c.lista.length} {c.lista.length === 1 ? 'ligação' : 'ligações'} · {(c.ultima.transcript || '').trim().slice(0, 50) || 'sem transcrição'}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+          </div>
+          {/* conversa */}
+          <div style={{ flex:'2 1 340px', minWidth:0, display: !sel && estreito ? 'none' : 'flex', flexDirection:'column', borderRadius:18, border:`1px solid ${T.border}`, background:T.surfaceSub, overflow:'hidden', minHeight:320 }}>
+            {!atual ? (
+              <div style={{ margin:'auto', textAlign:'center', padding:30, color:T.textT, fontSize:13 }}>
+                <img src="/UNIKO_CALL.png" alt="" style={{ width:90, height:90, objectFit:'contain', opacity:.85 }}/>
+                <div>Escolha um contato para ver todas as ligações com ele.</div>
               </div>
-            </div>
-          );
-        })}
-      {filtradas.length > limite && (
-        <button onClick={() => setLimite((l) => l + POR_PAGINA)} style={{ display:'block', margin:'10px auto', padding:'9px 22px', borderRadius:10, border:'none', background:`linear-gradient(135deg,${VERDE},${VERDE_DK})`, color:'#fff', fontWeight:800, cursor:'pointer', fontFamily:'var(--font-body)', fontSize:13 }}>Mostrar mais ({filtradas.length - limite})</button>
+            ) : (<>
+              <div style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px', background:`linear-gradient(135deg,${VERDE}26,transparent)`, borderBottom:`1px solid ${T.border}` }}>
+                {estreito && <button onClick={() => setSel(null)} style={{ border:'none', background:'none', cursor:'pointer', fontSize:18, color:VERDE_DK, padding:0 }}>←</button>}
+                <span style={{ width:34, height:34, borderRadius:'50%', background:`linear-gradient(135deg,${VERDE},${VERDE_DK})`, color:'#fff', fontWeight:800, display:'flex', alignItems:'center', justifyContent:'center' }}>{(atual.nome.trim()[0] || '?').toUpperCase()}</span>
+                <div style={{ minWidth:0 }}>
+                  <div style={{ fontSize:14, fontWeight:800, color:T.text }}>{atual.nome}</div>
+                  <div style={{ fontSize:11.5, color:T.textT }}>{atual.lista.length} {atual.lista.length === 1 ? 'ligação' : 'ligações'}{atual.ms ? ` · ${totalLabel(atual.ms)} de conversa` : ''}</div>
+                </div>
+              </div>
+              <div ref={fimRef} style={{ flex:1, overflowY:'auto', maxHeight:520, padding:'4px 14px 14px' }}>
+                {(() => { let ultimo = null; return [...atual.lista].sort((a, b) => new Date(a.started_at) - new Date(b.started_at)).map((r) => {
+                  const k = dia(r.started_at); const novoDia = k !== ultimo; ultimo = k;
+                  return (<div key={r.id}>
+                    {novoDia && <div style={{ textAlign:'center', fontSize:11, fontWeight:700, color:T.textT, background:T.surface, border:`1px solid ${T.border}`, borderRadius:20, padding:'4px 14px', margin:'14px auto 6px', width:'fit-content' }}>{k}</div>}
+                    {cartao(r, false)}
+                  </div>);
+                }); })()}
+              </div>
+            </>)}
+          </div>
+        </div>
       )}
     </div>
   );
