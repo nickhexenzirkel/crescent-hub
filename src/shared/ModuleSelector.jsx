@@ -15,7 +15,7 @@ import { useIsMobile } from '../hooks/useIsMobile';
 import { nomeChamado, useNomesExibicao } from './nomeExibicao';
 import { aplicarVisibilidade, useVisibilidade } from './visibilidade';
 import { isVisitante } from './visitante';
-import { useVisitanteConfig, moduloLiberadoVisitante } from './visitanteConfig';
+import { useVisitanteConfig, moduloLiberadoVisitante, abasVisitante } from './visitanteConfig';
 
 /* Ordem pessoal dos módulos na tela — por usuário (mesmo padrão de outras
    preferências client-only do app: chave por CPF, senão nome, senão 'anon'). */
