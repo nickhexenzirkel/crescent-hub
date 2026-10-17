@@ -738,7 +738,7 @@ export default function CrescentHub() {
         <LavaLamp/>
         <div style={{position:'relative',zIndex:1,minHeight:'100vh'}}>
           {screen==='landing'     && <LandingPage    onStart={()=>navPush('login')} onGuest={handleGuestLogin}/>}
-          {screen==='login'       && <LoginScreen    onLogin={handleLogin}/>}
+          {screen==='login'       && <LoginScreen    onLogin={handleLogin} onGuest={handleGuestLogin}/>}
           {screen==='modules'     && <ModuleSelector onSelect={handleModuleSelect} authUser={authUser} onLogout={handleLogout} userPhoto={userPhoto} cargoModules={cargoModules} cargoRestricted={cargoRestricted} cargoTabRestrictions={cargoTabRestrictions}/>}
           {screen==='colaborador' && <Portal         onBack={handleGoBack} onGoAlexa={()=>navPush('alexa')} userPhoto={userPhoto} onPhotoChange={p=>setUserPhoto(p)} initialTab={portalInitialTab} visitante={isVisitante(authUser)} restrictedTabs={isVisitante(authUser) ? VISITANTE_PORTAL_TABS : (isPlainColaborador ? cargoTabRestrictions['colaborador'] : undefined)}/>}
           {screen==='ponto'       && (authUser?.role==='admin'||authUser?.role==='moderador'||cargoModules.has('ponto')) && <PontoEletronico onBack={handleGoBack} isAdmin={true}/>}

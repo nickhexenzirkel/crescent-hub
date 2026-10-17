@@ -10,8 +10,9 @@ const Ico = ({ d, size = 16, stroke = 'currentColor' }) => (
     stroke={stroke} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{d}</svg>
 );
 
-const LoginScreen = ({ onLogin }) => {
+const LoginScreen = ({ onLogin, onGuest }) => {
   const isMobile = useIsMobile();
+  const [hovGuest, setHovGuest] = useState(false);
   const [cpf,      setCpf]      = useState('');
   const [pass,     setPass]     = useState('');
   const [showPass, setShowPass] = useState(false);
@@ -232,6 +233,21 @@ const LoginScreen = ({ onLogin }) => {
               Esqueceu a senha? Fale com o RH
             </span>
           </div>
+
+          {/* Acesso sem cadastro — só o Portal do Colaborador, bem mais limitado
+              (sem financeiro, ponto, compras, etc. — ver shared/visitante.js). */}
+          {onGuest && (
+            <div style={{ textAlign: 'center', marginTop: 10 }}>
+              <button onClick={onGuest} onMouseEnter={() => setHovGuest(true)} onMouseLeave={() => setHovGuest(false)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer',
+                  fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
+                  color: hovGuest ? T.gold : T.textD, textDecoration: hovGuest ? 'underline' : 'none',
+                  transition: 'color .2s', outline: 'none' }}>
+                Entrar como visitante
+              </button>
+            </div>
+          )}
+
           <div style={{ marginTop: 26, width: '100%' }}><StarDivider /></div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 11, justifyContent: 'center', marginTop: 16 }}>
             <Logo size={26} />
