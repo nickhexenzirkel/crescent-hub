@@ -75,7 +75,7 @@ const LockIcon = () => (
 // um cargo específico enxerga (ex: cargo "Comercial" só vendo Seus Dados/
 // Financeiro/Meus Lembretes/Eventos/Feedback). Sem esse prop, comportamento
 // 100% igual a antes.
-const Sidebar = ({tab,setTab,onBack,activeTheme,onTheme,onOpenSettings,userPhoto,profileComplete,collapsed,desligado,only}) => {
+const Sidebar = ({tab,setTab,onBack,activeTheme,onTheme,onOpenSettings,userPhoto,profileComplete,collapsed,desligado,only,visitante}) => {
   useNomesExibicao();
   useVisibilidade();
   const isMobile = useIsMobile();
@@ -172,21 +172,22 @@ const Sidebar = ({tab,setTab,onBack,activeTheme,onTheme,onOpenSettings,userPhoto
       {/* User footer */}
       <div style={{padding:'10px 12px 18px'}}>
         <StarDivider my={0}/>
-        <div onClick={profileComplete ? onOpenSettings : () => setTab('dados')}
+        {/* Visitante não tem Seus Dados pra "completar" — o cadeado nunca liberaria. */}
+        <div onClick={(visitante || profileComplete) ? onOpenSettings : () => setTab('dados')}
           onMouseEnter={e=>e.currentTarget.style.background=T.surfaceSub||'rgba(0,0,0,0.04)'}
           onMouseLeave={e=>e.currentTarget.style.background='transparent'}
-          title={collapsed ? 'Configurações' : (!profileComplete ? 'Preencha seus dados (email, endereço, etc.) para liberar esta função' : undefined)}
+          title={collapsed ? 'Configurações' : (!(visitante || profileComplete) ? 'Preencha seus dados (email, endereço, etc.) para liberar esta função' : undefined)}
           style={{display:'flex',alignItems:'center',gap:9,padding:'9px 11px',
             justifyContent:collapsed?'center':'flex-start',
             borderRadius:9,cursor:'pointer',marginBottom:6,transition:'background .14s',
-            opacity:profileComplete?1:0.45}}>
+            opacity:(visitante || profileComplete)?1:0.45}}>
           <svg width="15" height="15" viewBox="0 0 20 20" fill="none"
             stroke={T.textS} strokeWidth="1.6" strokeLinecap="round">
             <circle cx="10" cy="10" r="3"/>
             <path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.22 4.22l1.42 1.42M14.36 14.36l1.42 1.42M4.22 15.78l1.42-1.42M14.36 5.64l1.42-1.42"/>
           </svg>
           {!collapsed && <span style={{fontFamily:'var(--font-body)',fontSize:13,color:T.textS}}>Configurações</span>}
-          {!collapsed && (profileComplete
+          {!collapsed && ((visitante || profileComplete)
             ? <span style={{marginLeft:'auto',fontFamily:'var(--font-body)',fontSize:10,
                 fontWeight:500,
                 color:THEMES[activeTheme]?.dark ? '#fff' : T.gold,
@@ -205,7 +206,7 @@ const Sidebar = ({tab,setTab,onBack,activeTheme,onTheme,onOpenSettings,userPhoto
           {!collapsed && <div style={{overflow:'hidden',flex:1}}>
             <div style={{fontSize:14,fontWeight:600,color:T.text,
               whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}} title={USER.name}>{nomeExibido(USER.name)}</div>
-            <div style={{fontSize:12,color:T.textT,marginTop:1}}>Colaborador</div>
+            <div style={{fontSize:12,color:T.textT,marginTop:1}}>{visitante ? 'Visitante' : 'Colaborador'}</div>
           </div>}
         </div>
         <div onClick={onBack}

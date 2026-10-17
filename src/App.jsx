@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { T, FONTS, applyTheme } from './contexts/theme';
-import { SERVER_URL, supabase as _supabase, loadUserPhoto, fetchPhotoByName } from './contexts/user';
+import { SERVER_URL, supabase as _supabase, loadUserPhoto, fetchPhotoByName, USER } from './contexts/user';
+import { criarUsuarioVisitante, isVisitante } from './shared/visitante';
 import { carregarNomesExibicao, nomeChamado } from './shared/nomeExibicao';
 import { useCaixaEntrada } from './shared/menuWidgets';
 import { setContadorTitulo } from './shared/tituloAba';
@@ -48,6 +49,19 @@ const IcoPrestacaoContas = (
     <path d="M6 2h9l3 3v17a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z"/><path d="M9 12h6M9 16h6"/><circle cx="9.5" cy="8" r="1.2"/>
   </svg>
 );
+
+// Abas do Portal liberadas pro visitante (ver vault/Regras da IA.md — pedido
+// explícito do dono, 17/10/2026). Fora daqui: financeiro, banco de horas,
+// ponto eletrônico, Coleção (não coleciona Uniko), Roleta da Sorte e Quiz do
+// M&M (não participa) e Seus Dados (não tem perfil real pra editar). Jogos e
+// Colegas ficam liberados (pedido explícito), Uniko Call sai de dentro de
+// Minhas Tarefas (ver central-lembretes/index.jsx).
+const VISITANTE_PORTAL_TABS = ['inicio','lembretes','comunicados','eventos','colegas','feedback',
+  'unikosuspect','unikowave','unikopaint','unikocamera','unikostop','unikopalavras','unikofaster'];
+// Oficina Estelar pro visitante: só as ferramentas de PDF (editor/organizar/
+// mesclar) — nada de notas fiscais, clientes, ofício ou a assinatura do
+// Cleanderson (pedido explícito).
+const VISITANTE_FATURAMENTO_TABS = ['pdf-editor','pdf-organizar','pdf-mesclar'];
 
 export default function CrescentHub() {
   const [screen, ss]       = useState('landing');
@@ -135,7 +149,9 @@ export default function CrescentHub() {
   // Atualiza em tempo real (realtime + poll) pra o spawn chegar a todos ~ao mesmo tempo.
   const rawCaptureCfgRef = useRef(null); // config CRU (mesmo desligado) — o agendador compara com ele
   useEffect(() => {
-    if (!authUser) return;
+    // Visitante não participa do Capture o Uniko (pedido explícito) — nem carrega
+    // a config, pra nunca sequer aparecer o widget nem disparar o agendador.
+    if (!authUser || isVisitante(authUser)) return;
     let alive = true;
     const refresh = () => loadCaptureConfig().then(c => {
       if (!alive) return;
@@ -155,7 +171,8 @@ export default function CrescentHub() {
   // padrão (config load + realtime + poll fallback + fila de agendamento abaixo).
   const rawCaptureNumeroCfgRef = useRef(null); // config CRU (mesmo desligado) — o agendador compara com ele
   useEffect(() => {
-    if (!authUser) return;
+    // Mesmo motivo do Capture o Uniko acima — visitante não participa.
+    if (!authUser || isVisitante(authUser)) return;
     let alive = true;
     const refresh = () => loadCaptureNumeroConfig().then(c => {
       if (!alive) return;
@@ -173,7 +190,7 @@ export default function CrescentHub() {
   // ── Fila de spawns agendados do "Capture o Número" — mesmo mecanismo do Uniko
   // (ver comentário detalhado abaixo, no efeito da fila do Uniko). ──
   useEffect(() => {
-    if (!authUser) return;
+    if (!authUser || isVisitante(authUser)) return;
     let alive = true;
     const tick = async () => {
       const cfg = await runCaptureNumeroScheduler(rawCaptureNumeroCfgRef.current);
@@ -192,7 +209,7 @@ export default function CrescentHub() {
   // ao mesmo tempo sem problema — o config gerado é idêntico (spawnAt com RNG semeado)
   // e as ocorrências já disparadas ficam registradas no settings (ver captureUniko.js).
   useEffect(() => {
-    if (!authUser) return;
+    if (!authUser || isVisitante(authUser)) return;
     let alive = true;
     const tick = async () => {
       const cfg = await runCaptureScheduler(rawCaptureCfgRef.current);
@@ -206,12 +223,13 @@ export default function CrescentHub() {
   }, [authUser]);
   // Unikos criados na Oficina (Dashboard RH) — carrega o roster + skins de assistente
   // uma vez no login, pra getUniko/getAssistantSkin já encontrarem os customizados.
-  useEffect(() => { if (authUser) { loadCustomUnikos(); loadRewardOverrides(); loadUnikoBgVideos(); loadUnikoFalas(); loadCategoriaTags(); loadUnikoCategorias(); } }, [authUser]);
+  useEffect(() => { if (authUser && !isVisitante(authUser)) { loadCustomUnikos(); loadRewardOverrides(); loadUnikoBgVideos(); loadUnikoFalas(); loadCategoriaTags(); loadUnikoCategorias(); } }, [authUser]);
 
   // Uniko escolhido como assistente sincroniza em tempo real entre dispositivos (celular/
   // computador logados com a mesma conta) — puxa do banco e assina mudanças (ver assistantSkin.js).
+  // Visitante não tem conta real pra sincronizar.
   useEffect(() => {
-    if (!authUser) return;
+    if (!authUser || isVisitante(authUser)) return;
     const unsub = initAssistantSkinSync();
     return unsub;
   }, [authUser]);
@@ -219,7 +237,7 @@ export default function CrescentHub() {
   // Capture o Uniko aparece em instantes ligeiramente diferentes em cada PC conforme o
   // quanto o relógio local está errado. Reforça de novo a cada 10min (deriva pouca coisa).
   useEffect(() => {
-    if (!authUser) return;
+    if (!authUser || isVisitante(authUser)) return;
     syncServerClock();
     const id = setInterval(syncServerClock, 10 * 60 * 1000);
     return () => clearInterval(id);
@@ -357,6 +375,17 @@ export default function CrescentHub() {
     loadUserPhoto().then(p => { if (p) setUserPhoto(p); });
   };
 
+  // Visitante — sem cadastro/login, sem token, sem linha no Supabase (ver
+  // shared/visitante.js). USER é o objeto global mutável que vários módulos
+  // leem direto (ex: Sidebar do Portal) em vez do estado React — sem
+  // atualizar `name`/`avatar` aqui, essas telas mostrariam "Colaborador".
+  const handleGuestLogin = () => {
+    const guest = criarUsuarioVisitante();
+    USER.name = guest.name; USER.short = guest.name; USER.avatar = 'VI';
+    setAuthUser(guest);
+    navReplace('modules');
+  };
+
   const handleLogout = () => {
     localStorage.removeItem('ch_token');
     setAuthUser(null);
@@ -397,6 +426,8 @@ export default function CrescentHub() {
     // breve" e Portal dos Credenciados (7 Benefícios, dado de terceiro).
     const strictAdminOnly = ['uniko-call','prestacao-contas','7-beneficios','uniko-security'];
     if (strictAdminOnly.includes(id) && authUser?.role !== 'admin' && !cargoModules.has(id)) return;
+    // Visitante não entra no Trello (Conexão Setorial) — pedido explícito.
+    if (isVisitante(authUser) && id === 'conexao-setorial') return;
     // Modo restrito (cargo com restrict_only): quem tem cargo assim só vê os
     // módulos marcados nele — inclusive os que normalmente são abertos por
     // padrão pra todo mundo (Portal do Colaborador, Prisma Store, etc.).
@@ -706,14 +737,14 @@ export default function CrescentHub() {
       <div style={{minHeight:'100vh',background:T.page,color:T.text,fontFamily:'var(--font-body)',position:'relative'}}>
         <LavaLamp/>
         <div style={{position:'relative',zIndex:1,minHeight:'100vh'}}>
-          {screen==='landing'     && <LandingPage    onStart={()=>navPush('login')}/>}
+          {screen==='landing'     && <LandingPage    onStart={()=>navPush('login')} onGuest={handleGuestLogin}/>}
           {screen==='login'       && <LoginScreen    onLogin={handleLogin}/>}
           {screen==='modules'     && <ModuleSelector onSelect={handleModuleSelect} authUser={authUser} onLogout={handleLogout} userPhoto={userPhoto} cargoModules={cargoModules} cargoRestricted={cargoRestricted} cargoTabRestrictions={cargoTabRestrictions}/>}
-          {screen==='colaborador' && <Portal         onBack={handleGoBack} onGoAlexa={()=>navPush('alexa')} userPhoto={userPhoto} onPhotoChange={p=>setUserPhoto(p)} initialTab={portalInitialTab} restrictedTabs={isPlainColaborador ? cargoTabRestrictions['colaborador'] : undefined}/>}
+          {screen==='colaborador' && <Portal         onBack={handleGoBack} onGoAlexa={()=>navPush('alexa')} userPhoto={userPhoto} onPhotoChange={p=>setUserPhoto(p)} initialTab={portalInitialTab} visitante={isVisitante(authUser)} restrictedTabs={isVisitante(authUser) ? VISITANTE_PORTAL_TABS : (isPlainColaborador ? cargoTabRestrictions['colaborador'] : undefined)}/>}
           {screen==='ponto'       && (authUser?.role==='admin'||authUser?.role==='moderador'||cargoModules.has('ponto')) && <PontoEletronico onBack={handleGoBack} isAdmin={true}/>}
           {screen==='dashboard'   && (authUser?.role==='admin'||authUser?.role==='moderador'||cargoModules.has('dashboard')) && <DashboardRH onBack={handleGoBack} adminName={authUser.name} role={authUser.role} initialTab={portalInitialTab}/>}
           {screen==='alexa'       && <CentralAlexa        onBack={handleGoBack} userPhoto={userPhoto} initialTab={portalInitialTab}/>}
-          {screen==='faturamento' && <FaturamentoPortal onBack={handleGoBack} authUser={authUser} cargoNames={cargoNames} initialTab={portalInitialTab} restrictedTabs={isPlainColaborador ? cargoTabRestrictions['faturamento'] : undefined}/>}
+          {screen==='faturamento' && <FaturamentoPortal onBack={handleGoBack} authUser={authUser} cargoNames={cargoNames} initialTab={portalInitialTab} restrictedTabs={isVisitante(authUser) ? VISITANTE_FATURAMENTO_TABS : (isPlainColaborador ? cargoTabRestrictions['faturamento'] : undefined)}/>}
           {screen==='conexao-setorial' && <ConexaoSetorial onBack={handleGoBack} authUser={authUser} initialTab={portalInitialTab}/>}
           {screen==='info-adicional' && <InfoAdicional onBack={handleGoBack}/>}
           {screen==='uniko-safer' && (authUser?.role==='admin'||authUser?.role==='moderador'||cargoModules.has('uniko-safer')) && <UnikoSafer onBack={handleGoBack}/>}

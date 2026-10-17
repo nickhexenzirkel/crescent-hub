@@ -14,6 +14,7 @@ import { catalogoAtalhos, resolverAtalho, useSalasConexao } from './atalhos';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { nomeChamado, useNomesExibicao } from './nomeExibicao';
 import { aplicarVisibilidade, useVisibilidade } from './visibilidade';
+import { isVisitante } from './visitante';
 
 /* Ordem pessoal dos módulos na tela — por usuário (mesmo padrão de outras
    preferências client-only do app: chave por CPF, senão nome, senão 'anon'). */
@@ -538,9 +539,14 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto, cargoModules, 
   /* Os atalhos viram "módulos" de mentira: daí em diante tudo que a tela já
      sabe fazer (ordenar, redimensionar, colorir) vale pra eles de graça. O que
      muda é só o clique, que leva pro módulo já na aba certa. */
+  const visitante = isVisitante(authUser);
   const salasConexao = useSalasConexao();
   const catalogo = catalogoAtalhos(authUser, salasConexao, isPlainColaborador ? cargoTabRestrictions : {});
-  const atalhoMods = atalhos
+  // Visitante não ganha os atalhos padrão (Financeiro/Seus Dados entrariam na
+  // leva automática) nem os que ele próprio salvaria — sem conta real, não há
+  // onde guardar essa preferência, e o card só prometeria uma aba que a
+  // trava do Portal/Oficina Estelar ia recusar na hora.
+  const atalhoMods = visitante ? [] : atalhos
     .map(chave => ({ chave, a: resolverAtalho(chave, catalogo) }))
     .filter(x => x.a)
     .map(({ chave, a }) => ({
@@ -554,6 +560,8 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto, cargoModules, 
   // Esconder/renomear módulos (por pessoa ou pra todos) vem do Supabase — ver visibilidade.js.
   const filteredMods = aplicarVisibilidade('modulo', [...allMods, ...atalhoMods]
     .filter(m => {
+      // Visitante não entra no Trello (Conexão Setorial) — pedido explícito.
+      if (visitante && m.id === 'conexao-setorial') return false;
       // Atalho aponta pra um módulo de verdade via `m.modulo` (ex: atalho
       // "Seus Dados" → módulo 'colaborador') — no modo restrito, checa esse
       // alvo real, senão um atalho furava a restrição do card principal.
@@ -1025,8 +1033,10 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto, cargoModules, 
         authUser={authUser} userPhoto={userPhoto}
         widgetsOcultos={{
           checkin: !abaPermitida('mercado-estelar', 'checkin'),
-          horas: !abaPermitida('colaborador', 'horas'),
-          ponto: !abaPermitida('colaborador', 'ponto'),
+          // Visitante não tem banco de horas/ponto (pedido explícito) — o widget
+          // nem aparece, independente da checagem de cargo acima.
+          horas: !abaPermitida('colaborador', 'horas') || visitante,
+          ponto: !abaPermitida('colaborador', 'ponto') || visitante,
           avisos: !abaPermitida('colaborador', 'comunicados'),
           tarefas: !abaPermitida('colaborador', 'lembretes'),
         }}

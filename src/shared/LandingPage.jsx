@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { T } from '../contexts/theme';
 import { StarDivider, BrandLogo, Logo } from './components';
 
-const LandingPage = ({onStart}) => {
+const LandingPage = ({onStart,onGuest}) => {
   const [hov,sh]=useState(false);
+  const [hovG,shG]=useState(false);
   return(
     <div style={{minHeight:'100vh',display:'flex',flexDirection:'column',
       alignItems:'center',justifyContent:'center',position:'relative',zIndex:1,overflow:'hidden'}}>
@@ -50,6 +51,20 @@ const LandingPage = ({onStart}) => {
             </svg>
           </button>
         </div>
+
+        {/* Acesso sem cadastro — só o Portal do Colaborador, bem mais limitado
+            (sem financeiro, ponto, compras, etc. — ver shared/visitante.js). */}
+        {onGuest && (
+          <div className="fsu4" style={{marginTop:16}}>
+            <button onClick={onGuest} onMouseEnter={()=>shG(true)} onMouseLeave={()=>shG(false)}
+              style={{background:'none',border:'none',cursor:'pointer',
+                fontFamily:'var(--font-body)',fontSize:13.5,fontWeight:500,
+                color:hovG?T.gold:T.textT,textDecoration:hovG?'underline':'none',
+                transition:'color .2s',outline:'none'}}>
+              Entrar como visitante
+            </button>
+          </div>
+        )}
 
         <div className="fsu4" style={{marginTop:50,display:'flex',alignItems:'center',gap:10,opacity:.45}}>
           <Logo size={22}/>

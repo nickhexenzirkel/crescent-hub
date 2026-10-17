@@ -443,6 +443,12 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto, initialTab }) => {
   const cardBg = T.surface;
   const userName = authUser?.name || 'Colaborador';
   const isAdmin = authUser?.role === 'admin';
+  // Visitante navega pela Prisma Store (catálogo, missões, histórico, etc.),
+  // mas não compra nem resgata nada — pedido explícito. Guarda em duas
+  // camadas: aqui embaixo (impede a escrita mesmo se algo chamar a função
+  // direto) e também na integração do botão (onBuy/onCheckin/onClaim), pra
+  // dar um aviso claro em vez de um clique morto.
+  const visitante = authUser?.role === 'visitante';
 
   // Cache local (pintura instantânea / offline)
   useEffect(() => {
@@ -638,6 +644,7 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto, initialTab }) => {
   // igual a um prêmio físico, além da checagem de "já possui" (não pode comprar
   // o mesmo Uniko duas vezes mesmo se ainda tiver estoque). ──
   const buyItem = buyGuard(async (item) => {
+    if (visitante) { flash('Visitantes não podem comprar nem resgatar prismas.'); return; }
     const isUniko = !!item.unikoId;
     if (isUniko) {
       if (ownedUnikoIds.has(item.unikoId)) { flash('Você já tem esse Uniko na sua Coleção!'); return; }
@@ -701,6 +708,7 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto, initialTab }) => {
   const capRemaining = { premium: Math.max(0, MONTHLY_CAP.premium - earned.premium), comum: Math.max(0, MONTHLY_CAP.comum - earned.comum) };
 
   const doCheckin = checkinGuard(() => {
+    if (visitante) { flash('Visitantes não podem fazer check-in na Prisma Store.'); return; }
     if (!canCheckin) return;
     const cur = nextReward.cur;
     const give = Math.min(nextReward.amount, capRemaining[cur]); // respeita o teto mensal
@@ -731,6 +739,7 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto, initialTab }) => {
 
   // ── Missões ──
   const claimMission = (m) => {
+    if (visitante) { flash('Visitantes não podem resgatar missões.'); return; }
     if (m.progress < m.goal || m.claimed) return;
     let nextSnapshot = null;
     setState(s => {

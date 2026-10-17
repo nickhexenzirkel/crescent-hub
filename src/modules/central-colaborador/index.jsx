@@ -60,7 +60,7 @@ const ehCelularDeitado = () => {
 // Permissões) recortando quais abas do Portal um cargo específico enxerga
 // — ex: cargo "Comercial" só vendo Seus Dados/Financeiro/Meus Lembretes/
 // Eventos/Feedback. undefined/[] = sem restrição, comportamento de sempre.
-const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange, initialTab, restrictedTabs}) => {
+const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange, initialTab, restrictedTabs, visitante}) => {
   useVisibilidade();
   const isMobile = useIsMobile();
   const [celularDeitado, setCelularDeitado] = useState(ehCelularDeitado);
@@ -162,6 +162,9 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange, initialTab, restri
 
   // Onboarding — exibido enquanto o usuário não tiver foto de perfil
   const [showOnboarding, setShowOnboarding] = useState(() => {
+    // Visitante não tem Seus Dados nem foto pra configurar — o onboarding só
+    // apontaria pra abas que ele não vê.
+    if (visitante) return false;
     try {
       const _a = getAuthUser();
       const pk = _a?.cpf ? `uniko_photo_${_a.cpf}` : 'uniko_photo';
@@ -237,7 +240,7 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange, initialTab, restri
     if((tab==='horas'||tab==='ponto') && desligado.off) return <DesligadoAviso data={desligado.data}/>;
     if(tab==='horas')      return <TabHoras/>;
     if(tab==='ponto')      return <TabMeuPonto/>;
-    if(tab==='lembretes')  return <CentralLembretes authUser={{name: USER.name}} onBack={()=>st('inicio')}/>;
+    if(tab==='lembretes')  return <CentralLembretes authUser={{name: USER.name, role: visitante ? 'visitante' : getAuthUser()?.role}} onBack={()=>st('inicio')}/>;
     if(tab==='feedback')   return <TabFeedback/>;
     if(tab==='colegas')    return <TabColegas/>;
     if(tab==='eventos')    return <TabEventos/>;
@@ -296,7 +299,7 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange, initialTab, restri
   return(
     <>
     <div key={activeTheme} style={{display:'flex',minHeight:zoomOut?'calc(100vh / 0.8)':'100vh',background:T.page,fontFamily:'var(--font-body)',zoom:zoomOut?0.8:undefined}}>
-      {!(tab==='unikowave' && celularDeitado) && <Sidebar tab={tab} setTab={st} onBack={onBack} activeTheme={activeTheme} onTheme={handleTheme} onOpenSettings={()=>setShowSettings(true)} userPhoto={userPhoto} profileComplete={profileComplete} collapsed={barraCompacta} desligado={desligado.off} only={restrictedTabs}/>}
+      {!(tab==='unikowave' && celularDeitado) && <Sidebar tab={tab} setTab={st} onBack={onBack} activeTheme={activeTheme} onTheme={handleTheme} onOpenSettings={()=>setShowSettings(true)} userPhoto={userPhoto} profileComplete={profileComplete} collapsed={barraCompacta} desligado={desligado.off} only={restrictedTabs} visitante={visitante}/>}
       <div className="portal-conteudo" style={{marginLeft:isMobile?0:((tab==='unikocamera'||(tab==='lembretes'&&lembCompacto))?76:(tab==='unikowave'?(celularDeitado?0:76):280)),flex:1,display:'flex',flexDirection:'column',minHeight:zoomOut?'calc(100vh / 0.8)':'100vh',
         // minWidth:0 é o que de fato faz a página respeitar a tela: sem isso,
         // um item flex ('flex:1') tem largura mínima automática = a largura
