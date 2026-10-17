@@ -430,9 +430,15 @@ const ABAS_PRISMA = [
 ];
 const ABAS_EXTERNAS = ABAS_PRISMA.map(a => a.id);
 
-const MercadoEstelar = ({ onBack, authUser, userPhoto, initialTab }) => {
+// `onlyTabs`/`acoesPermitidas`: Dashboard RH → Configurar Visitante (ver
+// shared/visitanteConfig.js). undefined = sem restrição, comportamento de sempre.
+const MercadoEstelar = ({ onBack, authUser, userPhoto, initialTab, onlyTabs, acoesPermitidas }) => {
   const isMobile = useIsMobile();
-  const [tab, setTab] = useState(() => ABAS_EXTERNAS.includes(initialTab) ? initialTab : 'loja');
+  const abasLiberadas = onlyTabs ? ABAS_EXTERNAS.filter(id => onlyTabs.includes(id)) : ABAS_EXTERNAS;
+  const [tab, setTab] = useState(() => {
+    if (ABAS_EXTERNAS.includes(initialTab) && abasLiberadas.includes(initialTab)) return initialTab;
+    return abasLiberadas[0] || 'loja';
+  });
   const [state, setState] = useState(loadState);
   const [toast, setToast] = useState('');
   const [loaded, setLoaded] = useState(false); // já hidratou do Supabase?
@@ -443,12 +449,16 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto, initialTab }) => {
   const cardBg = T.surface;
   const userName = authUser?.name || 'Colaborador';
   const isAdmin = authUser?.role === 'admin';
-  // Visitante navega pela Prisma Store (catálogo, missões, histórico, etc.),
-  // mas não compra nem resgata nada — pedido explícito. Guarda em duas
-  // camadas: aqui embaixo (impede a escrita mesmo se algo chamar a função
-  // direto) e também na integração do botão (onBuy/onCheckin/onClaim), pra
-  // dar um aviso claro em vez de um clique morto.
-  const visitante = authUser?.role === 'visitante';
+  // Rede de segurança: uma aba que deixou de estar liberada (admin mudou a
+  // config com a tela aberta, ou um atalho tentou abrir direto) volta pra
+  // primeira permitida — mesmo padrão do Portal/Oficina Estelar.
+  useEffect(() => { if (tab !== 'admin' && !abasLiberadas.includes(tab)) setTab(abasLiberadas[0] || 'loja'); }, [tab, onlyTabs]); // eslint-disable-line
+  // Ações de troca (comprar, resgatar missão, check-in) — Dashboard RH →
+  // Configurar Visitante decide quais ficam ligadas pro visitante.
+  // `acoesPermitidas` undefined = sem restrição (colaborador normal/admin).
+  const podeComprar = !acoesPermitidas || !!acoesPermitidas.comprar;
+  const podeResgatarMissao = !acoesPermitidas || !!acoesPermitidas.resgatarMissao;
+  const podeCheckin = !acoesPermitidas || !!acoesPermitidas.fazerCheckin;
 
   // Cache local (pintura instantânea / offline)
   useEffect(() => {
@@ -644,7 +654,7 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto, initialTab }) => {
   // igual a um prêmio físico, além da checagem de "já possui" (não pode comprar
   // o mesmo Uniko duas vezes mesmo se ainda tiver estoque). ──
   const buyItem = buyGuard(async (item) => {
-    if (visitante) { flash('Visitantes não podem comprar nem resgatar prismas.'); return; }
+    if (!podeComprar) { flash('Visitantes não podem comprar nem resgatar itens da loja.'); return; }
     const isUniko = !!item.unikoId;
     if (isUniko) {
       if (ownedUnikoIds.has(item.unikoId)) { flash('Você já tem esse Uniko na sua Coleção!'); return; }
@@ -708,7 +718,7 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto, initialTab }) => {
   const capRemaining = { premium: Math.max(0, MONTHLY_CAP.premium - earned.premium), comum: Math.max(0, MONTHLY_CAP.comum - earned.comum) };
 
   const doCheckin = checkinGuard(() => {
-    if (visitante) { flash('Visitantes não podem fazer check-in na Prisma Store.'); return; }
+    if (!podeCheckin) { flash('Visitantes não podem fazer check-in na Prisma Store.'); return; }
     if (!canCheckin) return;
     const cur = nextReward.cur;
     const give = Math.min(nextReward.amount, capRemaining[cur]); // respeita o teto mensal
@@ -739,7 +749,7 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto, initialTab }) => {
 
   // ── Missões ──
   const claimMission = (m) => {
-    if (visitante) { flash('Visitantes não podem resgatar missões.'); return; }
+    if (!podeResgatarMissao) { flash('Visitantes não podem resgatar missões.'); return; }
     if (m.progress < m.goal || m.claimed) return;
     let nextSnapshot = null;
     setState(s => {
@@ -803,7 +813,7 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto, initialTab }) => {
           { id: 'checkin',   label: 'Check-in',  Icon: IcoCalendar },
           { id: 'historico', label: 'Histórico', Icon: IcoReceipt },
           ...(isAdmin ? [{ id: 'admin', label: 'Administrador', Icon: IcoShield }] : []),
-        ].map(t => {
+        ].filter(t => t.id === 'admin' || abasLiberadas.includes(t.id)).map(t => {
           const on = tab === t.id;
           return (
             <button key={t.id} onClick={() => setTab(t.id)}

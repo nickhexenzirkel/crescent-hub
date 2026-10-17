@@ -1478,7 +1478,9 @@ const BOTAO_PLAYER = {
   color: "#fff", fontSize: 13, fontWeight: 700, letterSpacing: ".01em",
 };
 
-const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
+// `onlyTabs`: Dashboard RH → Configurar Visitante (ver shared/visitanteConfig.js).
+// undefined = sem restrição, comportamento de sempre.
+const CentralAlexa = ({onBack, userPhoto, initialTab, onlyTabs}) => {
   const isMobile = useIsMobile();
   const isDark   = !!T.page;
   /* Fundo dos painéis. Repare que ele é OPACO no tema escuro (T.surface é
@@ -1954,9 +1956,12 @@ const CentralAlexa = ({onBack, userPhoto, initialTab}) => {
   const temControles = canControl || canPlayer || canVolume;
   // "Fale com a Alexa" (aba Alexa): só moderador, administrador e quem tem o card DJ Uniko.
   const canAlexa = canControl || isDJ;
-  const abaVisivel = (t) => (!t.adminOnly || isAdmin) && (t.id !== 'alexa' || canAlexa);
-  // Se alguém cair na aba por atalho/URL sem permissão, volta pro Festival.
-  useEffect(() => { if (tab === 'alexa' && !canAlexa) setTab('festival'); }, [tab, canAlexa]); // eslint-disable-line
+  const abaVisivel = (t) => (!t.adminOnly || isAdmin) && (t.id !== 'alexa' || canAlexa) && (!onlyTabs || onlyTabs.includes(t.id));
+  // Se alguém cair na aba por atalho/URL sem permissão, volta pro Festival —
+  // ou pra 1ª liberada, se Festival também tiver sido desligado (visitante).
+  useEffect(() => {
+    if (!TAB_DEFS.find(t => t.id === tab && abaVisivel(t))) setTab(TAB_DEFS.find(abaVisivel)?.id || 'festival');
+  }, [tab, canAlexa, onlyTabs]); // eslint-disable-line
   const ALEXA_LIMIT  = 2;
   const ALEXA_WINDOW = 60 * 60 * 1000; // 1 hora
   const getAlexaRequests = () => {

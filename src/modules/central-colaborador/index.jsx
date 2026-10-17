@@ -60,7 +60,7 @@ const ehCelularDeitado = () => {
 // Permissões) recortando quais abas do Portal um cargo específico enxerga
 // — ex: cargo "Comercial" só vendo Seus Dados/Financeiro/Meus Lembretes/
 // Eventos/Feedback. undefined/[] = sem restrição, comportamento de sempre.
-const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange, initialTab, restrictedTabs, visitante}) => {
+const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange, initialTab, restrictedTabs, visitante, restrictedLembretesTabs}) => {
   useVisibilidade();
   const isMobile = useIsMobile();
   const [celularDeitado, setCelularDeitado] = useState(ehCelularDeitado);
@@ -240,7 +240,7 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange, initialTab, restri
     if((tab==='horas'||tab==='ponto') && desligado.off) return <DesligadoAviso data={desligado.data}/>;
     if(tab==='horas')      return <TabHoras/>;
     if(tab==='ponto')      return <TabMeuPonto/>;
-    if(tab==='lembretes')  return <CentralLembretes authUser={{name: USER.name, role: visitante ? 'visitante' : getAuthUser()?.role}} onBack={()=>st('inicio')}/>;
+    if(tab==='lembretes')  return <CentralLembretes authUser={{name: USER.name, role: visitante ? 'visitante' : getAuthUser()?.role}} onBack={()=>st('inicio')} onlyTabs={visitante ? restrictedLembretesTabs : undefined}/>;
     if(tab==='feedback')   return <TabFeedback/>;
     if(tab==='colegas')    return <TabColegas/>;
     if(tab==='eventos')    return <TabEventos/>;

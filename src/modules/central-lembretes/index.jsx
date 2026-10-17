@@ -31,10 +31,13 @@ const Ico = ({ d, size=14, stroke='currentColor' }) => (
 );
 
 /* ═══════════════════════════════════════════════════════════════ */
-const CentralLembretes = ({ onBack, authUser }) => {
+// `onlyTabs`: ids liberados (ver Dashboard RH → Configurar Visitante,
+// shared/visitanteConfig.js). undefined = sem restrição, abas de sempre.
+const TODAS_ABAS = ['tarefas', 'lembretes', 'anotacoes', 'unikocall'];
+const CentralLembretes = ({ onBack, authUser, onlyTabs }) => {
   const userName = authUser?.name || 'Colaborador';
-  const visitante = authUser?.role === 'visitante';
-  const [activeTab, setActiveTab] = useState('tarefas');
+  const abasLiberadas = onlyTabs ? TODAS_ABAS.filter(id => onlyTabs.includes(id)) : TODAS_ABAS;
+  const [activeTab, setActiveTab] = useState(() => abasLiberadas.includes('tarefas') ? 'tarefas' : (abasLiberadas[0] || 'tarefas'));
   // Aba Uniko Call: pede ao Portal pra encolher a barra lateral (só ícones) e devolve ao sair.
   useEffect(() => {
     window.dispatchEvent(new CustomEvent('uniko-portal-compacto', { detail: activeTab === 'unikocall' }));
@@ -299,15 +302,14 @@ const CentralLembretes = ({ onBack, authUser }) => {
               Anotações
             </span>,
           },
-          // Visitante não vê Uniko Call aqui dentro (pedido explícito).
-          ...(visitante ? [] : [{
+          {
             id:'unikocall',
             label: <span style={{display:'flex',alignItems:'center',gap:6}}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.13.96.36 1.9.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0122 16.92z"/></svg>
               Uniko Call
             </span>,
-          }]),
-        ].map(tab => (
+          },
+        ].filter(t => abasLiberadas.includes(t.id)).map(tab => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
             padding:'8px 20px', borderRadius:11, border:'none', cursor:'pointer',
             fontFamily:'var(--font-body)', fontSize:13, fontWeight:activeTab===tab.id?600:400,
@@ -364,7 +366,7 @@ const CentralLembretes = ({ onBack, authUser }) => {
       )}
 
       {/* ══════════════ ABA UNIKO CALL (minhas ligações) ══════════════ */}
-      {activeTab === 'unikocall' && !visitante && <MinhasLigacoes />}
+      {activeTab === 'unikocall' && abasLiberadas.includes('unikocall') && <MinhasLigacoes />}
 
       {/* ══════════════ ABA ANOTAÇÕES ══════════════ */}
       {activeTab === 'anotacoes' && (

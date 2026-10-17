@@ -269,8 +269,11 @@ const AbaSobre = () => {
 };
 
 /* ═══════════════ Módulo (2 abas) ══════════════════════════════════════════ */
-const InfoAdicional = ({ onBack }) => {
-  const [tab, setTab] = useState('instalar'); // instalar | sobre
+// `onlyTabs`: Dashboard RH → Configurar Visitante (ver shared/visitanteConfig.js).
+// undefined = sem restrição, comportamento de sempre.
+const InfoAdicional = ({ onBack, onlyTabs }) => {
+  const abasPermitidas = onlyTabs ? ['instalar', 'sobre'].filter(id => onlyTabs.includes(id)) : ['instalar', 'sobre'];
+  const [tab, setTab] = useState(() => abasPermitidas.includes('instalar') ? 'instalar' : (abasPermitidas[0] || 'instalar')); // instalar | sobre
 
   return (
     <div style={{ minHeight: '100vh', background: T.page, fontFamily: 'var(--font-body)' }}>
@@ -289,7 +292,7 @@ const InfoAdicional = ({ onBack }) => {
 
       <div style={{ maxWidth: 680, margin: '0 auto', padding: '26px 20px 40px' }}>
         <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginBottom: 20 }}>
-          {[['instalar', '📲', 'Instalar Aplicativo'], ['sobre', '🌌', 'Sobre o Uniko']].map(([id, icon, label]) => {
+          {[['instalar', '📲', 'Instalar Aplicativo'], ['sobre', '🌌', 'Sobre o Uniko']].filter(([id]) => abasPermitidas.includes(id)).map(([id, icon, label]) => {
             const sel = tab === id;
             return (
               <button key={id} onClick={() => setTab(id)}

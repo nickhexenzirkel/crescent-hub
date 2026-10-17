@@ -1242,14 +1242,19 @@ const useDesktop = () => {
   return desk;
 };
 
-const UnikoFit = ({ onBack, authUser, userPhoto }) => {
+// `onlyTabs`: Dashboard RH → Configurar Visitante (ver shared/visitanteConfig.js).
+// undefined = sem restrição, comportamento de sempre.
+const UnikoFit = ({ onBack, authUser, userPhoto, onlyTabs }) => {
   const desk = useDesktop();
   // O escuro do módulo vem do `T` local lá em cima — nada de applyTheme aqui:
   // mexer no tema global vazava o escuro pro resto do Portal ao sair.
   const name = myName();
   const userName = authUser?.name || name;
   const cardBg = T.surface || '#fff';
-  const [topTab, setTopTab] = useState('paravoce'); // paravoce | treinos | batepapo | buscar | meuperfil
+  const abasPermitidas = onlyTabs ? ABAS_ORDEM.filter(id => onlyTabs.includes(id)) : ABAS_ORDEM;
+  const [topTab, setTopTab] = useState(() => abasPermitidas.includes('paravoce') ? 'paravoce' : (abasPermitidas[0] || 'paravoce')); // paravoce | treinos | batepapo | buscar | meuperfil
+  // Rede de segurança: volta pra 1ª aba liberada se a atual deixou de ser.
+  useEffect(() => { if (!abasPermitidas.includes(topTab)) setTopTab(abasPermitidas[0] || 'paravoce'); }, [topTab, onlyTabs]); // eslint-disable-line
   // Direção da última troca de aba (pra animar entrando pelo lado certo) e gesto de arrastar no celular
   const abaAnteriorRef = useRef('paravoce');
   const direcaoAbaRef = useRef(0);
@@ -2490,7 +2495,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
           <div style={{ padding: '10px 6px 16px' }}>
             <UnikoBrandArt legenda="FIT" semLogo alturaNome={32} legendaCentrada vertical tamanhoLegenda={18} cores={{ texto: T.text, destaque: ENERGIA }} />
           </div>
-          {[['paravoce', 'Para Você'], ['treinos', 'Treinos'], ['batepapo', 'Bate-Papo'], ['buscar', 'Buscar'], ['meuperfil', 'Meu Perfil']].map(([id, label]) => {
+          {[['paravoce', 'Para Você'], ['treinos', 'Treinos'], ['batepapo', 'Bate-Papo'], ['buscar', 'Buscar'], ['meuperfil', 'Meu Perfil']].filter(([id]) => abasPermitidas.includes(id)).map(([id, label]) => {
             const on = topTab === id;
             return (
               <button key={id} onClick={() => (id === 'paravoce' && on) ? recarregarFeed() : setTopTab(id)} className="fit-btn fit-side-btn"
@@ -2542,7 +2547,7 @@ const UnikoFit = ({ onBack, authUser, userPhoto }) => {
         {/* Abas centralizadas */}
         {/* gap menor que os 20 originais — com a aba "Buscar" são 4 e precisam caber em tela de celular estreita */}
         <div className="fit-tabs-row" style={{ height: 56, boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'space-evenly', gap: 10, padding: '0 8px', overflowX: 'auto', background: cardBg, borderBottom: `1px solid ${T.border}` }}>
-          {[['paravoce', 'Para Você'], ['treinos', 'Treinos'], ['batepapo', 'Bate-Papo'], ['buscar', 'Buscar'], ['meuperfil', 'Meu Perfil']].map(([id, label]) => {
+          {[['paravoce', 'Para Você'], ['treinos', 'Treinos'], ['batepapo', 'Bate-Papo'], ['buscar', 'Buscar'], ['meuperfil', 'Meu Perfil']].filter(([id]) => abasPermitidas.includes(id)).map(([id, label]) => {
             const on = topTab === id;
             // Clicar de novo na aba Para Você já ativa recarrega o feed, estilo TikTok.
             return (

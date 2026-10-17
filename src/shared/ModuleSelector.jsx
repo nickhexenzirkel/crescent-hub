@@ -15,6 +15,7 @@ import { useIsMobile } from '../hooks/useIsMobile';
 import { nomeChamado, useNomesExibicao } from './nomeExibicao';
 import { aplicarVisibilidade, useVisibilidade } from './visibilidade';
 import { isVisitante } from './visitante';
+import { useVisitanteConfig, moduloLiberadoVisitante } from './visitanteConfig';
 
 /* Ordem pessoal dos módulos na tela — por usuário (mesmo padrão de outras
    preferências client-only do app: chave por CPF, senão nome, senão 'anon'). */
@@ -413,6 +414,12 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto, cargoModules, 
     const lista = cargoTabRestrictions?.[moduloId];
     return !lista?.length || lista.includes(abaId);
   };
+  // Widgets fixos da tela (Checkin, Banco de Horas, Ponto, Comunicados,
+  // Tarefas) também respeitam a config do visitante — eles não passam pela
+  // lista de módulos/atalhos, então sem isto furariam a restrição.
+  const abaPermitidaTela = (moduloId, abaId) => visitante
+    ? moduloLiberadoVisitante(visitanteCfg, moduloId) && abasVisitante(visitanteCfg, moduloId).includes(abaId)
+    : abaPermitida(moduloId, abaId);
 
   const IcoColab = (
     <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -540,6 +547,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto, cargoModules, 
      sabe fazer (ordenar, redimensionar, colorir) vale pra eles de graça. O que
      muda é só o clique, que leva pro módulo já na aba certa. */
   const visitante = isVisitante(authUser);
+  const visitanteCfg = useVisitanteConfig();
   const salasConexao = useSalasConexao();
   const catalogo = catalogoAtalhos(authUser, salasConexao, isPlainColaborador ? cargoTabRestrictions : {});
   // Visitante não ganha os atalhos padrão (Financeiro/Seus Dados entrariam na
@@ -560,8 +568,10 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto, cargoModules, 
   // Esconder/renomear módulos (por pessoa ou pra todos) vem do Supabase — ver visibilidade.js.
   const filteredMods = aplicarVisibilidade('modulo', [...allMods, ...atalhoMods]
     .filter(m => {
-      // Visitante não entra no Trello (Conexão Setorial) — pedido explícito.
-      if (visitante && m.id === 'conexao-setorial') return false;
+      // Visitante: Dashboard RH → Configurar Visitante decide módulo por módulo
+      // (os admin-only de verdade já ficam de fora pela checagem comum abaixo,
+      // já que `temCargoPara` nunca bate pra quem não tem cargo real).
+      if (visitante && !moduloLiberadoVisitante(visitanteCfg, m.id)) return false;
       // Atalho aponta pra um módulo de verdade via `m.modulo` (ex: atalho
       // "Seus Dados" → módulo 'colaborador') — no modo restrito, checa esse
       // alvo real, senão um atalho furava a restrição do card principal.
@@ -1032,13 +1042,11 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto, cargoModules, 
       <MenuLayoutNovo mods={modsTela} onSelect={onSelect} getModuleColor={getModuleColor}
         authUser={authUser} userPhoto={userPhoto}
         widgetsOcultos={{
-          checkin: !abaPermitida('mercado-estelar', 'checkin'),
-          // Visitante não tem banco de horas/ponto (pedido explícito) — o widget
-          // nem aparece, independente da checagem de cargo acima.
-          horas: !abaPermitida('colaborador', 'horas') || visitante,
-          ponto: !abaPermitida('colaborador', 'ponto') || visitante,
-          avisos: !abaPermitida('colaborador', 'comunicados'),
-          tarefas: !abaPermitida('colaborador', 'lembretes'),
+          checkin: !abaPermitidaTela('mercado-estelar', 'checkin'),
+          horas: !abaPermitidaTela('colaborador', 'horas'),
+          ponto: !abaPermitidaTela('colaborador', 'ponto'),
+          avisos: !abaPermitidaTela('colaborador', 'comunicados'),
+          tarefas: !abaPermitidaTela('colaborador', 'lembretes'),
         }}
         acoes={acoesCard}
         tamanhos={tamNovo} onTamanhos={mudarTamNovo}

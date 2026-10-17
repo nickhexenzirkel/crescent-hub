@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { T, FONTS, applyTheme } from './contexts/theme';
 import { SERVER_URL, supabase as _supabase, loadUserPhoto, fetchPhotoByName, USER } from './contexts/user';
 import { criarUsuarioVisitante, isVisitante } from './shared/visitante';
+import { useVisitanteConfig, moduloLiberadoVisitante, abasVisitante } from './shared/visitanteConfig';
 import { carregarNomesExibicao, nomeChamado } from './shared/nomeExibicao';
 import { useCaixaEntrada } from './shared/menuWidgets';
 import { setContadorTitulo } from './shared/tituloAba';
@@ -50,22 +51,14 @@ const IcoPrestacaoContas = (
   </svg>
 );
 
-// Abas do Portal liberadas pro visitante (ver vault/Regras da IA.md — pedido
-// explícito do dono, 17/10/2026). Fora daqui: financeiro, banco de horas,
-// ponto eletrônico, Coleção (não coleciona Uniko), Roleta da Sorte e Quiz do
-// M&M (não participa) e Seus Dados (não tem perfil real pra editar). Jogos e
-// Colegas ficam liberados (pedido explícito), Uniko Call sai de dentro de
-// Minhas Tarefas (ver central-lembretes/index.jsx).
-const VISITANTE_PORTAL_TABS = ['inicio','lembretes','comunicados','eventos','colegas','feedback',
-  'unikosuspect','unikowave','unikopaint','unikocamera','unikostop','unikopalavras','unikofaster'];
-// Oficina Estelar pro visitante: só as ferramentas de PDF (editor/organizar/
-// mesclar) — nada de notas fiscais, clientes, ofício ou a assinatura do
-// Cleanderson (pedido explícito).
-const VISITANTE_FATURAMENTO_TABS = ['pdf-editor','pdf-organizar','pdf-mesclar'];
 
 export default function CrescentHub() {
   const [screen, ss]       = useState('landing');
   const [authUser, setAuthUser] = useState(null);
+  // Configuração do modo visitante (Dashboard RH → Configurar Visitante) —
+  // módulos/abas liberados pra quem entra sem login. Carrega sozinho (hook
+  // com cache próprio, ver shared/visitanteConfig.js), não precisa de efeito aqui.
+  const visitanteCfg = useVisitanteConfig();
   // Bolinha no título da aba: "🔴 (4) Mensagens - UNIKO" enquanto a caixa de entrada
   // tiver não lidas (em qualquer tela); ao ler tudo, volta pra "UNIKO".
   const caixaTitulo = useCaixaEntrada(authUser);
@@ -426,8 +419,10 @@ export default function CrescentHub() {
     // breve" e Portal dos Credenciados (7 Benefícios, dado de terceiro).
     const strictAdminOnly = ['uniko-call','prestacao-contas','7-beneficios','uniko-security'];
     if (strictAdminOnly.includes(id) && authUser?.role !== 'admin' && !cargoModules.has(id)) return;
-    // Visitante não entra no Trello (Conexão Setorial) — pedido explícito.
-    if (isVisitante(authUser) && id === 'conexao-setorial') return;
+    // Visitante: módulos admin-only já ficaram de fora acima (role nunca bate,
+    // cargoModules sempre vazio pra quem não tem id real). Os demais seguem a
+    // config do Dashboard RH → Configurar Visitante.
+    if (isVisitante(authUser) && !moduloLiberadoVisitante(visitanteCfg, id)) return;
     // Modo restrito (cargo com restrict_only): quem tem cargo assim só vê os
     // módulos marcados nele — inclusive os que normalmente são abertos por
     // padrão pra todo mundo (Portal do Colaborador, Prisma Store, etc.).
@@ -740,18 +735,18 @@ export default function CrescentHub() {
           {screen==='landing'     && <LandingPage    onStart={()=>navPush('login')} onGuest={handleGuestLogin}/>}
           {screen==='login'       && <LoginScreen    onLogin={handleLogin} onGuest={handleGuestLogin}/>}
           {screen==='modules'     && <ModuleSelector onSelect={handleModuleSelect} authUser={authUser} onLogout={handleLogout} userPhoto={userPhoto} cargoModules={cargoModules} cargoRestricted={cargoRestricted} cargoTabRestrictions={cargoTabRestrictions}/>}
-          {screen==='colaborador' && <Portal         onBack={handleGoBack} onGoAlexa={()=>navPush('alexa')} userPhoto={userPhoto} onPhotoChange={p=>setUserPhoto(p)} initialTab={portalInitialTab} visitante={isVisitante(authUser)} restrictedTabs={isVisitante(authUser) ? VISITANTE_PORTAL_TABS : (isPlainColaborador ? cargoTabRestrictions['colaborador'] : undefined)}/>}
+          {screen==='colaborador' && <Portal         onBack={handleGoBack} onGoAlexa={()=>navPush('alexa')} userPhoto={userPhoto} onPhotoChange={p=>setUserPhoto(p)} initialTab={portalInitialTab} visitante={isVisitante(authUser)} restrictedTabs={isVisitante(authUser) ? abasVisitante(visitanteCfg,'colaborador') : (isPlainColaborador ? cargoTabRestrictions['colaborador'] : undefined)} restrictedLembretesTabs={isVisitante(authUser) ? abasVisitante(visitanteCfg,'lembretes') : undefined}/>}
           {screen==='ponto'       && (authUser?.role==='admin'||authUser?.role==='moderador'||cargoModules.has('ponto')) && <PontoEletronico onBack={handleGoBack} isAdmin={true}/>}
           {screen==='dashboard'   && (authUser?.role==='admin'||authUser?.role==='moderador'||cargoModules.has('dashboard')) && <DashboardRH onBack={handleGoBack} adminName={authUser.name} role={authUser.role} initialTab={portalInitialTab}/>}
-          {screen==='alexa'       && <CentralAlexa        onBack={handleGoBack} userPhoto={userPhoto} initialTab={portalInitialTab}/>}
-          {screen==='faturamento' && <FaturamentoPortal onBack={handleGoBack} authUser={authUser} cargoNames={cargoNames} initialTab={portalInitialTab} restrictedTabs={isVisitante(authUser) ? VISITANTE_FATURAMENTO_TABS : (isPlainColaborador ? cargoTabRestrictions['faturamento'] : undefined)}/>}
+          {screen==='alexa'       && <CentralAlexa        onBack={handleGoBack} userPhoto={userPhoto} initialTab={portalInitialTab} onlyTabs={isVisitante(authUser) ? abasVisitante(visitanteCfg,'alexa') : undefined}/>}
+          {screen==='faturamento' && <FaturamentoPortal onBack={handleGoBack} authUser={authUser} cargoNames={cargoNames} initialTab={portalInitialTab} restrictedTabs={isVisitante(authUser) ? abasVisitante(visitanteCfg,'faturamento') : (isPlainColaborador ? cargoTabRestrictions['faturamento'] : undefined)}/>}
           {screen==='conexao-setorial' && <ConexaoSetorial onBack={handleGoBack} authUser={authUser} initialTab={portalInitialTab}/>}
-          {screen==='info-adicional' && <InfoAdicional onBack={handleGoBack}/>}
+          {screen==='info-adicional' && <InfoAdicional onBack={handleGoBack} onlyTabs={isVisitante(authUser) ? abasVisitante(visitanteCfg,'info-adicional') : undefined}/>}
           {screen==='uniko-safer' && (authUser?.role==='admin'||authUser?.role==='moderador'||cargoModules.has('uniko-safer')) && <UnikoSafer onBack={handleGoBack}/>}
           {screen==='uniko-security' && (authUser?.role==='admin'||cargoModules.has('uniko-security')) && <UnikoSecurity onBack={handleGoBack}/>}
           {visited7Beneficios && <Beneficios7 onBack={handleGoBack} active={screen==='7-beneficios'}/>}
-          {screen==='mercado-estelar' && <MercadoEstelar onBack={handleGoBack} authUser={authUser} userPhoto={userPhoto} initialTab={portalInitialTab}/>}
-          {screen==='uniko-fit' && <UnikoFit onBack={handleGoBack} authUser={authUser} userPhoto={userPhoto}/>}
+          {screen==='mercado-estelar' && <MercadoEstelar onBack={handleGoBack} authUser={authUser} userPhoto={userPhoto} initialTab={portalInitialTab} onlyTabs={isVisitante(authUser) ? abasVisitante(visitanteCfg,'mercado-estelar') : undefined} acoesPermitidas={isVisitante(authUser) ? visitanteCfg.acoesMercado : undefined}/>}
+          {screen==='uniko-fit' && <UnikoFit onBack={handleGoBack} authUser={authUser} userPhoto={userPhoto} onlyTabs={isVisitante(authUser) ? abasVisitante(visitanteCfg,'uniko-fit') : undefined}/>}
           {screen==='uniko-call' && (authUser?.role==='admin'||cargoModules.has('uniko-call')) && <UnikoCall onBack={handleGoBack}/>}
           {screen==='prestacao-contas' && (authUser?.role==='admin'||cargoModules.has('prestacao-contas')) && <PrestacaoContas onBack={handleGoBack} authUser={authUser}/>}
         </div>
