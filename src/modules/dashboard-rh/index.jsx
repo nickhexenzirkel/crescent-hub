@@ -15,6 +15,7 @@ import UnikoSuspectMapTab from './UnikoSuspectMapTab';
 import GerenciarPermissoesTab from './GerenciarPermissoesTab';
 import PaineisTab from './PaineisTab';
 import VisitanteConfigTab from './VisitanteConfigTab';
+import { useContrachequeModo, saveContrachequeModo } from '../../shared/contrachequeModo';
 import {
   saveCaptureConfig, CAPTURE_UNIKOS, resetCaptures, getCaptureReward,
   getUniko, loadCustomUnikos, saveCustomUniko, deleteCustomUniko, deriveUnikoTheme, getCustomUnikoRaw,
@@ -279,6 +280,15 @@ const SearchPicker = ({ value, onPick, options, placeholder, isDark, minWidth = 
 const ADMIN_PW = 'ColumbinaCleyNick50';
 const DashboardRH = ({onBack, adminName='Administrador', role='admin', initialTab=null}) => {
   useVisibilidade();   // re-renderiza quando o agente esconde/renomeia abas do Dashboard RH
+  // Contracheques: manual (anexar PDF) ou gerado pelo Uniko — ver aba Contracheques.
+  const chModo = useContrachequeModo();
+  const [chModoSalvando, setChModoSalvando] = useState(false);
+  const trocarChModo = async (modo) => {
+    if (modo === chModo) return;
+    setChModoSalvando(true);
+    try { await saveContrachequeModo(modo); } catch { /* fica no modo anterior */ }
+    setChModoSalvando(false);
+  };
   // Dark mode detection (same pattern as PontoEletronico)
   const isDark   = !!T.page;
   const cardBg   = isDark ? T.surface : (T.surfaceW||'rgba(255,255,255,0.85)');
@@ -5923,6 +5933,42 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin', initialTa
                 </div>
               </div>
 
+              {/* Modo: anexar manualmente (como sempre foi) ou gerado pelo Uniko (em construção) */}
+              <Card style={{ padding:'16px 20px', background:cardBg }} elevated>
+                <div style={{ fontSize:13, fontWeight:700, color:T.text, marginBottom:3 }}>Como o contracheque é feito</div>
+                <div style={{ fontSize:12.5, color:T.textT, marginBottom:14, lineHeight:1.5 }}>
+                  Troca pra todo mundo, vale na hora. "Manual" é o que já funciona — você anexa o PDF que o contador fez.
+                  "Gerado pelo Uniko" vai calcular e montar o contracheque sozinho — ainda em construção.
+                </div>
+                <div style={{ display:'inline-flex', padding:3, borderRadius:11, background:T.surfaceSub||'rgba(0,0,0,0.05)', border:`1px solid ${T.border}`, gap:2 }}>
+                  {[
+                    { id:'manual', label:'Manual (anexar PDF)' },
+                    { id:'uniko',  label:'Gerado pelo Uniko' },
+                  ].map(o => {
+                    const on = chModo === o.id;
+                    return (
+                      <button key={o.id} onClick={() => trocarChModo(o.id)} disabled={chModoSalvando}
+                        style={{ padding:'8px 16px', borderRadius:9, border:'none', cursor: chModoSalvando ? 'wait' : 'pointer',
+                          fontFamily:'var(--font-body)', fontSize:12.5, fontWeight:on?700:500,
+                          background: on ? `linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)` : 'transparent',
+                          color: on ? '#fff' : T.textS, transition:'all .15s' }}>
+                        {o.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </Card>
+
+              {chModo === 'uniko' ? (
+                <Card style={{ padding:'32px 26px', background:cardBg, textAlign:'center' }} elevated>
+                  <div style={{ fontSize:30, marginBottom:10 }}>🚧</div>
+                  <div style={{ fontSize:15, fontWeight:700, color:T.text, marginBottom:6 }}>Gerado pelo Uniko — em construção</div>
+                  <div style={{ fontSize:13, color:T.textT, maxWidth:420, margin:'0 auto', lineHeight:1.6 }}>
+                    Essa parte ainda está sendo feita (cálculo de INSS/IRRF e o modelo do contracheque). Enquanto isso,
+                    volte pro modo "Manual" acima pra continuar anexando os PDFs normalmente.
+                  </div>
+                </Card>
+              ) : (<>
               {/* Form: anexar novo */}
               <Card style={{ padding:'24px 26px', background:cardBg }} elevated>
                 <div style={{ fontSize:16, fontWeight:700, color:T.text, marginBottom:4 }}>Anexar Novo Contracheque</div>
@@ -6122,6 +6168,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin', initialTa
                   </div>
                 )}
               </Card>
+              </>)}
 
               {/* Lista de contracheques */}
               <Card style={{ padding:'24px 26px', background:cardBg }} elevated>
