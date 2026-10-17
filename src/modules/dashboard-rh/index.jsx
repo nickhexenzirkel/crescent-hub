@@ -16,6 +16,7 @@ import GerenciarPermissoesTab from './GerenciarPermissoesTab';
 import PaineisTab from './PaineisTab';
 import VisitanteConfigTab from './VisitanteConfigTab';
 import { useContrachequeModo, saveContrachequeModo } from '../../shared/contrachequeModo';
+import ContrachequeGeradoUniko from './ContrachequeGeradoUniko';
 import {
   saveCaptureConfig, CAPTURE_UNIKOS, resetCaptures, getCaptureReward,
   getUniko, loadCustomUnikos, saveCustomUniko, deleteCustomUniko, deriveUnikoTheme, getCustomUnikoRaw,
@@ -5960,14 +5961,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin', initialTa
               </Card>
 
               {chModo === 'uniko' ? (
-                <Card style={{ padding:'32px 26px', background:cardBg, textAlign:'center' }} elevated>
-                  <div style={{ fontSize:30, marginBottom:10 }}>🚧</div>
-                  <div style={{ fontSize:15, fontWeight:700, color:T.text, marginBottom:6 }}>Gerado pelo Uniko — em construção</div>
-                  <div style={{ fontSize:13, color:T.textT, maxWidth:420, margin:'0 auto', lineHeight:1.6 }}>
-                    Essa parte ainda está sendo feita (cálculo de INSS/IRRF e o modelo do contracheque). Enquanto isso,
-                    volte pro modo "Manual" acima pra continuar anexando os PDFs normalmente.
-                  </div>
-                </Card>
+                <ContrachequeGeradoUniko cardBg={cardBg} empList={empList} onGerado={loadContracheques}/>
               ) : (<>
               {/* Form: anexar novo */}
               <Card style={{ padding:'24px 26px', background:cardBg }} elevated>
