@@ -91,6 +91,9 @@
   try{ mudoErro = localStorage.getItem(KEY_MUDO) !== '0'; }catch(_){}
 
   // Modos: 'maestro' (guiado, espera você) e 'frenesi' (notas caem do céu no tempo certo)
+  // Celular/iPhone: toque (sem teclado) e tela estreita (retrato) mudam alguns padrões.
+  const TOUCH = !!(window.matchMedia && matchMedia('(pointer: coarse)').matches);
+  const estreito = () => window.innerWidth < 700; // retrato: 21 trilhas ficariam finas demais pra tocar
   const KEY_MODO = 'dw_lira_modo';
   let modo = 'maestro';
   try{ modo = localStorage.getItem(KEY_MODO)==='frenesi' ? 'frenesi' : 'maestro'; }catch(_){}
@@ -225,6 +228,25 @@
 #liraScr .lr-next{position:absolute;inset:-4%;border-radius:50%;pointer-events:none;display:none;border:2px dashed rgba(127,240,255,.6)}
 #liraScr .lr-cell.next .lr-next{display:block}
 #liraScr .lr-cell.demo .lr-note{animation:lrVib .42s cubic-bezier(.2,.8,.3,1)}
+#liraScr{-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;-webkit-text-size-adjust:100%;box-sizing:border-box;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+@media (pointer:coarse){#liraScr .lr-key{display:none}}
+#liraScr > *{min-width:0}
+#liraScr .lr-top{min-width:0;box-sizing:border-box}
+#liraScr .lr-queue{min-width:0;max-width:100%}
+@media (max-width:600px){
+  #liraScr{--s:min(11vw,13.5vh,88px)}
+  #liraScr .lr-rowlbl{display:none}
+  #liraScr .lr-bar .lr-sp{flex-basis:100%;height:0}
+  #liraScr .lr-top{padding:8px 10px 2px;gap:6px}
+  #liraScr .lr-bar{gap:6px}
+  #liraScr .lr-title{font-size:10px;letter-spacing:1px;max-width:34vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #liraScr .lr-back{padding:8px 10px}
+  #liraScr #lrMudo{font-size:0;padding:8px 10px}
+  #liraScr #lrMudo::first-letter{font-size:15px}
+  #liraScr .lr-stat{font-size:8px}
+  #liraScr .lr-hint{font-size:11px}
+  #liraScr .lr-card{padding:20px 18px}
+}
 #liraScr:not(.jogando) .lr-top,#liraScr:not(.jogando) .lr-stage{display:none}
 #liraScr.jogando .lr-lobby{display:none}
 #liraScr .lr-lobby{position:relative;z-index:2;width:100%;max-width:1180px;flex:1;min-height:0;box-sizing:border-box;padding:2vh 20px 2.4vh;display:flex;flex-direction:column;gap:1.6vh}
@@ -302,7 +324,7 @@
 
   function build(){
     if(root) return;
-    const st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st);
+    const st = document.createElement('style'); st.textContent = CSS.replace(/(-?[\d.]+)vh/g, 'calc(var(--lvh,1vh)*$1)'); document.head.appendChild(st);
     root = document.createElement('div'); root.id = 'liraScr';
     let stars = ''; for(let i=0;i<40;i++) stars += `<span class="lr-star" style="left:${Math.random()*100}%;top:${Math.random()*100}%;animation-delay:${(Math.random()*3).toFixed(2)}s"></span>`;
     let grid = '';
@@ -360,6 +382,15 @@
       <div class="lr-stage"><div class="lr-grid" id="lrGrid">${grid}</div><canvas class="lr-fall" id="lrFall"></canvas></div>
       <div class="lr-end" id="lrEnd"><div class="lr-card" id="lrCard"></div></div>`;
     document.body.appendChild(root);
+    const ajustaVh = () => root.style.setProperty('--lvh', (window.innerHeight/100)+'px');
+    ajustaVh(); window.addEventListener('resize',ajustaVh); window.addEventListener('orientationchange',()=>setTimeout(()=>{ ajustaVh(); if(fv) fzGeom(); },250));
+    // sem "elástico" da página atrás e sem zoom por gesto (iOS ignora user-scalable=no)
+    root.addEventListener('touchmove',e=>e.preventDefault(),{ passive:false });
+    root.addEventListener('gesturestart',e=>e.preventDefault());
+    // iOS só libera o áudio dentro de um toque/clique de verdade
+    ['touchend','click'].forEach(ev=>root.addEventListener(ev,()=>audio(),{ passive:true }));
+    // voltou pro app depois de sair: a partida do Frenesi não espera, então para (evita perder a música toda)
+    document.addEventListener('visibilitychange',()=>{ if(document.hidden && openFlag && fz){ frenesiParar(); atualizar(); } });
     cells = Array.from(root.querySelectorAll('.lr-cell'));
 
     // toque/clique (pointerdown permite vários dedos ao mesmo tempo)
@@ -437,7 +468,7 @@
     if(modo==='frenesi'){
       q('#lrQueue').innerHTML = ''; fzStats();
       hint.innerHTML = fz
-        ? 'Toque na nota (ou na tecla) quando a nota <b style="color:#ffd45a">chegar no círculo</b>.'+(facil?' Teclas: <b>A S D F</b>.':'')+' <button class="lr-btn" style="padding:3px 10px;font-size:11px" data-a="fstop">■ Parar</button>'
+        ? 'Toque na nota (ou na tecla) quando a nota <b style="color:#ffd45a">chegar no círculo</b>.'+(facil && !TOUCH?' Teclas: <b>A S D F</b>.':'')+' <button class="lr-btn" style="padding:3px 10px;font-size:11px" data-a="fstop">■ Parar</button>'
         : 'As notas caem do céu: toque quando chegarem. Antes de começar dá pra treinar nas notas. <button class="lr-btn pri" style="padding:4px 12px;font-size:11px" data-a="fstart">▶ COMEÇAR</button>';
       prog.style.width = '0';
       return;
@@ -539,6 +570,7 @@
   }
   // Garante que a escolha atual existe e esconde no lobby o que o RH desligou.
   function aplicarConfig(){
+    { let pref = false; try{ pref = localStorage.getItem(KEY_FACIL)==='1'; }catch(_){} facil = estreito() ? true : pref; }
     if(!cfgOn('modos',modo)) modo = modo==='frenesi' ? 'maestro' : 'frenesi';
     if(!cfgOn('dificuldades',dif)) dif = Object.keys(DIFS).find(k=>cfgOn('dificuldades',k)) || dif;
     if(facil && !cfgOn('notas','quatro')) facil = false;
@@ -547,7 +579,7 @@
     vis('#lrMM', cfgOn('modos','maestro')); vis('#lrMF', cfgOn('modos','frenesi'));
     root.querySelector('.lb-modes').style.gridTemplateColumns = (cfgOn('modos','maestro') && cfgOn('modos','frenesi')) ? '1fr 1fr' : '1fr';
     Object.keys(DIFS).forEach(k=>vis('#lrD'+k, cfgOn('dificuldades',k)));
-    vis('#lrNT', cfgOn('notas','todas')); vis('#lrNF', cfgOn('notas','quatro'));
+    vis('#lrNT', cfgOn('notas','todas') && !estreito()); vis('#lrNF', cfgOn('notas','quatro'));
   }
   function rotuloModo(){
     aplicarConfig();
@@ -581,7 +613,7 @@
     const w = facil ? Math.min(110,(W-16)/5) : Math.max(10, Math.min(54, (W-16)/22.2)), gap = facil ? 0 : w*0.55;
     const total = n*w + (facil?0:2*gap), x0 = (W-total)/2;
     const x = []; for(let i=0;i<n;i++) x.push(x0 + i*w + w/2 + (facil?0:Math.floor(i/7)*gap));
-    const hitY = H - (Math.min(w,90)*0.44*1.7 + Math.min(22,Math.max(8,w*0.3))*1.5 + 10);
+    const hitY = H - (Math.min(w,90)*0.44*1.7 + (TOUCH ? 26 : Math.min(22,Math.max(8,w*0.3))*1.5 + 10));
     fv.g = { W, H, w, x, n, hitY, dpr, speed: hitY/DIFS[dif].queda };
   }
 
@@ -689,6 +721,7 @@
       ctx.fillStyle = pr>0 ? '#fff6c8' : '#fff'; ctx.strokeStyle = cor[1]; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(x,g.hitY,rc*(1+pr*1.2),0,7); ctx.fill(); ctx.stroke();
       // tecla
+      if(TOUCH) continue;
       const lt = letraDe(i), fs = Math.max(8,Math.min(22,g.w*0.3)), bw = fs*1.5, by = g.hitY+rc*1.7;
       ctx.fillStyle = '#fff'; rrect(ctx,x-bw/2,by,bw,fs*1.5,4); ctx.fill();
       ctx.fillStyle = '#2a2440'; ctx.font = '700 '+fs+'px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(lt,x,by+fs*0.78);
