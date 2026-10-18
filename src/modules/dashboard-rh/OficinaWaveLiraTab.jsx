@@ -15,20 +15,27 @@ const slugify = (s) => (s || '')
   .trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
   .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'musica';
 
+// Espaços (no fim ou no meio da linha) são ignorados — vêm de copiar/colar.
+const limparLinhas = (texto) => (texto || '').split(/\r?\n/).map(l => l.replace(/\s+/g, '')).filter(Boolean);
+
 // Mesma leitura do jogo, só pra mostrar o resumo antes de salvar.
 function analisar(texto) {
-  const linhas = (texto || '').split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  const linhas = limparLinhas(texto);
   let passos = 0, acordes = 0;
-  const invalidos = new Set();
-  linhas.forEach(l => {
-    for (const ch of l) if (!TECLAS.includes(ch) && ch !== '-' && ch !== '_') invalidos.add(ch);
+  const porLetra = {}; // letra inválida -> números das linhas
+  linhas.forEach((l, i) => {
+    for (const ch of l) if (!TECLAS.includes(ch) && ch !== '-' && ch !== '_') {
+      const a = (porLetra[ch] = porLetra[ch] || []);
+      if (!a.includes(i + 1)) a.push(i + 1);
+    }
     const re = /([A-Z]+)([-_]*)/g; let m;
     while ((m = re.exec(l))) {
       const c = new Set([...m[1]].filter(ch => TECLAS.includes(ch)));
       if (c.size) { passos++; if (c.size > 1) acordes++; }
     }
   });
-  return { linhas: linhas.length, passos, acordes, invalidos: [...invalidos] };
+  const invalidos = Object.keys(porLetra).map(ch => `${ch} (linha ${porLetra[ch].slice(0, 6).join(', ')}${porLetra[ch].length > 6 ? '…' : ''})`);
+  return { linhas: linhas.length, passos, acordes, invalidos };
 }
 
 const OficinaWaveLiraTab = ({ cardBg, adminName }) => {
@@ -57,12 +64,12 @@ const OficinaWaveLiraTab = ({ cardBg, adminName }) => {
     const n = nome.trim();
     if (!n) { setMsg('⚠️ Dá um nome pra música.'); return; }
     if (!info.passos) { setMsg('⚠️ Cole a tablatura (letras das teclas e traços).'); return; }
-    if (info.invalidos.length) { setMsg('⚠️ Caracteres que não são teclas da lira: ' + info.invalidos.join(' ')); return; }
+    if (info.invalidos.length) { setMsg('⚠️ Letras que não existem na lira: ' + info.invalidos.join(' · ') + '. Troque pela tecla certa (Q W E R T Y U / A S D F G H J / Z X C V B N M).'); return; }
     const u = Math.min(400, Math.max(40, parseInt(unit, 10) || 105));
     setSalvando(true); setMsg('');
     try {
       const id = `${slugify(n)}-${Math.random().toString(36).slice(2, 6)}`;
-      const linhas = tab.split(/\r?\n/).map(l => l.trim()).filter(Boolean).join('\n');
+      const linhas = limparLinhas(tab).join('\n');
       const { error } = await supabase.from('uniko_wave_lira_songs').insert({
         id, nome: n, nivel, unit: u, tab: linhas, created_by: adminName || null,
       });
@@ -120,7 +127,7 @@ const OficinaWaveLiraTab = ({ cardBg, adminName }) => {
               color: info.invalidos.length ? '#C04050' : T.text,
               background: info.invalidos.length ? 'rgba(192,64,80,0.06)' : 'rgba(34,197,94,0.08)' }}>
               {info.invalidos.length
-                ? <>⚠️ Caracteres inválidos: <b>{info.invalidos.join(' ')}</b></>
+                ? <>⚠️ Letras que não existem na lira: <b>{info.invalidos.join(' · ')}</b></>
                 : <>✓ {info.linhas} linhas · <b>{info.passos}</b> passos · <b>{info.acordes}</b> acordes</>}
             </div>
           )}

@@ -63,7 +63,7 @@
     const extra = JSON.parse(localStorage.getItem('dw_lira_songs')||'[]');
     (Array.isArray(extra) ? extra : []).forEach(x=>{
       if(!x || !x.id || !x.nome || typeof x.tab!=='string' || SONGS.some(o=>o.id===x.id)) return;
-      const linhas = x.tab.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+      const linhas = x.tab.split(/\r?\n/).map(l=>l.replace(/\s+/g,'')).filter(Boolean);
       if(!linhas.length) return;
       SONGS.push({ id:String(x.id), nome:String(x.nome), nivel:['Fácil','Médio','Difícil'].includes(x.nivel)?x.nivel:'Médio',
         unit:Math.min(400,Math.max(40,+x.unit||105)), tab:linhas });
