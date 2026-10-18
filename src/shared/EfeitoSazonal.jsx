@@ -169,6 +169,16 @@ const NATAL_CSS = `
   0%,100% { opacity: .6; transform: scale(1); }
   50%     { opacity: 1;  transform: scale(1.35); }
 }
+@keyframes sazTrenoVoo {
+  0%   { transform: translateX(-32vw); opacity: 0; }
+  6%   { opacity: 1; }
+  94%  { opacity: 1; }
+  100% { transform: translateX(132vw); opacity: 0; }
+}
+@keyframes sazCintilar {
+  0%,100% { opacity: .25; transform: scale(.7); }
+  50%     { opacity: 1;   transform: scale(1.15); }
+}
 `;
 
 const wrapStyle = { position: 'fixed', inset: 0, zIndex: 5, pointerEvents: 'none', overflow: 'hidden' };
@@ -272,6 +282,30 @@ const BurstMorcegos = () => {
    uma floresta de pinheiros (vários, tamanhos/tons diferentes) + neve caindo
    + estrelas — pedido explícito do dono, 17/10/2026. */
 
+// Trenó de Natal (imagem — Papai Noel, o mascote Uniko e as renas) cruzando
+// a tela em linha reta, de tempos em tempos, com um rastro de brilho +
+// estrelas cintilantes atrás dele. Pedido explícito do dono, 17/10/2026.
+const TRILHA_TRENO = Array.from({ length: 10 }, (_, i) => ({
+  offset: 36 + i * 26, size: Math.max(6, 14 - i), dur: 0.55 + (i % 3) * 0.22,
+  delay: (i * 0.13) % 1, op: Math.max(0.18, 0.9 - i * 0.08),
+}));
+
+const TrenoComTrilha = ({ top = '16%', largura = 260, dur = '30s', delay = '-8s' }) => (
+  <div style={{ position: 'absolute', top, left: 0, width: largura, animation: `sazTrenoVoo ${dur} linear ${delay} infinite` }}>
+    {/* brilho — gradiente estático (sem blur animado), só o grupo todo que translada */}
+    <div style={{ position: 'absolute', top: '40%', right: largura * 0.32, width: largura * 0.9, height: largura * 0.14,
+      background: 'linear-gradient(to left, rgba(200,243,255,0.4), transparent)', borderRadius: 999 }}/>
+    {TRILHA_TRENO.map((t, i) => (
+      <div key={i} style={{ position: 'absolute', top: '36%', right: t.offset, opacity: t.op,
+        animation: `sazCintilar ${t.dur}s ease-in-out ${t.delay}s infinite` }}>
+        <IconEstrela size={t.size} color="#C8F3FF"/>
+      </div>
+    ))}
+    <img src="/trenozonatal.png" alt="" style={{ width: largura, height: 'auto', display: 'block',
+      filter: 'drop-shadow(0 4px 10px rgba(0,0,0,.35)) drop-shadow(0 0 16px rgba(200,243,255,.45))' }}/>
+  </div>
+);
+
 const PINHEIROS = Array.from({ length: 11 }, (_, i) => ({
   left: `${2 + i * 9}%`,
   h: [58, 78, 46, 90, 64, 100, 54, 82, 70, 48, 86][i],
@@ -308,6 +342,7 @@ const EfeitoNatal = () => {
           <IconFloco size={f.size}/>
         </div>
       ))}
+      <TrenoComTrilha/>
       <MontanhaNeve/>
       {/* floresta — fixa no rodapé, atrás do conteúdo real por causa do z-index baixo do wrapper */}
       <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 100 }}>
