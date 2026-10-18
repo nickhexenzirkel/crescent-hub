@@ -90,19 +90,16 @@ const IconEstrela = ({ size = 18, color = '#C8F3FF' }) => (
   </svg>
 );
 
-// Pinheiro nevado — 3 camadas, com neve branca na borda de cada uma.
-const IconPinheiro = ({ h = 70, tone = '#1E5878' }) => {
-  const w = +(h * 0.62).toFixed(1);
-  return (
-    <svg width={w} height={h} viewBox="0 0 62 70" style={{ display: 'block' }}>
-      <rect x="27" y="60" width="8" height="10" fill="#243444"/>
-      <polygon points="31,0 10,24 18,24 4,42 14,42 0,62 62,62 48,42 58,42 44,24 52,24" fill={tone}/>
-      <polygon points="31,0 24,12 38,12" fill="#EAF6FF"/>
-      <polygon points="18,24 11,33 51,33 44,24" fill="#EAF6FF" opacity=".92"/>
-      <polygon points="14,42 6,50 56,50 48,42" fill="#EAF6FF" opacity=".8"/>
-    </svg>
-  );
-};
+// Pinheiro nevado — imagem enviada pelo dono (public/pinheiro-natal.png),
+// substituindo o desenho SVG anterior. `brilho` varia um pouco de árvore
+// pra árvore só pra não ficar tudo clonado igual (sensação de profundidade).
+const PINHEIRO_RATIO = 593 / 759;
+const IconPinheiro = ({ h = 70, brilho = 1 }) => (
+  <img src="/pinheiro-natal.png" alt="" style={{
+    width: +(h * PINHEIRO_RATIO).toFixed(1), height: h, display: 'block',
+    filter: `brightness(${brilho}) drop-shadow(0 3px 6px rgba(0,0,0,.35))`,
+  }}/>
+);
 
 // Cordilheira nevada — silhueta em duas camadas (profundidade), fixa no
 // rodapé da tela. Base do "cenário de verdade" pedido (não só ícones soltos).
@@ -373,7 +370,7 @@ const TrenoComTrilha = ({ top = '16%', largura = 260, dur = '30s', delay = '-8s'
 const PINHEIROS = Array.from({ length: 11 }, (_, i) => ({
   left: `${2 + i * 9}%`,
   h: [58, 78, 46, 90, 64, 100, 54, 82, 70, 48, 86][i],
-  tone: ['#1E5878', '#174866', '#276A8E', '#1A4E6E', '#246082'][i % 5],
+  brilho: [1, .88, 1.08, .92, 1, .85, 1.05, .9, 1, 1.1, .95][i],
 }));
 
 const EfeitoNatal = () => {
@@ -400,7 +397,7 @@ const EfeitoNatal = () => {
         <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 100 }}>
           {PINHEIROS.map((p, i) => (
             <div key={i} style={{ position: 'absolute', bottom: 0, left: p.left }}>
-              <IconPinheiro h={p.h} tone={p.tone}/>
+              <IconPinheiro h={p.h} brilho={p.brilho}/>
             </div>
           ))}
         </div>
