@@ -5,6 +5,7 @@
 import { useState } from 'react';
 import { T } from '../../contexts/theme';
 import { PAINEIS, savePaineis, usePaineisOcultos } from '../../shared/paineisConfig';
+import { useModoSazonal, saveModoSazonal } from '../../shared/modoSazonal';
 
 const Chave = ({ ligado, onClick, disabled, label }) => (
   <button onClick={onClick} disabled={disabled} role="switch" aria-checked={ligado} aria-label={label}
@@ -31,6 +32,19 @@ const PaineisTab = ({ cardBg }) => {
   const total = PAINEIS.reduce((n, g) => n + g.itens.length, 0);
   const desligados = Object.values(ocultos).filter(Boolean).length;
 
+  // Modo Sazonal — tema temporário + efeitos flutuantes (morcegos/abóboras/
+  // raio/nuvens/esqueleto no Halloween; neve/trenó/árvore/estrela no Natal),
+  // pra todo mundo, em qualquer tema. Ver shared/modoSazonal.js.
+  const modoSazonal = useModoSazonal();
+  const [sazSalvando, setSazSalvando] = useState(false);
+  const trocarSazonal = async (modo) => {
+    if (modo === modoSazonal) return;
+    setSazSalvando(true);
+    try { await saveModoSazonal(modo); }
+    catch { flash('Não consegui salvar o modo sazonal.'); }
+    setSazSalvando(false);
+  };
+
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:18, maxWidth:760 }}>
       <div>
@@ -41,6 +55,35 @@ const PaineisTab = ({ cardBg }) => {
         </div>
         <div style={{ fontSize:12.5, color:T.textS, marginTop:6 }}>{total - desligados} de {total} ligados</div>
         {msg && <div style={{ fontSize:12.5, color:T.danger, marginTop:6 }}>{msg}</div>}
+      </div>
+
+      {/* ── Modo Sazonal ── */}
+      <div>
+        <div style={{ fontSize:12, fontWeight:700, color:T.textT, letterSpacing:'.06em', textTransform:'uppercase', marginBottom:8 }}>Modo Sazonal</div>
+        <div style={{ background: cardBg || T.surface, border:`1px solid ${T.border}`, borderRadius:16, padding:'16px 18px' }}>
+          <div style={{ fontSize:13, color:T.textS, marginBottom:14, lineHeight:1.6 }}>
+            Liga um tema temporário (aparece no seletor de tema de todo mundo) e efeitos flutuantes na tela toda —
+            morcegos, abóboras, raio, nuvens e esqueleto no Halloween; neve, trenó do Papai Noel, árvore e estrela no Natal.
+          </div>
+          <div style={{ display:'inline-flex', padding:3, borderRadius:11, background:T.surfaceSub||'rgba(0,0,0,0.05)', border:`1px solid ${T.border}`, gap:2 }}>
+            {[
+              { id:'nenhum', label:'Nenhum' },
+              { id:'halloween', label:'🎃 Halloween' },
+              { id:'natal', label:'🎄 Natal' },
+            ].map(o => {
+              const on = modoSazonal === o.id;
+              return (
+                <button key={o.id} onClick={() => trocarSazonal(o.id)} disabled={sazSalvando}
+                  style={{ padding:'8px 16px', borderRadius:9, border:'none', cursor: sazSalvando ? 'wait' : 'pointer',
+                    fontFamily:'var(--font-body)', fontSize:12.5, fontWeight:on?700:500,
+                    background: on ? `linear-gradient(135deg,${T.gold},${T.goldL||T.gold}cc)` : 'transparent',
+                    color: on ? '#fff' : T.textS, transition:'all .15s' }}>
+                  {o.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
       {PAINEIS.map(g => (

@@ -503,6 +503,44 @@ const THEMES = {
     sidebarBg:'rgba(12,12,30,0.98)', topbarBg:'rgba(12,12,30,0.95)',
     text:'#E6E7FF', textS:'#A2A6D8', textT:'#6A6E9C', textD:'#3A3C66',
   },
+  /* ─────────── SAZONAIS (temporários) — Dashboard RH → Painéis → Modo
+     Sazonal liga/desliga pra todo mundo (ver shared/modoSazonal.js). Ficam
+     aqui o ano inteiro (só o seletor de tema esconde/mostra), então nunca
+     precisam de código novo pra voltar no ano seguinte. */
+  halloween: {
+    name:'Halloween', surfaceSub:'rgba(255,255,255,0.05)', itemHover:'rgba(255,255,255,0.08)', dot:'#FF8C1A', dark:true,
+    page:'#0D0614', surface:'#1A0F24', border:'rgba(255,255,255,0.08)', divider:'rgba(255,255,255,0.05)',
+    surfaceInput:'rgba(255,255,255,0.06)', inputFocus:'rgba(255,255,255,0.10)',
+    gold:'#FF8C1A', goldL:'#FFA940', goldV:'#FFD080',
+    goldGl:'rgba(255,140,26,0.20)', goldLine:'#FF8C1A',
+    blue:'#8B3FE0', blueL:'#A868FF', blueGl:'rgba(139,63,224,0.16)',
+    blobBase:'#0A0510', blobVeil:'rgba(10,5,16,0.52)',
+    b1:'rgba(60,10,90,0.90)',  b2:'rgba(230,110,10,0.78)',
+    b3:'rgba(255,140,26,0.60)',b4:'rgba(90,20,130,0.82)',
+    b5:'rgba(255,180,90,0.46)',b6:'rgba(20,5,30,0.92)',
+    b7:'rgba(140,60,220,0.55)',
+    sb1:'rgba(255,140,26,0.42)',sb2:'rgba(139,63,224,0.36)',sb3:'rgba(255,180,90,0.26)',
+    lb:'rgba(255,140,26,0.40)', lb2:'rgba(255,140,26,0.18)',
+    sidebarBg:'rgba(18,10,26,0.98)', topbarBg:'rgba(18,10,26,0.95)',
+    text:'#F5E6D8', textS:'#C9A880', textT:'#8A6850', textD:'#4A3828',
+  },
+  natal: {
+    name:'Natal', surfaceSub:'rgba(255,255,255,0.05)', itemHover:'rgba(255,255,255,0.08)', dot:'#E8C050', dark:true,
+    page:'#0A1810', surface:'#122218', border:'rgba(255,255,255,0.08)', divider:'rgba(255,255,255,0.05)',
+    surfaceInput:'rgba(255,255,255,0.06)', inputFocus:'rgba(255,255,255,0.10)',
+    gold:'#D4A017', goldL:'#F0C040', goldV:'#FFE499',
+    goldGl:'rgba(212,160,23,0.20)', goldLine:'#D4A017',
+    blue:'#1F7A4D', blueL:'#2FA868', blueGl:'rgba(31,122,77,0.16)',
+    blobBase:'#070F0A', blobVeil:'rgba(7,15,10,0.52)',
+    b1:'rgba(140,15,30,0.85)', b2:'rgba(20,100,55,0.82)',
+    b3:'rgba(212,160,23,0.55)',b4:'rgba(15,80,45,0.80)',
+    b5:'rgba(240,200,80,0.42)',b6:'rgba(10,25,15,0.92)',
+    b7:'rgba(180,30,45,0.55)',
+    sb1:'rgba(212,160,23,0.40)',sb2:'rgba(31,122,77,0.36)',sb3:'rgba(240,200,80,0.26)',
+    lb:'rgba(212,160,23,0.38)', lb2:'rgba(212,160,23,0.16)',
+    sidebarBg:'rgba(10,18,13,0.98)', topbarBg:'rgba(10,18,13,0.95)',
+    text:'#FDF6E3', textS:'#C9B896', textT:'#8A9A88', textD:'#4A5A48',
+  },
 };
 
 /* Uniko ÚNICO — sem variação por tema (sempre o UNIKO_NEW) */

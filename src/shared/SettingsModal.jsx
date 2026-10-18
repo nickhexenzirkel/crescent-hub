@@ -2,9 +2,37 @@ import React, { useState } from 'react';
 import { T, THEMES } from '../contexts/theme';
 import { SERVER_URL, getAuthUser } from '../contexts/user';
 import { lerFlags, aplicarFlags, FLAGS_PADRAO, PERFIS_DESEMPENHO } from './diagnosticoPerfCore';
+import { useModoSazonal } from './modoSazonal';
 
-const ThemeGrid = ({activeTheme,onTheme}) => (
-  <div style={{display:'grid',gridTemplateColumns:'1fr 1px 1fr',gap:'0 18px'}}>
+/* Linha de tema reaproveitada nas 3 colunas (claro/escuro/sazonal) — era
+   código repetido duas vezes antes do sazonal entrar como terceira coluna. */
+const LinhaTema = ({ th, isActive, onClick, escuro }) => (
+  <div onClick={onClick}
+    style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',
+      borderRadius:11,cursor:'pointer',
+      background:isActive?`${th.goldGl}`:'rgba(0,0,0,0.03)',
+      border:`1.5px solid ${isActive?th.goldLine+'66':'rgba(0,0,0,0.06)'}`,
+      transition:'all .18s'}}>
+    <div style={{width:28,height:28,borderRadius:'50%',flexShrink:0,
+      background:escuro?`linear-gradient(135deg,${th.page},${th.gold}88,${th.goldL})`:`linear-gradient(135deg,${th.goldV},${th.goldL},${th.gold})`,
+      boxShadow:isActive?`0 0 0 2px white,0 0 0 3.5px ${th.goldL}`:(escuro?`0 2px 6px ${th.gold}55`:`0 2px 6px ${th.gold}44`),
+      border:escuro?`1px solid ${th.goldLine}44`:'none'}}/>
+    <div style={{flex:1,fontFamily:'var(--font-body)',fontSize:13,
+      fontWeight:isActive?500:400,color:isActive?th.gold:'#0D1B2E'}}>{th.name}</div>
+    {isActive&&<svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+      <path d="M4 8L7 11L12 5.5" stroke={th.gold} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>}
+  </div>
+);
+
+const ThemeGrid = ({activeTheme,onTheme}) => {
+  // Temas sazonais (Dashboard RH → Painéis → Modo Sazonal) só aparecem pra
+  // escolher enquanto o modo correspondente está ligado — desligou, some da
+  // lista (quem já tinha escolhido continua vendo as cores até trocar).
+  const modoSazonal = useModoSazonal();
+  const sazonalKey = modoSazonal === 'halloween' ? 'halloween' : modoSazonal === 'natal' ? 'natal' : null;
+  return (
+  <div style={{display:'grid',gridTemplateColumns: sazonalKey ? '1fr 1px 1fr 1px 1fr' : '1fr 1px 1fr',gap:'0 18px'}}>
     {/* Modo Claro */}
     <div>
       <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:12}}>
@@ -19,25 +47,9 @@ const ThemeGrid = ({activeTheme,onTheme}) => (
           letterSpacing:'.09em',textTransform:'uppercase',fontWeight:600}}>MODO CLARO</span>
       </div>
       <div style={{display:'flex',flexDirection:'column',gap:7}}>
-        {['blue','purple','lilac','pink','sakura','red','green','orange','beige','black','gray'].map(key=>{
-          const th=THEMES[key]; const isActive=activeTheme===key;
-          return(<div key={key} onClick={()=>onTheme(key)}
-            style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',
-              borderRadius:11,cursor:'pointer',
-              background:isActive?`${th.goldGl}`:'rgba(0,0,0,0.03)',
-              border:`1.5px solid ${isActive?th.goldLine+'66':'rgba(0,0,0,0.06)'}`,
-              transition:'all .18s'}}>
-            <div style={{width:28,height:28,borderRadius:'50%',flexShrink:0,
-              background:`linear-gradient(135deg,${th.goldV},${th.goldL},${th.gold})`,
-              boxShadow:isActive?`0 0 0 2px white,0 0 0 3.5px ${th.goldL}`:
-                `0 2px 6px ${th.gold}44`}}/>
-            <div style={{flex:1,fontFamily:'var(--font-body)',fontSize:13,
-              fontWeight:isActive?500:400,color:isActive?th.gold:'#0D1B2E'}}>{th.name}</div>
-            {isActive&&<svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-              <path d="M4 8L7 11L12 5.5" stroke={th.gold} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>}
-          </div>);
-        })}
+        {['blue','purple','lilac','pink','sakura','red','green','orange','beige','black','gray'].map(key=>(
+          <LinhaTema key={key} th={THEMES[key]} isActive={activeTheme===key} onClick={()=>onTheme(key)}/>
+        ))}
       </div>
     </div>
     {/* Divider */}
@@ -52,30 +64,29 @@ const ThemeGrid = ({activeTheme,onTheme}) => (
           letterSpacing:'.09em',textTransform:'uppercase',fontWeight:600}}>MODO ESCURO</span>
       </div>
       <div style={{display:'flex',flexDirection:'column',gap:7}}>
-        {['blueDark','purpleDark','lilacDark','pinkDark','sakuraDark','redDark','greenDark','orangeDark','beigeDark','blackDark','grayDark'].map(key=>{
-          const th=THEMES[key]; const isActive=activeTheme===key;
-          return(<div key={key} onClick={()=>onTheme(key)}
-            style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',
-              borderRadius:11,cursor:'pointer',
-              background:isActive?`${th.goldGl}`:'rgba(0,0,0,0.03)',
-              border:`1.5px solid ${isActive?th.goldLine+'66':'rgba(0,0,0,0.06)'}`,
-              transition:'all .18s'}}>
-            <div style={{width:28,height:28,borderRadius:'50%',flexShrink:0,
-              background:`linear-gradient(135deg,${th.page},${th.gold}88,${th.goldL})`,
-              boxShadow:isActive?`0 0 0 2px white,0 0 0 3.5px ${th.goldL}`:
-                `0 2px 6px ${th.gold}55`,
-              border:`1px solid ${th.goldLine}44`}}/>
-            <div style={{flex:1,fontFamily:'var(--font-body)',fontSize:13,
-              fontWeight:isActive?500:400,color:isActive?th.gold:'#0D1B2E'}}>{th.name}</div>
-            {isActive&&<svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-              <path d="M4 8L7 11L12 5.5" stroke={th.gold} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>}
-          </div>);
-        })}
+        {['blueDark','purpleDark','lilacDark','pinkDark','sakuraDark','redDark','greenDark','orangeDark','beigeDark','blackDark','grayDark'].map(key=>(
+          <LinhaTema key={key} th={THEMES[key]} isActive={activeTheme===key} onClick={()=>onTheme(key)} escuro/>
+        ))}
       </div>
     </div>
+    {/* Sazonal — só existe (na lista) enquanto Dashboard RH → Painéis → Modo
+        Sazonal estiver ligado pra Halloween ou Natal. */}
+    {sazonalKey && <div style={{background:'rgba(0,0,0,0.08)',borderRadius:1}}/>}
+    {sazonalKey && (
+      <div>
+        <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:12}}>
+          <span style={{fontSize:14,lineHeight:1}}>{sazonalKey==='halloween'?'🎃':'🎄'}</span>
+          <span style={{fontFamily:'var(--font-body)',fontSize:11,color:'#7A92A8',
+            letterSpacing:'.09em',textTransform:'uppercase',fontWeight:600}}>SAZONAL</span>
+        </div>
+        <div style={{display:'flex',flexDirection:'column',gap:7}}>
+          <LinhaTema th={THEMES[sazonalKey]} isActive={activeTheme===sazonalKey} onClick={()=>onTheme(sazonalKey)} escuro/>
+        </div>
+      </div>
+    )}
   </div>
-);
+  );
+};
 
 const AccountPanel = () => {
   const auth = getAuthUser() || {};

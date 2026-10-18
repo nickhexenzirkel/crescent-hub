@@ -40,6 +40,7 @@ import { loadCaptureConfig, CONFIG_KEY, loadCustomUnikos, loadRewardOverrides, l
 import { loadCaptureConfig as loadCaptureNumeroConfig, CONFIG_KEY as CAPTURE_NUMERO_CONFIG_KEY, runCaptureScheduler as runCaptureNumeroScheduler } from './shared/captureNumero';
 import { initAssistantSkinSync } from './shared/assistantSkin';
 import PerfHud from './shared/diagnosticoPerf';
+import EfeitoSazonal from './shared/EfeitoSazonal';
 import { loadCargoModulesForEmployeeId } from './shared/cargoPermissions';
 import { abaDaUrl } from './modules/faturamento/rotaFerramenta';
 
@@ -731,6 +732,7 @@ export default function CrescentHub() {
       <style>{`body.uw-active .floating-theme-btn{display:none!important}`}</style>
       <div style={{minHeight:'100vh',background:T.page,color:T.text,fontFamily:'var(--font-body)',position:'relative'}}>
         <LavaLamp/>
+        <EfeitoSazonal/>
         <div style={{position:'relative',zIndex:1,minHeight:'100vh'}}>
           {screen==='landing'     && <LandingPage    onStart={()=>navPush('login')} onGuest={handleGuestLogin}/>}
           {screen==='login'       && <LoginScreen    onLogin={handleLogin} onGuest={handleGuestLogin}/>}
