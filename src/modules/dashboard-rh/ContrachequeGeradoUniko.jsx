@@ -46,20 +46,29 @@ const ContrachequeGeradoUniko = ({ cardBg, empList, onGerado }) => {
   const [ano, setAno] = useState(String(agora.getFullYear()));
 
   const [carregando, setCarregando] = useState(false);
-  const [emp, setEmp] = useState(null);      // registro completo (salário/INSS/VT/CPF/cargo/admissão)
+  const [emp, setEmp] = useState(null);      // registro completo (CPF/nome/cargo/admissão — só leitura aqui)
   const [matricula, setMatricula] = useState('');
   const [lotacao, setLotacao] = useState('GERAL');
   const [salvandoDados, setSalvandoDados] = useState(false);
+  // Valores do contracheque — pedido explícito: CPF e nome ficam travados no
+  // que já está cadastrado, mas salário/INSS/IRRF/matrícula o admin pode
+  // digitar na hora (pré-preenchidos com o que está no cadastro, só como
+  // ponto de partida — o mês pode ter sido diferente do cadastro padrão).
+  const [salarioInput, setSalarioInput] = useState('');
+  const [inssInput, setInssInput] = useState('');
+  const [irInput, setIrInput] = useState('');
 
   const [gerando, setGerando] = useState(false);
   const [msg, setMsg] = useState('');
   const previewId = 'recibo-uniko-preview';
 
-  // Carrega o funcionário escolhido: registro completo (salário não vem na
-  // listagem — precisa buscar /api/employees/:id, mesmo padrão já usado pro
-  // Banco Extra) + matrícula/lotação (tabela própria, ver contrachequeDados.js).
+  // Carrega o funcionário escolhido: registro completo (CPF/nome/salário/INSS
+  // não vêm na listagem — precisa buscar /api/employees/:id, mesmo padrão já
+  // usado pro Banco Extra) + matrícula/lotação (tabela própria, ver
+  // contrachequeDados.js). Os campos de valor só usam isso como SUGESTÃO
+  // inicial — depois de carregado, o admin edita livremente.
   useEffect(() => {
-    if (!empId) { setEmp(null); setMatricula(''); setLotacao('GERAL'); return; }
+    if (!empId) { setEmp(null); setMatricula(''); setLotacao('GERAL'); setSalarioInput(''); setInssInput(''); setIrInput(''); return; }
     let vivo = true;
     setCarregando(true);
     Promise.all([
@@ -67,9 +76,13 @@ const ContrachequeGeradoUniko = ({ cardBg, empList, onGerado }) => {
       loadContrachequeDados(empId),
     ]).then(([d, dados]) => {
       if (!vivo) return;
-      setEmp(d?.employee || null);
+      const ficha = d?.employee || null;
+      setEmp(ficha);
       setMatricula(dados.matricula);
       setLotacao(dados.lotacao);
+      setSalarioInput(ficha?.salary ? String(ficha.salary) : '');
+      setInssInput(ficha?.inss ? String(ficha.inss) : '');
+      setIrInput(ficha?.ir ? String(ficha.ir) : '');
     }).finally(() => { if (vivo) setCarregando(false); });
     return () => { vivo = false; };
   }, [empId]);
@@ -82,9 +95,9 @@ const ContrachequeGeradoUniko = ({ cardBg, empList, onGerado }) => {
     setSalvandoDados(false);
   };
 
-  const salario = Number(emp?.salary) || 0;
-  const inss = Number(emp?.inss) || 0;
-  const ir = Number(emp?.ir) || 0;
+  const salario = Number(salarioInput.replace(',', '.')) || 0;
+  const inss = Number(inssInput.replace(',', '.')) || 0;
+  const ir = Number(irInput.replace(',', '.')) || 0;
   const fgts = +(salario * 0.08).toFixed(2);
 
   // 1K Service NUNCA entra no contracheque (pedido explícito do dono,
@@ -143,8 +156,9 @@ const ContrachequeGeradoUniko = ({ cardBg, empList, onGerado }) => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div style={{ padding: '12px 16px', borderRadius: 12, background: 'rgba(200,150,10,0.08)', border: '1px solid rgba(200,150,10,0.3)', fontSize: 12.5, color: T.text, lineHeight: 1.6 }}>
-        ⚠️ INSS e IRRF aqui são os valores já cadastrados no funcionário (Gerenciar Usuários → Editar Perfil) — ainda não é o
-        cálculo automático pela tabela oficial (falta confirmar as faixas vigentes). FGTS (8%) já é calculado sozinho.
+        ⚠️ Salário-Base/INSS/IRRF vêm pré-preenchidos do cadastro do funcionário, mas são editáveis na hora — mudar aqui
+        não altera o cadastro, vale só pra este contracheque. Ainda não é o cálculo automático pela tabela oficial de
+        INSS/IRRF (falta confirmar as faixas vigentes); FGTS (8% do Salário-Base digitado) esse sim é calculado sozinho.
         Confira o PDF gerado contra um contracheque real antes de confiar nele de olhos fechados.
       </div>
 
@@ -180,6 +194,11 @@ const ContrachequeGeradoUniko = ({ cardBg, empList, onGerado }) => {
 
           {emp && !carregando && (
             <>
+              {/* CPF e nome ficam travados no que já está cadastrado — pedido explícito. */}
+              <div style={{ fontSize: 12.5, color: T.textS, background: T.surfaceSub || 'rgba(0,0,0,0.04)', borderRadius: 10, padding: '10px 12px', lineHeight: 1.7 }}>
+                {emp.name}<br/>CPF {formatCpf(emp.cpf)}
+              </div>
+
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 <div>
                   <label style={{ fontSize: 11, fontWeight: 600, color: T.textD, textTransform: 'uppercase', letterSpacing: '.07em', display: 'block', marginBottom: 6 }}>Matrícula</label>
@@ -196,13 +215,28 @@ const ContrachequeGeradoUniko = ({ cardBg, empList, onGerado }) => {
                 {salvandoDados ? 'Salvando matrícula/lotação…' : 'Matrícula/lotação ficam salvas pro próximo contracheque deste funcionário.'}
               </div>
 
-              <div style={{ fontSize: 12.5, color: T.textS, background: T.surfaceSub || 'rgba(0,0,0,0.04)', borderRadius: 10, padding: '10px 12px', lineHeight: 1.7 }}>
-                Salário-Base: <strong>R$ {salario.toFixed(2)}</strong><br/>
-                INSS (cadastrado): <strong>R$ {inss.toFixed(2)}</strong><br/>
-                {ir > 0 && <>IRRF (cadastrado): <strong>R$ {ir.toFixed(2)}</strong><br/></>}
-                FGTS (8%, calculado): <strong>R$ {fgts.toFixed(2)}</strong>
+              {/* Valores do mês — pré-preenchidos com o cadastro, editáveis na hora
+                  (não gravam no cadastro do funcionário, só valem pra este PDF). */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: T.textD, textTransform: 'uppercase', letterSpacing: '.07em', display: 'block', marginBottom: 6 }}>Salário-Base (R$)</label>
+                  <input value={salarioInput} onChange={e => setSalarioInput(e.target.value.replace(/[^\d.,]/g, ''))}
+                    placeholder="0,00" style={inputSt(T, !!salarioInput)}/>
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: T.textD, textTransform: 'uppercase', letterSpacing: '.07em', display: 'block', marginBottom: 6 }}>Desconto INSS (R$)</label>
+                  <input value={inssInput} onChange={e => setInssInput(e.target.value.replace(/[^\d.,]/g, ''))}
+                    placeholder="0,00" style={inputSt(T, !!inssInput)}/>
+                </div>
               </div>
-              {salario === 0 && <div style={{ fontSize: 12, color: T.danger }}>Esse funcionário não tem Salário-Base cadastrado — preencha em Gerenciar Usuários → Editar Perfil antes de gerar.</div>}
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 600, color: T.textD, textTransform: 'uppercase', letterSpacing: '.07em', display: 'block', marginBottom: 6 }}>Desconto IRRF (R$)</label>
+                <input value={irInput} onChange={e => setIrInput(e.target.value.replace(/[^\d.,]/g, ''))}
+                  placeholder="0,00 (deixe em branco se não houver)" style={inputSt(T, !!irInput)}/>
+              </div>
+
+              <div style={{ fontSize: 12, color: T.textT }}>FGTS (8% do Salário-Base, calculado sozinho): <strong style={{ color: T.text }}>R$ {fgts.toFixed(2)}</strong></div>
+              {salario === 0 && <div style={{ fontSize: 12, color: T.danger }}>Preencha o Salário-Base pra gerar o contracheque.</div>}
             </>
           )}
 
