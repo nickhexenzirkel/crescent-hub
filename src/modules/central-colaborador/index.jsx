@@ -117,6 +117,10 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange, initialTab, restri
     document.body.classList.toggle('upal-active', tab === 'unikopalavras');
     // Widget "Acessos recentes" da Início — grava toda troca de aba.
     recordRecentTab(tab);
+    // Avisa shared/EfeitoSazonal.jsx qual aba está ativa — o modo sazonal só
+    // aparece na aba Início, não nas outras (Uniko Wave, Detetive, Paint,
+    // Camera etc.) — pedido explícito do dono, 18/10/2026.
+    try { window.dispatchEvent(new CustomEvent('uniko-portal-tab', { detail: tab })); } catch {}
     return () => { document.body.classList.remove('uw-active'); document.body.classList.remove('up-active'); document.body.classList.remove('upal-active'); };
   }, [tab]);
 

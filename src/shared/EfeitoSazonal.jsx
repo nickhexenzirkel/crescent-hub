@@ -613,17 +613,30 @@ const EfeitoNatal = () => {
   );
 };
 
-/* ───────────────────────── Módulos que disparam o burst ─────────────────────── */
-const TELAS_MODULO = new Set([
-  'colaborador', 'ponto', 'dashboard', 'alexa', 'faturamento', 'conexao-setorial',
-  'info-adicional', 'uniko-safer', 'uniko-security', '7-beneficios', 'mercado-estelar',
-  'uniko-fit', 'uniko-call', 'prestacao-contas',
-]);
+/* ───────────────────────── Onde o modo sazonal aparece ─────────────────────────
+   Pedido explícito do dono, 18/10/2026: só no menu de módulos, Central Alexa,
+   aba Início do Portal e Prisma Store — nada de abóbora/bruxa/fantasma/trenó
+   dentro do Trello, Uniko Wave, Uniko Detetive, Uniko Paint, Uniko Camera e
+   demais telas/abas que não estão nessa lista. */
+const TELAS_PERMITIDAS = new Set(['modules', 'alexa', 'mercado-estelar']);
+// Telas que também contam como "entrando num módulo" pro burst de morcegos —
+// mesmo conjunto, menos o seletor (voltar pro menu não é "entrar").
+const TELAS_PERMITIDAS_BURST = new Set(['alexa', 'mercado-estelar']);
 
-// `screen` vem do App.jsx (estado de navegação) — só pra saber QUANDO disparar
-// o burst de morcegos; o efeito ambiente não depende disso.
+// `screen` vem do App.jsx (estado de navegação). `portalTab` vem de um evento
+// que o Portal dispara toda vez que troca de aba (ver central-colaborador/
+// index.jsx) — é a única forma de saber, aqui de fora, se está na aba Início
+// ou em alguma das abas de jogo.
 const EfeitoSazonal = ({ screen }) => {
   const modo = useModoSazonal();
+  const [portalTab, setPortalTab] = useState(null);
+  useEffect(() => {
+    const h = (e) => setPortalTab(e.detail);
+    window.addEventListener('uniko-portal-tab', h);
+    return () => window.removeEventListener('uniko-portal-tab', h);
+  }, []);
+  const podeMostrar = TELAS_PERMITIDAS.has(screen) || (screen === 'colaborador' && portalTab === 'inicio');
+  const podeExplodir = TELAS_PERMITIDAS_BURST.has(screen) || (screen === 'colaborador' && portalTab === 'inicio');
   // T é mutável e este componente vive no App, fora da tela que troca o
   // tema — sem ouvir o aviso, o raio ficava preso na cor de quando montou
   // (mesmo motivo do LavaLamp em shared/components.jsx).
@@ -646,10 +659,12 @@ const EfeitoSazonal = ({ screen }) => {
   useEffect(() => {
     const anterior = telaAnteriorRef.current;
     telaAnteriorRef.current = screen;
-    if (modo === 'halloween' && screen !== anterior && TELAS_MODULO.has(screen)) {
+    if (modo === 'halloween' && screen !== anterior && podeExplodir) {
       setBurstKey(k => k + 1);
     }
-  }, [screen, modo]);
+  }, [screen, modo, podeExplodir]);
+
+  if (!podeMostrar) return null;
 
   if (modo === 'halloween') {
     return (
