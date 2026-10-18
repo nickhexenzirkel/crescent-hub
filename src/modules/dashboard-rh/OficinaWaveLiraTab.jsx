@@ -38,7 +38,92 @@ function analisar(texto) {
   return { linhas: linhas.length, passos, acordes, invalidos };
 }
 
+// Músicas que já vêm no código do jogo (public/unikowave/lira.js). Se entrar uma nova por código, entra aqui também.
+const MUSICAS_BASE = [
+  { id: 'estrelinha', nome: 'Brilha, Brilha Estrelinha' }, { id: 'ode', nome: 'Ode à Alegria' },
+  { id: 'jacques', nome: 'Frère Jacques' }, { id: 'jingle', nome: 'Jingle Bells' },
+  { id: 'parabens', nome: 'Parabéns pra Você' }, { id: 'columbina', nome: 'Columbina Lullaby' },
+  { id: 'nodkrai', nome: 'NodKrai' }, { id: 'iloveyou', nome: 'I Loved You' },
+];
+
+const CONFIG_PADRAO = {
+  modos: { maestro: true, frenesi: true, livre: true },
+  dificuldades: { facil: true, medio: true, dificil: true },
+  notas: { todas: true, quatro: true },
+  musicasOff: [],
+};
+const mesclar = (c) => ({
+  modos: { ...CONFIG_PADRAO.modos, ...(c?.modos || {}) },
+  dificuldades: { ...CONFIG_PADRAO.dificuldades, ...(c?.dificuldades || {}) },
+  notas: { ...CONFIG_PADRAO.notas, ...(c?.notas || {}) },
+  musicasOff: Array.isArray(c?.musicasOff) ? c.musicasOff : [],
+});
+
+const Interruptor = ({ on, onClick, label, sub, T }) => (
+  <button onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 10, textAlign: 'left',
+    border: `1px solid ${T.border}`, background: 'transparent', cursor: 'pointer', fontFamily: 'var(--font-body)' }}>
+    <span style={{ width: 38, height: 22, borderRadius: 12, background: on ? '#22C55E' : '#9ca3af', position: 'relative', flexShrink: 0, transition: 'background .15s' }}>
+      <span style={{ position: 'absolute', top: 2, left: on ? 18 : 2, width: 18, height: 18, borderRadius: '50%', background: '#fff', transition: 'left .15s' }}/>
+    </span>
+    <span style={{ minWidth: 0 }}>
+      <div style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{label}</div>
+      {sub && <div style={{ fontSize: 11, color: T.textT }}>{sub}</div>}
+    </span>
+  </button>
+);
+
 const OficinaWaveLiraTab = ({ cardBg, adminName }) => {
+  const [cfg, setCfg] = useState(CONFIG_PADRAO);
+  const [cfgMsg, setCfgMsg] = useState('');
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data } = await supabase.from('uniko_wave_lira_config').select('config').eq('id', 'main').maybeSingle();
+        if (data?.config) setCfg(mesclar(data.config));
+      } catch {}
+    })();
+  }, []);
+
+  const gravar = async (novo, bloqueio) => {
+    if (bloqueio) { setCfgMsg('⚠️ ' + bloqueio); setTimeout(() => setCfgMsg(''), 4500); return; }
+    const anterior = cfg;
+    setCfg(novo); setCfgMsg('');
+    try {
+      const { error } = await supabase.from('uniko_wave_lira_config').upsert({
+        id: 'main', config: novo, updated_by: adminName || null, updated_at: new Date().toISOString(),
+      });
+      if (error) throw error;
+      setCfgMsg('✅ Salvo. Vale na próxima vez que o jogo abrir.'); setTimeout(() => setCfgMsg(''), 3500);
+    } catch (e) {
+      setCfg(anterior);
+      setCfgMsg('⚠️ ' + (e.message || 'Erro ao salvar') + ' (o SQL supabase_uniko_wave_lira.sql já foi rodado?)');
+    }
+  };
+
+  // Alterna um item de grupo ({chave: bool}) exigindo ao menos um ligado.
+  const alternarGrupo = (grupo, chave, rotulo) => {
+    const novo = mesclar(cfg); novo[grupo][chave] = !novo[grupo][chave];
+    const ligados = Object.values(novo[grupo]).filter(Boolean).length;
+    gravar(novo, ligados ? null : `Deixe pelo menos uma opção ligada em "${rotulo}".`);
+  };
+  const [musicasTodas, setMusicasTodas] = useState([]);
+  const alternarLivre = () => {
+    const novo = mesclar(cfg); novo.modos.livre = !novo.modos.livre;
+    const musicasLigadas = musicasTodas.filter(m => !novo.musicasOff.includes(m.id)).length;
+    gravar(novo, (novo.modos.livre || musicasLigadas) ? null : 'Sem o Modo Livre, ao menos uma música precisa ficar ligada.');
+  };
+  const alternarMusica = (id) => {
+    const novo = mesclar(cfg);
+    novo.musicasOff = novo.musicasOff.includes(id) ? novo.musicasOff.filter(x => x !== id) : [...novo.musicasOff, id];
+    const musicasLigadas = musicasTodas.filter(m => !novo.musicasOff.includes(m.id)).length;
+    gravar(novo, (novo.modos.livre || musicasLigadas) ? null : 'Com o Modo Livre desligado, ao menos uma música precisa ficar ligada.');
+  };
+  const alternarModo = (chave) => {
+    const novo = mesclar(cfg); novo.modos[chave] = !novo.modos[chave];
+    gravar(novo, (novo.modos.maestro || novo.modos.frenesi) ? null : 'Deixe o Modo Maestro ou o Frenesi Estelar ligado.');
+  };
+
   const [lista, setLista] = useState([]);
   const [loading, setLoading] = useState(false);
   const [nome, setNome] = useState('');
@@ -57,6 +142,7 @@ const OficinaWaveLiraTab = ({ cardBg, adminName }) => {
     setLoading(false);
   };
   useEffect(() => { carregar(); }, []);
+  useEffect(() => { setMusicasTodas([...MUSICAS_BASE, ...lista.map(m => ({ id: m.id, nome: m.nome }))]); }, [lista]);
 
   const info = useMemo(() => analisar(tab), [tab]);
 
@@ -96,6 +182,44 @@ const OficinaWaveLiraTab = ({ cardBg, adminName }) => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {/* Interruptores */}
+      <div style={{ padding: 18, borderRadius: 13, background: cardBg, border: `1px solid ${T.border}`, boxShadow: T.shM, display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ fontFamily: 'var(--font-brand)', fontSize: 15, fontWeight: 800, color: T.text }}>🎚️ Interruptores da Lira Estelar</div>
+        <div style={{ fontSize: 12, color: T.textS, lineHeight: 1.5 }}>Liga e desliga o que aparece pros jogadores. Vale na próxima vez que o jogo abrir. O que está desligado some do lobby.</div>
+        {[
+          { t: 'Modos', itens: [
+            { l: '🎼 Modo Maestro', on: cfg.modos.maestro, f: () => alternarModo('maestro') },
+            { l: '🌠 Frenesi Estelar', on: cfg.modos.frenesi, f: () => alternarModo('frenesi') },
+            { l: '🎵 Modo Livre', on: cfg.modos.livre, f: alternarLivre },
+          ] },
+          { t: 'Dificuldades do Frenesi', itens: [
+            { l: '🟢 Fácil', on: cfg.dificuldades.facil, f: () => alternarGrupo('dificuldades', 'facil', 'Dificuldades') },
+            { l: '🟡 Médio', on: cfg.dificuldades.medio, f: () => alternarGrupo('dificuldades', 'medio', 'Dificuldades') },
+            { l: '🔴 Difícil', on: cfg.dificuldades.dificil, f: () => alternarGrupo('dificuldades', 'dificil', 'Dificuldades') },
+          ] },
+          { t: 'Notas do Frenesi', itens: [
+            { l: '🎹 21 notas', on: cfg.notas.todas, f: () => alternarGrupo('notas', 'todas', 'Notas') },
+            { l: '4 botões (A S D F)', on: cfg.notas.quatro, f: () => alternarGrupo('notas', 'quatro', 'Notas') },
+          ] },
+        ].map(g => (
+          <div key={g.t}>
+            <label style={{ fontSize: 11, fontWeight: 600, color: T.textD, textTransform: 'uppercase', letterSpacing: '.07em', display: 'block', marginBottom: 6 }}>{g.t}</label>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(210px,1fr))', gap: 8 }}>
+              {g.itens.map(i => <Interruptor key={i.l} T={T} on={i.on} label={i.l} onClick={i.f}/>)}
+            </div>
+          </div>
+        ))}
+        <div>
+          <label style={{ fontSize: 11, fontWeight: 600, color: T.textD, textTransform: 'uppercase', letterSpacing: '.07em', display: 'block', marginBottom: 6 }}>Músicas (ligada = aparece na biblioteca)</label>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(210px,1fr))', gap: 8 }}>
+            {musicasTodas.map(m => (
+              <Interruptor key={m.id} T={T} on={!cfg.musicasOff.includes(m.id)} label={m.nome} onClick={() => alternarMusica(m.id)}/>
+            ))}
+          </div>
+        </div>
+        {cfgMsg && <div style={{ fontSize: 12.5, color: cfgMsg.startsWith('✅') ? '#16a34a' : '#C04050', padding: '8px 12px', borderRadius: 9, background: cfgMsg.startsWith('✅') ? 'rgba(34,197,94,0.08)' : 'rgba(192,64,80,0.06)' }}>{cfgMsg}</div>}
+      </div>
+
       <div style={{ padding: 18, borderRadius: 13, background: cardBg, border: `1px solid ${T.border}`, boxShadow: T.shM, display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 150px 150px', gap: 12 }}>
           <div>

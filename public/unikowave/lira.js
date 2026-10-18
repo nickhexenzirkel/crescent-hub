@@ -74,6 +74,15 @@
     else { s.steps = parseSeq(s.seq).map(c=>({ c:[c], w:0, ms:s.ms })); }
   });
   for(let i=SONGS.length-1;i>=0;i--) if(!SONGS[i].steps.length) SONGS.splice(i,1); // tablatura sem nenhuma nota válida
+  // Interruptores do Dashboard RH (Oficina Uniko Wave → Lira Estelar): o wrapper grava em localStorage['dw_lira_config'].
+  let CFG = {};
+  try{ CFG = JSON.parse(localStorage.getItem('dw_lira_config')||'{}') || {}; }catch(_){ CFG = {}; }
+  const cfgOn = (g,k) => !(CFG[g] && CFG[g][k]===false);
+  {
+    const off = Array.isArray(CFG.musicasOff) ? CFG.musicasOff : [];
+    const resto = SONGS.filter(s=>!off.includes(s.id));
+    if(resto.length || cfgOn('modos','livre')){ SONGS.length = 0; resto.forEach(s=>SONGS.push(s)); } // nunca fica sem nada pra jogar
+  }
   const stepMs = (s,p) => p.ms || p.w*s.unit;
 
   // Config: errar não soa (não atrapalha a melodia). Ligada por padrão.
@@ -399,8 +408,8 @@
     const best = loadBest(), el = root.querySelector('#lrSongs');
     const stars = n => '★'.repeat(n)+'☆'.repeat(3-n);
     el.innerHTML = SONGS.map(x=>`<button class="lb-song ${song===x?'sel':''}" data-song="${x.id}"><span class="n">${x.nome}</span><span class="m"><i class="nv nv-${x.nivel}">${x.nivel}</i>${x.steps.length} notas</span><span class="s">${stars(best[bestKey(x.id)]||0)}</span></button>`).join('')
-      + `<button class="lb-song ${song?'':'sel'}" data-song=""><span class="n">🎵 Modo Livre</span><span class="m">Toque à vontade, sem guia</span></button>`;
-    const total = SONGS.length+1, cols = total>12 ? 4 : 3;
+      + (cfgOn('modos','livre') ? `<button class="lb-song ${song?'':'sel'}" data-song=""><span class="n">🎵 Modo Livre</span><span class="m">Toque à vontade, sem guia</span></button>` : '');
+    const total = SONGS.length + (cfgOn('modos','livre')?1:0), cols = total>12 ? 4 : 3;
     el.style.gridTemplateColumns = `repeat(${cols},1fr)`; el.style.gridTemplateRows = `repeat(${Math.ceil(total/cols)},1fr)`;
     root.querySelector('#lbSet').classList.toggle('livre', !song);
   }
@@ -528,7 +537,20 @@
     modo = m; try{ localStorage.setItem(KEY_MODO, m); }catch(_){}
     rotuloModo();
   }
+  // Garante que a escolha atual existe e esconde no lobby o que o RH desligou.
+  function aplicarConfig(){
+    if(!cfgOn('modos',modo)) modo = modo==='frenesi' ? 'maestro' : 'frenesi';
+    if(!cfgOn('dificuldades',dif)) dif = Object.keys(DIFS).find(k=>cfgOn('dificuldades',k)) || dif;
+    if(facil && !cfgOn('notas','quatro')) facil = false;
+    else if(!facil && !cfgOn('notas','todas')) facil = true;
+    const vis = (id,ok) => { root.querySelector(id).style.display = ok ? '' : 'none'; };
+    vis('#lrMM', cfgOn('modos','maestro')); vis('#lrMF', cfgOn('modos','frenesi'));
+    root.querySelector('.lb-modes').style.gridTemplateColumns = (cfgOn('modos','maestro') && cfgOn('modos','frenesi')) ? '1fr 1fr' : '1fr';
+    Object.keys(DIFS).forEach(k=>vis('#lrD'+k, cfgOn('dificuldades',k)));
+    vis('#lrNT', cfgOn('notas','todas')); vis('#lrNF', cfgOn('notas','quatro'));
+  }
   function rotuloModo(){
+    aplicarConfig();
     root.querySelector('#lrMM').classList.toggle('sel', modo==='maestro');
     root.querySelector('#lrMF').classList.toggle('sel', modo==='frenesi');
     root.querySelector('#lrOpts').style.display = modo==='frenesi' ? 'flex' : 'none';
@@ -734,17 +756,37 @@
     v.raf = requestAnimationFrame(fzLoop);
   }
 
+  /* ---------- Moedas (GW) ao terminar a música — poucas, de propósito ---------- */
+  // Maestro: 3 + estrelas (4–6 GW). Frenesi: 5/8/12 por dificuldade + estrelas. No máximo 3 pagamentos por dia
+  // por música+modo (nada de ficar repetindo a mesma música pra juntar moeda). earnGW vem do index.html.
+  const GW_FRENESI = { facil:5, medio:8, dificil:12 };
+  function premiarGW(chave, valor){
+    if(typeof earnGW !== 'function') return 0;
+    const hoje = new Date().toLocaleDateString('sv');
+    let d = {}; try{ d = JSON.parse(localStorage.getItem('dw_lira_gw_dia')||'{}') || {}; }catch(_){}
+    if(d.dia !== hoje) d = { dia:hoje, n:{} };
+    if((d.n[chave]||0) >= 3) return -1;
+    d.n[chave] = (d.n[chave]||0) + 1;
+    try{ localStorage.setItem('dw_lira_gw_dia', JSON.stringify(d)); }catch(_){}
+    try{ earnGW(valor); }catch(_){ return 0; }
+    return valor;
+  }
+  const gwLinha = gw => gw>0 ? `<p style="color:#7ff0ff">🌊 +${gw} GW</p>`
+    : gw<0 ? '<p style="color:rgba(255,255,255,.55);font-size:12px">Limite diário de GW dessa música atingido (3x por dia).</p>' : '';
+
   function frenesiFim(){
     const f = fz; if(!f) return;
     const total = f.notes.length, prec = (f.perfect+f.good*0.6)/total;
     const est = prec>=0.9?3:prec>=0.7?2:1;
     saveBest(bestKey(song.id), est); renderSongs(); sfxFim();
+    const gw = (f.perfect+f.good >= total/2) ? premiarGW(song.id+'|f|'+dif, GW_FRENESI[dif]+est) : 0;
     const star = '★'.repeat(est)+`<span class="off">${'★'.repeat(3-est)}</span>`;
     root.querySelector('#lrCard').innerHTML = `
       <h2>FRENESI COMPLETO!</h2><p>${song.nome}</p>
       <div class="lr-stars-row">${star}</div>
       <p>Pontos: <b>${f.score}</b> · Perfeitos: <b>${f.perfect}</b> · Bons: <b>${f.good}</b></p>
       <p>Errou: <b>${f.miss}</b> · Toques fora: <b>${f.stray}</b> · Maior combo: <b>${f.max}</b></p>
+      ${gwLinha(gw)}
       <div class="lr-btns"><button class="lr-btn pri" data-a="again">Jogar de novo</button><button class="lr-btn" data-a="next">Próxima música</button><button class="lr-btn" data-a="lobby">Menu de músicas</button></div>`;
     fz = null;
     root.querySelector('#lrEnd').classList.add('on');
@@ -779,11 +821,13 @@
     const total = song.steps.length, prec = total/(total+errors);
     const est = prec>=0.95?3:prec>=0.8?2:1;
     saveBest(song.id, est); renderSongs(); sfxFim();
+    const gw = premiarGW(song.id+'|m', 3+est);
     const star = '★'.repeat(est)+`<span class="off">${'★'.repeat(3-est)}</span>`;
     root.querySelector('#lrCard').innerHTML = `
       <h2>MÚSICA COMPLETA!</h2><p>${song.nome}</p>
       <div class="lr-stars-row">${star}</div>
       <p>Precisão: <b>${Math.round(prec*100)}%</b> · Erros: <b>${errors}</b> · Maior sequência: <b>${bestStreak}</b></p>
+      ${gwLinha(gw)}
       <div class="lr-btns"><button class="lr-btn pri" data-a="again">Tocar de novo</button><button class="lr-btn" data-a="next">Próxima música</button><button class="lr-btn" data-a="lobby">Menu de músicas</button></div>`;
     root.querySelector('#lrEnd').classList.add('on');
   }
@@ -841,7 +885,7 @@
     try{ if(typeof pauseMenuMusic==='function') pauseMenuMusic(); }catch(_){}
     audio();
     root.classList.remove('jogando');
-    if(!jaAbriu){ song = SONGS[0]; jaAbriu = true; }
+    if(!jaAbriu){ song = SONGS[0] || null; jaAbriu = true; }
     renderSongs(); rotuloModo();
   }
   function fechar(){

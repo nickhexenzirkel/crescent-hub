@@ -95,6 +95,14 @@ const TabUnikoWave = ({ active = true }) => {
         localStorage.setItem('dw_lira_songs', JSON.stringify(mapped));
       } catch { localStorage.setItem('dw_lira_songs', '[]'); }
 
+      // Interruptores da Lira Estelar (modos/dificuldades/músicas ligados ou
+      // desligados pelo RH). Ver supabase_uniko_wave_lira.sql.
+      try {
+        const { data: cfg } = await supabase
+          .from('uniko_wave_lira_config').select('config').eq('id', 'main').maybeSingle();
+        localStorage.setItem('dw_lira_config', JSON.stringify((cfg && cfg.config) || {}));
+      } catch { localStorage.setItem('dw_lira_config', '{}'); }
+
       // Cenários e texturas (Dashboard RH → Oficina Uniko Wave → Mapas &
       // Texturas): mesmo caminho das personagens — grava antes do iframe subir,
       // porque o jogo lê no load. Ver supabase_uniko_wave_cenarios.sql.
