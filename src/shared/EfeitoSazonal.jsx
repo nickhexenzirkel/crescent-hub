@@ -42,6 +42,37 @@ const IconSkull = ({ size = 26, color = '#EDEDF2' }) => (
   </svg>
 );
 
+const IconFantasma = ({ size = 54 }) => (
+  <svg width={size} height={size * 1.1} viewBox="0 0 70 78" style={{ display: 'block' }}>
+    <path fill="rgba(255,255,255,0.9)" d="M35 2C17 2 6 16 6 34v38c3-4 7-4 10 0 3-4 7-4 10 0 3-4 7-4 10 0 3-4 7-4 10 0 3-4 7-4 10 0 3-4 7-4 10 0V34C64 16 53 2 35 2Z"/>
+    <circle cx="24" cy="32" r="5" fill="#140A18"/>
+    <circle cx="46" cy="32" r="5" fill="#140A18"/>
+  </svg>
+);
+
+// Bruxa de vassoura — silhueta simples (capa + chapéu + vassoura).
+const IconBruxa = ({ size = 76 }) => (
+  <svg width={size} height={size * 0.58} viewBox="0 0 130 76" style={{ display: 'block' }}>
+    <path d="M2 58 L74 42" stroke="#6B4A2A" strokeWidth="4.5" strokeLinecap="round"/>
+    <path d="M2 50 L22 45 L10 68 L2 60Z M2 55 L16 52 L6 72 L0 64Z" fill="#4A3418"/>
+    <path d="M62 46c0-16 11-27 24-27s22 9 22 20c0 9-7 14-14 14H68c-4 0-6-3-6-7Z" fill="#140A18"/>
+    <path d="M76 22 L96 1 L105 23Z" fill="#140A18"/>
+    <ellipse cx="87" cy="23" rx="15" ry="4.5" fill="#140A18"/>
+    <circle cx="86" cy="28" r="6.5" fill="#9FCB9F"/>
+  </svg>
+);
+
+// Ossos cruzados — detalhe solto no cemitério (ver CampoHalloween).
+const IconOssos = ({ size = 24, color = '#E6E2D6' }) => (
+  <svg width={size} height={size * 0.5} viewBox="0 0 48 24" style={{ display: 'block' }}>
+    <g fill={color}>
+      <rect x="6" y="9" width="36" height="6" rx="3"/>
+      <circle cx="6" cy="7" r="4"/><circle cx="6" cy="17" r="4"/>
+      <circle cx="42" cy="7" r="4"/><circle cx="42" cy="17" r="4"/>
+    </g>
+  </svg>
+);
+
 const IconNuvem = ({ w = 92, h = 38, color = '#180611', op = 0.4 }) => (
   <svg width={w} height={h} viewBox="0 0 92 38" style={{ display: 'block', opacity: op }}>
     <g fill={color}>
@@ -144,6 +175,32 @@ const HALLOWEEN_CSS = `
   18%  { opacity: 1; }
   100% { transform: translate(var(--bx), var(--by)) rotate(var(--br)) scale(1); opacity: 0; }
 }
+/* Fantasma e bruxa — mesma ideia do trenó: UM elemento só, com 2 passagens
+   em ângulos diferentes dentro do mesmo ciclo, nunca dois ao mesmo tempo. */
+@keyframes sazFantasmaVoo {
+  0%   { transform: translate(-16vw, 58vh) rotate(0deg); opacity: 0; }
+  2%   { transform: translate(-16vw, 58vh) rotate(0deg); opacity: .85; }
+  46%  { transform: translate(116vw, 18vh) rotate(0deg); opacity: .85; }
+  48%  { transform: translate(116vw, 18vh) rotate(0deg); opacity: 0; }
+  54%  { transform: translate(-16vw, 12vh) rotate(0deg); opacity: 0; }
+  56%  { transform: translate(-16vw, 12vh) rotate(0deg); opacity: .85; }
+  98%  { transform: translate(116vw, 62vh) rotate(0deg); opacity: .85; }
+  100% { transform: translate(116vw, 62vh) rotate(0deg); opacity: 0; }
+}
+@keyframes sazFantasmaFlicker {
+  0%,100% { opacity: .7; }
+  50%     { opacity: 1; }
+}
+@keyframes sazBruxaVoo {
+  0%   { transform: translate(-16vw, 10vh) rotate(-8deg); opacity: 0; }
+  2%   { transform: translate(-16vw, 10vh) rotate(-8deg); opacity: 1; }
+  44%  { transform: translate(116vw, 44vh) rotate(-8deg); opacity: 1; }
+  46%  { transform: translate(116vw, 44vh) rotate(-8deg); opacity: 0; }
+  52%  { transform: translate(-16vw, 50vh) rotate(9deg); opacity: 0; }
+  54%  { transform: translate(-16vw, 50vh) rotate(9deg); opacity: 1; }
+  96%  { transform: translate(116vw, 6vh) rotate(9deg); opacity: 1; }
+  100% { transform: translate(116vw, 6vh) rotate(9deg); opacity: 0; }
+}
 `;
 
 const NATAL_CSS = `
@@ -220,32 +277,68 @@ const RaiosVermelhos = () => {
 };
 
 // Campo (colina + cemitério) pro castelo "pousar" em cima — mesma ideia da
-// cordilheira do Natal, só que com lápides em vez de pinheiro. Tons quase
-// pretos/roxo escuro, combinando com o castelo. Pedido explícito do dono.
-const IconLapide = ({ h = 40, tone = '#140A1C' }) => {
+// cordilheira do Natal, só que com lápides em vez de pinheiro. 3 camadas
+// (mais profundidade) + trincas/tufos de grama/pedras na mais próxima, e um
+// tingimento (mix-blend-mode) na cor do TEMA ativo por cima de tudo — sem
+// isso o chão ficava sempre roxo/preto fixo, destoando de temas que não
+// combinam com essa cor. Pedido explícito do dono, 17/10/2026.
+const IconLapide = ({ h = 40, variante = 0, tone = '#140A1C' }) => {
   const w = +(h * 0.72).toFixed(1);
   return (
     <svg width={w} height={h} viewBox="0 0 36 50" style={{ display: 'block' }}>
-      <path d="M2 50V18C2 8 10 2 18 2s16 6 16 16v32z" fill={tone}/>
-      <line x1="13" y1="17" x2="23" y2="27" stroke="#2E1A38" strokeWidth="2.2"/>
-      <line x1="23" y1="17" x2="13" y2="27" stroke="#2E1A38" strokeWidth="2.2"/>
+      {variante === 1 ? (
+        <path d="M2 50V22L18 2l16 20v28z" fill={tone}/>
+      ) : variante === 2 ? (
+        <path d="M2 50V20C2 20 6 6 18 6s16 14 16 14v30z" fill={tone}/>
+      ) : (
+        <path d="M2 50V18C2 8 10 2 18 2s16 6 16 16v32z" fill={tone}/>
+      )}
+      <line x1="13" y1="18" x2="23" y2="28" stroke="#2E1A38" strokeWidth="2.2"/>
+      <line x1="23" y1="18" x2="13" y2="28" stroke="#2E1A38" strokeWidth="2.2"/>
     </svg>
   );
 };
 
 const CampoHalloween = () => (
   <>
-    <svg width="100%" height="110" viewBox="0 0 1000 110" preserveAspectRatio="none"
+    {/* 3 camadas de colina — mais funda, meio e próxima */}
+    <svg width="100%" height="130" viewBox="0 0 1000 130" preserveAspectRatio="none"
       style={{ position: 'absolute', bottom: 0, left: 0, display: 'block' }}>
-      <polygon points="0,110 0,68 90,30 180,64 280,18 370,56 460,22 560,60 650,26 740,58 840,20 930,54 1000,34 1000,110" fill="#120616" opacity=".9"/>
-      <polygon points="0,110 0,90 110,62 230,86 340,48 450,82 570,52 680,84 790,50 900,82 1000,66 1000,110" fill="#1C0A22"/>
+      <polygon points="0,130 0,80 100,38 200,72 310,24 400,62 500,26 600,66 700,30 800,64 900,24 1000,60 1000,130" fill="#0C040F" opacity=".82"/>
+    </svg>
+    <svg width="100%" height="100" viewBox="0 0 1000 100" preserveAspectRatio="none"
+      style={{ position: 'absolute', bottom: 0, left: 0, display: 'block' }}>
+      <polygon points="0,100 0,82 120,56 240,80 360,44 480,76 600,48 720,78 840,46 960,74 1000,62 1000,100" fill="#140A18"/>
+    </svg>
+    <svg width="100%" height="66" viewBox="0 0 1000 66" preserveAspectRatio="none"
+      style={{ position: 'absolute', bottom: 0, left: 0, display: 'block' }}>
+      <polygon points="0,66 0,48 140,32 280,52 420,26 560,50 700,28 840,48 960,32 1000,40 1000,66" fill="#1E0C24"/>
+      {/* trincas secas no chão */}
+      <path d="M95,58 L112,50 L106,42 M330,54 L352,46 M645,52 L666,44 L658,38 M510,56 L528,48"
+        stroke="#0C040F" strokeWidth="1.6" fill="none" opacity=".75"/>
+      {/* tufos de grama seca */}
+      {[55, 175, 405, 525, 715, 875, 950].map((x, i) => (
+        <path key={i} d={`M${x},62 L${x - 3},50 M${x},62 L${x},48 M${x},62 L${x + 3},50`}
+          stroke="#38204A" strokeWidth="1.4"/>
+      ))}
+      {/* pedras */}
+      {[38, 245, 468, 605, 845].map((x, i) => (<circle key={i} cx={x} cy={62} r={3.2} fill="#0C040F"/>))}
     </svg>
     {[
-      { left: '9%', h: 36 }, { left: '18%', h: 46 }, { left: '72%', h: 40 },
-      { left: '83%', h: 50 }, { left: '92%', h: 34 }, { left: '3%', h: 44 },
+      { left: '5%', h: 42, variante: 0 }, { left: '13%', h: 54, variante: 1 }, { left: '70%', h: 44, variante: 2 },
+      { left: '80%', h: 58, variante: 0 }, { left: '90%', h: 38, variante: 1 }, { left: '22%', h: 32, variante: 2 },
     ].map((l, i) => (
-      <div key={i} style={{ position: 'absolute', bottom: 0, left: l.left }}><IconLapide h={l.h}/></div>
+      <div key={i} style={{ position: 'absolute', bottom: 0, left: l.left }}><IconLapide h={l.h} variante={l.variante}/></div>
     ))}
+    {/* ossos jogados no cemitério */}
+    {[{ left: '37%', rot: -12 }, { left: '58%', rot: 18 }, { left: '48%', rot: -4 }].map((o, i) => (
+      <div key={i} style={{ position: 'absolute', bottom: 6, left: o.left, transform: `rotate(${o.rot}deg)` }}>
+        <IconOssos size={26}/>
+      </div>
+    ))}
+    {/* tinge o chão inteiro na cor do tema ativo, preservando a textura (silhueta/trincas/tufos continuam visíveis) */}
+    <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 130,
+      background: T.gold, opacity: .22, mixBlendMode: 'color', pointerEvents: 'none' }}/>
   </>
 );
 
@@ -254,16 +347,17 @@ const CampoHalloween = () => (
 // como veio na imagem original. Técnica: a imagem vira uma MÁSCARA (usa só
 // o canal alfa como silhueta) sobre uma cor sólida — recolor exato, não uma
 // aproximação de filtro (hue-rotate erra a cor quando o tema não é vermelho).
+// Canto inferior esquerdo, bem grande — pedido explícito do dono, 17/10/2026.
 const CASTELO_RATIO = 1536 / 1024;
 const CasteloTema = () => (
   <div style={{
-    position: 'absolute', bottom: 0, left: '50%', transform: 'translateX(-50%)',
-    width: 'min(680px, 82vw)', aspectRatio: `${CASTELO_RATIO}`,
+    position: 'absolute', bottom: 0, left: '-2%',
+    width: 'min(980px, 98vw)', aspectRatio: `${CASTELO_RATIO}`,
     backgroundColor: T.gold,
     WebkitMaskImage: 'url(/castelo-halloween.png)', maskImage: 'url(/castelo-halloween.png)',
     WebkitMaskRepeat: 'no-repeat', maskRepeat: 'no-repeat',
     WebkitMaskSize: 'contain', maskSize: 'contain',
-    WebkitMaskPosition: 'bottom center', maskPosition: 'bottom center',
+    WebkitMaskPosition: 'bottom left', maskPosition: 'bottom left',
     opacity: .9, filter: `drop-shadow(0 0 26px ${T.goldLine}77)`,
   }}/>
 );
@@ -306,6 +400,14 @@ const EfeitoHalloween = () => {
             <IconBat size={m.size} flip={m.flip} rot={m.rot}/>
           </div>
         ))}
+        {/* fantasma e bruxa — um de cada só, 2 ângulos de passagem dentro do
+            mesmo ciclo (ver sazFantasmaVoo/sazBruxaVoo), nunca duplicados */}
+        <div style={{ position: 'absolute', top: 0, left: 0, animation: 'sazFantasmaVoo 78s linear -24s infinite' }}>
+          <div style={{ animation: 'sazFantasmaFlicker 2.2s ease-in-out infinite' }}><IconFantasma/></div>
+        </div>
+        <div style={{ position: 'absolute', top: 0, left: 0, animation: 'sazBruxaVoo 66s linear -12s infinite' }}>
+          <IconBruxa/>
+        </div>
       </div>
     </>
   );
