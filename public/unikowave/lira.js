@@ -197,7 +197,7 @@
 #liraScr .lr-next{position:absolute;inset:-4%;border-radius:50%;pointer-events:none;display:none;border:2px dashed rgba(127,240,255,.6)}
 #liraScr .lr-cell.next .lr-next{display:block}
 #liraScr .lr-cell.demo .lr-note{animation:lrVib .42s cubic-bezier(.2,.8,.3,1)}
-#liraScr .lr-modes{display:flex;gap:8px}
+#liraScr .lr-modes{display:flex;gap:8px;flex-wrap:wrap}
 #liraScr .lr-modes .lr-chip{font-family:var(--font-pixel,monospace);font-size:9px;letter-spacing:1px;padding:9px 14px}
 #liraScr .lr-fall{position:absolute;inset:0;width:100%;height:100%;display:none;z-index:4;touch-action:none}
 #liraScr .lr-fall.on{display:block}
@@ -263,6 +263,10 @@
         <div class="lr-modes">
           <button class="lr-chip" data-a="modo-maestro" id="lrMM">🎼 MODO MAESTRO</button>
           <button class="lr-chip" data-a="modo-frenesi" id="lrMF">🌠 FRENESI ESTELAR</button>
+          <span id="lrOpts" style="display:none;gap:8px;margin-left:auto;flex-wrap:wrap">
+            <button class="lr-chip" data-a="nt-todas" id="lrNT">🎹 TODAS AS NOTAS (21)</button>
+            <button class="lr-chip" data-a="nt-facil" id="lrNF">🟢 FÁCIL (4 BOTÕES)</button>
+          </span>
         </div>
         <div class="lr-songs" id="lrSongs"></div>
         <div class="lr-queue" id="lrQueue"></div>
@@ -288,6 +292,8 @@
       else if(a==='again'){ escolher(song); if(modo==='frenesi' && song) frenesiIniciar(); }
       else if(a==='modo-maestro') trocarModo('maestro');
       else if(a==='modo-frenesi') trocarModo('frenesi');
+      else if(a==='nt-todas') trocarFacil(false);
+      else if(a==='nt-facil') trocarFacil(true);
       else if(a==='fstart') frenesiIniciar();
       else if(a==='fstop'){ frenesiParar(); atualizar(); }
       else if(a==='next'){ const i = SONGS.indexOf(song); escolher(SONGS[(i+1)%SONGS.length]); }
@@ -339,7 +345,7 @@
     if(modo==='frenesi'){
       q('#lrQueue').innerHTML = ''; fzStats();
       hint.innerHTML = fz
-        ? 'Toque na nota (ou na tecla) quando a nota <b style="color:#ffd45a">chegar no círculo</b>. <button class="lr-btn" style="padding:3px 10px;font-size:11px" data-a="fstop">■ Parar</button>'
+        ? 'Toque na nota (ou na tecla) quando a nota <b style="color:#ffd45a">chegar no círculo</b>.'+(facil?' Teclas: <b>D F J K</b>.':'')+' <button class="lr-btn" style="padding:3px 10px;font-size:11px" data-a="fstop">■ Parar</button>'
         : 'As notas caem do céu: toque quando chegarem. Antes de começar dá pra treinar nas notas. <button class="lr-btn pri" style="padding:4px 12px;font-size:11px" data-a="fstart">▶ COMEÇAR</button>';
       prog.style.width = '0';
       return;
@@ -404,6 +410,27 @@
   /* ---------- Modo Frenesi Estelar ---------- */
   // Layout estilo "ritmo da lira": 21 trilhas verticais, círculos de acerto embaixo com a tecla,
   // combo grande no centro-topo, nome/pontos no canto, "Perfect" com estrela. Tudo em canvas (#lrFall).
+  // Opção do Frenesi: todas as 21 notas ou 4 botões (fácil). No fácil as notas continuam soando com o tom real.
+  const KEY_FACIL = 'dw_lira_facil';
+  let facil = false;
+  try{ facil = localStorage.getItem(KEY_FACIL)==='1'; }catch(_){}
+  const FACIL_KEYS = ['KeyD','KeyF','KeyJ','KeyK'], FACIL_LETRAS = ['D','F','J','K'];
+  const COR_FACIL = [['#9ff3ff','#2fc4e0'],['#ffe9a0','#ffc83d'],['#ffb3e6','#ff5fc0'],['#cbb3ff','#8b5cff']];
+  const corDe = i => facil ? COR_FACIL[i] : COR_LINHA[Math.floor(i/7)];
+  const letraDe = i => facil ? FACIL_LETRAS[i] : ROW_KEYS[Math.floor(i/7)][i%7].replace('Key','');
+  // fácil: reparte os tons usados na música em 4 faixas (esquerda = grave, direita = agudo)
+  function facilInfo(){
+    const pitch = c => (2-Math.floor(c/7))*7 + c%7;
+    const usados = [...new Set(song.steps.flatMap(p=>p.c))].sort((a,b)=>pitch(a)-pitch(b));
+    const laneOf = {}, rep = [[],[],[],[]];
+    usados.forEach((c,k)=>{ const l = Math.min(3,Math.floor(k*4/usados.length)); laneOf[c] = l; rep[l].push(c); });
+    return { laneOf, rep: rep.map(a=>a.length ? a[Math.floor(a.length/2)] : 0) };
+  }
+  function trocarFacil(v){
+    if(v===facil) return;
+    facil = v; try{ localStorage.setItem(KEY_FACIL, v?'1':'0'); }catch(_){}
+    rotuloModo(); escolher(song); if(fv) fzGeom();
+  }
   let fz = null;   // partida em andamento (null = treino antes de começar)
   let fv = null;   // vista (loop de desenho + geometria) — vive enquanto o Frenesi está na tela
   const COR_LINHA = [['#ffe9a0','#ffc83d'],['#ffb3e6','#ff5fc0'],['#cbb3ff','#8b5cff']]; // aguda / média / grave
@@ -416,6 +443,9 @@
   function rotuloModo(){
     root.querySelector('#lrMM').classList.toggle('sel', modo==='maestro');
     root.querySelector('#lrMF').classList.toggle('sel', modo==='frenesi');
+    root.querySelector('#lrOpts').style.display = modo==='frenesi' ? 'flex' : 'none';
+    root.querySelector('#lrNT').classList.toggle('sel', !facil);
+    root.querySelector('#lrNF').classList.toggle('sel', facil);
     renderSongs();
   }
   function fzNow(){ return (performance.now()-fz.t0)/1000; }
@@ -424,7 +454,7 @@
     const cv = root.querySelector('#lrFall'), grid = root.querySelector('#lrGrid');
     cv.classList.toggle('on', on); grid.classList.toggle('fzhide', on);
     if(on && !fv){
-      fv = { raf:0, last:performance.now(), fx:[], press:{}, judge:null, g:null };
+      fv = { raf:0, last:performance.now(), fx:[], press:{}, judge:null, g:null, info: facil ? facilInfo() : null };
       fzGeom(); fv.raf = requestAnimationFrame(fzLoop);
     } else if(!on && fv){
       cancelAnimationFrame(fv.raf); fv = null;
@@ -436,18 +466,26 @@
     const dpr = window.devicePixelRatio||1;
     cv.width = Math.round(st.width*dpr); cv.height = Math.round(st.height*dpr);
     const W = st.width, H = st.height;
-    const w = Math.max(10, Math.min(54, (W-16)/22.2)), gap = w*0.55;
-    const total = 21*w + 2*gap, x0 = (W-total)/2;
-    const x = []; for(let i=0;i<21;i++) x.push(x0 + i*w + w/2 + Math.floor(i/7)*gap);
-    const hitY = H - Math.max(54, w*1.5);
-    fv.g = { W, H, w, x, hitY, dpr, speed: hitY/1.7 };
+    const n = facil ? 4 : 21;
+    const w = facil ? Math.min(110,(W-16)/5) : Math.max(10, Math.min(54, (W-16)/22.2)), gap = facil ? 0 : w*0.55;
+    const total = n*w + (facil?0:2*gap), x0 = (W-total)/2;
+    const x = []; for(let i=0;i<n;i++) x.push(x0 + i*w + w/2 + (facil?0:Math.floor(i/7)*gap));
+    const hitY = H - (Math.min(w,90)*0.44*1.7 + Math.min(22,Math.max(8,w*0.3))*1.5 + 10);
+    fv.g = { W, H, w, x, n, hitY, dpr, speed: hitY/1.7 };
   }
 
   function frenesiIniciar(){
     frenesiParar();
     const notes = []; let t = 0;
-    song.steps.forEach(p=>{ p.c.forEach(c=>notes.push({ c, t, st:'pending' })); t += stepMs(song,p)/1000; });
-    fz = { notes, lo:0, last:t, t0:performance.now()+FZ_LEAD*1000, perfect:0, good:0, miss:0, stray:0, score:0, combo:0, max:0, end:0 };
+    const info = facil ? facilInfo() : null;
+    song.steps.forEach(p=>{
+      if(info){
+        const por = {}; p.c.forEach(c=>{ (por[info.laneOf[c]] = por[info.laneOf[c]] || []).push(c); });
+        Object.keys(por).forEach(l=>notes.push({ c:+l, cells:por[l], t, st:'pending' }));
+      } else p.c.forEach(c=>notes.push({ c, cells:[c], t, st:'pending' }));
+      t += stepMs(song,p)/1000;
+    });
+    fz = { info, notes, lo:0, last:t, t0:performance.now()+FZ_LEAD*1000, perfect:0, good:0, miss:0, stray:0, score:0, combo:0, max:0, end:0 };
     root.querySelector('#lrEnd').classList.remove('on');
     atualizar();
   }
@@ -467,7 +505,7 @@
 
   function frenesiTocar(cell){
     if(!fv) return;
-    if(!fz){ pluck(cell); fzBurst(cell,'press'); return; } // antes de começar: treino livre
+    if(!fz){ (facil && fv.info ? [fv.info.rep[cell]] : [cell]).forEach(pluck); fzBurst(cell,'press'); return; } // antes de começar: treino livre
     const now = fzNow(); let best = null;
     for(let i=fz.lo;i<fz.notes.length;i++){
       const n = fz.notes[i]; if(n.t-now > FZ_BOM) break;
@@ -478,11 +516,11 @@
       if(perf) fz.perfect++; else fz.good++;
       fz.score += Math.round((perf?100:60)*(1+Math.floor(fz.combo/10)*0.1));
       fz.combo++; if(fz.combo>fz.max) fz.max = fz.combo;
-      pluck(cell); fzBurst(cell, perf?'perfect':'good');
+      best.n.cells.forEach(pluck); fzBurst(cell, perf?'perfect':'good');
       fzJulga(perf?'Perfect':'Good', perf?'#fff3b0':'#9ff3ff');
     } else {
       fz.stray++; fz.combo = 0;
-      if(!mudoErro){ sfxErro(); pluck(cell); }
+      if(!mudoErro){ sfxErro(); pluck(facil && fz.info ? fz.info.rep[cell] : cell); }
       fzBurst(cell,'press');
     }
     fv.press[cell] = 0.22;
@@ -519,28 +557,28 @@
 
     // trilhas
     ctx.lineWidth = 1.5;
-    for(let i=0;i<21;i++){
+    for(let i=0;i<g.n;i++){
       const lg = ctx.createLinearGradient(0,0,0,g.hitY); lg.addColorStop(0,'rgba(255,255,255,0)'); lg.addColorStop(0.35,'rgba(255,255,255,0.28)'); lg.addColorStop(1,'rgba(255,255,255,0.5)');
       ctx.strokeStyle = lg; ctx.beginPath(); ctx.moveTo(g.x[i],0); ctx.lineTo(g.x[i],g.hitY); ctx.stroke();
     }
     // linha de acerto
     ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(g.x[0],g.hitY); ctx.lineTo(g.x[20],g.hitY); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(g.x[0],g.hitY); ctx.lineTo(g.x[g.n-1],g.hitY); ctx.stroke();
 
     // notas que estão chegando (brilho no círculo)
     const alvo = new Set();
     for(let i=f?f.lo:0;i<N.length && N[i].t-now < 0.4;i++) if(N[i].st==='pending') alvo.add(N[i].c);
 
     // círculos de acerto + teclas
-    const rc = g.w*0.3;
-    for(let i=0;i<21;i++){
-      const x = g.x[i], cor = COR_LINHA[Math.floor(i/7)], pr = v.press[i]||0;
+    const rc = Math.min(g.w,90)*0.44;
+    for(let i=0;i<g.n;i++){
+      const x = g.x[i], cor = corDe(i), pr = v.press[i]||0;
       if(pr>0){ v.press[i] = Math.max(0,pr-dt); }
       if(alvo.has(i)){ ctx.strokeStyle = '#ffd45a'; ctx.lineWidth = 2.5; ctx.shadowColor='#ffd45a'; ctx.shadowBlur=14; ctx.beginPath(); ctx.arc(x,g.hitY,rc*1.7,0,7); ctx.stroke(); ctx.shadowBlur=0; }
       ctx.fillStyle = pr>0 ? '#fff6c8' : '#fff'; ctx.strokeStyle = cor[1]; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(x,g.hitY,rc*(1+pr*1.2),0,7); ctx.fill(); ctx.stroke();
       // tecla
-      const lt = ROW_KEYS[Math.floor(i/7)][i%7].replace('Key',''), fs = Math.max(8,g.w*0.3), bw = fs*1.5, by = g.hitY+rc*1.7;
+      const lt = letraDe(i), fs = Math.max(8,Math.min(22,g.w*0.3)), bw = fs*1.5, by = g.hitY+rc*1.7;
       ctx.fillStyle = '#fff'; rrect(ctx,x-bw/2,by,bw,fs*1.5,4); ctx.fill();
       ctx.fillStyle = '#2a2440'; ctx.font = '700 '+fs+'px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(lt,x,by+fs*0.78);
     }
@@ -550,14 +588,14 @@
     for(let i=f?f.lo:0;i<N.length;i++){
       const n = N[i]; if(n.t-now > ahead) break;
       if(n.st!=='pending') continue;
-      const x = g.x[n.c], y = g.hitY-(n.t-now)*g.speed, cor = COR_LINHA[Math.floor(n.c/7)];
-      const nw = Math.min(g.w*0.86,44), nh = nw*0.78;
+      const x = g.x[n.c], y = g.hitY-(n.t-now)*g.speed, cor = corDe(n.c);
+      const nw = Math.min(g.w*0.9, facil?90:48), nh = nw*0.78;
       ctx.shadowColor = cor[1]; ctx.shadowBlur = 12;
       const ng = ctx.createLinearGradient(0,y-nh/2,0,y+nh/2); ng.addColorStop(0,cor[0]); ng.addColorStop(1,cor[1]);
       ctx.fillStyle = ng; rrect(ctx,x-nw/2,y-nh/2,nw,nh,nw*0.22); ctx.fill();
       ctx.shadowBlur = 0; ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.6; ctx.stroke();
       ctx.fillStyle = '#2a2440'; ctx.font = '700 '+Math.max(8,nw*0.34)+'px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
-      ctx.fillText(SOLFEGE[n.c%7], x, y+1);
+      ctx.fillText(SOLFEGE[n.cells[0]%7], x, y+1);
     }
 
     // explosões nos círculos
@@ -680,6 +718,11 @@
     e.stopImmediatePropagation(); // o resto do Uniko Wave não deve reagir às teclas aqui
     if(e.code==='Escape'){ e.preventDefault(); fechar(); return; }
     if(e.repeat) return;
+    if(modo==='frenesi' && song && facil){ // 4 botões: D F J K
+      const l = FACIL_KEYS.indexOf(e.code);
+      if(l>=0){ e.preventDefault(); tocar(l); }
+      return;
+    }
     for(let r=0;r<3;r++){
       const d = ROW_KEYS[r].indexOf(e.code);
       if(d>=0){ e.preventDefault(); tocar(r*7+d); return; }
