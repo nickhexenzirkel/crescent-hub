@@ -40,13 +40,13 @@
     });
   }
   /* Tablatura: cada letra é uma tecla; letras coladas = acorde (tocar juntas);
-     cada "-" é uma pausa de 1 unidade (só afeta o "Ouvir"). */
+     cada "-" ou "_" é uma pausa de 1 unidade (só afeta o "Ouvir"). */
   const LETRA_CELULA = {};
   ROW_KEYS.forEach((row,r)=>row.forEach((code,d)=>{ LETRA_CELULA[code.replace('Key','')] = r*7+d; }));
   function parseTab(linhas){
     const passos = [];
     linhas.forEach(l=>{
-      const re = /([A-Z]+)(-*)/g; let m;
+      const re = /([A-Z]+)([-_]*)/g; let m;
       while((m = re.exec(l))){
         passos.push({ c:[...new Set(m[1].split('').map(ch=>LETRA_CELULA[ch]))], w:m[2].length+1 });
       }
@@ -54,7 +54,7 @@
     });
     return passos;
   }
-  SONGS.push({ id:'columbina', nome:'Columbina Lullaby', nivel:'Difícil', unit:105, tab:["X---------C----V----A","X---------C----V----A----C","X---------C----V----A","X---------C----V----B","SH---------W---------W--------------Q","AW---------Q----J----G","SH---------F---------G----H----Q","AH----Q-H-G-H","SH---------W---------AW--------------Q","AW---------Q----J----MG","SH---------F---------AG----F----D----A","XF--D--S--------------Q---------W","VE-------R-E-W----Q----BW-------E-W-Q----J","NQ----J----H---------Q----J----Q----W","VE-------R-E-W----Q----BW---------Q----J","ZE-------------------XQ---------W","VE-------R-E-W----Q----BW---------Q----J","NQ----J----H---------BH----J----Q----J","VQ--J--H---------E----BW----Q----J----G","XH---------C----V----B----N----M","X---------C----V----B","XS---------C----V----BH----N----M----G--F","XD---------C----V----BA---------N","XH---------W---------W--------------Q","ZW---------Q----J----G","XH---------F---------G----H----Q","ZH----Q-H-G-H---------C---------Z","XH---------W---------CW--------------Q","VW-------E-W-Q----J----BG","XH---------F---------ZG----F----D----A","XF--D--S--------------Q---------W","VE-------R-E-W----Q----BW-------E-W-Q----J","NQ----J----H---------BQ----J----Q----W","VE-------R-E-W----Q----BW---------Q----J","ZE-------------------XQ---------W","VE-------R-E-W----Q----BW---------Q----J","NQ----J----H---------BH----J----Q----J","VQ--J--H---------E----BW----Q----J----G","NH---------M----A----G","N---------M----A----S","VH---------------------BG"] });
+  SONGS.push({ id:'columbina', nome:'Columbina Lullaby', nivel:'Difícil', unit:105, tab:["NE_________Y_________Y______________T","BY_________T____T____W","VE_________Q_________W____E____T","NE_________E","NE_________Y_________BY______________T","NY_________T____T____BW","VE_________Q_________BW____Q____J____G","NQ____CH____N____M____AQ_________BW","VE____Z____V____NQ____AW____N____BQ____J","NQ____CJ____NH____A____NQ____J____BQ____W","VE____Z____V____ZQ____BW____X____BQ____BJ","ZE____C____B____A____XQ_________W","VE____Z____V____ZQ____NW____B____BQ____J","NQ____CJ____NH____A____NH____J____BQ____J","VH____Z____V____ZE____BW____XQ____BJ____BG","NH____C____N____S","N____C____N____S","N____C____M____N____D_________M____B","N____B____M____B____S_________G","NE_________Y_________Y______________T","BY_________T____T____W","VE_________Q_________W____E____T","NE_________E","NE_________Y_________BY______________T","NY_________T____T____BW","VE_________Q_________BW____Q____J____G","NQ____CH____N____M____AQ_________BW","VE____Z____V____NQ____AW____N____BQ____J","NQ____CJ____NH____A____NQ____J____BQ____W","VE____Z____V____ZQ____BW____X____BQ____BJ","ZE____C____B____A____XQ_________W","VE____Z____V____ZQ____NW____B____BQ____J","NQ____CJ____NH____A____NH____J____BQ____J","VH____Z____V____ZE____BW____XQ____BJ____BG","NBH____C____N____S","N____C____N____S____H____J____Q____J","VH______________E____BW____Q____J____G","NH____C____M____A____G____M____A____N","N"] });
   SONGS.forEach(s=>{
     if(s.tab){ s.steps = parseTab(s.tab); }
     else { s.steps = parseSeq(s.seq).map(c=>({ c:[c], w:0, ms:s.ms })); }
@@ -142,7 +142,7 @@
 #liraScr .lr-prog i{display:block;height:100%;width:0;background:linear-gradient(90deg,#7ff0ff,#ffd98a);transition:width .25s}
 #liraScr .lr-hint{text-align:center;font-size:12px;color:rgba(255,255,255,.65);min-height:16px}
 #liraScr .lr-stage{position:relative;z-index:2;flex:1;display:flex;align-items:center;justify-content:center;width:100%}
-#liraScr .lr-grid{display:flex;flex-direction:column;gap:calc(var(--s)*.34);padding:0 8px}
+#liraScr .lr-grid{display:flex;flex-direction:column;gap:calc(var(--s)*.5);padding:0 8px}
 #liraScr .lr-row{display:flex;align-items:center;gap:calc(var(--s)*.22)}
 #liraScr .lr-rowlbl{width:calc(var(--s)*.5);font-family:var(--font-pixel,monospace);font-size:calc(var(--s)*.12);color:rgba(255,255,255,.4);writing-mode:vertical-rl;transform:rotate(180deg);text-align:center;letter-spacing:2px}
 #liraScr .lr-cell{position:relative;width:var(--s);height:var(--s);flex:0 0 auto;display:flex;align-items:center;justify-content:center;cursor:pointer}
@@ -151,6 +151,18 @@
 #liraScr .lr-note svg{width:58%;height:48%;margin-top:-4%}
 #liraScr .lr-sol{position:absolute;bottom:17%;font-size:calc(var(--s)*.15);color:#9a8a4a;font-weight:600}
 #liraScr .lr-key{position:absolute;bottom:calc(var(--s)*-.2);background:#fff;color:#2a2440;border-radius:5px;font-family:var(--font-pixel,monospace);font-size:calc(var(--s)*.14);padding:3px 5px 2px;box-shadow:0 2px 5px rgba(0,0,0,.4)}
+#liraScr .lr-cnt{position:absolute;bottom:calc(var(--s)*-.56);left:50%;transform:translateX(-50%);display:none;background:#ffd45a;color:#2a1a00;font-family:var(--font-pixel,monospace);font-size:calc(var(--s)*.17);padding:3px 7px 2px;border-radius:8px;box-shadow:0 0 10px rgba(255,212,90,.8);animation:lrPulse 1s ease-in-out infinite;white-space:nowrap}
+#liraScr .lr-cell.multi .lr-cnt{display:block}
+#liraScr .lr-ord{position:absolute;top:calc(var(--s)*-.1);right:calc(var(--s)*-.1);display:none;min-width:calc(var(--s)*.3);height:calc(var(--s)*.3);padding:0 4px;box-sizing:border-box;border-radius:999px;background:#4fd8ee;color:#05283a;font-family:var(--font-pixel,monospace);font-size:calc(var(--s)*.15);align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.5);z-index:3}
+#liraScr .lr-ord.on{display:flex}
+#liraScr .lr-ord.first{background:#ffd45a;color:#2a1a00}
+#liraScr .lr-queue{display:flex;gap:6px;align-items:center;overflow:hidden;min-height:30px}
+#liraScr .lr-queue .ql{font-family:var(--font-pixel,monospace);font-size:8px;color:rgba(255,255,255,.5);letter-spacing:1px;margin-right:2px}
+#liraScr .lr-q{flex:0 0 auto;display:flex;align-items:center;gap:5px;padding:4px 9px;border-radius:9px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);font-family:var(--font-pixel,monospace);font-size:10px;color:#cfeaff}
+#liraScr .lr-q i{font-style:normal;font-size:8px;color:#4fd8ee}
+#liraScr .lr-q b{font-weight:400;color:#ffd98a;font-size:9px}
+#liraScr .lr-q.cur{background:rgba(255,212,90,.2);border-color:#ffd45a;color:#fff;box-shadow:0 0 12px rgba(255,212,90,.5);transform:scale(1.1)}
+#liraScr .lr-q.cur i{color:#ffd45a}
 #liraScr .lr-cell.hit .lr-note{animation:lrVib .42s cubic-bezier(.2,.8,.3,1)}
 @keyframes lrVib{0%{transform:scale(1)}12%{transform:scale(1.22) rotate(-5deg);filter:brightness(1.25)}28%{transform:scale(.93) rotate(4deg)}44%{transform:scale(1.1) rotate(-3deg)}60%{transform:scale(.97) rotate(2deg)}78%{transform:scale(1.03) rotate(-1deg)}100%{transform:scale(1) rotate(0)}}
 #liraScr .lr-cell.err .lr-note{animation:lrErr .3s;filter:hue-rotate(-40deg) saturate(1.8)}
@@ -213,7 +225,7 @@
       grid += `<div class="lr-row"><div class="lr-rowlbl">${ROW_NAMES[r]}</div>`;
       for(let d=0;d<7;d++){
         const key = ROW_KEYS[r][d].replace('Key','');
-        grid += `<div class="lr-cell" data-cell="${r*7+d}"><div class="lr-note">${NOTE_SVG(d)}<span class="lr-sol">${SOLFEGE[d]}</span></div><div class="lr-next"></div><div class="lr-guide"></div><span class="lr-key">${key}</span></div>`;
+        grid += `<div class="lr-cell" data-cell="${r*7+d}"><div class="lr-note">${NOTE_SVG(d)}<span class="lr-sol">${SOLFEGE[d]}</span></div><div class="lr-next"></div><div class="lr-guide"></div><span class="lr-key">${key}</span><span class="lr-cnt"></span><span class="lr-ord"></span></div>`;
       }
       grid += '</div>';
     }
@@ -229,6 +241,7 @@
           <div class="lr-stat">SEQ <b id="lrStreak">0</b></div>
         </div>
         <div class="lr-songs" id="lrSongs"></div>
+        <div class="lr-queue" id="lrQueue"></div>
         <div class="lr-prog"><i id="lrProg"></i></div>
         <div class="lr-hint" id="lrHint"></div>
       </div>
@@ -272,20 +285,50 @@
   }
 
   function atualizar(){
-    cells.forEach(c=>c.classList.remove('target','next'));
+    cells.forEach(c=>{ c.classList.remove('target','next','multi'); const o=c.querySelector('.lr-ord'); o.className='lr-ord'; o.textContent=''; });
     const q = id => root.querySelector(id);
     q('#lrOk').textContent = idx; q('#lrErr').textContent = errors; q('#lrStreak').textContent = streak;
     const hint = q('#lrHint'), prog = q('#lrProg');
     if(!song){
-      prog.style.width = '0'; hint.innerHTML = 'Modo livre: toque nas notas (ou use <b>Q W E R T Y U</b> / <b>A S D F G H J</b> / <b>Z X C V B N M</b>) e crie sua música.';
+      q('#lrQueue').innerHTML = ''; prog.style.width = '0'; hint.innerHTML = 'Modo livre: toque nas notas (ou use <b>Q W E R T Y U</b> / <b>A S D F G H J</b> / <b>Z X C V B N M</b>) e crie sua música.';
       return;
     }
     prog.style.width = (idx/song.steps.length*100)+'%';
     if(!done){
       song.steps[idx].c.forEach(c=>{ if(!got.has(c)) cells[c].classList.add('target'); });
       if(idx+1 < song.steps.length) song.steps[idx+1].c.forEach(c=>cells[c].classList.add('next'));
+      desenharOrdem();
     }
     hint.innerHTML = `Toque na nota com o <b style="color:#ffd45a">círculo dourado</b>. <button class="lr-btn" style="padding:3px 10px;font-size:11px" data-a="demo">👂 Ouvir a música</button>`;
+  }
+
+  /* Fila: junta passos seguidos iguais ("Y ×2") e mostra a ordem nas notas e numa faixa */
+  const LETRA_DA = c => ROW_KEYS[Math.floor(c/7)][c%7].replace('Key','');
+  function filaProxima(max){
+    const fila = []; let i = idx;
+    while(i < song.steps.length && fila.length < max){
+      const k = song.steps[i].c.join(',');
+      let n = 1; while(i+n < song.steps.length && song.steps[i+n].c.join(',') === k) n++;
+      fila.push({ c:song.steps[i].c, n });
+      i += n;
+    }
+    return fila;
+  }
+  function desenharOrdem(){
+    const fila = filaProxima(10);
+    // número de vezes na nota da vez (ex.: 2x)
+    const atual = fila[0];
+    if(atual && atual.n > 1) atual.c.forEach(c=>{ if(!got.has(c)){ cells[c].classList.add('multi'); cells[c].querySelector('.lr-cnt').textContent = atual.n+'x'; } });
+    // ordem 1,2,3,4 nas notas
+    const marcas = {};
+    fila.slice(0,4).forEach((f,k)=>f.c.forEach(c=>{ (marcas[c] = marcas[c]||[]).push(k+1); }));
+    Object.keys(marcas).forEach(c=>{
+      const o = cells[c].querySelector('.lr-ord'); o.textContent = marcas[c].join('·');
+      o.className = 'lr-ord on' + (marcas[c][0]===1 ? ' first' : '');
+    });
+    // faixa de próximas notas
+    root.querySelector('#lrQueue').innerHTML = '<span class="ql">ORDEM</span>' + fila.map((f,k)=>
+      `<span class="lr-q${k===0?' cur':''}"><i>${k+1}</i>${f.c.map(LETRA_DA).join('+')}${f.n>1?` <b>${f.n}x</b>`:''}</span>`).join('');
   }
 
   /* ---------- Efeitos ---------- */

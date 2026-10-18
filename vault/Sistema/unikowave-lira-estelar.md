@@ -14,3 +14,5 @@ Terceiro modo do Uniko Wave, **independente de música do YouTube**. Entra pelo 
 - Nova música: só acrescentar em `SONGS`. Sem SQL, sem deploy na VPS (só front/Vercel).
 
 **Tablatura e acordes (out/2026):** músicas também podem vir como tablatura (`tab` em `SONGS`, `parseTab`): cada letra é uma tecla, letras coladas = **acorde** (o jogador toca as notas em qualquer ordem; só avança quando todas foram tocadas) e cada `-` é 1 unidade de pausa (`unit` ms) usada só no "Ouvir". Cada música vira `steps = [{c:[células], w}]`. Primeira por tablatura: **Columbina Lullaby** (230 passos, 57 acordes, nível Difícil).
+
+**Guia de ordem (out/2026):** `desenharOrdem()` mostra (1) selo numerado 1·2·3·4 nas próximas notas (dourado = a da vez), (2) faixa "ORDEM" acima da barra de progresso com as próximas ~10 jogadas (letras; acorde = `S+H`), e (3) quando a mesma nota (ou acorde) se repete em passos seguidos, pílula **"2x/3x"** embaixo da nota — conta o que falta e vai diminuindo. Tablatura aceita `_` além de `-` como pausa. Columbina Lullaby foi trocada pela 2ª versão (226 passos).
