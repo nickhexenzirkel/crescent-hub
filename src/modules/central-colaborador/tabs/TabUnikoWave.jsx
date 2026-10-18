@@ -5,8 +5,10 @@ import { addGamePlaytime } from '../../../shared/gamePlaytime';
 
 // Chaves do save do jogo que ficam atreladas à CONTA do usuário (não ao
 // navegador). Personagens/mascotes, carteira (GW/GC), personagem escolhido,
-// perfil e pity do gacha. Ver supabase_uniko_wave_saves.sql.
-const SAVE_KEYS = ['dw_wallet', 'dw_unlocked', 'dw_char', 'dw_profile', 'dw_wish_pity', 'dw_constellations'];
+// perfil, pity do gacha e skins (possuídas + qual está equipada em cada
+// personagem). Ver supabase_uniko_wave_saves.sql. Precisa bater exatamente
+// com CLOUD_SAVE_KEYS em public/unikowave/index.html.
+const SAVE_KEYS = ['dw_wallet', 'dw_unlocked', 'dw_char', 'dw_profile', 'dw_wish_pity', 'dw_constellations', 'dw_skins_owned', 'dw_skin_selected'];
 // Marca de quem é o save atualmente no localStorage (isola contas no mesmo PC).
 const OWNER_KEY = 'dw_cloud_owner';
 
@@ -59,6 +61,20 @@ const TabUnikoWave = ({ active = true }) => {
         })).filter(c => c.id && (c.splashUrl || c.runUrls.length));
         localStorage.setItem('dw_custom_chars', JSON.stringify(mapped));
       } catch { localStorage.setItem('dw_custom_chars', '[]'); }
+
+      // Skins (Dashboard RH → Oficina Uniko Wave → Skins): visual alternativo
+      // pra um personagem JÁ EXISTENTE (charId aponta pra uma chave de
+      // CHARACTERS no jogo). Mesmo caminho das personagens acima — grava antes
+      // do iframe subir. Ver supabase_uniko_wave_skins.sql.
+      try {
+        const { data: skins } = await supabase
+          .from('uniko_wave_skins').select('*').order('created_at', { ascending: true });
+        const mapped = (skins || []).map(s => ({
+          id: s.id, charId: s.char_id, titulo: s.titulo || '', descricao: s.descricao || '',
+          imagemUrl: s.imagem_url || null, gwPrice: Number(s.gw_price) || 0,
+        })).filter(s => s.id && s.charId && s.imagemUrl);
+        localStorage.setItem('dw_custom_skins', JSON.stringify(mapped));
+      } catch { localStorage.setItem('dw_custom_skins', '[]'); }
 
       // Cenários e texturas (Dashboard RH → Oficina Uniko Wave → Mapas &
       // Texturas): mesmo caminho das personagens — grava antes do iframe subir,
