@@ -400,11 +400,20 @@ const EfeitoHalloween = () => {
             <IconBat size={m.size} flip={m.flip} rot={m.rot}/>
           </div>
         ))}
-        {/* fantasma e bruxa — um de cada só, 2 ângulos de passagem dentro do
-            mesmo ciclo (ver sazFantasmaVoo/sazBruxaVoo), nunca duplicados */}
-        <div style={{ position: 'absolute', top: 0, left: 0, animation: 'sazFantasmaVoo 78s linear -24s infinite' }}>
-          <div style={{ animation: 'sazFantasmaFlicker 2.2s ease-in-out infinite' }}><IconFantasma/></div>
-        </div>
+        {/* vários fantasmas — cada um com sua própria duração/atraso, então
+            aparecem em momentos diferentes e podem se cruzar na tela (pedido
+            explícito: "mais fantasmas"). Mesmo keyframe de 2 ângulos de cada,
+            só o tempo do ciclo muda. */}
+        {[
+          { dur: 78, delay: -24, size: 72 },
+          { dur: 64, delay: -8, size: 56 },
+          { dur: 91, delay: -47, size: 84 },
+        ].map((f, i) => (
+          <div key={'fa' + i} style={{ position: 'absolute', top: 0, left: 0, animation: `sazFantasmaVoo ${f.dur}s linear ${f.delay}s infinite` }}>
+            <div style={{ animation: `sazFantasmaFlicker ${2 + i * 0.4}s ease-in-out infinite` }}><IconFantasma size={f.size}/></div>
+          </div>
+        ))}
+        {/* bruxa — uma só, 2 ângulos de passagem dentro do mesmo ciclo */}
         <div style={{ position: 'absolute', top: 0, left: 0, animation: 'sazBruxaVoo 66s linear -12s infinite' }}>
           <IconBruxa/>
         </div>
