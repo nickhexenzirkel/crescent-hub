@@ -66,6 +66,12 @@
   let mudoErro = true;
   try{ mudoErro = localStorage.getItem(KEY_MUDO) !== '0'; }catch(_){}
 
+  // Modos: 'maestro' (guiado, espera você) e 'frenesi' (notas caem do céu no tempo certo)
+  const KEY_MODO = 'dw_lira_modo';
+  let modo = 'maestro';
+  try{ modo = localStorage.getItem(KEY_MODO)==='frenesi' ? 'frenesi' : 'maestro'; }catch(_){}
+  const FZ_PERF = 0.09, FZ_BOM = 0.2, FZ_LEAD = 2.2;
+
   const KEY_BEST = 'dw_lira_best';
   function loadBest(){ try{ return JSON.parse(localStorage.getItem(KEY_BEST))||{}; }catch(_){ return {}; } }
   function saveBest(id, stars){
@@ -188,6 +194,9 @@
 #liraScr .lr-next{position:absolute;inset:-4%;border-radius:50%;pointer-events:none;display:none;border:2px dashed rgba(127,240,255,.6)}
 #liraScr .lr-cell.next .lr-next{display:block}
 #liraScr .lr-cell.demo .lr-note{animation:lrVib .42s cubic-bezier(.2,.8,.3,1)}
+#liraScr .lr-modes{display:flex;gap:8px}
+#liraScr .lr-modes .lr-chip{font-family:var(--font-pixel,monospace);font-size:9px;letter-spacing:1px;padding:9px 14px}
+#liraScr .lr-fall{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:4}
 #liraScr .lr-end{position:absolute;inset:0;z-index:5;background:rgba(5,3,20,.78);display:none;align-items:center;justify-content:center;padding:16px}
 #liraScr .lr-end.on{display:flex}
 #liraScr .lr-card{background:linear-gradient(160deg,#2b1a63,#150d3b);border:1px solid rgba(255,255,255,.2);border-radius:18px;padding:26px 30px;text-align:center;max-width:420px;box-shadow:0 10px 40px rgba(0,0,0,.6)}
@@ -246,12 +255,16 @@
           <div class="lr-stat">ERROS <b id="lrErr">0</b></div>
           <div class="lr-stat">SEQ <b id="lrStreak">0</b></div>
         </div>
+        <div class="lr-modes">
+          <button class="lr-chip" data-a="modo-maestro" id="lrMM">🎼 MODO MAESTRO</button>
+          <button class="lr-chip" data-a="modo-frenesi" id="lrMF">🌠 FRENESI ESTELAR</button>
+        </div>
         <div class="lr-songs" id="lrSongs"></div>
         <div class="lr-queue" id="lrQueue"></div>
         <div class="lr-prog"><i id="lrProg"></i></div>
         <div class="lr-hint" id="lrHint"></div>
       </div>
-      <div class="lr-stage"><div class="lr-grid" id="lrGrid">${grid}</div></div>
+      <div class="lr-stage"><div class="lr-grid" id="lrGrid">${grid}</div><canvas class="lr-fall" id="lrFall"></canvas></div>
       <div class="lr-end" id="lrEnd"><div class="lr-card" id="lrCard"></div></div>`;
     document.body.appendChild(root);
     cells = Array.from(root.querySelectorAll('.lr-cell'));
@@ -267,10 +280,15 @@
       else if(a==='demo') ouvir();
       else if(a==='mudo'){ mudoErro = !mudoErro; try{ localStorage.setItem(KEY_MUDO, mudoErro?'1':'0'); }catch(_){} rotuloMudo(); }
       else if(a==='free') escolher(null);
-      else if(a==='again') escolher(song);
+      else if(a==='again'){ escolher(song); if(modo==='frenesi' && song) frenesiIniciar(); }
+      else if(a==='modo-maestro') trocarModo('maestro');
+      else if(a==='modo-frenesi') trocarModo('frenesi');
+      else if(a==='fstart') frenesiIniciar();
+      else if(a==='fstop'){ frenesiParar(); atualizar(); }
       else if(a==='next'){ const i = SONGS.indexOf(song); escolher(SONGS[(i+1)%SONGS.length]); }
     });
-    renderSongs(); rotuloMudo();
+    renderSongs(); rotuloMudo(); rotuloModo();
+    window.addEventListener('resize',()=>{ if(fz) fzGeom(); });
     window.addEventListener('keydown',onKey,true);
   }
 
@@ -284,14 +302,14 @@
     const best = loadBest(), el = root.querySelector('#lrSongs');
     const stars = n => '★'.repeat(n)+'☆'.repeat(3-n);
     el.innerHTML = `<button class="lr-chip ${song?'':'sel'}" data-a="free">🎵 Livre</button>` +
-      SONGS.map(s=>`<button class="lr-chip ${song===s?'sel':''}" data-song="${s.id}">${s.nome} <small>${s.nivel} · ${stars(best[s.id]||0)}</small></button>`).join('');
+      SONGS.map(s=>`<button class="lr-chip ${song===s?'sel':''}" data-song="${s.id}">${s.nome} <small>${s.nivel} · ${stars(best[s.id+(modo==='frenesi'?'_f':'')]||0)}</small></button>`).join('');
     el.querySelectorAll('[data-song]').forEach(b=>b.addEventListener('click',()=>escolher(SONGS.find(s=>s.id===b.dataset.song))));
   }
 
   function pararDemo(){ demoTimers.forEach(clearTimeout); demoTimers = []; demoOn = false; cells.forEach(c=>c.classList.remove('demo')); }
 
   function escolher(s){
-    pararDemo();
+    pararDemo(); frenesiParar();
     song = s; idx = 0; got = new Set(); errors = 0; streak = 0; bestStreak = 0; done = false;
     root.querySelector('#lrEnd').classList.remove('on');
     renderSongs(); atualizar();
@@ -304,6 +322,14 @@
     const hint = q('#lrHint'), prog = q('#lrProg');
     if(!song){
       q('#lrQueue').innerHTML = ''; prog.style.width = '0'; hint.innerHTML = 'Modo livre: toque nas notas (ou use <b>Q W E R T Y U</b> / <b>A S D F G H J</b> / <b>Z X C V B N M</b>) e crie sua música.';
+      return;
+    }
+    if(modo==='frenesi'){
+      q('#lrQueue').innerHTML = ''; fzStats();
+      hint.innerHTML = fz
+        ? 'Toque na nota (ou na tecla) quando a <b style="color:#ffd45a">estrela</b> chegar nela. <button class="lr-btn" style="padding:3px 10px;font-size:11px" data-a="fstop">■ Parar</button>'
+        : 'As notas caem do céu: toque quando chegarem. Antes de começar dá pra treinar nas notas. <button class="lr-btn pri" style="padding:4px 12px;font-size:11px" data-a="fstart">▶ COMEÇAR</button>';
+      prog.style.width = '0';
       return;
     }
     prog.style.width = (idx/song.steps.length*100)+'%';
@@ -363,9 +389,143 @@
     fl.style.setProperty('--dx',(Math.random()*40-20)+'px'); c.appendChild(fl); setTimeout(()=>fl.remove(),1100);
   }
 
+  /* ---------- Modo Frenesi Estelar ---------- */
+  let fz = null;
+  const COR_LINHA = [['#ffe9a0','#ffc83d'],['#ffb3e6','#ff5fc0'],['#cbb3ff','#8b5cff']]; // aguda / média / grave
+
+  function trocarModo(m){
+    if(m===modo) return;
+    modo = m; try{ localStorage.setItem(KEY_MODO, m); }catch(_){}
+    rotuloModo(); escolher(song);
+  }
+  function rotuloModo(){
+    root.querySelector('#lrMM').classList.toggle('sel', modo==='maestro');
+    root.querySelector('#lrMF').classList.toggle('sel', modo==='frenesi');
+    renderSongs();
+  }
+  function fzNow(){ return (performance.now()-fz.t0)/1000; }
+  function fzGeom(){
+    const cv = root.querySelector('#lrFall'), st = cv.parentElement.getBoundingClientRect();
+    const dpr = window.devicePixelRatio||1;
+    cv.width = Math.round(st.width*dpr); cv.height = Math.round(st.height*dpr);
+    fz.dpr = dpr; fz.H = st.height;
+    fz.geom = cells.map(c=>{ const r = c.getBoundingClientRect(); return { x:r.left-st.left+r.width/2, y:r.top-st.top+r.height/2, s:r.width }; });
+    fz.speed = (st.height*0.78)/1.7; // px/s, igual pra todas as notas
+  }
+  function frenesiIniciar(){
+    frenesiParar();
+    const notes = []; let t = 0;
+    song.steps.forEach(p=>{ p.c.forEach(c=>notes.push({ c, t, st:'pending' })); t += stepMs(song,p)/1000; });
+    fz = { notes, lo:0, last:t, t0:performance.now()+FZ_LEAD*1000, perfect:0, good:0, miss:0, stray:0, score:0, combo:0, max:0, fl:[], raf:0, end:0, alvo:'' };
+    fzGeom();
+    root.querySelector('#lrEnd').classList.remove('on');
+    atualizar();
+    fz.raf = requestAnimationFrame(fzLoop);
+  }
+  function frenesiParar(){
+    if(fz){ cancelAnimationFrame(fz.raf); clearTimeout(fz.end); }
+    fz = null;
+    if(root){
+      cells.forEach(c=>c.classList.remove('target'));
+      const cv = root.querySelector('#lrFall'); if(cv) cv.getContext('2d').clearRect(0,0,cv.width,cv.height);
+    }
+  }
+  function fzStats(){
+    const q = id => root.querySelector(id);
+    const f = fz;
+    q('#lrOk').textContent = f ? f.perfect+f.good : 0;
+    q('#lrErr').textContent = f ? f.miss+f.stray : 0;
+    q('#lrStreak').textContent = f ? f.combo : 0;
+  }
+  function fzFloat(cell, txt, col){ const g = fz.geom[cell]; fz.fl.push({ x:g.x, y:g.y-g.s*.6, txt, col, age:0 }); }
+
+  function frenesiTocar(cell){
+    if(!fz){ pluck(cell); efeito(cell,true); return; } // antes de começar: treino livre
+    const now = fzNow(); let best = null;
+    for(let i=fz.lo;i<fz.notes.length;i++){
+      const n = fz.notes[i]; if(n.t-now > FZ_BOM) break;
+      if(n.st==='pending' && n.c===cell){ const d = Math.abs(n.t-now); if(d<=FZ_BOM && (!best || d<best.d)) best = { n, d }; }
+    }
+    if(best){
+      const perf = best.d <= FZ_PERF; best.n.st = 'hit';
+      if(perf) fz.perfect++; else fz.good++;
+      fz.score += Math.round((perf?100:60)*(1+Math.floor(fz.combo/10)*0.1));
+      fz.combo++; if(fz.combo>fz.max) fz.max = fz.combo;
+      pluck(cell); efeito(cell,true);
+      fzFloat(cell, perf?'PERFEITO':'BOM', perf?'#ffd45a':'#7ff0ff');
+    } else {
+      fz.stray++; fz.combo = 0;
+      if(!mudoErro){ sfxErro(); pluck(cell); }
+      efeito(cell,false);
+    }
+    fzStats();
+  }
+
+  function fzLoop(){
+    if(!fz) return;
+    const f = fz, now = fzNow(), N = f.notes;
+    // notas que passaram da janela = erro
+    for(let i=f.lo;i<N.length && N[i].t+FZ_BOM < now;i++){
+      if(N[i].st==='pending'){ N[i].st='miss'; f.miss++; f.combo = 0; fzFloat(N[i].c,'ERROU','#ff6b8a'); }
+    }
+    while(f.lo<N.length && N[f.lo].st!=='pending') f.lo++;
+    // brilho na nota prestes a chegar
+    const alvos = new Set();
+    for(let i=f.lo;i<N.length && N[i].t-now < 0.45;i++) if(N[i].st==='pending') alvos.add(N[i].c);
+    const chave = [...alvos].sort().join(',');
+    if(chave !== f.alvo){ f.alvo = chave; cells.forEach((c,k)=>c.classList.toggle('target', alvos.has(k))); }
+    // desenho
+    const cv = root.querySelector('#lrFall'), ctx = cv.getContext('2d');
+    ctx.setTransform(f.dpr,0,0,f.dpr,0,0); ctx.clearRect(0,0,cv.width,cv.height);
+    const ahead = (f.H+60)/f.speed;
+    for(let i=f.lo;i<N.length;i++){
+      const n = N[i]; if(n.t-now > ahead) break;
+      if(n.st!=='pending') continue;
+      const g = f.geom[n.c], y = g.y-(n.t-now)*f.speed, r = g.s*0.26, cor = COR_LINHA[Math.floor(n.c/7)];
+      const tr = ctx.createLinearGradient(0,y-g.s*1.4,0,y); tr.addColorStop(0,'rgba(255,255,255,0)'); tr.addColorStop(1,cor[1]+'aa');
+      ctx.fillStyle = tr; ctx.fillRect(g.x-r*0.45,y-g.s*1.4,r*0.9,g.s*1.4);
+      const gl = ctx.createRadialGradient(g.x,y,0,g.x,y,r*1.9); gl.addColorStop(0,cor[1]+'cc'); gl.addColorStop(1,cor[1]+'00');
+      ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(g.x,y,r*1.9,0,7); ctx.fill();
+      ctx.fillStyle = cor[0]; ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+      ctx.beginPath(); // estrela de 4 pontas
+      for(let k=0;k<8;k++){ const a = k*Math.PI/4-Math.PI/2, rr = k%2? r*0.5 : r*1.15; ctx.lineTo(g.x+Math.cos(a)*rr, y+Math.sin(a)*rr); }
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+    }
+    // textos de julgamento
+    ctx.textAlign = 'center'; ctx.font = '700 13px sans-serif';
+    for(let i=f.fl.length-1;i>=0;i--){
+      const t = f.fl[i]; t.age += 1/60;
+      if(t.age>0.7){ f.fl.splice(i,1); continue; }
+      ctx.globalAlpha = 1-t.age/0.7; ctx.fillStyle = t.col; ctx.fillText(t.txt, t.x, t.y-t.age*34);
+    }
+    ctx.globalAlpha = 1;
+    root.querySelector('#lrProg').style.width = Math.max(0,Math.min(1,now/f.last))*100+'%';
+    fzStats();
+    if(f.lo>=N.length && !f.end){ f.end = setTimeout(frenesiFim, 700); }
+    f.raf = requestAnimationFrame(fzLoop);
+  }
+
+  function frenesiFim(){
+    const f = fz; if(!f) return;
+    cancelAnimationFrame(f.raf);
+    const total = f.notes.length, prec = (f.perfect+f.good*0.6)/total;
+    const est = prec>=0.9?3:prec>=0.7?2:1;
+    saveBest(song.id+'_f', est); renderSongs(); sfxFim();
+    const star = '★'.repeat(est)+`<span class="off">${'★'.repeat(3-est)}</span>`;
+    root.querySelector('#lrCard').innerHTML = `
+      <h2>FRENESI COMPLETO!</h2><p>${song.nome}</p>
+      <div class="lr-stars-row">${star}</div>
+      <p>Pontos: <b>${f.score}</b> · Perfeitos: <b>${f.perfect}</b> · Bons: <b>${f.good}</b></p>
+      <p>Errou: <b>${f.miss}</b> · Toques fora: <b>${f.stray}</b> · Maior combo: <b>${f.max}</b></p>
+      <div class="lr-btns"><button class="lr-btn pri" data-a="again">Jogar de novo</button><button class="lr-btn" data-a="next">Próxima música</button><button class="lr-btn" data-a="free">Modo livre</button></div>`;
+    fz = null; cells.forEach(c=>c.classList.remove('target'));
+    root.querySelector('#lrEnd').classList.add('on');
+  }
+
   /* ---------- Jogo ---------- */
   function tocar(cell){
     if(!openFlag || demoOn) return;
+    if(modo==='frenesi' && song) return frenesiTocar(cell);
     if(song && !done){
       const passo = song.steps[idx];
       if(passo.c.includes(cell) && !got.has(cell)){
@@ -434,7 +594,7 @@
     escolher(SONGS[0]);
   }
   function fechar(){
-    pararDemo(); openFlag = false;
+    pararDemo(); frenesiParar(); openFlag = false;
     if(root) root.classList.remove('on');
     try{ if(typeof playMenuMusic==='function') playMenuMusic(); }catch(_){}
   }
