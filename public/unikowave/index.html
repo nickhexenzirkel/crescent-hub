@@ -3081,7 +3081,8 @@ const DIAG=(function(){
     log.push({t:type,time,msg:String(msg).slice(0,600)});
     if(log.length>120) log.shift();
     render();
-    if(!open && (type==='error'||type==='warn')){
+    const quieto = /^[beatmap]/.test(String(msg)); // beatmap: só console/painel, sem selo visível
+    if(!open && !quieto && (type==='error'||type==='warn')){
       const errs=log.filter(e=>e.t==='error'||e.t==='warn').length;
       badge.textContent='⚠ '+errs+' erro(s) — toque p/ ver';
       badge.style.display='block';
@@ -6310,17 +6311,16 @@ async function beginFromPreview(skipReal){
     meta={real:true, sustains:bm.sustains||[], strengths:bm.strengths||[]};
     setProgress(94, bm.cached?'Ritmo carregado! ✓':'Ritmo analisado! ✓');
   } else {
-    // Fallback: ritmo estimado pelo título. Se o ritmo REAL falhou, mostra o motivo
-    // na tela (em vez de cair calado) — também fica registrado no painel ` (crase).
+    // Fallback: ritmo estimado pelo título. Se o ritmo REAL falhou, registra o motivo
+    // só no console (e no painel `), sem aparecer pro jogador.
     if(realErr){
-      DIAG.push('error','Ritmo real falhou'+(vid?` [${vid}]`:'')+': '+realErr);
       // Erro de COOKIE (extensão Cat-Bot não instalada / cookies expirados): mostra a tela
       // grande com download da extensão + passo a passo (Chrome/Opera) antes de seguir.
       if(realNeedCookies){ await showCookieHelp(); }
-      setProgress(45,'Ritmo real indisponível: '+realErr+' — usando estimado',true);
-      await delay(1800);
+      // O motivo NÃO aparece mais na tela: só no console do navegador e no painel ` (DIAG).
+      console.error('[beatmap] ritmo real falhou'+(vid?' ['+vid+']':'')+': '+realErr+' — usando ritmo estimado');
     }
-    setProgress(55,'Ritmo estimado...');
+    setProgress(55,'Preparando o mapa...');
     const bpm=estimateBPM(pendingTitle);
     beats=generateBeatsFromBPM(bpm,songDuration);
     meta={real:false};
