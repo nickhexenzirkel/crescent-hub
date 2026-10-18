@@ -39,7 +39,27 @@
       return row*7 + deg;
     });
   }
-  SONGS.forEach(s=>{ s.cells = parseSeq(s.seq); });
+  /* Tablatura: cada letra é uma tecla; letras coladas = acorde (tocar juntas);
+     cada "-" é uma pausa de 1 unidade (só afeta o "Ouvir"). */
+  const LETRA_CELULA = {};
+  ROW_KEYS.forEach((row,r)=>row.forEach((code,d)=>{ LETRA_CELULA[code.replace('Key','')] = r*7+d; }));
+  function parseTab(linhas){
+    const passos = [];
+    linhas.forEach(l=>{
+      const re = /([A-Z]+)(-*)/g; let m;
+      while((m = re.exec(l))){
+        passos.push({ c:[...new Set(m[1].split('').map(ch=>LETRA_CELULA[ch]))], w:m[2].length+1 });
+      }
+      if(passos.length) passos[passos.length-1].w += 3; // respiro no fim da linha
+    });
+    return passos;
+  }
+  SONGS.push({ id:'columbina', nome:'Columbina Lullaby', nivel:'Difícil', unit:105, tab:["X---------C----V----A","X---------C----V----A----C","X---------C----V----A","X---------C----V----B","SH---------W---------W--------------Q","AW---------Q----J----G","SH---------F---------G----H----Q","AH----Q-H-G-H","SH---------W---------AW--------------Q","AW---------Q----J----MG","SH---------F---------AG----F----D----A","XF--D--S--------------Q---------W","VE-------R-E-W----Q----BW-------E-W-Q----J","NQ----J----H---------Q----J----Q----W","VE-------R-E-W----Q----BW---------Q----J","ZE-------------------XQ---------W","VE-------R-E-W----Q----BW---------Q----J","NQ----J----H---------BH----J----Q----J","VQ--J--H---------E----BW----Q----J----G","XH---------C----V----B----N----M","X---------C----V----B","XS---------C----V----BH----N----M----G--F","XD---------C----V----BA---------N","XH---------W---------W--------------Q","ZW---------Q----J----G","XH---------F---------G----H----Q","ZH----Q-H-G-H---------C---------Z","XH---------W---------CW--------------Q","VW-------E-W-Q----J----BG","XH---------F---------ZG----F----D----A","XF--D--S--------------Q---------W","VE-------R-E-W----Q----BW-------E-W-Q----J","NQ----J----H---------BQ----J----Q----W","VE-------R-E-W----Q----BW---------Q----J","ZE-------------------XQ---------W","VE-------R-E-W----Q----BW---------Q----J","NQ----J----H---------BH----J----Q----J","VQ--J--H---------E----BW----Q----J----G","NH---------M----A----G","N---------M----A----S","VH---------------------BG"] });
+  SONGS.forEach(s=>{
+    if(s.tab){ s.steps = parseTab(s.tab); }
+    else { s.steps = parseSeq(s.seq).map(c=>({ c:[c], w:0, ms:s.ms })); }
+  });
+  const stepMs = (s,p) => p.ms || p.w*s.unit;
 
   const KEY_BEST = 'dw_lira_best';
   function loadBest(){ try{ return JSON.parse(localStorage.getItem(KEY_BEST))||{}; }catch(_){ return {}; } }
@@ -167,7 +187,7 @@
 
   /* ---------- Estado / DOM ---------- */
   let root = null, cells = [];
-  let song = null, idx = 0, errors = 0, streak = 0, bestStreak = 0, done = false;
+  let song = null, idx = 0, got = new Set(), errors = 0, streak = 0, bestStreak = 0, done = false;
   let demoTimers = [], demoOn = false, openFlag = false;
 
   const NOTE_SVG = (deg) => {
@@ -246,7 +266,7 @@
 
   function escolher(s){
     pararDemo();
-    song = s; idx = 0; errors = 0; streak = 0; bestStreak = 0; done = false;
+    song = s; idx = 0; got = new Set(); errors = 0; streak = 0; bestStreak = 0; done = false;
     root.querySelector('#lrEnd').classList.remove('on');
     renderSongs(); atualizar();
   }
@@ -260,10 +280,10 @@
       prog.style.width = '0'; hint.innerHTML = 'Modo livre: toque nas notas (ou use <b>Q W E R T Y U</b> / <b>A S D F G H J</b> / <b>Z X C V B N M</b>) e crie sua música.';
       return;
     }
-    prog.style.width = (idx/song.cells.length*100)+'%';
+    prog.style.width = (idx/song.steps.length*100)+'%';
     if(!done){
-      cells[song.cells[idx]].classList.add('target');
-      if(idx+1 < song.cells.length) cells[song.cells[idx+1]].classList.add('next');
+      song.steps[idx].c.forEach(c=>{ if(!got.has(c)) cells[c].classList.add('target'); });
+      if(idx+1 < song.steps.length) song.steps[idx+1].c.forEach(c=>cells[c].classList.add('next'));
     }
     hint.innerHTML = `Toque na nota com o <b style="color:#ffd45a">círculo dourado</b>. <button class="lr-btn" style="padding:3px 10px;font-size:11px" data-a="demo">👂 Ouvir a música</button>`;
   }
@@ -291,11 +311,16 @@
   function tocar(cell){
     if(!openFlag || demoOn) return;
     if(song && !done){
-      if(cell === song.cells[idx]){
-        pluck(cell); efeito(cell,true);
-        idx++; streak++; if(streak>bestStreak) bestStreak = streak;
-        if(idx >= song.cells.length){ done = true; atualizar(); setTimeout(fim,550); return; }
+      const passo = song.steps[idx];
+      if(passo.c.includes(cell) && !got.has(cell)){
+        pluck(cell); efeito(cell,true); got.add(cell);
+        if(got.size >= passo.c.length){
+          got = new Set(); idx++; streak++; if(streak>bestStreak) bestStreak = streak;
+          if(idx >= song.steps.length){ done = true; atualizar(); setTimeout(fim,550); return; }
+        }
         atualizar();
+      } else if(passo.c.includes(cell)){
+        pluck(cell); efeito(cell,true); // já tocada neste acorde: só soa
       } else {
         sfxErro(); pluck(cell); efeito(cell,false);
         errors++; streak = 0; atualizar();
@@ -306,7 +331,7 @@
   }
 
   function fim(){
-    const total = song.cells.length, prec = total/(total+errors);
+    const total = song.steps.length, prec = total/(total+errors);
     const est = prec>=0.95?3:prec>=0.8?2:1;
     saveBest(song.id, est); renderSongs(); sfxFim();
     const star = '★'.repeat(est)+`<span class="off">${'★'.repeat(3-est)}</span>`;
@@ -322,13 +347,14 @@
     if(!song) return;
     if(demoOn){ pararDemo(); atualizar(); return; }
     demoOn = true; cells.forEach(c=>c.classList.remove('target','next'));
-    song.cells.forEach((cell,i)=>{
+    let t = 300;
+    song.steps.forEach(p=>{
       demoTimers.push(setTimeout(()=>{
-        pluck(cell); const c = cells[cell]; c.classList.remove('demo'); void c.offsetWidth; c.classList.add('demo');
-        efeito(cell,true);
-      }, 300 + i*song.ms));
+        p.c.forEach(cell=>{ pluck(cell); const c = cells[cell]; c.classList.remove('demo'); void c.offsetWidth; c.classList.add('demo'); efeito(cell,true); });
+      }, t));
+      t += stepMs(song,p);
     });
-    demoTimers.push(setTimeout(()=>{ pararDemo(); atualizar(); }, 300 + song.cells.length*song.ms + 500));
+    demoTimers.push(setTimeout(()=>{ pararDemo(); atualizar(); }, t + 500));
     root.querySelector('#lrHint').textContent = 'Ouvindo… (clique em "Ouvir" de novo pra parar)';
   }
 
