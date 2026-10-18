@@ -24,22 +24,13 @@ const IconBat = ({ size = 24, flip = false, rot = 0 }) => (
   }}/>
 );
 
-// Abóbora grande e malvada — gomos marcados, sobrancelha única franzida,
-// olhos triangulares inclinados pra dentro e boca serrilhada de dentes.
+// Abóbora — imagem enviada pelo dono (public/abobora-halloween.png),
+// substituindo o desenho próprio anterior (achou mais bonita).
 const IconPumpkin = ({ size = 72 }) => (
-  <svg width={size} height={size * 0.86} viewBox="0 0 120 103" style={{ display: 'block' }}>
-    <path d="M58 14c-2-7 0-13 7-14-3 5-3 10-1 15l-6-1z" fill="#3A6B2A"/>
-    <rect x="54" y="8" width="11" height="16" rx="5" fill="#4C7A20" transform="rotate(-10 59 16)"/>
-    <path d="M60 20C26 20 6 40 6 64c0 23 23 35 54 35s54-12 54-35c0-24-20-44-54-44Z" fill="#FF7A0F"/>
-    <path d="M28 26C19 36 14 50 14 64c0 20 13 31 19 33M92 26c9 10 14 24 14 38 0 20-13 31-19 33M44 22c-6 13-8 30-8 42 0 18 6 31 10 35M76 22c6 13 8 30 8 42 0 18-6 31-10 35M60 20v79"
-      stroke="#D45C00" strokeWidth="2.5" fill="none" opacity=".5"/>
-    <path d="M28 54 L47 47 L53 56 L38 58Z" fill="#200D02"/>
-    <path d="M92 54 L73 47 L67 56 L82 58Z" fill="#200D02"/>
-    <polygon points="30,60 50,58 37,80" fill="#200D02"/>
-    <polygon points="90,60 70,58 83,80" fill="#200D02"/>
-    <polygon points="57,72 63,72 60,83" fill="#200D02"/>
-    <path d="M24 87 L33 78 L40 89 L48 80 L55 91 L60 81 L65 91 L72 80 L80 89 L87 78 L96 87 L89 97 L31 97Z" fill="#200D02"/>
-  </svg>
+  <img src="/abobora-halloween.png" alt="" style={{
+    width: size, height: 'auto', display: 'block',
+    filter: 'drop-shadow(0 4px 10px rgba(0,0,0,.4))',
+  }}/>
 );
 
 const IconSkull = ({ size = 26, color = '#EDEDF2' }) => (
@@ -189,18 +180,22 @@ const RaiosVermelhos = () => {
   const bolts = useRef(null);
   if (!bolts.current) {
     const rnd = (a, b) => a + Math.random() * (b - a);
-    bolts.current = Array.from({ length: 6 }).map((_, i) => ({
-      id: i, left: `${rnd(6, 88)}%`, top: rnd(4, 26), h: rnd(55, 150), delay: rnd(0, 0.8),
+    // Mais raios (12) e delay espalhado pelo ciclo inteiro — cada um tem o
+    // próprio ciclo de 7-10s, então os flashes ficam espalhados no tempo em
+    // vez de todos piscarem juntos de 9 em 9s.
+    bolts.current = Array.from({ length: 12 }).map((_, i) => ({
+      id: i, left: `${rnd(3, 94)}%`, top: rnd(2, 30), h: rnd(50, 165),
+      dur: rnd(7, 10), delay: rnd(0, 10),
     }));
   }
   return (
     <>
       <div style={{ position: 'absolute', inset: 0, opacity: 0,
         background: 'radial-gradient(ellipse at 55% 0%, #ff2d4055 0%, transparent 55%)',
-        animation: 'sazLightningFlash 9s linear infinite' }}/>
+        animation: 'sazLightningFlash 6s linear infinite' }}/>
       {bolts.current.map(b => (
         <div key={b.id} style={{ position: 'absolute', left: b.left, top: b.top, opacity: 0,
-          animation: `sazLightning 9s linear ${b.delay}s infinite` }}>
+          animation: `sazLightning ${b.dur}s linear ${b.delay}s infinite` }}>
           <IconRaio w={Math.round(b.h * 0.3)} h={b.h}/>
         </div>
       ))}
@@ -244,18 +239,22 @@ const EfeitoHalloween = () => {
 // Explosão de morcegos ao entrar num módulo — mesmo espírito do Uniko
 // Vampire Robot (shared/vampireScene.jsx), só que num burst único em vez de
 // morcegos ambientes: ~1.6s, depois some sozinho.
+const BURST_TOTAL = 28;
 const BurstMorcegos = () => {
   const [sumiu, setSumiu] = useState(false);
   const bats = useRef(null);
   if (!bats.current) {
-    bats.current = Array.from({ length: 14 }).map((_, i) => {
-      const ang = (i / 14) * Math.PI * 2 + Math.random() * 0.35;
-      const dist = 30 + Math.random() * 30;
+    // Dois anéis (mais perto/mais longe) em vez de um só — fica mais denso
+    // sem precisar de mais raio de explosão.
+    bats.current = Array.from({ length: BURST_TOTAL }).map((_, i) => {
+      const anel = i % 2;
+      const ang = (i / BURST_TOTAL) * Math.PI * 2 + Math.random() * 0.3;
+      const dist = (anel === 0 ? 20 : 42) + Math.random() * 20;
       return {
         bx: `${Math.cos(ang) * dist}vmin`, by: `${Math.sin(ang) * dist}vmin`,
         br: `${Math.round(Math.random() * 360 - 180)}deg`,
-        dur: `${1.0 + Math.random() * 0.5}s`, delay: `${Math.random() * 0.18}s`,
-        size: 16 + Math.random() * 14, flip: Math.random() < 0.5,
+        dur: `${1.0 + Math.random() * 0.6}s`, delay: `${Math.random() * 0.22}s`,
+        size: 14 + Math.random() * 16, flip: Math.random() < 0.5,
       };
     });
   }
