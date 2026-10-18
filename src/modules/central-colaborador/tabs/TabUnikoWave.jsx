@@ -64,15 +64,22 @@ const TabUnikoWave = ({ active = true }) => {
 
       // Skins (Dashboard RH → Oficina Uniko Wave → Skins): visual alternativo
       // pra um personagem JÁ EXISTENTE (charId aponta pra uma chave de
-      // CHARACTERS no jogo). Mesmo caminho das personagens acima — grava antes
-      // do iframe subir. Ver supabase_uniko_wave_skins.sql.
+      // CHARACTERS no jogo), com as MESMAS poses/frames de uma personagem da
+      // Oficina (splash/passo1-5/atacar/pular/segurar) — pra funcionar tanto
+      // no ritmo quanto na Guerra Estelar. Mesmo caminho das personagens
+      // acima — grava antes do iframe subir. imagem_url é o campo legado (1ª
+      // versão, só 1 imagem) — mantido como fallback de splash.
+      // Ver supabase_uniko_wave_skins.sql.
       try {
         const { data: skins } = await supabase
           .from('uniko_wave_skins').select('*').order('created_at', { ascending: true });
         const mapped = (skins || []).map(s => ({
           id: s.id, charId: s.char_id, titulo: s.titulo || '', descricao: s.descricao || '',
-          imagemUrl: s.imagem_url || null, gwPrice: Number(s.gw_price) || 0,
-        })).filter(s => s.id && s.charId && s.imagemUrl);
+          splashUrl: s.splash_url || s.imagem_url || null,
+          runUrls: Array.isArray(s.run_urls) ? s.run_urls : [],
+          atkUrl: s.atk_url || null, jumpUrl: s.jump_url || null, holdUrl: s.hold_url || null,
+          gwPrice: Number(s.gw_price) || 0,
+        })).filter(s => s.id && s.charId && s.splashUrl);
         localStorage.setItem('dw_custom_skins', JSON.stringify(mapped));
       } catch { localStorage.setItem('dw_custom_skins', '[]'); }
 

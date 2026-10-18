@@ -1,10 +1,12 @@
 // Dashboard RH → Oficina Uniko Wave → aba Skins. Diferente da aba
 // Personagens (cria personagem nova do zero): aqui é um visual ALTERNATIVO
-// pra um personagem que JÁ EXISTE no jogo — uma imagem, um título e uma
-// descrição, associados a um personagem do roster. O jogador compra com os
-// GW (Ghost Waves) que ganha jogando partidas — sem gacha, preço fixo.
-// Ver supabase_uniko_wave_skins.sql e public/unikowave/index.html
-// (CUSTOM_WAVE_SKINS/getEffectiveChar/buySkin/equipSkin).
+// pra um personagem que JÁ EXISTE no jogo — mesmas poses/frames que uma
+// personagem da Oficina tem (splash, passo1-5, atacar, pular, segurar),
+// associadas a um personagem do roster, com título/descrição/preço. O
+// jogador compra com os GW (Ghost Waves) que ganha jogando partidas — sem
+// gacha, preço fixo. Ver supabase_uniko_wave_skins.sql e
+// public/unikowave/index.html (CUSTOM_WAVE_SKINS/getEffectiveChar/
+// getEffectiveWgFrames/buySkin/equipSkin).
 import { useState, useEffect } from 'react';
 import { T } from '../../contexts/theme';
 import { supabase } from '../../contexts/user';
@@ -27,6 +29,15 @@ const PERSONAGENS_BASE = [
   { id: 'icydoll', name: 'Icy the Doll' },
 ];
 
+// Mesmos slots da aba Personagens — pra skin ficar com a MESMA cobertura de
+// poses/frames (ritmo + Guerra Estelar), não só uma imagem solta.
+const SKIN_SLOTS = [
+  { k: 'splash', label: 'Splash art', req: true },
+  { k: 'passo1', label: 'Passo 1', req: true }, { k: 'passo2', label: 'Passo 2' },
+  { k: 'passo3', label: 'Passo 3' }, { k: 'passo4', label: 'Passo 4' }, { k: 'passo5', label: 'Passo 5 (opcional)' },
+  { k: 'atacar', label: 'Atacar', req: true }, { k: 'pular', label: 'Pular', req: true }, { k: 'segurar', label: 'Segurar', req: true },
+];
+
 const slugify = (s) => (s || '')
   .trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
   .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'skin';
@@ -45,8 +56,8 @@ const OficinaWaveSkinsTab = ({ cardBg, adminName, owLista = [] }) => {
   const [titulo, setTitulo] = useState('');
   const [descricao, setDescricao] = useState('');
   const [gwPrice, setGwPrice] = useState('500');
-  const [imagemUrl, setImagemUrl] = useState('');
-  const [uploading, setUploading] = useState(false);
+  const [imgs, setImgs] = useState({}); // slot -> url
+  const [uploadingSlot, setUploadingSlot] = useState(null);
   const [salvando, setSalvando] = useState(false);
   const [msg, setMsg] = useState('');
 
@@ -62,37 +73,41 @@ const OficinaWaveSkinsTab = ({ cardBg, adminName, owLista = [] }) => {
 
   const nomeDoPersonagem = (id) => personagens.find(p => p.id === id)?.name || id;
 
-  const upload = async (file) => {
+  const upload = async (slot, file) => {
     if (!file) return;
     if (!file.type.startsWith('image/')) { setMsg('⚠️ Escolha um arquivo de imagem.'); return; }
     if (file.size > 12 * 1024 * 1024) { setMsg('⚠️ Imagem maior que 12MB.'); return; }
-    setUploading(true); setMsg('');
+    setUploadingSlot(slot); setMsg('');
     try {
       const ext = (file.name.split('.').pop() || 'png').toLowerCase().replace(/[^a-z0-9]/g, '') || 'png';
       const rand = crypto?.randomUUID ? crypto.randomUUID() : String(Date.now());
-      const path = `${Date.now()}-${rand}.${ext}`;
+      const path = `${slot}-${Date.now()}-${rand}.${ext}`;
       const { error } = await supabase.storage.from('uniko-wave-skins').upload(path, file, { contentType: file.type, upsert: false });
       if (error) throw error;
       const { data } = supabase.storage.from('uniko-wave-skins').getPublicUrl(path);
-      setImagemUrl(data.publicUrl);
+      setImgs(m => ({ ...m, [slot]: data.publicUrl }));
     } catch (e) { setMsg('⚠️ ' + (e.message || 'Erro ao enviar imagem')); }
-    setUploading(false);
+    setUploadingSlot(null);
   };
 
-  const limpar = () => { setTitulo(''); setDescricao(''); setGwPrice('500'); setImagemUrl(''); };
+  const limpar = () => { setTitulo(''); setDescricao(''); setGwPrice('500'); setImgs({}); };
 
   const salvar = async () => {
     const t = titulo.trim();
     if (!charId) { setMsg('⚠️ Escolha o personagem.'); return; }
     if (!t) { setMsg('⚠️ Dá um título pra skin.'); return; }
-    if (!imagemUrl) { setMsg('⚠️ Falta a imagem da skin.'); return; }
+    const faltando = SKIN_SLOTS.filter(s => s.req && !imgs[s.k]);
+    if (faltando.length) { setMsg('⚠️ Faltam imagens: ' + faltando.map(s => s.label).join(', ')); return; }
     const preco = Math.max(0, parseInt(gwPrice, 10) || 0);
     setSalvando(true); setMsg('');
     try {
       const id = `${slugify(charId)}-${slugify(t)}-${Math.random().toString(36).slice(2, 6)}`;
+      const run_urls = ['passo1', 'passo2', 'passo3', 'passo4', 'passo5'].map(k => imgs[k]).filter(Boolean);
       const { error } = await supabase.from('uniko_wave_skins').insert({
         id, char_id: charId, titulo: t, descricao: descricao.trim() || null,
-        imagem_url: imagemUrl, gw_price: preco, created_by: adminName || null,
+        splash_url: imgs.splash, run_urls,
+        atk_url: imgs.atacar, jump_url: imgs.pular, hold_url: imgs.segurar,
+        gw_price: preco, created_by: adminName || null,
       });
       if (error) throw error;
       limpar();
@@ -140,25 +155,35 @@ const OficinaWaveSkinsTab = ({ cardBg, adminName, owLista = [] }) => {
           <textarea value={descricao} onChange={e => setDescricao(e.target.value)} placeholder="Conte a ideia da skin..."
             rows={3} style={{ ...inputSt, resize: 'vertical', lineHeight: 1.6 }}/>
         </div>
+
         <div>
-          <label style={labelSt}>Imagem da skin (PNG com fundo transparente de preferência)</label>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <input type="file" accept="image/*" disabled={uploading} style={{ display: 'none' }} id="ow-skin-file"
-              onChange={e => { const f = e.target.files?.[0]; if (f) upload(f); e.target.value = ''; }}/>
-            <label htmlFor="ow-skin-file" style={{ padding: '9px 16px', borderRadius: 9, border: `1.5px solid ${T.border}`, background: 'transparent', color: T.textS, fontSize: 12.5, cursor: uploading ? 'wait' : 'pointer', fontFamily: 'var(--font-body)' }}>
-              {uploading ? 'Enviando...' : imagemUrl ? 'Trocar imagem' : 'Escolher imagem'}
-            </label>
-            {imagemUrl && <img src={imagemUrl} alt="" style={{ width: 52, height: 52, objectFit: 'cover', borderRadius: 9, border: `1px solid ${T.border}` }}/>}
+          <label style={labelSt}>Imagens (mesmas poses de uma personagem da Oficina — PNG com fundo transparente)</label>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(110px,1fr))', gap: 10 }}>
+            {SKIN_SLOTS.map(s => {
+              const url = imgs[s.k]; const carregando = uploadingSlot === s.k;
+              return (
+                <div key={s.k} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: s.req ? T.text : T.textT }}>{s.label}{s.req && <span style={{ color: '#C04050' }}> *</span>}</div>
+                  <label style={{ display: 'block', aspectRatio: '1', borderRadius: 10, cursor: carregando ? 'wait' : 'pointer', overflow: 'hidden',
+                    border: `1.5px ${url ? 'solid' : 'dashed'} ${url ? '#22C55E' : T.border}`, background: 'rgba(127,127,127,.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                    {url ? <img src={url} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }}/>
+                         : <span style={{ fontSize: 11, color: T.textT }}>{carregando ? 'Enviando…' : '+ imagem'}</span>}
+                    <input type="file" accept="image/*" disabled={!!uploadingSlot} style={{ display: 'none' }}
+                      onChange={e => { upload(s.k, e.target.files?.[0]); e.target.value = ''; }}/>
+                  </label>
+                </div>
+              );
+            })}
           </div>
         </div>
 
         {msg && <div style={{ fontSize: 12.5, color: msg.startsWith('✅') ? '#16a34a' : '#C04050', padding: '8px 12px', borderRadius: 9, background: msg.startsWith('✅') ? 'rgba(34,197,94,0.08)' : 'rgba(192,64,80,0.06)' }}>{msg}</div>}
 
         <div>
-          <button onClick={salvar} disabled={salvando || uploading}
-            style={{ padding: '11px 26px', borderRadius: 10, border: 'none', cursor: (salvando || uploading) ? 'default' : 'pointer',
+          <button onClick={salvar} disabled={salvando || !!uploadingSlot}
+            style={{ padding: '11px 26px', borderRadius: 10, border: 'none', cursor: (salvando || uploadingSlot) ? 'default' : 'pointer',
               background: `linear-gradient(135deg,${T.gold},${T.goldL || T.gold}cc)`, color: '#fff', fontWeight: 700, fontSize: 14, fontFamily: 'var(--font-body)',
-              opacity: (salvando || uploading) ? .6 : 1, boxShadow: `0 3px 12px ${T.goldLine}44` }}>
+              opacity: (salvando || uploadingSlot) ? .6 : 1, boxShadow: `0 3px 12px ${T.goldLine}44` }}>
             {salvando ? 'Salvando…' : '🎨 Criar Skin'}
           </button>
         </div>
@@ -176,7 +201,7 @@ const OficinaWaveSkinsTab = ({ cardBg, adminName, owLista = [] }) => {
             <div style={{ padding: 20, fontSize: 13, color: T.textT, textAlign: 'center' }}>Nenhuma skin criada ainda.</div>
           ) : lista.map((s, i) => (
             <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderTop: i ? `1px solid ${T.border}` : 'none' }}>
-              <img src={s.imagem_url} alt="" style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 9, border: `1px solid ${T.border}`, flexShrink: 0 }}/>
+              <img src={s.splash_url || s.imagem_url} alt="" style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 9, border: `1px solid ${T.border}`, flexShrink: 0 }}/>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.titulo}</div>
                 <div style={{ fontSize: 11.5, color: T.textT, marginTop: 1 }}>

@@ -466,6 +466,22 @@ html.gfx-low .go-btn.home-start{backdrop-filter:none;-webkit-backdrop-filter:non
 .cspot-skin-item.active img{border-color:#00f0ff;box-shadow:0 0 0 1px rgba(0,240,255,.35)}
 .cspot-skin-item.locked img{filter:brightness(.4) saturate(0)}
 .cspot-skin-item span{font-family:var(--font-pixel);font-size:6.5px;letter-spacing:.5px;color:rgba(255,255,255,.65);text-align:center;max-width:52px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Painel SKINS (catálogo geral — ver renderSkinsAllPanel) */
+.skins-all-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:14px;width:100%;padding:4px 2px 28px;overflow-y:auto}
+.skin-card{display:flex;flex-direction:column;align-items:center;gap:8px;padding:16px 10px;border-radius:16px;border:1.5px solid rgba(255,255,255,.1);background:rgba(255,255,255,.03);cursor:pointer;transition:transform .12s,border-color .12s;box-sizing:border-box}
+.skin-card:hover{transform:translateY(-2px)}
+.skin-card.active{border-color:#00f0ff;background:rgba(0,240,255,.07)}
+.skin-card.locked{cursor:default}
+.skin-card.locked.unaffordable{opacity:.55;cursor:not-allowed}
+.skin-card img{width:84px;height:84px;object-fit:cover;border-radius:13px;border:1px solid rgba(255,255,255,.12)}
+.skin-card.locked img{filter:brightness(.45) saturate(.3)}
+.skin-card-char{font-family:var(--font-pixel);font-size:8px;letter-spacing:1px;color:rgba(255,255,255,.4);text-transform:uppercase}
+.skin-card-title{font-family:var(--font-pixel);font-size:10.5px;letter-spacing:.5px;color:#fff;text-align:center;line-height:1.4}
+.skin-card-tag{font-family:var(--font-pixel);font-size:8.5px;letter-spacing:1px;padding:5px 12px;border-radius:999px;white-space:nowrap}
+.skin-card-tag.owned{color:#3ddc97;background:rgba(61,220,151,.1);border:1px solid rgba(61,220,151,.35)}
+.skin-card-tag.active{color:#00f0ff;background:rgba(0,240,255,.1);border:1px solid rgba(0,240,255,.35)}
+.skin-card-tag.price{color:#ffd34d;background:rgba(255,209,77,.1);border:1px solid rgba(255,209,77,.35)}
+.skins-empty{grid-column:1/-1;padding:50px 20px;text-align:center;font-family:var(--font-pixel);font-size:11px;color:rgba(255,255,255,.4);line-height:1.9}
 /* Botão CONFIRMAR mora dentro do painel agora (era um rodapé solto do painel inteiro) */
 .cspot2-card .char-confirm{margin-top:2px}
 
@@ -2094,6 +2110,7 @@ html.m-menu.m-land .cspot-ability{padding:8px 12px}
   <div id="mMais" hidden onclick="if(event.target===this) mMenuMais(false)">
     <div class="m-sheet" role="dialog" aria-label="Mais opções">
       <div class="m-sheet-grab"></div>
+      <button onclick="mMenuGo('panelSkinsAll')"><i>🎨</i><span>Skins</span></button>
       <button onclick="mMenuGo('panelWish')"><i>⭐</i><span>Audição</span></button>
       <button onclick="mMenuGo('panelRank')"><i>🏆</i><span>Ranking</span></button>
       <button onclick="mMenuGo('panelSettings')"><i>⚙️</i><span>Configurações</span></button>
@@ -2128,6 +2145,9 @@ html.m-menu.m-land .cspot-ability{padding:8px 12px}
       </button>
       <button class="snav-btn" id="mnBtn4" onclick="showMenuPanel('panelChar',this)">
         <span class="snav-icon" data-pxicon="person"></span> PERSONAGENS
+      </button>
+      <button class="snav-btn" id="mnBtnSkins" onclick="showMenuPanel('panelSkinsAll',this)">
+        <span class="snav-icon" data-pxicon="palette"></span> SKINS
       </button>
       <button class="snav-btn" id="mnBtnWish" onclick="showMenuPanel('panelWish',this)">
         <span class="snav-icon" data-pxicon="star"></span> AUDIÇÃO
@@ -2255,6 +2275,17 @@ html.m-menu.m-land .cspot-ability{padding:8px 12px}
           <button class="char-confirm" onclick="confirmCharSelect()">✓ CONFIRMAR</button>
         </div>
       </div>
+    </div>
+
+    <!-- SKINS PANEL — catálogo geral: todas as skins disponíveis, de qualquer
+         personagem (ver renderSkinsAllPanel). Diferente da tira dentro do
+         painel PERSONAGENS (cspotSkins), que só mostra as skins do personagem
+         em foco — aqui é a vitrine completa, pra navegar sem trocar de
+         personagem toda hora. -->
+    <div class="menu-panel off" id="panelSkinsAll" style="justify-content:flex-start;padding-top:28px">
+      <div class="panel-title"><span class="panel-title-icon">✦</span>SKINS<span class="panel-title-icon">✦</span></div>
+      <div class="panel-subtitle">Visuais alternativos pros personagens que você já tem — compre com os GW que ganha jogando</div>
+      <div class="skins-all-grid" id="skinsAllGrid"></div>
     </div>
 
     <!-- WISH / AUDIÇÃO PANEL (gacha) -->
@@ -3293,9 +3324,117 @@ const WG_CHAR_FRAMES = {
   },
 };
 const WG_SPR = { run:new Image(), jump:new Image(), atk:new Image(), airAtk:new Image(), chateada:new Image(), alegre:new Image(), hold2:new Image(), hold3:new Image(), arrow:new Image(), runFrames:[] };
+// ── SKINS (Dashboard RH → Oficina Uniko Wave → Skins) ────────────────────
+// Visual ALTERNATIVO pra um personagem JÁ EXISTENTE (não cria personagem
+// novo — diferente das personagens da Oficina, mais abaixo). O wrapper React
+// busca a tabela uniko_wave_skins e grava em localStorage['dw_custom_skins']
+// ANTES de montar este iframe (ver TabUnikoWave.jsx + supabase_uniko_wave_
+// skins.sql). Comprada com GW ganho jogando partidas — mesma carteira de
+// sempre (GW_REWARD, mais abaixo), sem gacha: preço fixo, compra direta.
+// FICA AQUI (antes de wgApplyChar) de propósito: wgApplyChar(wgChar) é
+// chamado já na carga inicial do script (algumas linhas abaixo), então tudo
+// que ele usa (getEffectiveWgFrames → CUSTOM_WAVE_SKINS) precisa já existir
+// — senão estoura "Cannot access before initialization" e trava o jogo pra
+// todo mundo. getEffectiveChar (modo ritmo) não tem essa pressa — só é
+// chamado depois que CHARACTERS existe — mas fica junto por clareza.
+let CUSTOM_WAVE_SKINS = [];
+let SKINS_BY_CHAR = {}; // charId -> [skin,...]
+(function loadCustomSkins(){
+  try { CUSTOM_WAVE_SKINS = JSON.parse(localStorage.getItem('dw_custom_skins')||'[]') || []; } catch(e){ CUSTOM_WAVE_SKINS = []; }
+  SKINS_BY_CHAR = {};
+  for(const s of CUSTOM_WAVE_SKINS){
+    if(!s || !s.id || !s.charId || !s.splashUrl) continue;
+    (SKINS_BY_CHAR[s.charId] = SKINS_BY_CHAR[s.charId] || []).push(s);
+  }
+})();
+
+const SKINS_OWNED_KEY = 'dw_skins_owned';
+const SKIN_SELECTED_KEY = 'dw_skin_selected';
+function loadSkinsOwned(){
+  try { const a = JSON.parse(localStorage.getItem(SKINS_OWNED_KEY)); return Array.isArray(a) ? a : []; }
+  catch(e){ return []; }
+}
+function saveSkinsOwned(arr){
+  try { localStorage.setItem(SKINS_OWNED_KEY, JSON.stringify(arr)); }
+  catch(e){ console.warn('[uniko-wave] skins não gravaram localmente:', e && e.name); }
+  cloudSave();
+}
+function loadSkinSelected(){
+  try { const o = JSON.parse(localStorage.getItem(SKIN_SELECTED_KEY)); return (o && typeof o==='object') ? o : {}; }
+  catch(e){ return {}; }
+}
+function saveSkinSelected(obj){
+  try { localStorage.setItem(SKIN_SELECTED_KEY, JSON.stringify(obj)); }
+  catch(e){ console.warn('[uniko-wave] skin selecionada não gravou localmente:', e && e.name); }
+  cloudSave();
+}
+function isSkinOwned(id){ return loadSkinsOwned().includes(id); }
+// Compra direta (não é gacha): debita o preço fixo da MESMA carteira de GW,
+// marca como possuída e já equipa. false se não tinha GW suficiente.
+function buySkin(id){
+  const skin = CUSTOM_WAVE_SKINS.find(s=>s.id===id);
+  if(!skin || isSkinOwned(id)) return false;
+  const w = loadWallet();
+  const preco = Number(skin.gwPrice)||0;
+  if(w.gw < preco) return false;
+  w.gw -= preco; saveWallet(w);
+  const owned = loadSkinsOwned(); owned.push(id); saveSkinsOwned(owned);
+  equipSkin(skin.charId, id);
+  updateWalletUI();
+  return true;
+}
+// skinId null = volta pro visual padrão do personagem.
+function equipSkin(charId, skinId){
+  const sel = loadSkinSelected();
+  if(skinId) sel[charId] = skinId; else delete sel[charId];
+  saveSkinSelected(sel);
+  if(charId===selectedChar) applyCharacter();
+}
+// skinId -> skin cadastrada, ou null. Centraliza a busca (evita repetir o
+// find() em cada função que precisa checar a skin equipada de um id).
+function equippedSkinFor(id){
+  const skinId = loadSkinSelected()[id];
+  if(!skinId || !isSkinOwned(skinId)) return null;
+  return CUSTOM_WAVE_SKINS.find(s=>s.id===skinId) || null;
+}
+// Personagem "efetivo" pra RENDERIZAR (modo RITMO): aplica a skin equipada
+// (se a pessoa tiver) por cima do personagem base, usando a MESMA pose por
+// estado de ânimo que uma personagem da Oficina usaria (ver injectCustomChars,
+// mais abaixo) — splash cobre wave/dormindo/tranquilo, atacar/pular/segurar
+// cobrem animado/surpreso/raiva. Só troca visual (imgs/previewImg) — stats,
+// diálogo, preço, desbloqueio continuam do personagem base sempre. Todo
+// lugar que mostra o personagem ATIVO (em jogo, no holofote, na tela de
+// resultado) deve ler por aqui, nunca CHARACTERS[id] direto.
+function getEffectiveChar(id){
+  const base = CHARACTERS[id];
+  if(!base) return base;
+  const skin = equippedSkinFor(id);
+  if(!skin) return base;
+  const splash = skin.splashUrl;
+  return { ...base,
+    imgs: { wave:splash, animado:(skin.atkUrl||splash), dormindo:splash, raiva:(skin.holdUrl||splash), surpreso:(skin.jumpUrl||splash), tranquilo:splash },
+    previewImg: splash,
+  };
+}
+// Mesma ideia, mas pra Guerra Estelar (WG_CHAR_FRAMES: passo1-5 = corrida,
+// pular/atacar/segurar). `key` é a chave de WG_CHAR_FRAMES (wgChar — às vezes
+// difere do id em CHARACTERS, ex.: mizuki=linnea, icydoll=icy).
+function getEffectiveWgFrames(key){
+  const base = WG_CHAR_FRAMES[key];
+  if(!base) return base;
+  const linkedId = ({ mizuki:'linnea', icydoll:'icy' })[key] || key;
+  const skin = equippedSkinFor(linkedId);
+  if(!skin) return base;
+  const runs = (skin.runUrls && skin.runUrls.length) ? skin.runUrls : [skin.splashUrl];
+  return { ...base,
+    run: runs, jump:(skin.jumpUrl||skin.splashUrl), atk:(skin.atkUrl||skin.splashUrl), airAtk:(skin.jumpUrl||skin.splashUrl),
+    chateada: runs[0], alegre: runs[0], hold2:(skin.holdUrl||skin.splashUrl), hold3:(skin.holdUrl||skin.splashUrl), arrow:(skin.holdUrl||skin.splashUrl),
+  };
+}
+
 function wgApplyChar(key){
   wgChar = WG_CHAR_FRAMES[key] ? key : 'mizuki';
-  const c = WG_CHAR_FRAMES[wgChar];
+  const c = getEffectiveWgFrames(wgChar);
   WG_SPR.runFrames = c.run.map(src=>{ const im=new Image(); im.src=src; return im; }); // ciclo de andar
   WG_SPR.run = WG_SPR.runFrames[0];
   for(const k of ['jump','atk','airAtk','chateada','alegre','hold2','hold3','arrow']) WG_SPR[k].src = c[k];
@@ -5383,7 +5522,7 @@ function mMenuLayout(){
 window.addEventListener('resize', mMenuLayout);
 window.addEventListener('orientationchange', ()=>setTimeout(mMenuLayout,120));
 mMenuLayout();
-const _M_SIDEBTN={panelHome:'mnBtnHome',panelPlayChoice:'mnBtn0',panelPlay:'mnBtn0',panelChar:'mnBtn4',panelWish:'mnBtnWish',panelLib:'mnBtn2',panelRank:'mnBtnRank',panelSettings:'mnBtn0s'};
+const _M_SIDEBTN={panelHome:'mnBtnHome',panelPlayChoice:'mnBtn0',panelPlay:'mnBtn0',panelChar:'mnBtn4',panelSkinsAll:'mnBtnSkins',panelWish:'mnBtnWish',panelLib:'mnBtn2',panelRank:'mnBtnRank',panelSettings:'mnBtn0s'};
 function mMenuMais(abrir){ const el=document.getElementById('mMais'); if(el) el.hidden=!abrir; }
 function mMenuGo(panelId){
   mMenuMais(false);
@@ -5411,6 +5550,7 @@ function showMenuPanel(panelId, btn){
   if(btn) btn.classList.add('active');
   // Refresh panel contents
   if(panelId==='panelChar'){ charBrowseIdx=charIds().indexOf(selectedChar); renderCharSpotlight(); try{ renderCustomWgCards(); }catch(e){} }
+  if(panelId==='panelSkinsAll') renderSkinsAllPanel();
   if(panelId==='panelWish') renderWishPanel();
   if(panelId==='panelPlay'){ try{ renderCustomWgCards(); }catch(e){} } // refresca o grid da Guerra Estelar (novas personagens da Oficina/gacha)
   if(panelId==='panelLib'){ renderLibraryPanel(); gpLibIdx=0; if(gpConnected) setTimeout(()=>gpHighlightLib(),40); }
@@ -9071,84 +9211,6 @@ let CUSTOM_WAVE_CHARS = [];
   try { wgApplyChar(localStorage.getItem('dw_wgchar')||wgChar); } catch(e){}
 })();
 
-// ── SKINS (Dashboard RH → Oficina Uniko Wave → Skins) ────────────────────
-// Visual ALTERNATIVO pra um personagem JÁ EXISTENTE (não cria personagem
-// novo — diferente das personagens da Oficina acima). O wrapper React busca
-// a tabela uniko_wave_skins e grava em localStorage['dw_custom_skins'] ANTES
-// de montar este iframe (ver TabUnikoWave.jsx + supabase_uniko_wave_skins.sql).
-// Comprada com GW ganho jogando partidas — mesma carteira de sempre
-// (GW_REWARD, mais acima), sem gacha: preço fixo, compra direta.
-let CUSTOM_WAVE_SKINS = [];
-let SKINS_BY_CHAR = {}; // charId -> [skin,...]
-(function loadCustomSkins(){
-  try { CUSTOM_WAVE_SKINS = JSON.parse(localStorage.getItem('dw_custom_skins')||'[]') || []; } catch(e){ CUSTOM_WAVE_SKINS = []; }
-  SKINS_BY_CHAR = {};
-  for(const s of CUSTOM_WAVE_SKINS){
-    if(!s || !s.id || !s.charId || !s.imagemUrl) continue;
-    (SKINS_BY_CHAR[s.charId] = SKINS_BY_CHAR[s.charId] || []).push(s);
-  }
-})();
-
-const SKINS_OWNED_KEY = 'dw_skins_owned';
-const SKIN_SELECTED_KEY = 'dw_skin_selected';
-function loadSkinsOwned(){
-  try { const a = JSON.parse(localStorage.getItem(SKINS_OWNED_KEY)); return Array.isArray(a) ? a : []; }
-  catch(e){ return []; }
-}
-function saveSkinsOwned(arr){
-  try { localStorage.setItem(SKINS_OWNED_KEY, JSON.stringify(arr)); }
-  catch(e){ console.warn('[uniko-wave] skins não gravaram localmente:', e && e.name); }
-  cloudSave();
-}
-function loadSkinSelected(){
-  try { const o = JSON.parse(localStorage.getItem(SKIN_SELECTED_KEY)); return (o && typeof o==='object') ? o : {}; }
-  catch(e){ return {}; }
-}
-function saveSkinSelected(obj){
-  try { localStorage.setItem(SKIN_SELECTED_KEY, JSON.stringify(obj)); }
-  catch(e){ console.warn('[uniko-wave] skin selecionada não gravou localmente:', e && e.name); }
-  cloudSave();
-}
-function isSkinOwned(id){ return loadSkinsOwned().includes(id); }
-// Compra direta (não é gacha): debita o preço fixo da MESMA carteira de GW,
-// marca como possuída e já equipa. false se não tinha GW suficiente.
-function buySkin(id){
-  const skin = CUSTOM_WAVE_SKINS.find(s=>s.id===id);
-  if(!skin || isSkinOwned(id)) return false;
-  const w = loadWallet();
-  const preco = Number(skin.gwPrice)||0;
-  if(w.gw < preco) return false;
-  w.gw -= preco; saveWallet(w);
-  const owned = loadSkinsOwned(); owned.push(id); saveSkinsOwned(owned);
-  equipSkin(skin.charId, id);
-  updateWalletUI();
-  return true;
-}
-// skinId null = volta pro visual padrão do personagem.
-function equipSkin(charId, skinId){
-  const sel = loadSkinSelected();
-  if(skinId) sel[charId] = skinId; else delete sel[charId];
-  saveSkinSelected(sel);
-  if(charId===selectedChar) applyCharacter();
-}
-// Personagem "efetivo" pra RENDERIZAR: aplica a skin equipada (se a pessoa
-// tiver) por cima do personagem base. Só troca visual (imgs/previewImg) —
-// stats, diálogo, preço, desbloqueio continuam do personagem base sempre.
-// Todo lugar que mostra o personagem ATIVO (em jogo, no holofote, na tela de
-// resultado) deve ler por aqui, nunca CHARACTERS[id] direto.
-function getEffectiveChar(id){
-  const base = CHARACTERS[id];
-  if(!base) return base;
-  const skinId = loadSkinSelected()[id];
-  if(!skinId || !isSkinOwned(skinId)) return base;
-  const skin = CUSTOM_WAVE_SKINS.find(s=>s.id===skinId);
-  if(!skin) return base;
-  return { ...base,
-    imgs: { wave:skin.imagemUrl, animado:skin.imagemUrl, dormindo:skin.imagemUrl, raiva:skin.imagemUrl, surpreso:skin.imagemUrl, tranquilo:skin.imagemUrl },
-    previewImg: skin.imagemUrl,
-  };
-}
-
 // Personagens agora são conquistados via AUDIÇÃO (gacha). false = bloqueio normal
 // (só Dodoco + os obtidos em dw_unlocked). Mudar para true libera todos (debug).
 const TEMP_UNLOCK_ALL = false;
@@ -9478,10 +9540,45 @@ function renderCharSkins(id, unlocked){
     const preco = Number(s.gwPrice)||0;
     const rotulo = tem ? escHtml(s.titulo||'Skin') : `🔒 ${preco} GW`;
     html += `<button class="${cls}" onclick="${acao}" title="${escHtml(s.titulo||'')}" ${(!tem && w.gw<preco) ? 'style="opacity:.4;cursor:not-allowed" disabled' : ''}>
-      <img src="${s.imagemUrl}" alt="" onerror="this.style.opacity='.3'"><span>${rotulo}</span></button>`;
+      <img src="${s.splashUrl}" alt="" onerror="this.style.opacity='.3'"><span>${rotulo}</span></button>`;
   }
   html += `</div>`;
   el.innerHTML = html;
+}
+
+// Painel SKINS (vitrine geral — nav lateral/menu "Mais"): mostra TODAS as
+// skins cadastradas na Oficina, de qualquer personagem, num grid só — pra
+// navegar sem precisar trocar de personagem no painel PERSONAGENS. Clicar
+// numa possuída equipa na hora; numa não possuída, compra se tiver GW.
+function renderSkinsAllPanel(){
+  const el = document.getElementById('skinsAllGrid');
+  if(!el) return;
+  if(!CUSTOM_WAVE_SKINS.length){
+    el.innerHTML = `<div class="skins-empty">Nenhuma skin disponível ainda.<br>Fique de olho — a Oficina pode lançar novas a qualquer momento! ✨</div>`;
+    return;
+  }
+  const owned = loadSkinsOwned();
+  const selecionada = loadSkinSelected();
+  const w = loadWallet();
+  el.innerHTML = CUSTOM_WAVE_SKINS.map(s=>{
+    const baseCh = CHARACTERS[s.charId];
+    const nomeCh = baseCh ? baseCh.name : s.charId;
+    const tem = owned.includes(s.id);
+    const ativa = selecionada[s.charId] === s.id;
+    const preco = Number(s.gwPrice)||0;
+    const podeComprar = tem || w.gw >= preco;
+    const cls = 'skin-card'+(ativa?' active':'')+(tem?'':' locked')+(!tem && !podeComprar ? ' unaffordable':'');
+    const acao = tem ? `equipSkin('${s.charId}','${s.id}')` : `buySkin('${s.id}')`;
+    const tag = ativa ? `<span class="skin-card-tag active">✓ EQUIPADA</span>`
+      : tem ? `<span class="skin-card-tag owned">EQUIPAR</span>`
+      : `<span class="skin-card-tag price">🔒 ${preco} GW</span>`;
+    return `<div class="${cls}" onclick="${acao}; renderSkinsAllPanel();" title="${escHtml(s.descricao||s.titulo||'')}">
+      <img src="${s.splashUrl}" alt="" onerror="this.style.opacity='.3'">
+      <div class="skin-card-char">${escHtml(nomeCh)}</div>
+      <div class="skin-card-title">${escHtml(s.titulo||'Skin')}</div>
+      ${tag}
+    </div>`;
+  }).join('');
 }
 
 function browseChar(delta){
@@ -12928,6 +13025,7 @@ const PX_ICONS = {
   star:    ["0001000","0001000","0011100","1111111","0011100","0001000","0001000"],
   pencil:  ["0000011","0000111","0001110","0011100","0111000","1110000","1000000"],
   expand:  ["1100011","1000001","0000000","0000000","0000000","1000001","1100011"],
+  palette: ["0001000","0011100","0111110","1111111","1111111","0111110","0011100"],
 };
 function pxIcon(name, opt){
   const g=PX_ICONS[name]; if(!g) return '';
