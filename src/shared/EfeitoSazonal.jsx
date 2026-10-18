@@ -184,6 +184,10 @@ const HALLOWEEN_CSS = `
   0%,100% { opacity: .85; transform: scale(1); }
   50%     { opacity: 1;   transform: scale(1.06); }
 }
+@keyframes sazNevoaDeriva {
+  0%,100% { transform: translateX(0) scaleX(1); }
+  50%     { transform: translateX(3%) scaleX(1.05); }
+}
 @keyframes sazBurstBat {
   0%   { transform: translate(0,0) rotate(0deg) scale(.4); opacity: 0; }
   18%  { opacity: 1; }
@@ -313,6 +317,26 @@ const IconLapide = ({ h = 40, variante = 0, tone = '#140A1C' }) => {
   );
 };
 
+// Névoa rasteira sobre o cemitério — gradientes radiais com borda já suave
+// (sem filter:blur() animado, mesma regra de sempre) derivando devagar de
+// um lado pro outro. Fica por cima das lápides/ossos, como neblina de
+// verdade rolando no chão. Pedido explícito do dono.
+const NevoaCemiterio = () => (
+  <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 72, overflow: 'hidden', pointerEvents: 'none' }}>
+    {[
+      { left: '-12%', w: 420, h: 48, bottom: -12, dur: '22s', delay: '0s', op: .22 },
+      { left: '16%', w: 520, h: 64, bottom: -4, dur: '28s', delay: '-9s', op: .16 },
+      { left: '48%', w: 480, h: 54, bottom: -8, dur: '25s', delay: '-5s', op: .2 },
+      { left: '74%', w: 400, h: 44, bottom: 2, dur: '19s', delay: '-14s', op: .18 },
+    ].map((n, i) => (
+      <div key={i} style={{ position: 'absolute', left: n.left, bottom: n.bottom, width: n.w, height: n.h,
+        background: 'radial-gradient(ellipse at center, rgba(235,245,255,0.9) 0%, rgba(235,245,255,0.35) 45%, transparent 75%)',
+        opacity: n.op, borderRadius: '50%',
+        animation: `sazNevoaDeriva ${n.dur} ease-in-out ${n.delay} infinite` }}/>
+    ))}
+  </div>
+);
+
 const CampoHalloween = () => (
   <>
     {/* 3 camadas de colina — mais funda, meio e próxima */}
@@ -345,14 +369,19 @@ const CampoHalloween = () => (
       <div key={i} style={{ position: 'absolute', bottom: 0, left: l.left }}><IconLapide h={l.h} variante={l.variante}/></div>
     ))}
     {/* ossos jogados no cemitério */}
-    {[{ left: '37%', rot: -12 }, { left: '58%', rot: 18 }, { left: '48%', rot: -4 }].map((o, i) => (
-      <div key={i} style={{ position: 'absolute', bottom: 6, left: o.left, transform: `rotate(${o.rot}deg)` }}>
-        <IconOssos size={26}/>
+    {[
+      { left: '9%', rot: 22, size: 20 }, { left: '37%', rot: -12, size: 26 }, { left: '58%', rot: 18, size: 24 },
+      { left: '48%', rot: -4, size: 20 }, { left: '29%', rot: 8, size: 18 }, { left: '66%', rot: -20, size: 22 },
+      { left: '86%', rot: 14, size: 19 },
+    ].map((o, i) => (
+      <div key={i} style={{ position: 'absolute', bottom: 4 + (i % 3) * 3, left: o.left, transform: `rotate(${o.rot}deg)` }}>
+        <IconOssos size={o.size}/>
       </div>
     ))}
     {/* tinge o chão inteiro na cor do tema ativo, preservando a textura (silhueta/trincas/tufos continuam visíveis) */}
     <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 130,
       background: T.gold, opacity: .22, mixBlendMode: 'color', pointerEvents: 'none' }}/>
+    <NevoaCemiterio/>
   </>
 );
 
