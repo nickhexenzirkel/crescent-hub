@@ -9,8 +9,18 @@
 // navegador a repintar a cada frame e já derrubou FPS noutras telas deste
 // app. Tudo pointer-events:none, nunca atrapalha um clique.
 import React, { useState, useEffect, useRef } from 'react';
-import { T, onThemeChange } from '../contexts/theme';
+import { T, onThemeChange, applyTheme } from '../contexts/theme';
 import { useModoSazonal } from './modoSazonal';
+
+// Enquanto o Modo Sazonal está ligado (Dashboard RH → Painéis), o tema
+// correspondente vira o PADRÃO de todo mundo — cada pessoa continua podendo
+// trocar de tema à vontade depois, só a primeira vez que o navegador dela
+// carrega durante o período é que já abre nessa cor. Essa chave (local, por
+// navegador) guarda qual período JÁ foi aplicado, pra não forçar de novo
+// toda vez que a pessoa escolher outro tema — só reaplica quando o período
+// muda (ex.: Halloween → Natal, ou "nenhum" → "halloween" de novo).
+// Pedido explícito do dono, 18/10/2026.
+const SAZONAL_TEMA_APLICADO_KEY = 'uniko_sazonal_tema_aplicado';
 
 /* ───────────────────────── Ícones (SVG puro) ───────────────────────── */
 
@@ -568,6 +578,18 @@ const EfeitoSazonal = ({ screen }) => {
   // (mesmo motivo do LavaLamp em shared/components.jsx).
   const [, redesenha] = useState(0);
   useEffect(() => onThemeChange(() => redesenha(n => n + 1)), []);
+
+  // Aplica o tema sazonal como padrão — uma vez por período, por navegador.
+  useEffect(() => {
+    if (modo !== 'halloween' && modo !== 'natal') return;
+    try {
+      if (localStorage.getItem(SAZONAL_TEMA_APLICADO_KEY) === modo) return;
+      applyTheme(modo);
+      localStorage.setItem('ch_theme', modo);
+      localStorage.setItem(SAZONAL_TEMA_APLICADO_KEY, modo);
+    } catch { /* sem localStorage: só não aplica o padrão, nada quebra */ }
+  }, [modo]);
+
   const [burstKey, setBurstKey] = useState(0);
   const telaAnteriorRef = useRef(screen);
   useEffect(() => {
