@@ -147,7 +147,10 @@ const ContrachequeGeradoUniko = ({ cardBg, empList, onGerado }) => {
         wMm = wPx * 25.4 / 96; hMm = hPx * 25.4 / 96;
       } finally { suporte.remove(); }
       const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF({ unit: 'mm', format: [wMm, hMm] });
+      // orientation explícita: sem ela o jsPDF vira o formato [largura,altura] pra RETRATO quando
+      // largura > altura — o recibo (paisagem) virava uma página estreita e a imagem era cortada
+      // na direita, com sobra em branco embaixo (o bug real do PDF cortado, 18/10/2026).
+      const pdf = new jsPDF({ unit: 'mm', orientation: wMm > hMm ? 'landscape' : 'portrait', format: [wMm, hMm] });
       pdf.addImage(imgData, 'PNG', 0, 0, wMm, hMm);
       const blob = pdf.output('blob');
 
