@@ -173,6 +173,12 @@ const NATAL_CSS = `
 `;
 
 const wrapStyle = { position: 'fixed', inset: 0, zIndex: 5, pointerEvents: 'none', overflow: 'hidden' };
+// Cenário de fundo (castelo, montanha, floresta) fica ATRÁS do conteúdo —
+// zIndex 0, igual ao LavaLamp — não na frente dos botões/telas dos módulos
+// (zIndex 1 em App.jsx). Só os efeitos que sobrevoam a tela de leve (neve,
+// morcego, raio...) ficam no zIndex 5, acima de tudo. Pedido explícito do
+// dono, 17/10/2026: o campo/árvores do Natal tampava botão dentro de módulo.
+const wrapStyleFundo = { ...wrapStyle, zIndex: 0 };
 
 /* ───────────────────────── Efeito ambiente — Halloween ───────────────────────── */
 
@@ -202,6 +208,36 @@ const RaiosVermelhos = () => {
     </>
   );
 };
+
+// Campo (colina + cemitério) pro castelo "pousar" em cima — mesma ideia da
+// cordilheira do Natal, só que com lápides em vez de pinheiro. Tons quase
+// pretos/roxo escuro, combinando com o castelo. Pedido explícito do dono.
+const IconLapide = ({ h = 40, tone = '#140A1C' }) => {
+  const w = +(h * 0.72).toFixed(1);
+  return (
+    <svg width={w} height={h} viewBox="0 0 36 50" style={{ display: 'block' }}>
+      <path d="M2 50V18C2 8 10 2 18 2s16 6 16 16v32z" fill={tone}/>
+      <line x1="13" y1="17" x2="23" y2="27" stroke="#2E1A38" strokeWidth="2.2"/>
+      <line x1="23" y1="17" x2="13" y2="27" stroke="#2E1A38" strokeWidth="2.2"/>
+    </svg>
+  );
+};
+
+const CampoHalloween = () => (
+  <>
+    <svg width="100%" height="110" viewBox="0 0 1000 110" preserveAspectRatio="none"
+      style={{ position: 'absolute', bottom: 0, left: 0, display: 'block' }}>
+      <polygon points="0,110 0,68 90,30 180,64 280,18 370,56 460,22 560,60 650,26 740,58 840,20 930,54 1000,34 1000,110" fill="#120616" opacity=".9"/>
+      <polygon points="0,110 0,90 110,62 230,86 340,48 450,82 570,52 680,84 790,50 900,82 1000,66 1000,110" fill="#1C0A22"/>
+    </svg>
+    {[
+      { left: '9%', h: 36 }, { left: '18%', h: 46 }, { left: '72%', h: 40 },
+      { left: '83%', h: 50 }, { left: '92%', h: 34 }, { left: '3%', h: 44 },
+    ].map((l, i) => (
+      <div key={i} style={{ position: 'absolute', bottom: 0, left: l.left }}><IconLapide h={l.h}/></div>
+    ))}
+  </>
+);
 
 // Castelo gótico (imagem enviada pelo dono, public/castelo-halloween.png) —
 // recolorido na hora pra cor do TEMA ATIVO da pessoa, não fixo em vermelho
@@ -233,26 +269,35 @@ const EfeitoHalloween = () => {
     { top: '15%', dur: '82s', delay: '-24s', scale: 1.9, op: .10 },
   ];
   return (
-    <div style={wrapStyle} aria-hidden="true">
-      <style>{HALLOWEEN_CSS}</style>
-      <CasteloTema/>
-      <RaiosVermelhos/>
-      {nuvens.map((n, i) => (
-        <div key={'nv' + i} style={{ position: 'absolute', top: n.top, left: 0,
-          animation: `sazDerivaNuvem ${n.dur} linear ${n.delay} infinite` }}>
-          <IconNuvem w={92 * n.scale} h={38 * n.scale} op={n.op}/>
-        </div>
-      ))}
-      {morcegos.map((m, i) => (
-        <div key={'mc' + i} style={{ position: 'absolute', top: m.top, left: 0,
-          animation: `sazVoarMorcego ${m.dur} ease-in-out ${m.delay} infinite` }}>
-          <IconBat size={m.size} flip={m.flip} rot={m.rot}/>
-        </div>
-      ))}
-      <div style={{ position: 'absolute', bottom: 10, left: '5%', animation: 'sazBobPumpkin 4.5s ease-in-out infinite' }}><IconPumpkin size={92}/></div>
-      <div style={{ position: 'absolute', bottom: 6, right: '7%', animation: 'sazBobPumpkin 5.5s ease-in-out -2s infinite' }}><IconPumpkin size={62}/></div>
-      <div style={{ position: 'absolute', bottom: 92, right: '4%', animation: 'sazSkel 3.4s ease-in-out infinite' }}><IconSkull size={28}/></div>
-    </div>
+    <>
+      {/* Fundo — atrás do conteúdo, nunca tampa botão (castelo, abóboras e
+          caveira são peças grandes/paradas no rodapé, mesmo problema que o
+          campo do Natal tinha). */}
+      <div style={wrapStyleFundo} aria-hidden="true">
+        <style>{HALLOWEEN_CSS}</style>
+        <CampoHalloween/>
+        <CasteloTema/>
+        <div style={{ position: 'absolute', bottom: 10, left: '5%', animation: 'sazBobPumpkin 4.5s ease-in-out infinite' }}><IconPumpkin size={92}/></div>
+        <div style={{ position: 'absolute', bottom: 6, right: '7%', animation: 'sazBobPumpkin 5.5s ease-in-out -2s infinite' }}><IconPumpkin size={62}/></div>
+        <div style={{ position: 'absolute', bottom: 92, right: '4%', animation: 'sazSkel 3.4s ease-in-out infinite' }}><IconSkull size={28}/></div>
+      </div>
+      {/* Efeitos que sobrevoam a tela — só o que realmente se move por cima (raio, nuvem, morcego) */}
+      <div style={wrapStyle} aria-hidden="true">
+        <RaiosVermelhos/>
+        {nuvens.map((n, i) => (
+          <div key={'nv' + i} style={{ position: 'absolute', top: n.top, left: 0,
+            animation: `sazDerivaNuvem ${n.dur} linear ${n.delay} infinite` }}>
+            <IconNuvem w={92 * n.scale} h={38 * n.scale} op={n.op}/>
+          </div>
+        ))}
+        {morcegos.map((m, i) => (
+          <div key={'mc' + i} style={{ position: 'absolute', top: m.top, left: 0,
+            animation: `sazVoarMorcego ${m.dur} ease-in-out ${m.delay} infinite` }}>
+            <IconBat size={m.size} flip={m.flip} rot={m.rot}/>
+          </div>
+        ))}
+      </div>
+    </>
   );
 };
 
@@ -344,34 +389,39 @@ const EfeitoNatal = () => {
     { top: '26%', left: '22%', size: 12, dur: '2.4s', delay: '-.3s' },
   ];
   return (
-    <div style={wrapStyle} aria-hidden="true">
-      <style>{NATAL_CSS}</style>
-      {/* glow frio no céu, atrás de tudo */}
-      <div style={{ position: 'absolute', inset: 0,
-        background: 'radial-gradient(ellipse at 50% -10%, rgba(79,201,232,0.14) 0%, transparent 55%)' }}/>
-      {estrelas.map((e, i) => (
-        <div key={'es' + i} style={{ position: 'absolute', top: e.top, left: e.left,
-          animation: `sazTwinkle ${e.dur} ease-in-out ${e.delay} infinite` }}>
-          <IconEstrela size={e.size}/>
+    <>
+      {/* Fundo — cordilheira + floresta, atrás do conteúdo (eram essas que
+          tampavam botão dentro de módulo — pedido explícito do dono). */}
+      <div style={wrapStyleFundo} aria-hidden="true">
+        <style>{NATAL_CSS}</style>
+        <div style={{ position: 'absolute', inset: 0,
+          background: 'radial-gradient(ellipse at 50% -10%, rgba(79,201,232,0.14) 0%, transparent 55%)' }}/>
+        <MontanhaNeve/>
+        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 100 }}>
+          {PINHEIROS.map((p, i) => (
+            <div key={i} style={{ position: 'absolute', bottom: 0, left: p.left }}>
+              <IconPinheiro h={p.h} tone={p.tone}/>
+            </div>
+          ))}
         </div>
-      ))}
-      {flocos.map((f, i) => (
-        <div key={'fl' + i} style={{ position: 'absolute', top: 0, left: f.left,
-          '--drift': f.drift, animation: `sazNeve ${f.dur} linear ${f.delay} infinite` }}>
-          <IconFloco size={f.size}/>
-        </div>
-      ))}
-      <TrenoComTrilha/>
-      <MontanhaNeve/>
-      {/* floresta — fixa no rodapé, atrás do conteúdo real por causa do z-index baixo do wrapper */}
-      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 100 }}>
-        {PINHEIROS.map((p, i) => (
-          <div key={i} style={{ position: 'absolute', bottom: 0, left: p.left }}>
-            <IconPinheiro h={p.h} tone={p.tone}/>
+      </div>
+      {/* Efeitos que sobrevoam a tela — neve, estrelas, trenó */}
+      <div style={wrapStyle} aria-hidden="true">
+        {estrelas.map((e, i) => (
+          <div key={'es' + i} style={{ position: 'absolute', top: e.top, left: e.left,
+            animation: `sazTwinkle ${e.dur} ease-in-out ${e.delay} infinite` }}>
+            <IconEstrela size={e.size}/>
           </div>
         ))}
+        {flocos.map((f, i) => (
+          <div key={'fl' + i} style={{ position: 'absolute', top: 0, left: f.left,
+            '--drift': f.drift, animation: `sazNeve ${f.dur} linear ${f.delay} infinite` }}>
+            <IconFloco size={f.size}/>
+          </div>
+        ))}
+        <TrenoComTrilha/>
       </div>
-    </div>
+    </>
   );
 };
 
