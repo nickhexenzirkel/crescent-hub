@@ -203,6 +203,25 @@ const RaiosVermelhos = () => {
   );
 };
 
+// Castelo gótico (imagem enviada pelo dono, public/castelo-halloween.png) —
+// recolorido na hora pra cor do TEMA ATIVO da pessoa, não fixo em vermelho
+// como veio na imagem original. Técnica: a imagem vira uma MÁSCARA (usa só
+// o canal alfa como silhueta) sobre uma cor sólida — recolor exato, não uma
+// aproximação de filtro (hue-rotate erra a cor quando o tema não é vermelho).
+const CASTELO_RATIO = 1536 / 1024;
+const CasteloTema = () => (
+  <div style={{
+    position: 'absolute', bottom: 0, left: '50%', transform: 'translateX(-50%)',
+    width: 'min(680px, 82vw)', aspectRatio: `${CASTELO_RATIO}`,
+    backgroundColor: T.gold,
+    WebkitMaskImage: 'url(/castelo-halloween.png)', maskImage: 'url(/castelo-halloween.png)',
+    WebkitMaskRepeat: 'no-repeat', maskRepeat: 'no-repeat',
+    WebkitMaskSize: 'contain', maskSize: 'contain',
+    WebkitMaskPosition: 'bottom center', maskPosition: 'bottom center',
+    opacity: .9, filter: `drop-shadow(0 0 26px ${T.goldLine}77)`,
+  }}/>
+);
+
 const EfeitoHalloween = () => {
   const morcegos = [
     { top: '10%', dur: '16s', delay: '0s', size: 30, flip: false, rot: -6 },
@@ -216,6 +235,7 @@ const EfeitoHalloween = () => {
   return (
     <div style={wrapStyle} aria-hidden="true">
       <style>{HALLOWEEN_CSS}</style>
+      <CasteloTema/>
       <RaiosVermelhos/>
       {nuvens.map((n, i) => (
         <div key={'nv' + i} style={{ position: 'absolute', top: n.top, left: 0,
