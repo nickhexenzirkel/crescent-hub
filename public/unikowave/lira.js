@@ -61,6 +61,11 @@
   });
   const stepMs = (s,p) => p.ms || p.w*s.unit;
 
+  // Config: errar não soa (não atrapalha a melodia). Ligada por padrão.
+  const KEY_MUDO = 'dw_lira_mudo_erro';
+  let mudoErro = true;
+  try{ mudoErro = localStorage.getItem(KEY_MUDO) !== '0'; }catch(_){}
+
   const KEY_BEST = 'dw_lira_best';
   function loadBest(){ try{ return JSON.parse(localStorage.getItem(KEY_BEST))||{}; }catch(_){ return {}; } }
   function saveBest(id, stars){
@@ -236,6 +241,7 @@
           <button class="lr-back" data-a="close">◀ VOLTAR</button>
           <div class="lr-title">LIRA ESTELAR</div>
           <div class="lr-sp"></div>
+          <button class="lr-back" data-a="mudo" id="lrMudo" title="Quando ligado, tocar uma nota errada não faz som"></button>
           <div class="lr-stat">ACERTOS <b id="lrOk">0</b></div>
           <div class="lr-stat">ERROS <b id="lrErr">0</b></div>
           <div class="lr-stat">SEQ <b id="lrStreak">0</b></div>
@@ -259,12 +265,19 @@
       const a = b.dataset.a;
       if(a==='close') fechar();
       else if(a==='demo') ouvir();
+      else if(a==='mudo'){ mudoErro = !mudoErro; try{ localStorage.setItem(KEY_MUDO, mudoErro?'1':'0'); }catch(_){} rotuloMudo(); }
       else if(a==='free') escolher(null);
       else if(a==='again') escolher(song);
       else if(a==='next'){ const i = SONGS.indexOf(song); escolher(SONGS[(i+1)%SONGS.length]); }
     });
-    renderSongs();
+    renderSongs(); rotuloMudo();
     window.addEventListener('keydown',onKey,true);
+  }
+
+  function rotuloMudo(){
+    const b = root.querySelector('#lrMudo');
+    b.textContent = mudoErro ? '🔇 ERRO SEM SOM: SIM' : '🔊 ERRO SEM SOM: NÃO';
+    b.style.borderColor = mudoErro ? '#7ff0ff' : '';
   }
 
   function renderSongs(){
@@ -365,7 +378,8 @@
       } else if(passo.c.includes(cell)){
         pluck(cell); efeito(cell,true); // já tocada neste acorde: só soa
       } else {
-        sfxErro(); pluck(cell); efeito(cell,false);
+        if(!mudoErro){ sfxErro(); pluck(cell); }
+        efeito(cell,false);
         errors++; streak = 0; atualizar();
       }
     } else {
