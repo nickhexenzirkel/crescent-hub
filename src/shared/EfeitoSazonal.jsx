@@ -157,12 +157,6 @@ const NATAL_CSS = `
   0%,100% { opacity: .6; transform: scale(1); }
   50%     { opacity: 1;  transform: scale(1.35); }
 }
-@keyframes sazTrenoVoo {
-  0%   { transform: translateX(-32vw); opacity: 0; }
-  6%   { opacity: 1; }
-  94%  { opacity: 1; }
-  100% { transform: translateX(132vw); opacity: 0; }
-}
 @keyframes sazCintilar {
   0%,100% { opacity: .25; transform: scale(.7); }
   50%     { opacity: 1;   transform: scale(1.15); }
@@ -351,21 +345,40 @@ const TRILHA_TRENO = Array.from({ length: 10 }, (_, i) => ({
   delay: (i * 0.13) % 1, op: Math.max(0.18, 0.9 - i * 0.08),
 }));
 
-const TrenoComTrilha = ({ top = '16%', largura = 260, dur = '30s', delay = '-8s' }) => (
-  <div style={{ position: 'absolute', top, left: 0, width: largura, animation: `sazTrenoVoo ${dur} linear ${delay} infinite` }}>
-    {/* brilho — gradiente estático (sem blur animado), só o grupo todo que translada */}
-    <div style={{ position: 'absolute', top: '40%', right: largura * 0.32, width: largura * 0.9, height: largura * 0.14,
-      background: 'linear-gradient(to left, rgba(200,243,255,0.4), transparent)', borderRadius: 999 }}/>
-    {TRILHA_TRENO.map((t, i) => (
-      <div key={i} style={{ position: 'absolute', top: '36%', right: t.offset, opacity: t.op,
-        animation: `sazCintilar ${t.dur}s ease-in-out ${t.delay}s infinite` }}>
-        <IconEstrela size={t.size} color="#C8F3FF"/>
-      </div>
-    ))}
-    <img src="/trenozonatal.png" alt="" style={{ width: largura, height: 'auto', display: 'block',
-      filter: 'drop-shadow(0 4px 10px rgba(0,0,0,.35)) drop-shadow(0 0 16px rgba(200,243,255,.45))' }}/>
-  </div>
-);
+// Cada passagem tem o PRÓPRIO keyframe (nome único) — assim `topFrom`/`topTo`/
+// `rot` dão um ângulo de voo diferente por instância (reto, mergulhando,
+// subindo...), em vez de sempre a mesma trajetória horizontal. Pedido
+// explícito do dono, 17/10/2026.
+let _trenoSeq = 0;
+const TrenoComTrilha = ({ topFrom = 16, topTo = 16, rot = 0, largura = 260, dur = 30, delay = -8 }) => {
+  const nomeRef = useRef(null);
+  if (!nomeRef.current) nomeRef.current = `sazTrenoVoo${++_trenoSeq}`;
+  const nome = nomeRef.current;
+  return (
+    <div style={{ position: 'absolute', top: 0, left: 0, width: largura,
+      animation: `${nome} ${dur}s linear ${delay}s infinite` }}>
+      <style>{`
+        @keyframes ${nome} {
+          0%   { transform: translate(-32vw, ${topFrom}vh) rotate(${rot}deg); opacity: 0; }
+          6%   { opacity: 1; }
+          94%  { opacity: 1; }
+          100% { transform: translate(132vw, ${topTo}vh) rotate(${rot}deg); opacity: 0; }
+        }
+      `}</style>
+      {/* brilho — gradiente estático (sem blur animado), só o grupo todo que translada */}
+      <div style={{ position: 'absolute', top: '40%', right: largura * 0.32, width: largura * 0.9, height: largura * 0.14,
+        background: 'linear-gradient(to left, rgba(200,243,255,0.4), transparent)', borderRadius: 999 }}/>
+      {TRILHA_TRENO.map((t, i) => (
+        <div key={i} style={{ position: 'absolute', top: '36%', right: t.offset, opacity: t.op,
+          animation: `sazCintilar ${t.dur}s ease-in-out ${t.delay}s infinite` }}>
+          <IconEstrela size={t.size} color="#C8F3FF"/>
+        </div>
+      ))}
+      <img src="/trenozonatal.png" alt="" style={{ width: largura, height: 'auto', display: 'block',
+        filter: 'drop-shadow(0 4px 10px rgba(0,0,0,.35)) drop-shadow(0 0 16px rgba(200,243,255,.45))' }}/>
+    </div>
+  );
+};
 
 const PINHEIROS = Array.from({ length: 11 }, (_, i) => ({
   left: `${2 + i * 9}%`,
@@ -416,7 +429,11 @@ const EfeitoNatal = () => {
             <IconFloco size={f.size}/>
           </div>
         ))}
-        <TrenoComTrilha/>
+        {/* 3 passagens com ângulo/altura/velocidade diferentes, em momentos
+            diferentes (delay escalonado) — nunca sempre a mesma trajetória. */}
+        <TrenoComTrilha topFrom={14} topTo={16} rot={1} dur={28} delay={-4}/>
+        <TrenoComTrilha topFrom={4} topTo={38} rot={11} dur={24} delay={-19}/>
+        <TrenoComTrilha topFrom={42} topTo={8} rot={-11} dur={33} delay={-9}/>
       </div>
     </>
   );
