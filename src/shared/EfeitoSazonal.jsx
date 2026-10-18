@@ -180,6 +180,10 @@ const HALLOWEEN_CSS = `
   0%,100% { opacity: .5; transform: translateY(0) scale(1); }
   50%     { opacity: .9; transform: translateY(-6px) scale(1.08); }
 }
+@keyframes sazLuaPulse {
+  0%,100% { opacity: .85; transform: scale(1); }
+  50%     { opacity: 1;   transform: scale(1.06); }
+}
 @keyframes sazBurstBat {
   0%   { transform: translate(0,0) rotate(0deg) scale(.4); opacity: 0; }
   18%  { opacity: 1; }
@@ -372,6 +376,23 @@ const CasteloTema = () => (
   }}/>
 );
 
+// Lua misteriosa, canto superior direito — na cor do tema ativo, igual ao
+// castelo, com crateras sutis e pulsando devagar. Pedido explícito do dono.
+const LuaMisteriosa = () => (
+  <div style={{
+    position: 'absolute', top: '6%', right: '7%', width: 88, height: 88, borderRadius: '50%',
+    background: `radial-gradient(circle at 35% 32%, ${T.goldV || T.goldL}, ${T.gold} 55%, ${T.goldLine} 100%)`,
+    boxShadow: `0 0 26px 9px ${T.goldLine}55, 0 0 60px 20px ${T.goldLine}26`,
+    animation: 'sazLuaPulse 4.6s ease-in-out infinite',
+  }}>
+    <svg width="88" height="88" viewBox="0 0 88 88" style={{ position: 'absolute', inset: 0 }}>
+      <circle cx="31" cy="29" r="7.5" fill="rgba(0,0,0,0.14)"/>
+      <circle cx="55" cy="48" r="10.5" fill="rgba(0,0,0,0.12)"/>
+      <circle cx="42" cy="61" r="5.5" fill="rgba(0,0,0,0.12)"/>
+    </svg>
+  </div>
+);
+
 const EfeitoHalloween = () => {
   const morcegos = [
     { top: '10%', dur: '16s', delay: '0s', size: 30, flip: false, rot: -6 },
@@ -391,6 +412,7 @@ const EfeitoHalloween = () => {
         <style>{HALLOWEEN_CSS}</style>
         <CampoHalloween/>
         <CasteloTema/>
+        <LuaMisteriosa/>
         <div style={{ position: 'absolute', bottom: 10, left: '5%', animation: 'sazBobPumpkin 4.5s ease-in-out infinite' }}><IconPumpkin size={92}/></div>
         <div style={{ position: 'absolute', bottom: 6, right: '7%', animation: 'sazBobPumpkin 5.5s ease-in-out -2s infinite' }}><IconPumpkin size={62}/></div>
         <div style={{ position: 'absolute', bottom: 92, right: '4%', animation: 'sazSkel 3.4s ease-in-out infinite' }}><IconSkull size={28}/></div>
