@@ -42,12 +42,14 @@ const IconSkull = ({ size = 26, color = '#EDEDF2' }) => (
   </svg>
 );
 
-const IconFantasma = ({ size = 54 }) => (
-  <svg width={size} height={size * 1.1} viewBox="0 0 70 78" style={{ display: 'block' }}>
-    <path fill="rgba(255,255,255,0.9)" d="M35 2C17 2 6 16 6 34v38c3-4 7-4 10 0 3-4 7-4 10 0 3-4 7-4 10 0 3-4 7-4 10 0 3-4 7-4 10 0 3-4 7-4 10 0V34C64 16 53 2 35 2Z"/>
-    <circle cx="24" cy="32" r="5" fill="#140A18"/>
-    <circle cx="46" cy="32" r="5" fill="#140A18"/>
-  </svg>
+// Uniko fantasma — imagem enviada pelo dono (public/fantasma-halloween.png),
+// no lugar do desenho SVG anterior.
+const FANTASMA_RATIO = 1018 / 887;
+const IconFantasma = ({ size = 72 }) => (
+  <img src="/fantasma-halloween.png" alt="" style={{
+    width: size, height: +(size / FANTASMA_RATIO).toFixed(1), display: 'block',
+    filter: 'drop-shadow(0 4px 10px rgba(0,0,0,.35))',
+  }}/>
 );
 
 // Bruxa + mascote Uniko numa vassoura — imagem enviada pelo dono
