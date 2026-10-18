@@ -50,16 +50,14 @@ const IconFantasma = ({ size = 54 }) => (
   </svg>
 );
 
-// Bruxa de vassoura — silhueta simples (capa + chapéu + vassoura).
-const IconBruxa = ({ size = 76 }) => (
-  <svg width={size} height={size * 0.58} viewBox="0 0 130 76" style={{ display: 'block' }}>
-    <path d="M2 58 L74 42" stroke="#6B4A2A" strokeWidth="4.5" strokeLinecap="round"/>
-    <path d="M2 50 L22 45 L10 68 L2 60Z M2 55 L16 52 L6 72 L0 64Z" fill="#4A3418"/>
-    <path d="M62 46c0-16 11-27 24-27s22 9 22 20c0 9-7 14-14 14H68c-4 0-6-3-6-7Z" fill="#140A18"/>
-    <path d="M76 22 L96 1 L105 23Z" fill="#140A18"/>
-    <ellipse cx="87" cy="23" rx="15" ry="4.5" fill="#140A18"/>
-    <circle cx="86" cy="28" r="6.5" fill="#9FCB9F"/>
-  </svg>
+// Bruxa + mascote Uniko numa vassoura — imagem enviada pelo dono
+// (public/bruxa-halloween.png), no lugar do desenho SVG anterior.
+const BRUXA_RATIO = 1774 / 887;
+const IconBruxa = ({ size = 140 }) => (
+  <img src="/bruxa-halloween.png" alt="" style={{
+    width: size, height: +(size / BRUXA_RATIO).toFixed(1), display: 'block',
+    filter: 'drop-shadow(0 4px 10px rgba(0,0,0,.4))',
+  }}/>
 );
 
 // Ossos cruzados — detalhe solto no cemitério (ver CampoHalloween).
