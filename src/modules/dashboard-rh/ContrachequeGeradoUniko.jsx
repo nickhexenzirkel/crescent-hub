@@ -14,7 +14,7 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { T } from '../../contexts/theme';
 import { supabase, SERVER_URL } from '../../contexts/user';
-import { ReciboPagamento } from './ReciboPagamento';
+import { ReciboPagamento, PAGE_W } from './ReciboPagamento';
 import { loadContrachequeDados, saveContrachequeDados } from '../../shared/contrachequeDados';
 
 // Dados fixos da empresa — tirados do próprio modelo enviado (Julho/2026).
@@ -127,9 +127,26 @@ const ContrachequeGeradoUniko = ({ cardBg, empList, onGerado }) => {
     try {
       const src = document.getElementById(previewId);
       if (!src) throw new Error('Pré-visualização não encontrada.');
-      const canvas = await html2canvas(src, { scale: 3, useCORS: true, backgroundColor: '#ffffff', scrollX: 0, scrollY: 0, windowWidth: src.scrollWidth, windowHeight: src.scrollHeight });
+      // Captura uma CÓPIA solta no <body>, na largura exata do papel, longe de
+      // qualquer ancestral com overflow/scroll/zoom: com a prévia dentro do
+      // painel (que é mais estreito que o recibo e rola pro lado), o
+      // html2canvas cortava tudo que passava da borda visível do painel — o
+      // PDF saía sem Competência, Provento, Desconto, totais etc. (bug de
+      // 18/10/2026).
+      const copia = src.cloneNode(true);
+      copia.removeAttribute('id');
+      const suporte = document.createElement('div');
+      suporte.style.cssText = `position:fixed;left:0;top:0;width:${PAGE_W}px;z-index:-9999;pointer-events:none;background:#fff`;
+      suporte.appendChild(copia);
+      document.body.appendChild(suporte);
+      let canvas, wMm, hMm;
+      try {
+        await new Promise(r => setTimeout(r, 60)); // setTimeout (não rAF): rAF congela com a aba em segundo plano
+        const wPx = PAGE_W, hPx = copia.offsetHeight;
+        canvas = await html2canvas(copia, { scale: 3, useCORS: true, backgroundColor: '#ffffff', x: 0, y: 0, scrollX: 0, scrollY: 0, width: wPx, height: hPx, windowWidth: wPx, windowHeight: hPx });
+        wMm = wPx * 25.4 / 96; hMm = hPx * 25.4 / 96;
+      } finally { suporte.remove(); }
       const imgData = canvas.toDataURL('image/png');
-      const wMm = src.offsetWidth * 25.4 / 96, hMm = src.offsetHeight * 25.4 / 96;
       const pdf = new jsPDF({ unit: 'mm', format: [wMm, hMm] });
       pdf.addImage(imgData, 'PNG', 0, 0, wMm, hMm);
       const blob = pdf.output('blob');

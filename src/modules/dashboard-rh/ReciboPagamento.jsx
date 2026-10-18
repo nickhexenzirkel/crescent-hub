@@ -18,8 +18,8 @@ const Campo = ({ label, value, w, shaded, borderRight = true, borderBottom = tru
     borderRight: borderRight ? borda : 'none', borderBottom: borderBottom ? borda : 'none',
     background: shaded ? '#d9d9d9' : 'transparent',
   }}>
-    <div style={{ fontSize: 7.5, fontWeight: 700, whiteSpace: 'nowrap' }}>{label}</div>
-    <div style={{ fontSize: 9.5, marginTop: 2, textAlign: align || 'left', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{value || ' '}</div>
+    <div style={{ fontSize: 7.5, fontWeight: 700 }}>{label}</div>
+    <div style={{ fontSize: 9.5, marginTop: 2, textAlign: align || 'left', whiteSpace: 'normal', wordBreak: 'break-word' }}>{value || ' '}</div>
   </div>
 );
 
@@ -78,7 +78,7 @@ const ReciboPagamento = ({
         <Campo label="Banco" value={empregado.banco} w="150px"/>
         <Campo label="Agência" value={empregado.agencia} w="120px"/>
         <Campo label="Conta" value={empregado.conta} w="120px"/>
-        <Campo label="Tipo de Conta" value={empregado.tipoConta} w="160px" borderRight={false}/>
+        <Campo label="Tipo de Conta" value={empregado.tipoConta} w="200px" borderRight={false}/>
       </div>
 
       {/* ── Discriminação das Verbas ── */}
@@ -134,12 +134,12 @@ const ReciboPagamento = ({
 
       {/* ── Rodapé: bases de cálculo ── */}
       <div style={{ display: 'flex' }}>
-        <Campo label="Salário Contratual" value={money(empregado.salarioContratual)} w="140px" align="center"/>
-        <Campo label="Base de Cálculo do INSS" value={money(empregado.baseInss)} w="150px" align="center"/>
-        <Campo label="Base de Cálculo do FGTS" value={money(empregado.baseFgts)} w="150px" align="center"/>
-        <Campo label="FGTS" value={money(empregado.fgts)} w="110px" align="center"/>
-        <Campo label="FGTS Contribuição Social" value={empregado.fgtsContribSocial ? money(empregado.fgtsContribSocial) : ''} w="140px" align="center"/>
-        <Campo label="Base de Cálculo do IRRF(S)" value={empregado.baseIrrf ? money(empregado.baseIrrf) : ''} w="110px" align="center" borderRight={false}/>
+        <Campo label="Salário Contratual" value={money(empregado.salarioContratual)} w="125px" align="center"/>
+        <Campo label="Base de Cálculo do INSS" value={money(empregado.baseInss)} w="135px" align="center"/>
+        <Campo label="Base de Cálculo do FGTS" value={money(empregado.baseFgts)} w="135px" align="center"/>
+        <Campo label="FGTS" value={money(empregado.fgts)} w="95px" align="center"/>
+        <Campo label="FGTS Contribuição Social" value={empregado.fgtsContribSocial ? money(empregado.fgtsContribSocial) : ''} w="130px" align="center"/>
+        <Campo label="Base de Cálculo do IRRF(S)" value={empregado.baseIrrf ? money(empregado.baseIrrf) : ''} w="140px" align="center" borderRight={false}/>
       </div>
     </div>
   );
