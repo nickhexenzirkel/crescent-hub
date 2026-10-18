@@ -1973,7 +1973,19 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin', initialTa
   const loadContracheques = async () => {
     setChLoading(true);
     const { data } = await _supabase.from('contracheques').select('*').order('created_at', { ascending: false });
-    setChList(data || []);
+    // file_url gravado na hora do upload é getPublicUrl() — não abre mais
+    // direto porque o bucket é privado (mesmo motivo do TabFinanceiro.jsx e
+    // do ponto-anexos acima). O botão "Baixar" daqui embaixo usava esse link
+    // morto; troca por um assinado (10min), igual ao que o colaborador já
+    // recebe no Portal — sem isso "Baixar" nunca funcionou pra ninguém.
+    const rows = await Promise.all((data || []).map(async (ch) => {
+      if (!ch.storage_path) return ch;
+      try {
+        const { data: signed } = await _supabase.storage.from('contracheques').createSignedUrl(ch.storage_path, 600);
+        return signed?.signedUrl ? { ...ch, file_url: signed.signedUrl } : ch;
+      } catch { return ch; }
+    }));
+    setChList(rows);
     setChLoading(false);
   };
 
