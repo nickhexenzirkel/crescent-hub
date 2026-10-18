@@ -75,6 +75,13 @@
   try{ modo = localStorage.getItem(KEY_MODO)==='frenesi' ? 'frenesi' : 'maestro'; }catch(_){}
   const FZ_PERF = 0.09, FZ_BOM = 0.2, FZ_LEAD = 2.2;
 
+  // Dificuldade do Frenesi = velocidade de queda (tempo que a estrela leva do topo ao círculo)
+  const DIFS = { facil:{ nome:'FÁCIL', queda:2.3 }, medio:{ nome:'MÉDIO', queda:1.7 }, dificil:{ nome:'DIFÍCIL', queda:1.15 } };
+  const KEY_DIF = 'dw_lira_dif';
+  let dif = 'medio';
+  try{ const d = localStorage.getItem(KEY_DIF); if(DIFS[d]) dif = d; }catch(_){}
+  const bestKey = id => id + (modo==='frenesi' ? '_f'+(dif==='medio'?'':'_'+dif) : '');
+
   const KEY_BEST = 'dw_lira_best';
   function loadBest(){ try{ return JSON.parse(localStorage.getItem(KEY_BEST))||{}; }catch(_){ return {}; } }
   function saveBest(id, stars){
@@ -264,8 +271,11 @@
           <button class="lr-chip" data-a="modo-maestro" id="lrMM">🎼 MODO MAESTRO</button>
           <button class="lr-chip" data-a="modo-frenesi" id="lrMF">🌠 FRENESI ESTELAR</button>
           <span id="lrOpts" style="display:none;gap:8px;margin-left:auto;flex-wrap:wrap">
-            <button class="lr-chip" data-a="nt-todas" id="lrNT">🎹 TODAS AS NOTAS (21)</button>
-            <button class="lr-chip" data-a="nt-facil" id="lrNF">🟢 FÁCIL (4 BOTÕES)</button>
+            <button class="lr-chip" data-a="dif-facil" id="lrDfacil">🟢 FÁCIL</button>
+            <button class="lr-chip" data-a="dif-medio" id="lrDmedio">🟡 MÉDIO</button>
+            <button class="lr-chip" data-a="dif-dificil" id="lrDdificil">🔴 DIFÍCIL</button>
+            <button class="lr-chip" data-a="nt-todas" id="lrNT">🎹 21 NOTAS</button>
+            <button class="lr-chip" data-a="nt-facil" id="lrNF">4 BOTÕES</button>
           </span>
         </div>
         <div class="lr-songs" id="lrSongs"></div>
@@ -292,6 +302,7 @@
       else if(a==='again'){ escolher(song); if(modo==='frenesi' && song) frenesiIniciar(); }
       else if(a==='modo-maestro') trocarModo('maestro');
       else if(a==='modo-frenesi') trocarModo('frenesi');
+      else if(a.startsWith('dif-')) trocarDif(a.slice(4));
       else if(a==='nt-todas') trocarFacil(false);
       else if(a==='nt-facil') trocarFacil(true);
       else if(a==='fstart') frenesiIniciar();
@@ -319,7 +330,7 @@
     const best = loadBest(), el = root.querySelector('#lrSongs');
     const stars = n => '★'.repeat(n)+'☆'.repeat(3-n);
     el.innerHTML = `<button class="lr-chip ${song?'':'sel'}" data-a="free">🎵 Livre</button>` +
-      SONGS.map(s=>`<button class="lr-chip ${song===s?'sel':''}" data-song="${s.id}">${s.nome} <small>${s.nivel} · ${stars(best[s.id+(modo==='frenesi'?'_f':'')]||0)}</small></button>`).join('');
+      SONGS.map(s=>`<button class="lr-chip ${song===s?'sel':''}" data-song="${s.id}">${s.nome} <small>${s.nivel} · ${stars(best[bestKey(s.id)]||0)}</small></button>`).join('');
     el.querySelectorAll('[data-song]').forEach(b=>b.addEventListener('click',()=>escolher(SONGS.find(s=>s.id===b.dataset.song))));
   }
 
@@ -426,6 +437,11 @@
     usados.forEach((c,k)=>{ const l = Math.min(3,Math.floor(k*4/usados.length)); laneOf[c] = l; rep[l].push(c); });
     return { laneOf, rep: rep.map(a=>a.length ? a[Math.floor(a.length/2)] : 0) };
   }
+  function trocarDif(d){
+    if(!DIFS[d] || d===dif) return;
+    dif = d; try{ localStorage.setItem(KEY_DIF, d); }catch(_){}
+    rotuloModo(); escolher(song); if(fv) fzGeom();
+  }
   function trocarFacil(v){
     if(v===facil) return;
     facil = v; try{ localStorage.setItem(KEY_FACIL, v?'1':'0'); }catch(_){}
@@ -444,6 +460,7 @@
     root.querySelector('#lrMM').classList.toggle('sel', modo==='maestro');
     root.querySelector('#lrMF').classList.toggle('sel', modo==='frenesi');
     root.querySelector('#lrOpts').style.display = modo==='frenesi' ? 'flex' : 'none';
+    Object.keys(DIFS).forEach(k=>root.querySelector('#lrD'+k).classList.toggle('sel', dif===k));
     root.querySelector('#lrNT').classList.toggle('sel', !facil);
     root.querySelector('#lrNF').classList.toggle('sel', facil);
     renderSongs();
@@ -471,7 +488,7 @@
     const total = n*w + (facil?0:2*gap), x0 = (W-total)/2;
     const x = []; for(let i=0;i<n;i++) x.push(x0 + i*w + w/2 + (facil?0:Math.floor(i/7)*gap));
     const hitY = H - (Math.min(w,90)*0.44*1.7 + Math.min(22,Math.max(8,w*0.3))*1.5 + 10);
-    fv.g = { W, H, w, x, n, hitY, dpr, speed: hitY/1.7 };
+    fv.g = { W, H, w, x, n, hitY, dpr, speed: hitY/DIFS[dif].queda };
   }
 
   function frenesiIniciar(){
@@ -596,7 +613,7 @@
       const gl = ctx.createRadialGradient(x,y,0,x,y,r*1.9); gl.addColorStop(0,cor[1]+'cc'); gl.addColorStop(1,cor[1]+'00');
       ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(x,y,r*1.9,0,7); ctx.fill();
       ctx.fillStyle = cor[0]; ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
-      fzEstrela(ctx,x,y,r*1.15,r*0.5,4,-Math.PI/2); ctx.fill(); ctx.stroke();
+      fzEstrela(ctx,x,y,r*1.15,r*0.5,4,-Math.PI/2 - (n.t-now)*5.5 + n.c); ctx.fill(); ctx.stroke(); // gira caindo
     }
 
     // explosões nos círculos
@@ -649,7 +666,7 @@
     const f = fz; if(!f) return;
     const total = f.notes.length, prec = (f.perfect+f.good*0.6)/total;
     const est = prec>=0.9?3:prec>=0.7?2:1;
-    saveBest(song.id+'_f', est); renderSongs(); sfxFim();
+    saveBest(bestKey(song.id), est); renderSongs(); sfxFim();
     const star = '★'.repeat(est)+`<span class="off">${'★'.repeat(3-est)}</span>`;
     root.querySelector('#lrCard').innerHTML = `
       <h2>FRENESI COMPLETO!</h2><p>${song.nome}</p>
