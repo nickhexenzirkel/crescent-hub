@@ -15,6 +15,7 @@ import UnikoSuspectMapTab from './UnikoSuspectMapTab';
 import GerenciarPermissoesTab from './GerenciarPermissoesTab';
 import PaineisTab from './PaineisTab';
 import VisitanteConfigTab from './VisitanteConfigTab';
+import CorreiosTab from './CorreiosTab';
 import { useContrachequeModo, saveContrachequeModo } from '../../shared/contrachequeModo';
 import ContrachequeGeradoUniko from './ContrachequeGeradoUniko';
 import {
@@ -2139,6 +2140,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin', initialTa
       loadContracheques();
       if (empList.length === 0) loadEmployees();
     }
+    if (tab === 'correios' && empList.length === 0) loadEmployees();
   }, [tab]);
 
   const genPw = () => {
@@ -2181,6 +2183,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin', initialTa
     {id:'prestacoes',     label:'Prestações de Contas', icon:<><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/><line x1="6" y1="15" x2="10" y2="15"/></>},
     {id:'infopessoal',    label:'Informações Pessoais', icon:<><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/><line x1="18" y1="8" x2="23" y2="8"/></>},
     {id:'atualizacoes',   label:'Atualizações',        icon:<><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0115-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 01-15 6.7L3 16"/></>},
+    {id:'correios',       label:'Correios',            icon:<><path d="M21 5H3v14h18z"/><path d="M3 5l9 7 9-7"/></>},
     {id:'contracheques',  label:'Contracheques',      icon:<><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></>},
     {id:'feedback',       label:'Feedback',           icon:<><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/><line x1="9" y1="10" x2="15" y2="10"/><line x1="12" y1="7" x2="12" y2="13"/></>},
     {id:'banco',          label:'Banco Extra',        icon:<><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 15.5"/><line x1="19" y1="5" x2="22" y2="5"/><line x1="22" y1="3" x2="22" y2="7"/></>},
@@ -3591,6 +3594,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin', initialTa
           {tab==='permissoes'&&<GerenciarPermissoesTab cardBg={cardBg}/>}
           {tab==='paineis'&&<PaineisTab cardBg={cardBg}/>}
           {tab==='visitante'&&<VisitanteConfigTab cardBg={cardBg}/>}
+          {tab==='correios'&&<CorreiosTab cardBg={cardBg} empList={empList} adminName={adminName}/>}
           {tab==='prestacoes'&&<PrestacoesContasTab/>}
 
           {/* ── TAB: PERGUNTAS DO UNIKO (cache/aprendizado da IA) ── */}

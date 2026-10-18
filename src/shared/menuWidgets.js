@@ -385,6 +385,13 @@ const itemComunicado = (r) => (r.active === false ? null : {
   id: `cm:${r.id}`, tipo: 'aviso', subtipo: 'comunicado', quando: r.created_at,
   titulo: `Comunicado: ${r.title || ''}`, sub: r.body || r.cat || 'Comunicado do RH', destino: ['colaborador', 'comunicados'],
 });
+// Correio — mensagem direta do RH pra ESTA pessoa (Dashboard RH → Correios).
+// Sem `destino`: abre inline na própria Caixa (corpo + imagem), igual Atualização/Aviso.
+const itemCorreio = (r) => ({
+  id: `co:${r.id}`, tipo: 'correio', subtipo: 'rh', quando: r.created_at,
+  titulo: r.titulo || 'Nova mensagem do RH', sub: r.descricao || (r.imagem_url ? 'Toque pra ver' : 'Toque pra ler'),
+  corpo: r.descricao || '', imagem: r.imagem_url || null,
+});
 
 export const useCaixaEntrada = (authUser) => {
   const nome = authUser?.name;
@@ -422,7 +429,7 @@ export const useCaixaEntrada = (authUser) => {
   const consultar = useCallback(async (de, ate, limite) => {
     if (!nome) return;
     const faixa = (q, col) => { q = q.gte(col, de); if (ate) q = q.lt(col, ate); return q.order(col, { ascending: false }).limit(limite); };
-    const [bh, ph, gi, ev, ps, at, nt, cm, cls, fr, fc, fch, pc, fb] = await Promise.all([
+    const [bh, ph, gi, ev, ps, at, nt, cm, cls, fr, fc, fch, pc, fb, co] = await Promise.all([
       faixa(supabase.from('banco_horas').select('id,data,descricao,horas_calculadas,status,created_at,updated_at').eq('created_by', nome), 'updated_at'),
       faixa(supabase.from('mercado_history').select('id,kind,descr,comum,premium,created_at').eq('player', nome).in('kind', ['envio', 'presente', 'admin']), 'created_at'),
       faixa(supabase.from('game_invites').select('id,from_name,to_name,game,room_id,room_name,created_at').eq('to_name', nome), 'created_at'),
@@ -444,6 +451,7 @@ export const useCaixaEntrada = (authUser) => {
       authUser?.role === 'admin'
         ? faixa(supabase.from('feedbacks').select('id,employee_name,category,message,anonymous,read,created_at').eq('read', false), 'created_at')
         : Promise.resolve({ data: [] }),
+      faixa(supabase.from('correios').select('id,titulo,descricao,imagem_url,created_at').eq('to_name', nome), 'created_at'),
     ].map(q => q.then(r => r.data || [], () => [])));
 
     /* Abonos do ponto: pelo id de ponto que as solicitações usam (PIS) e pelo
@@ -476,7 +484,7 @@ export const useCaixaEntrada = (authUser) => {
       ...fr.filter(r => r.uniko_fit_checkins?.player === nome).map(itemFitCurtida),
       ...fc.filter(r => r.uniko_fit_checkins?.player === nome).map(itemFitComentario),
       ...fch.filter(x => x.player !== nome).map(itemFitChat),
-      ...pc.map(itemPrestacao), ...fb.map(itemFeedback)],
+      ...pc.map(itemPrestacao), ...fb.map(itemFeedback), ...co.map(itemCorreio)],
     // Registro desta faixa que mudou de estado ou sumiu: a versão velha sai do
     // mapa (solicitação de ponto resolvida/recusada, convite de coluna decidido).
     (it) => ((it.id.startsWith('ps:') && !idsAtuais.has(it.id)) || (it.id.startsWith('cls:') && !idsClsPendentes.has(it.id))
@@ -524,6 +532,8 @@ export const useCaixaEntrada = (authUser) => {
         ({ new: r }) => { if (r) juntar([itemAviso(r)]); })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'comunicados' },
         ({ new: r }) => { if (r) juntar([itemComunicado(r)]); })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'correios' },
+        ({ new: r }) => { if (r?.to_name === nome) juntar([itemCorreio(r)]); })
       // Convite de coluna do Trello: o payload do realtime não traz o join com a
       // sala/lista (isso já vem no INSERT em si), então dá pra montar direto; já
       // aceitar/recusar só muda o status — refaz a consulta pra sumir da caixa.
