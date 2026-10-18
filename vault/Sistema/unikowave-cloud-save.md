@@ -9,7 +9,7 @@ Os personagens/mascotes conquistados (e progresso geral) do Uniko Wave agora fic
 
 **Tabela Supabase:** `public.uniko_wave_saves` (PK `player` = nome do auth, coluna `data` jsonb, `updated_at`). Migration: `supabase_uniko_wave_saves.sql` — **precisa ser rodada no SQL Editor** senão não persiste. RLS permissivo (anon), igual a `uniko_scores`.
 
-**Chaves sincronizadas** (`SAVE_KEYS` em `TabUnikoWave.jsx`): `dw_wallet` (GW/GC), `dw_unlocked` (personagens), `dw_char`, `dw_profile`, `dw_wish_pity`.
+**Chaves sincronizadas** (`SAVE_KEYS` em `TabUnikoWave.jsx`, precisa bater exatamente com `CLOUD_SAVE_KEYS` no `index.html` do jogo): `dw_wallet` (GW/GC), `dw_unlocked` (personagens), `dw_char`, `dw_profile`, `dw_wish_pity`, `dw_constellations`, `dw_skins_owned`, `dw_skin_selected` (ver [[unikowave-skins]]).
 
 **Como funciona** (segue a ponte postMessage de [[unikowave-architecture]]; iframe e React compartilham localStorage por mesma origem):
 - **Hidratação:** `TabUnikoWave.jsx` busca o save da conta ANTES de montar o iframe (estado `ready`). Se existe na nuvem → limpa o local e aplica (nuvem é a fonte da verdade). Se não existe → usa `dw_cloud_owner` (marca de quem é o local) para decidir: dono == usuário atual → migra o local p/ nuvem; senão → começa limpo (isola contas no mesmo PC).

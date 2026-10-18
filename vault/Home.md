@@ -78,6 +78,7 @@ Abra a pasta `vault/` como um cofre (vault) no Obsidian.
 - [[unikowave-mobile]] — Uniko Wave no celular — detecção mobile, jogo mais fácil e toque/layout responsivo
 - [[unikowave-note-generation]] — Como o mapa de notas do Uniko Wave é gerado (RNG semeado, densidade, padrões)
 - [[unikowave-pot-provider]] — POT provider do yt-dlp agora roda LOCAL na VPS (PM2 bgutil-pot:4416); o do Render dormia e nunca funcionou de verdade
+- [[unikowave-skins]] — Uniko Wave — skins: visual alternativo pra personagem já existente, compradas com GW direto (sem gacha); PRECISA rodar supabase_uniko_wave_skins.sql
 - [[unikowave-speed-multiplayer]] — Uniko Speed (jogo de corrida em src/modules/central-colaborador/tabs/TabUnikoFaster.jsx) ganhou multiplayer com salas; PRECISA rodar supabase_uniko_speed.sql
 - [[unikowave-temp-unlock-all]] — Flag TEMP_UNLOCK_ALL do Uniko Wave — agora FALSE (personagens vêm do gacha Audição)
 - [[unikowave-video-audio-release]] — Uniko Wave — modo Com Clipe mudo na 1ª jogada de uma faixa (unMute pré-onReady descartado); fix _audioReleasePending
