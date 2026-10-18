@@ -345,7 +345,7 @@
     if(modo==='frenesi'){
       q('#lrQueue').innerHTML = ''; fzStats();
       hint.innerHTML = fz
-        ? 'Toque na nota (ou na tecla) quando a nota <b style="color:#ffd45a">chegar no círculo</b>.'+(facil?' Teclas: <b>D F J K</b>.':'')+' <button class="lr-btn" style="padding:3px 10px;font-size:11px" data-a="fstop">■ Parar</button>'
+        ? 'Toque na nota (ou na tecla) quando a nota <b style="color:#ffd45a">chegar no círculo</b>.'+(facil?' Teclas: <b>A S D F</b>.':'')+' <button class="lr-btn" style="padding:3px 10px;font-size:11px" data-a="fstop">■ Parar</button>'
         : 'As notas caem do céu: toque quando chegarem. Antes de começar dá pra treinar nas notas. <button class="lr-btn pri" style="padding:4px 12px;font-size:11px" data-a="fstart">▶ COMEÇAR</button>';
       prog.style.width = '0';
       return;
@@ -414,7 +414,7 @@
   const KEY_FACIL = 'dw_lira_facil';
   let facil = false;
   try{ facil = localStorage.getItem(KEY_FACIL)==='1'; }catch(_){}
-  const FACIL_KEYS = ['KeyD','KeyF','KeyJ','KeyK'], FACIL_LETRAS = ['D','F','J','K'];
+  const FACIL_KEYS = ['KeyA','KeyS','KeyD','KeyF'], FACIL_LETRAS = ['A','S','D','F'];
   const COR_FACIL = [['#9ff3ff','#2fc4e0'],['#ffe9a0','#ffc83d'],['#ffb3e6','#ff5fc0'],['#cbb3ff','#8b5cff']];
   const corDe = i => facil ? COR_FACIL[i] : COR_LINHA[Math.floor(i/7)];
   const letraDe = i => facil ? FACIL_LETRAS[i] : ROW_KEYS[Math.floor(i/7)][i%7].replace('Key','');
@@ -589,13 +589,14 @@
       const n = N[i]; if(n.t-now > ahead) break;
       if(n.st!=='pending') continue;
       const x = g.x[n.c], y = g.hitY-(n.t-now)*g.speed, cor = corDe(n.c);
-      const nw = Math.min(g.w*0.9, facil?90:48), nh = nw*0.78;
-      ctx.shadowColor = cor[1]; ctx.shadowBlur = 12;
-      const ng = ctx.createLinearGradient(0,y-nh/2,0,y+nh/2); ng.addColorStop(0,cor[0]); ng.addColorStop(1,cor[1]);
-      ctx.fillStyle = ng; rrect(ctx,x-nw/2,y-nh/2,nw,nh,nw*0.22); ctx.fill();
-      ctx.shadowBlur = 0; ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.6; ctx.stroke();
-      ctx.fillStyle = '#2a2440'; ctx.font = '700 '+Math.max(8,nw*0.34)+'px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
-      ctx.fillText(SOLFEGE[n.cells[0]%7], x, y+1);
+      // estrela de 4 pontas com rastro e brilho (cor por trilha)
+      const r = Math.min(g.w*0.5, facil?46:26);
+      const tr = ctx.createLinearGradient(0,y-r*4,0,y); tr.addColorStop(0,'rgba(255,255,255,0)'); tr.addColorStop(1,cor[1]+'aa');
+      ctx.fillStyle = tr; ctx.fillRect(x-r*0.32,y-r*4,r*0.64,r*4);
+      const gl = ctx.createRadialGradient(x,y,0,x,y,r*1.9); gl.addColorStop(0,cor[1]+'cc'); gl.addColorStop(1,cor[1]+'00');
+      ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(x,y,r*1.9,0,7); ctx.fill();
+      ctx.fillStyle = cor[0]; ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+      fzEstrela(ctx,x,y,r*1.15,r*0.5,4,-Math.PI/2); ctx.fill(); ctx.stroke();
     }
 
     // explosões nos círculos
@@ -718,7 +719,7 @@
     e.stopImmediatePropagation(); // o resto do Uniko Wave não deve reagir às teclas aqui
     if(e.code==='Escape'){ e.preventDefault(); fechar(); return; }
     if(e.repeat) return;
-    if(modo==='frenesi' && song && facil){ // 4 botões: D F J K
+    if(modo==='frenesi' && song && facil){ // 4 botões: A S D F
       const l = FACIL_KEYS.indexOf(e.code);
       if(l>=0){ e.preventDefault(); tocar(l); }
       return;
