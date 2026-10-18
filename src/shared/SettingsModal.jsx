@@ -2,7 +2,9 @@ import React, { useState } from 'react';
 import { T, THEMES } from '../contexts/theme';
 import { SERVER_URL, getAuthUser } from '../contexts/user';
 import { lerFlags, aplicarFlags, FLAGS_PADRAO, PERFIS_DESEMPENHO } from './diagnosticoPerfCore';
-import { useModoSazonal } from './modoSazonal';
+import { useModoSazonal, MODOS_SAZONAIS } from './modoSazonal';
+
+const EMOJI_SAZONAL = { halloween: '🎃', natal: '🎄', pascoa: '🐰', carnaval: '🎭', saojoao: '🔥' };
 
 /* Linha de tema reaproveitada nas 3 colunas (claro/escuro/sazonal) — era
    código repetido duas vezes antes do sazonal entrar como terceira coluna. */
@@ -30,7 +32,7 @@ const ThemeGrid = ({activeTheme,onTheme}) => {
   // escolher enquanto o modo correspondente está ligado — desligou, some da
   // lista (quem já tinha escolhido continua vendo as cores até trocar).
   const modoSazonal = useModoSazonal();
-  const sazonalKey = modoSazonal === 'halloween' ? 'halloween' : modoSazonal === 'natal' ? 'natal' : null;
+  const sazonalKey = MODOS_SAZONAIS.includes(modoSazonal) ? modoSazonal : null;
   return (
   <div style={{display:'grid',gridTemplateColumns: sazonalKey ? '1fr 1px 1fr 1px 1fr' : '1fr 1px 1fr',gap:'0 18px'}}>
     {/* Modo Claro */}
@@ -70,12 +72,12 @@ const ThemeGrid = ({activeTheme,onTheme}) => {
       </div>
     </div>
     {/* Sazonal — só existe (na lista) enquanto Dashboard RH → Painéis → Modo
-        Sazonal estiver ligado pra Halloween ou Natal. */}
+        Sazonal estiver ligado (Halloween, Natal, Páscoa, Carnaval ou São João). */}
     {sazonalKey && <div style={{background:'rgba(0,0,0,0.08)',borderRadius:1}}/>}
     {sazonalKey && (
       <div>
         <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:12}}>
-          <span style={{fontSize:14,lineHeight:1}}>{sazonalKey==='halloween'?'🎃':'🎄'}</span>
+          <span style={{fontSize:14,lineHeight:1}}>{EMOJI_SAZONAL[sazonalKey]}</span>
           <span style={{fontFamily:'var(--font-body)',fontSize:11,color:'#7A92A8',
             letterSpacing:'.09em',textTransform:'uppercase',fontWeight:600}}>SAZONAL</span>
         </div>

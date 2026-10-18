@@ -39,6 +39,7 @@ Abra a pasta `vault/` como um cofre (vault) no Obsidian.
 - [[info-adicional-modulo]] — Módulo "Informações Adicionais" — antigos botões flutuantes Instalar App / Sobre o Uniko, agora em duas abas dentro de um módulo normal
 - [[mercado-estelar]] — Prisma Store (ex-Mercado Estelar) — loja de recompensas (prismas), check-in, desafios; Supabase + cache local
 - [[missoes-gerenciaveis]] — Missões da Prisma Store viraram dados editáveis pelo admin + tempo jogado agora é medido em Wave/Speed/Stop/Paint; PRECISA rodar supabase_uniko_missoes.sql
+- [[modo-sazonal]] — Modo Sazonal (Dashboard RH → Painéis) — temas temporários + efeitos: Halloween, Natal, Páscoa, Carnaval e São João
 - [[moderador-permissoes-server]] — Permissões do cargo moderador no Dashboard RH — o gate precisa existir no CLIENTE e no SERVIDOR
 - [[module-selector-orbita]] — Tela de seleção de módulos (ModuleSelector.jsx) — mobile em lista, desktop em órbita elíptica ao redor do mascote
 - [[notificacoes-desktop]] — Como funcionam as notificações (lembretes/avisos RH) e o pop-up desktop via extensão Cat-bot

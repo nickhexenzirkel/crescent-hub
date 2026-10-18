@@ -10,7 +10,8 @@
 // app. Tudo pointer-events:none, nunca atrapalha um clique.
 import React, { useState, useEffect, useRef } from 'react';
 import { T, onThemeChange, applyTheme } from '../contexts/theme';
-import { useModoSazonal } from './modoSazonal';
+import { useModoSazonal, MODOS_SAZONAIS } from './modoSazonal';
+import { EfeitoPascoa, EfeitoCarnaval, EfeitoSaoJoao } from './EfeitosSazonaisFesta';
 
 // Enquanto o Modo Sazonal está ligado (Dashboard RH → Painéis), o tema
 // correspondente vira o PADRÃO de todo mundo — cada pessoa continua podendo
@@ -645,7 +646,7 @@ const EfeitoSazonal = ({ screen }) => {
 
   // Aplica o tema sazonal como padrão — uma vez por período, por navegador.
   useEffect(() => {
-    if (modo !== 'halloween' && modo !== 'natal') return;
+    if (!MODOS_SAZONAIS.includes(modo)) return;
     try {
       if (localStorage.getItem(SAZONAL_TEMA_APLICADO_KEY) === modo) return;
       applyTheme(modo);
@@ -675,6 +676,9 @@ const EfeitoSazonal = ({ screen }) => {
     );
   }
   if (modo === 'natal') return <EfeitoNatal/>;
+  if (modo === 'pascoa') return <EfeitoPascoa/>;
+  if (modo === 'carnaval') return <EfeitoCarnaval/>;
+  if (modo === 'saojoao') return <EfeitoSaoJoao/>;
   return null;
 };
 

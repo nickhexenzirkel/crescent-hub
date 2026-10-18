@@ -544,6 +544,63 @@ const THEMES = {
     sidebarBg:'rgba(6,14,28,0.98)', topbarBg:'rgba(6,14,28,0.95)',
     text:'#EAF6FF', textS:'#A8CBE0', textT:'#6E92A8', textD:'#3C5468',
   },
+  /* Páscoa — jardim de primavera à noite: ameixa escura com rosa-doce de
+     destaque e lilás/amarelo-pastel nas bolhas. */
+  pascoa: {
+    name:'Páscoa', surfaceSub:'rgba(255,255,255,0.05)', itemHover:'rgba(255,255,255,0.08)', dot:'#FF9EC7', dark:true,
+    page:'#130B18', surface:'#22142C', border:'rgba(255,255,255,0.09)', divider:'rgba(255,255,255,0.05)',
+    surfaceInput:'rgba(255,255,255,0.06)', inputFocus:'rgba(255,255,255,0.10)',
+    gold:'#FF9EC7', goldL:'#FFB8D8', goldV:'#FFE3F0',
+    goldGl:'rgba(255,158,199,0.20)', goldLine:'#FF9EC7',
+    blue:'#A99BFF', blueL:'#C2B8FF', blueGl:'rgba(169,155,255,0.16)',
+    blobBase:'#0E0712', blobVeil:'rgba(14,7,18,0.52)',
+    b1:'rgba(90,30,110,0.88)', b2:'rgba(255,140,190,0.70)',
+    b3:'rgba(255,158,199,0.55)',b4:'rgba(110,70,170,0.80)',
+    b5:'rgba(255,240,170,0.40)',b6:'rgba(25,8,32,0.92)',
+    b7:'rgba(150,230,200,0.40)',
+    sb1:'rgba(255,158,199,0.40)',sb2:'rgba(169,155,255,0.36)',sb3:'rgba(255,240,170,0.26)',
+    lb:'rgba(255,158,199,0.40)', lb2:'rgba(255,158,199,0.18)',
+    sidebarBg:'rgba(20,11,26,0.98)', topbarBg:'rgba(20,11,26,0.95)',
+    text:'#FFF0F8', textS:'#D9B3C9', textT:'#946F85', textD:'#503848',
+  },
+  /* Carnaval — noite de folia: roxo profundo com amarelo-confete de destaque,
+     magenta e turquesa nas bolhas. */
+  carnaval: {
+    name:'Carnaval', surfaceSub:'rgba(255,255,255,0.05)', itemHover:'rgba(255,255,255,0.08)', dot:'#FF4FA3', dark:true,
+    page:'#0D0720', surface:'#1B0F38', border:'rgba(255,255,255,0.09)', divider:'rgba(255,255,255,0.05)',
+    surfaceInput:'rgba(255,255,255,0.06)', inputFocus:'rgba(255,255,255,0.10)',
+    gold:'#FFD21F', goldL:'#FFE35C', goldV:'#FFF2A8',
+    goldGl:'rgba(255,210,31,0.20)', goldLine:'#FFD21F',
+    blue:'#FF4FA3', blueL:'#FF7DBB', blueGl:'rgba(255,79,163,0.16)',
+    blobBase:'#08041A', blobVeil:'rgba(8,4,26,0.52)',
+    b1:'rgba(90,20,140,0.90)', b2:'rgba(255,60,150,0.72)',
+    b3:'rgba(255,210,31,0.55)',b4:'rgba(20,160,150,0.78)',
+    b5:'rgba(120,255,220,0.40)',b6:'rgba(20,5,45,0.92)',
+    b7:'rgba(255,90,60,0.55)',
+    sb1:'rgba(255,210,31,0.42)',sb2:'rgba(255,79,163,0.36)',sb3:'rgba(80,230,200,0.28)',
+    lb:'rgba(255,210,31,0.40)', lb2:'rgba(255,210,31,0.18)',
+    sidebarBg:'rgba(16,8,36,0.98)', topbarBg:'rgba(16,8,36,0.95)',
+    text:'#FFF6FF', textS:'#CDB6E8', textT:'#8A70A8', textD:'#483868',
+  },
+  /* São João — noite de festa junina: marrom de terra/fogueira com amarelo-
+     milho de destaque e vermelho-fogueira nas bolhas. */
+  saojoao: {
+    name:'São João', surfaceSub:'rgba(255,255,255,0.05)', itemHover:'rgba(255,255,255,0.08)', dot:'#FFC233', dark:true,
+    page:'#130802', surface:'#231106', border:'rgba(255,255,255,0.08)', divider:'rgba(255,255,255,0.05)',
+    surfaceInput:'rgba(255,255,255,0.06)', inputFocus:'rgba(255,255,255,0.10)',
+    gold:'#FFC233', goldL:'#FFD566', goldV:'#FFEAA8',
+    goldGl:'rgba(255,194,51,0.20)', goldLine:'#FFC233',
+    blue:'#E8573A', blueL:'#FF7A5C', blueGl:'rgba(232,87,58,0.16)',
+    blobBase:'#0C0501', blobVeil:'rgba(12,5,1,0.52)',
+    b1:'rgba(120,30,10,0.88)', b2:'rgba(240,90,40,0.72)',
+    b3:'rgba(255,194,51,0.55)',b4:'rgba(150,60,20,0.80)',
+    b5:'rgba(255,225,140,0.42)',b6:'rgba(30,12,4,0.92)',
+    b7:'rgba(110,150,50,0.45)',
+    sb1:'rgba(255,194,51,0.42)',sb2:'rgba(232,87,58,0.36)',sb3:'rgba(255,225,140,0.26)',
+    lb:'rgba(255,194,51,0.40)', lb2:'rgba(255,194,51,0.18)',
+    sidebarBg:'rgba(24,12,4,0.98)', topbarBg:'rgba(24,12,4,0.95)',
+    text:'#FFF1DC', textS:'#D6B88A', textT:'#94754C', textD:'#52402A',
+  },
 };
 
 /* Uniko ÚNICO — sem variação por tema (sempre o UNIKO_NEW) */

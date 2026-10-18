@@ -33,7 +33,9 @@ const PaineisTab = ({ cardBg }) => {
   const desligados = Object.values(ocultos).filter(Boolean).length;
 
   // Modo Sazonal — tema temporário + efeitos flutuantes (morcegos/abóboras/
-  // raio/nuvens/esqueleto no Halloween; neve/trenó/árvore/estrela no Natal),
+  // raio/nuvens/esqueleto no Halloween; neve/trenó/árvore/estrela no Natal;
+  // ovos/coelho/pétalas na Páscoa; confete/serpentina/máscara no Carnaval;
+  // fogueira/bandeirinha/balão no São João),
   // pra todo mundo, em qualquer tema. Ver shared/modoSazonal.js.
   const modoSazonal = useModoSazonal();
   const [sazSalvando, setSazSalvando] = useState(false);
@@ -63,13 +65,18 @@ const PaineisTab = ({ cardBg }) => {
         <div style={{ background: cardBg || T.surface, border:`1px solid ${T.border}`, borderRadius:16, padding:'16px 18px' }}>
           <div style={{ fontSize:13, color:T.textS, marginBottom:14, lineHeight:1.6 }}>
             Liga um tema temporário (aparece no seletor de tema de todo mundo) e efeitos flutuantes na tela toda —
-            morcegos, abóboras, raio, nuvens e esqueleto no Halloween; neve, trenó do Papai Noel, árvore e estrela no Natal.
+            morcegos, abóboras, raio, nuvens e esqueleto no Halloween; neve, trenó do Papai Noel, árvore e estrela no Natal;
+            ovos, coelhinho, borboletas e pétalas na Páscoa; confete, serpentinas, máscaras e fogos no Carnaval;
+            fogueira, bandeirinhas, balões, milho e fogos no São João.
           </div>
-          <div style={{ display:'inline-flex', padding:3, borderRadius:11, background:T.surfaceSub||'rgba(0,0,0,0.05)', border:`1px solid ${T.border}`, gap:2 }}>
+          <div style={{ display:'inline-flex', flexWrap:'wrap', padding:3, borderRadius:11, background:T.surfaceSub||'rgba(0,0,0,0.05)', border:`1px solid ${T.border}`, gap:2 }}>
             {[
               { id:'nenhum', label:'Nenhum' },
               { id:'halloween', label:'🎃 Halloween' },
               { id:'natal', label:'🎄 Natal' },
+              { id:'pascoa', label:'🐰 Páscoa' },
+              { id:'carnaval', label:'🎭 Carnaval' },
+              { id:'saojoao', label:'🔥 São João' },
             ].map(o => {
               const on = modoSazonal === o.id;
               return (

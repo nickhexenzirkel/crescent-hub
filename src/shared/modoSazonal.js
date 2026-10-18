@@ -1,4 +1,4 @@
-// Modo sazonal (Dashboard RH → Painéis): 'nenhum' | 'halloween' | 'natal' —
+// Modo sazonal (Dashboard RH → Painéis): 'nenhum' | 'halloween' | 'natal' | 'pascoa' | 'carnaval' | 'saojoao' —
 // liga os temas temporários (ver contexts/theme.js) e os efeitos flutuantes
 // (ver EfeitoSazonal.jsx) pra TODOS, em todos os temas. Mesmo padrão de
 // paineisConfig.js/contrachequeModo.js: tabela `settings`, cache + evento,
@@ -9,7 +9,8 @@ import { supabase } from '../contexts/user';
 export const MODO_SAZONAL_KEY = 'modo_sazonal';
 const EVENTO = 'uniko-modo-sazonal';
 const PADRAO = 'nenhum';
-const VALIDOS = ['nenhum', 'halloween', 'natal'];
+export const MODOS_SAZONAIS = ['halloween', 'natal', 'pascoa', 'carnaval', 'saojoao']; // têm tema + efeitos
+const VALIDOS = ['nenhum', ...MODOS_SAZONAIS];
 
 let cache = null; // null = ainda não carregou
 
