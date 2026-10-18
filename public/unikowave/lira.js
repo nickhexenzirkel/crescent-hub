@@ -199,7 +199,9 @@
 #liraScr .lr-cell.demo .lr-note{animation:lrVib .42s cubic-bezier(.2,.8,.3,1)}
 #liraScr .lr-modes{display:flex;gap:8px}
 #liraScr .lr-modes .lr-chip{font-family:var(--font-pixel,monospace);font-size:9px;letter-spacing:1px;padding:9px 14px}
-#liraScr .lr-fall{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:4}
+#liraScr .lr-fall{position:absolute;inset:0;width:100%;height:100%;display:none;z-index:4;touch-action:none}
+#liraScr .lr-fall.on{display:block}
+#liraScr .lr-grid.fzhide{visibility:hidden}
 #liraScr .lr-end{position:absolute;inset:0;z-index:5;background:rgba(5,3,20,.78);display:none;align-items:center;justify-content:center;padding:16px}
 #liraScr .lr-end.on{display:flex}
 #liraScr .lr-card{background:linear-gradient(160deg,#2b1a63,#150d3b);border:1px solid rgba(255,255,255,.2);border-radius:18px;padding:26px 30px;text-align:center;max-width:420px;box-shadow:0 10px 40px rgba(0,0,0,.6)}
@@ -291,7 +293,13 @@
       else if(a==='next'){ const i = SONGS.indexOf(song); escolher(SONGS[(i+1)%SONGS.length]); }
     });
     renderSongs(); rotuloMudo(); rotuloModo();
-    window.addEventListener('resize',()=>{ if(fz) fzGeom(); });
+    window.addEventListener('resize',()=>{ if(fv) fzGeom(); });
+    root.querySelector('#lrFall').addEventListener('pointerdown',e=>{
+      if(!fv || !openFlag) return; e.preventDefault();
+      const r = e.currentTarget.getBoundingClientRect(), x = e.clientX-r.left, g = fv.g; let best = -1, bd = 1e9;
+      g.x.forEach((lx,i)=>{ const d = Math.abs(lx-x); if(d<bd){ bd = d; best = i; } });
+      if(best>=0 && bd <= g.w*0.9) tocar(best);
+    });
     window.addEventListener('keydown',onKey,true);
   }
 
@@ -319,6 +327,7 @@
   }
 
   function atualizar(){
+    fzVista(modo==='frenesi' && !!song);
     cells.forEach(c=>{ c.classList.remove('target','next','multi'); const o=c.querySelector('.lr-ord'); o.className='lr-ord'; o.textContent=''; });
     const q = id => root.querySelector(id);
     q('#lrOk').textContent = idx; q('#lrErr').textContent = errors; q('#lrStreak').textContent = streak;
@@ -330,7 +339,7 @@
     if(modo==='frenesi'){
       q('#lrQueue').innerHTML = ''; fzStats();
       hint.innerHTML = fz
-        ? 'Toque na nota (ou na tecla) quando a <b style="color:#ffd45a">estrela</b> chegar nela. <button class="lr-btn" style="padding:3px 10px;font-size:11px" data-a="fstop">■ Parar</button>'
+        ? 'Toque na nota (ou na tecla) quando a nota <b style="color:#ffd45a">chegar no círculo</b>. <button class="lr-btn" style="padding:3px 10px;font-size:11px" data-a="fstop">■ Parar</button>'
         : 'As notas caem do céu: toque quando chegarem. Antes de começar dá pra treinar nas notas. <button class="lr-btn pri" style="padding:4px 12px;font-size:11px" data-a="fstart">▶ COMEÇAR</button>';
       prog.style.width = '0';
       return;
@@ -393,7 +402,10 @@
   }
 
   /* ---------- Modo Frenesi Estelar ---------- */
-  let fz = null;
+  // Layout estilo "ritmo da lira": 21 trilhas verticais, círculos de acerto embaixo com a tecla,
+  // combo grande no centro-topo, nome/pontos no canto, "Perfect" com estrela. Tudo em canvas (#lrFall).
+  let fz = null;   // partida em andamento (null = treino antes de começar)
+  let fv = null;   // vista (loop de desenho + geometria) — vive enquanto o Frenesi está na tela
   const COR_LINHA = [['#ffe9a0','#ffc83d'],['#ffb3e6','#ff5fc0'],['#cbb3ff','#8b5cff']]; // aguda / média / grave
 
   function trocarModo(m){
@@ -407,31 +419,41 @@
     renderSongs();
   }
   function fzNow(){ return (performance.now()-fz.t0)/1000; }
+
+  function fzVista(on){
+    const cv = root.querySelector('#lrFall'), grid = root.querySelector('#lrGrid');
+    cv.classList.toggle('on', on); grid.classList.toggle('fzhide', on);
+    if(on && !fv){
+      fv = { raf:0, last:performance.now(), fx:[], press:{}, judge:null, g:null };
+      fzGeom(); fv.raf = requestAnimationFrame(fzLoop);
+    } else if(!on && fv){
+      cancelAnimationFrame(fv.raf); fv = null;
+      cv.getContext('2d').clearRect(0,0,cv.width,cv.height);
+    }
+  }
   function fzGeom(){
     const cv = root.querySelector('#lrFall'), st = cv.parentElement.getBoundingClientRect();
     const dpr = window.devicePixelRatio||1;
     cv.width = Math.round(st.width*dpr); cv.height = Math.round(st.height*dpr);
-    fz.dpr = dpr; fz.H = st.height;
-    fz.geom = cells.map(c=>{ const r = c.getBoundingClientRect(); return { x:r.left-st.left+r.width/2, y:r.top-st.top+r.height/2, s:r.width }; });
-    fz.speed = (st.height*0.78)/1.7; // px/s, igual pra todas as notas
+    const W = st.width, H = st.height;
+    const w = Math.max(10, Math.min(54, (W-16)/22.2)), gap = w*0.55;
+    const total = 21*w + 2*gap, x0 = (W-total)/2;
+    const x = []; for(let i=0;i<21;i++) x.push(x0 + i*w + w/2 + Math.floor(i/7)*gap);
+    const hitY = H - Math.max(54, w*1.5);
+    fv.g = { W, H, w, x, hitY, dpr, speed: hitY/1.7 };
   }
+
   function frenesiIniciar(){
     frenesiParar();
     const notes = []; let t = 0;
     song.steps.forEach(p=>{ p.c.forEach(c=>notes.push({ c, t, st:'pending' })); t += stepMs(song,p)/1000; });
-    fz = { notes, lo:0, last:t, t0:performance.now()+FZ_LEAD*1000, perfect:0, good:0, miss:0, stray:0, score:0, combo:0, max:0, fl:[], raf:0, end:0, alvo:'' };
-    fzGeom();
+    fz = { notes, lo:0, last:t, t0:performance.now()+FZ_LEAD*1000, perfect:0, good:0, miss:0, stray:0, score:0, combo:0, max:0, end:0 };
     root.querySelector('#lrEnd').classList.remove('on');
     atualizar();
-    fz.raf = requestAnimationFrame(fzLoop);
   }
   function frenesiParar(){
-    if(fz){ cancelAnimationFrame(fz.raf); clearTimeout(fz.end); }
+    if(fz) clearTimeout(fz.end);
     fz = null;
-    if(root){
-      cells.forEach(c=>c.classList.remove('target'));
-      const cv = root.querySelector('#lrFall'); if(cv) cv.getContext('2d').clearRect(0,0,cv.width,cv.height);
-    }
   }
   function fzStats(){
     const q = id => root.querySelector(id);
@@ -440,10 +462,12 @@
     q('#lrErr').textContent = f ? f.miss+f.stray : 0;
     q('#lrStreak').textContent = f ? f.combo : 0;
   }
-  function fzFloat(cell, txt, col){ const g = fz.geom[cell]; fz.fl.push({ x:g.x, y:g.y-g.s*.6, txt, col, age:0 }); }
+  function fzJulga(txt, col){ if(fv) fv.judge = { txt, col, age:0 }; }
+  function fzBurst(lane, tipo){ if(fv) fv.fx.push({ lane, tipo, age:0 }); }
 
   function frenesiTocar(cell){
-    if(!fz){ pluck(cell); efeito(cell,true); return; } // antes de começar: treino livre
+    if(!fv) return;
+    if(!fz){ pluck(cell); fzBurst(cell,'press'); return; } // antes de começar: treino livre
     const now = fzNow(); let best = null;
     for(let i=fz.lo;i<fz.notes.length;i++){
       const n = fz.notes[i]; if(n.t-now > FZ_BOM) break;
@@ -454,63 +478,136 @@
       if(perf) fz.perfect++; else fz.good++;
       fz.score += Math.round((perf?100:60)*(1+Math.floor(fz.combo/10)*0.1));
       fz.combo++; if(fz.combo>fz.max) fz.max = fz.combo;
-      pluck(cell); efeito(cell,true);
-      fzFloat(cell, perf?'PERFEITO':'BOM', perf?'#ffd45a':'#7ff0ff');
+      pluck(cell); fzBurst(cell, perf?'perfect':'good');
+      fzJulga(perf?'Perfect':'Good', perf?'#fff3b0':'#9ff3ff');
     } else {
       fz.stray++; fz.combo = 0;
       if(!mudoErro){ sfxErro(); pluck(cell); }
-      efeito(cell,false);
+      fzBurst(cell,'press');
     }
+    fv.press[cell] = 0.22;
     fzStats();
   }
 
-  function fzLoop(){
-    if(!fz) return;
-    const f = fz, now = fzNow(), N = f.notes;
-    // notas que passaram da janela = erro
-    for(let i=f.lo;i<N.length && N[i].t+FZ_BOM < now;i++){
-      if(N[i].st==='pending'){ N[i].st='miss'; f.miss++; f.combo = 0; fzFloat(N[i].c,'ERROU','#ff6b8a'); }
+  function fzEstrela(ctx,x,y,r1,r2,pts,rot){
+    ctx.beginPath();
+    for(let k=0;k<pts*2;k++){ const a = rot + k*Math.PI/pts, r = k%2 ? r2 : r1; ctx.lineTo(x+Math.cos(a)*r, y+Math.sin(a)*r); }
+    ctx.closePath();
+  }
+  function rrect(ctx,x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+
+  function fzLoop(ts){
+    if(!fv) return;
+    const v = fv, g = v.g, dt = Math.min(0.05,(ts-v.last)/1000); v.last = ts;
+    const f = fz, N = f ? f.notes : [], now = f ? fzNow() : 0;
+    // jogo: notas que passaram da janela = Miss
+    if(f){
+      for(let i=f.lo;i<N.length && N[i].t+FZ_BOM < now;i++){
+        if(N[i].st==='pending'){ N[i].st='miss'; f.miss++; f.combo = 0; fzJulga('Miss','#ff8aa8'); fzBurst(N[i].c,'miss'); fzStats(); }
+      }
+      while(f.lo<N.length && N[f.lo].st!=='pending') f.lo++;
+      root.querySelector('#lrProg').style.width = Math.max(0,Math.min(1,now/f.last))*100+'%';
+      fzStats();
+      if(f.lo>=N.length && !f.end) f.end = setTimeout(frenesiFim, 700);
     }
-    while(f.lo<N.length && N[f.lo].st!=='pending') f.lo++;
-    // brilho na nota prestes a chegar
-    const alvos = new Set();
-    for(let i=f.lo;i<N.length && N[i].t-now < 0.45;i++) if(N[i].st==='pending') alvos.add(N[i].c);
-    const chave = [...alvos].sort().join(',');
-    if(chave !== f.alvo){ f.alvo = chave; cells.forEach((c,k)=>c.classList.toggle('target', alvos.has(k))); }
-    // desenho
     const cv = root.querySelector('#lrFall'), ctx = cv.getContext('2d');
-    ctx.setTransform(f.dpr,0,0,f.dpr,0,0); ctx.clearRect(0,0,cv.width,cv.height);
-    const ahead = (f.H+60)/f.speed;
-    for(let i=f.lo;i<N.length;i++){
+    ctx.setTransform(g.dpr,0,0,g.dpr,0,0); ctx.clearRect(0,0,g.W,g.H);
+
+    // brilho rosado no chão
+    const gl0 = ctx.createLinearGradient(0,g.H*0.5,0,g.H); gl0.addColorStop(0,'rgba(255,95,192,0)'); gl0.addColorStop(1,'rgba(255,95,192,0.26)');
+    ctx.fillStyle = gl0; ctx.fillRect(0,g.H*0.5,g.W,g.H*0.5);
+
+    // trilhas
+    ctx.lineWidth = 1.5;
+    for(let i=0;i<21;i++){
+      const lg = ctx.createLinearGradient(0,0,0,g.hitY); lg.addColorStop(0,'rgba(255,255,255,0)'); lg.addColorStop(0.35,'rgba(255,255,255,0.28)'); lg.addColorStop(1,'rgba(255,255,255,0.5)');
+      ctx.strokeStyle = lg; ctx.beginPath(); ctx.moveTo(g.x[i],0); ctx.lineTo(g.x[i],g.hitY); ctx.stroke();
+    }
+    // linha de acerto
+    ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(g.x[0],g.hitY); ctx.lineTo(g.x[20],g.hitY); ctx.stroke();
+
+    // notas que estão chegando (brilho no círculo)
+    const alvo = new Set();
+    for(let i=f?f.lo:0;i<N.length && N[i].t-now < 0.4;i++) if(N[i].st==='pending') alvo.add(N[i].c);
+
+    // círculos de acerto + teclas
+    const rc = g.w*0.3;
+    for(let i=0;i<21;i++){
+      const x = g.x[i], cor = COR_LINHA[Math.floor(i/7)], pr = v.press[i]||0;
+      if(pr>0){ v.press[i] = Math.max(0,pr-dt); }
+      if(alvo.has(i)){ ctx.strokeStyle = '#ffd45a'; ctx.lineWidth = 2.5; ctx.shadowColor='#ffd45a'; ctx.shadowBlur=14; ctx.beginPath(); ctx.arc(x,g.hitY,rc*1.7,0,7); ctx.stroke(); ctx.shadowBlur=0; }
+      ctx.fillStyle = pr>0 ? '#fff6c8' : '#fff'; ctx.strokeStyle = cor[1]; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(x,g.hitY,rc*(1+pr*1.2),0,7); ctx.fill(); ctx.stroke();
+      // tecla
+      const lt = ROW_KEYS[Math.floor(i/7)][i%7].replace('Key',''), fs = Math.max(8,g.w*0.3), bw = fs*1.5, by = g.hitY+rc*1.7;
+      ctx.fillStyle = '#fff'; rrect(ctx,x-bw/2,by,bw,fs*1.5,4); ctx.fill();
+      ctx.fillStyle = '#2a2440'; ctx.font = '700 '+fs+'px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(lt,x,by+fs*0.78);
+    }
+
+    // notas caindo
+    const ahead = g.hitY/g.speed + 0.05;
+    for(let i=f?f.lo:0;i<N.length;i++){
       const n = N[i]; if(n.t-now > ahead) break;
       if(n.st!=='pending') continue;
-      const g = f.geom[n.c], y = g.y-(n.t-now)*f.speed, r = g.s*0.26, cor = COR_LINHA[Math.floor(n.c/7)];
-      const tr = ctx.createLinearGradient(0,y-g.s*1.4,0,y); tr.addColorStop(0,'rgba(255,255,255,0)'); tr.addColorStop(1,cor[1]+'aa');
-      ctx.fillStyle = tr; ctx.fillRect(g.x-r*0.45,y-g.s*1.4,r*0.9,g.s*1.4);
-      const gl = ctx.createRadialGradient(g.x,y,0,g.x,y,r*1.9); gl.addColorStop(0,cor[1]+'cc'); gl.addColorStop(1,cor[1]+'00');
-      ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(g.x,y,r*1.9,0,7); ctx.fill();
-      ctx.fillStyle = cor[0]; ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
-      ctx.beginPath(); // estrela de 4 pontas
-      for(let k=0;k<8;k++){ const a = k*Math.PI/4-Math.PI/2, rr = k%2? r*0.5 : r*1.15; ctx.lineTo(g.x+Math.cos(a)*rr, y+Math.sin(a)*rr); }
-      ctx.closePath(); ctx.fill(); ctx.stroke();
+      const x = g.x[n.c], y = g.hitY-(n.t-now)*g.speed, cor = COR_LINHA[Math.floor(n.c/7)];
+      const nw = Math.min(g.w*0.86,44), nh = nw*0.78;
+      ctx.shadowColor = cor[1]; ctx.shadowBlur = 12;
+      const ng = ctx.createLinearGradient(0,y-nh/2,0,y+nh/2); ng.addColorStop(0,cor[0]); ng.addColorStop(1,cor[1]);
+      ctx.fillStyle = ng; rrect(ctx,x-nw/2,y-nh/2,nw,nh,nw*0.22); ctx.fill();
+      ctx.shadowBlur = 0; ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.6; ctx.stroke();
+      ctx.fillStyle = '#2a2440'; ctx.font = '700 '+Math.max(8,nw*0.34)+'px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(SOLFEGE[n.c%7], x, y+1);
     }
-    // textos de julgamento
-    ctx.textAlign = 'center'; ctx.font = '700 13px sans-serif';
-    for(let i=f.fl.length-1;i>=0;i--){
-      const t = f.fl[i]; t.age += 1/60;
-      if(t.age>0.7){ f.fl.splice(i,1); continue; }
-      ctx.globalAlpha = 1-t.age/0.7; ctx.fillStyle = t.col; ctx.fillText(t.txt, t.x, t.y-t.age*34);
+
+    // explosões nos círculos
+    for(let i=v.fx.length-1;i>=0;i--){
+      const e = v.fx[i]; e.age += dt; const dur = e.tipo==='press'?0.25:0.5;
+      if(e.age>dur){ v.fx.splice(i,1); continue; }
+      const p = e.age/dur, x = g.x[e.lane], y = g.hitY, R = g.w*(e.tipo==='press'?0.9:2.1)*(0.4+p*0.8);
+      ctx.globalAlpha = 1-p;
+      if(e.tipo==='miss'){ ctx.strokeStyle='#ff8aa8'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(x,y,R*0.6,0,7); ctx.stroke(); }
+      else {
+        const gr = ctx.createRadialGradient(x,y,0,x,y,R); gr.addColorStop(0,'rgba(255,240,150,0.95)'); gr.addColorStop(1,'rgba(255,190,60,0)');
+        ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(x,y,R,0,7); ctx.fill();
+        if(e.tipo!=='press'){ ctx.fillStyle = e.tipo==='perfect' ? '#ffd45a' : '#8feaff'; fzEstrela(ctx,x,y,R*0.95,R*0.42,8,p*0.6); ctx.fill(); }
+      }
+      ctx.globalAlpha = 1;
     }
-    ctx.globalAlpha = 1;
-    root.querySelector('#lrProg').style.width = Math.max(0,Math.min(1,now/f.last))*100+'%';
-    fzStats();
-    if(f.lo>=N.length && !f.end){ f.end = setTimeout(frenesiFim, 700); }
-    f.raf = requestAnimationFrame(fzLoop);
+
+    // julgamento (Perfect/Good/Miss) com estrela amarela atrás
+    if(v.judge){
+      const j = v.judge; j.age += dt;
+      if(j.age>0.7) v.judge = null;
+      else {
+        const p = j.age/0.7, sc = 1+0.35*Math.max(0,1-j.age*7), cx = g.W/2, cy = g.hitY-g.H*0.22;
+        ctx.globalAlpha = 1-p*p;
+        if(j.txt!=='Miss'){ ctx.fillStyle = j.txt==='Perfect' ? '#ffd02a' : '#6fdcf0'; fzEstrela(ctx,cx,cy,g.H*0.12*sc,g.H*0.03*sc,4,-0.4); ctx.fill(); }
+        ctx.fillStyle = j.col; ctx.font = '700 '+Math.round(g.H*0.055*sc)+'px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+        ctx.shadowColor = 'rgba(0,0,0,.6)'; ctx.shadowBlur = 8; ctx.fillText(j.txt,cx,cy); ctx.shadowBlur = 0;
+        ctx.globalAlpha = 1;
+      }
+    }
+
+    // HUD: nome + pontos (esq), combo (centro)
+    ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
+    ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.font = '600 14px sans-serif'; ctx.fillText(song ? song.nome : '', 14, 22);
+    ctx.fillStyle = '#ffd45a'; ctx.font = '700 24px sans-serif'; ctx.fillText(String(f ? f.score : 0), 14, 50);
+    if(f && f.combo>=2){
+      ctx.textAlign = 'center'; ctx.fillStyle = '#fff'; ctx.shadowColor='rgba(150,120,255,.9)'; ctx.shadowBlur = 12;
+      ctx.font = '700 '+Math.round(Math.min(56,g.H*0.11))+'px sans-serif'; ctx.fillText(String(f.combo), g.W/2, Math.min(56,g.H*0.11)+8);
+      ctx.shadowBlur = 0; ctx.font = '600 13px sans-serif'; ctx.fillStyle='rgba(255,255,255,.85)'; ctx.fillText('Combo', g.W/2, Math.min(56,g.H*0.11)+26);
+    }
+    // contagem regressiva / aviso antes de começar
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    if(f && now<0){ ctx.fillStyle='rgba(255,255,255,.75)'; ctx.font='700 '+Math.round(g.H*0.16)+'px sans-serif'; ctx.fillText(String(Math.ceil(-now)), g.W/2, g.H*0.38); }
+    else if(!f){ ctx.fillStyle='rgba(255,255,255,.6)'; ctx.font='600 15px sans-serif'; ctx.fillText('Clique em COMEÇAR — ou treine tocando nas notas', g.W/2, g.H*0.36); }
+
+    v.raf = requestAnimationFrame(fzLoop);
   }
 
   function frenesiFim(){
     const f = fz; if(!f) return;
-    cancelAnimationFrame(f.raf);
     const total = f.notes.length, prec = (f.perfect+f.good*0.6)/total;
     const est = prec>=0.9?3:prec>=0.7?2:1;
     saveBest(song.id+'_f', est); renderSongs(); sfxFim();
@@ -521,7 +618,7 @@
       <p>Pontos: <b>${f.score}</b> · Perfeitos: <b>${f.perfect}</b> · Bons: <b>${f.good}</b></p>
       <p>Errou: <b>${f.miss}</b> · Toques fora: <b>${f.stray}</b> · Maior combo: <b>${f.max}</b></p>
       <div class="lr-btns"><button class="lr-btn pri" data-a="again">Jogar de novo</button><button class="lr-btn" data-a="next">Próxima música</button><button class="lr-btn" data-a="free">Modo livre</button></div>`;
-    fz = null; cells.forEach(c=>c.classList.remove('target'));
+    fz = null;
     root.querySelector('#lrEnd').classList.add('on');
   }
 
@@ -597,7 +694,7 @@
     escolher(SONGS[0]);
   }
   function fechar(){
-    pararDemo(); frenesiParar(); openFlag = false;
+    pararDemo(); frenesiParar(); fzVista(false); openFlag = false;
     if(root) root.classList.remove('on');
     try{ if(typeof playMenuMusic==='function') playMenuMusic(); }catch(_){}
   }

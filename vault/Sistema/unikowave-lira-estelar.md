@@ -24,3 +24,5 @@ Terceiro modo do Uniko Wave, **independente de música do YouTube**. Entra pelo 
 **NodKrai (out/2026):** 2ª música em tablatura (Difícil). `parseTab` passou a aceitar linha que COMEÇA com pausa (`-----Q---W`): os traços somam ao passo da linha anterior.
 
 **I Loved You (out/2026):** 3ª música em tablatura (Difícil), mesmo formato da NodKrai.
+
+**Layout novo do Frenesi (out/2026, referência: ritmo da lira do Genshin):** em vez de estrelas caindo sobre a grade, o Frenesi agora tem 21 TRILHAS verticais (grupos agudo/médio/grave separados por um vão), notas arredondadas com o nome (do, re…) caindo até os círculos brancos de acerto, tecla em caixinha branca embaixo, combo grande no centro-topo, nome da música + pontos no canto sup. esquerdo e "Perfect/Good/Miss" com estrela amarela. Tudo em canvas (`#lrFall`); a grade da lira some (`.fzhide`, visibility:hidden pra manter o tamanho). A vista (`fv`, `fzVista`/`fzLoop`) roda enquanto o Frenesi está na tela, mesmo antes de COMEÇAR (treino); a partida (`fz`) é separada. Toque/clique: `pointerdown` no canvas escolhe a trilha mais próxima. Em tela de celular as trilhas ficam bem estreitas (21 lado a lado).
