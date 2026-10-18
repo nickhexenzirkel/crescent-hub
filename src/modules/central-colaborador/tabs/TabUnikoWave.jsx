@@ -83,6 +83,18 @@ const TabUnikoWave = ({ active = true }) => {
         localStorage.setItem('dw_custom_skins', JSON.stringify(mapped));
       } catch { localStorage.setItem('dw_custom_skins', '[]'); }
 
+      // Músicas da Lira Estelar (Dashboard RH → Oficina Uniko Wave → Lira
+      // Estelar): tablatura em texto; public/unikowave/lira.js soma ao que já
+      // vem no código. Ver supabase_uniko_wave_lira.sql.
+      try {
+        const { data: liras } = await supabase
+          .from('uniko_wave_lira_songs').select('*').order('created_at', { ascending: true });
+        const mapped = (liras || []).map(l => ({
+          id: l.id, nome: l.nome || '', nivel: l.nivel || 'Médio', unit: Number(l.unit) || 105, tab: l.tab || '',
+        })).filter(l => l.id && l.nome && l.tab);
+        localStorage.setItem('dw_lira_songs', JSON.stringify(mapped));
+      } catch { localStorage.setItem('dw_lira_songs', '[]'); }
+
       // Cenários e texturas (Dashboard RH → Oficina Uniko Wave → Mapas &
       // Texturas): mesmo caminho das personagens — grava antes do iframe subir,
       // porque o jogo lê no load. Ver supabase_uniko_wave_cenarios.sql.

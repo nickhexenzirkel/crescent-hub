@@ -49,7 +49,8 @@
       const ini = /^[-_]+/.exec(l); if(ini && passos.length) passos[passos.length-1].w += ini[0].length;
       const re = /([A-Z]+)([-_]*)/g; let m;
       while((m = re.exec(l))){
-        passos.push({ c:[...new Set(m[1].split('').map(ch=>LETRA_CELULA[ch]))], w:m[2].length+1 });
+        const c = [...new Set(m[1].split('').map(ch=>LETRA_CELULA[ch]).filter(v=>v!==undefined))];
+        if(c.length) passos.push({ c, w:m[2].length+1 });
       }
       if(passos.length) passos[passos.length-1].w += 3; // respiro no fim da linha
     });
@@ -58,10 +59,21 @@
   SONGS.push({ id:'columbina', nome:'Columbina Lullaby', nivel:'Difícil', unit:105, tab:["NE_________Y_________Y______________T","BY_________T____T____W","VE_________Q_________W____E____T","NE_________E","NE_________Y_________BY______________T","NY_________T____T____BW","VE_________Q_________BW____Q____J____G","NQ____CH____N____M____AQ_________BW","VE____Z____V____NQ____AW____N____BQ____J","NQ____CJ____NH____A____NQ____J____BQ____W","VE____Z____V____ZQ____BW____X____BQ____BJ","ZE____C____B____A____XQ_________W","VE____Z____V____ZQ____NW____B____BQ____J","NQ____CJ____NH____A____NH____J____BQ____J","VH____Z____V____ZE____BW____XQ____BJ____BG","NH____C____N____S","N____C____N____S","N____C____M____N____D_________M____B","N____B____M____B____S_________G","NE_________Y_________Y______________T","BY_________T____T____W","VE_________Q_________W____E____T","NE_________E","NE_________Y_________BY______________T","NY_________T____T____BW","VE_________Q_________BW____Q____J____G","NQ____CH____N____M____AQ_________BW","VE____Z____V____NQ____AW____N____BQ____J","NQ____CJ____NH____A____NQ____J____BQ____W","VE____Z____V____ZQ____BW____X____BQ____BJ","ZE____C____B____A____XQ_________W","VE____Z____V____ZQ____NW____B____BQ____J","NQ____CJ____NH____A____NH____J____BQ____J","VH____Z____V____ZE____BW____XQ____BJ____BG","NBH____C____N____S","N____C____N____S____H____J____Q____J","VH______________E____BW____Q____J____G","NH____C____M____A____G____M____A____N","N"] });
   SONGS.push({ id:'nodkrai', nome:'NodKrai', nivel:'Difícil', unit:105, tab:["H---------W---------W--------------Q","W-------E-W-Q----J----G","H---------F---------G----H----Q","H----Q-H-G--H","XH----W----W---------CW--------------Q","VW-------E-W-Q----J----BG--H--G","VH---------F---------BG----F----D----A","XD--F--S","-------------------Q---------W","VE-------R-E-W----Q----BW-------E-W-Q----J","NQ----J----H---------Q----J----BQ----W","VE-------R-E-W----Q----BW---------Q----J","ZE-------------------XQ---------W","VE-------R-E-W----Q----BW-------E-W-Q----J","NQ----J----H---------H----J----BQ----J","VH--------------E----BW----Q----J----G","NH-------------------BH---------NQ","XW--------------X--E-W-Q---------X----J","XH----G----H----X--------------XH","XG---------F----X----D---------XA","BS--------------B----H---------NQ","XW----------------E-W-CQ--------------J","VH----G----H---------X---------H","BG---------F---------ND---------Q","BW-------------------NF---------D","XS","-------------------Q---------W","VE-------R-E-W----Q----BW-------E-W-Q----J","NQ----J----H---------H----J----BQ----J","VH--------------E----BW----Q----J----G","NH"] });
   SONGS.push({ id:'iloveyou', nome:'I Loved You', nivel:'Difícil', unit:105, tab:["NQ----DJ----H----CD----AH----Q","XE----N----R----NW----F","CW----ME----W----MR----SE----J","NW----A----Q----CD----A","NQ----DJ----H----CD----AH----Q","XE----N----W----NR----F","BU----SY----T----XT----MW----R","ZR----B----E----CE----N----M","NQ----DJ----H----CD----AH----Q--W","XE----N----W----MR----SE----D","VQ----A----D----CJ----M----Q","NH----A----D----NH---------G","ZQ--W--BJ--Q--W--E--BR--E--AW----E--R","BT----SR-------H--XT----MR","BT----SR-------H--XT----MR","XQ----NJ-------G--BE----M----W","ZQ----CG----BD--A--BS--A--S--D--F","XG----NT-------R--BW--J--AG--F--D","BW----M--G--H--G--XG----M--G--H--J","ZQ----BY-------T--BE--Q--DJ--Q--W","NE----D--H--W--H--NT----DG--H--E","XT----N-------N--BR----S----G","BT----M-------M--XR----N----G","NH--F--SG--G--H--J--NQ----D----Q","MW--G--SH--J--Q--W--CE----A----H","XR----N----F----BT----S","------------------------G","ZQ----BD-------D--Z----F----BS","ZD"] });
+  try{
+    const extra = JSON.parse(localStorage.getItem('dw_lira_songs')||'[]');
+    (Array.isArray(extra) ? extra : []).forEach(x=>{
+      if(!x || !x.id || !x.nome || typeof x.tab!=='string' || SONGS.some(o=>o.id===x.id)) return;
+      const linhas = x.tab.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+      if(!linhas.length) return;
+      SONGS.push({ id:String(x.id), nome:String(x.nome), nivel:['Fácil','Médio','Difícil'].includes(x.nivel)?x.nivel:'Médio',
+        unit:Math.min(400,Math.max(40,+x.unit||105)), tab:linhas });
+    });
+  }catch(_){}
   SONGS.forEach(s=>{
     if(s.tab){ s.steps = parseTab(s.tab); }
     else { s.steps = parseSeq(s.seq).map(c=>({ c:[c], w:0, ms:s.ms })); }
   });
+  for(let i=SONGS.length-1;i>=0;i--) if(!SONGS[i].steps.length) SONGS.splice(i,1); // tablatura sem nenhuma nota válida
   const stepMs = (s,p) => p.ms || p.w*s.unit;
 
   // Config: errar não soa (não atrapalha a melodia). Ligada por padrão.
@@ -204,7 +216,45 @@
 #liraScr .lr-next{position:absolute;inset:-4%;border-radius:50%;pointer-events:none;display:none;border:2px dashed rgba(127,240,255,.6)}
 #liraScr .lr-cell.next .lr-next{display:block}
 #liraScr .lr-cell.demo .lr-note{animation:lrVib .42s cubic-bezier(.2,.8,.3,1)}
-#liraScr .lr-modes{display:flex;gap:8px;flex-wrap:wrap}
+#liraScr:not(.jogando) .lr-top,#liraScr:not(.jogando) .lr-stage{display:none}
+#liraScr.jogando .lr-lobby{display:none}
+#liraScr .lr-lobby{position:relative;z-index:2;width:100%;max-width:1180px;flex:1;min-height:0;box-sizing:border-box;padding:2vh 20px 2.4vh;display:flex;flex-direction:column;gap:1.6vh}
+#liraScr .lb-head{display:flex;align-items:center;gap:14px;flex:0 0 auto}
+#liraScr .lb-title{font-family:var(--font-pixel,monospace);font-size:clamp(15px,3.2vh,26px);letter-spacing:3px;background:linear-gradient(135deg,#7ff0ff,#c9a8ff,#ffd98a);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+#liraScr .lb-body{flex:1;min-height:0;display:grid;grid-template-columns:1.45fr 1fr;gap:22px}
+#liraScr .lb-songs,#liraScr .lb-set{display:flex;flex-direction:column;min-height:0;min-width:0;gap:1.3vh}
+#liraScr .lb-h{font-family:var(--font-pixel,monospace);font-size:clamp(8px,1.5vh,12px);letter-spacing:2px;color:rgba(255,255,255,.62);flex:0 0 auto}
+#liraScr .lb-grid{flex:1;min-height:0;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);gap:1.5vh 12px}
+#liraScr .lb-song{min-height:0;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:.7vh;padding:0 14px;border-radius:16px;background:rgba(255,255,255,.07);border:2px solid rgba(255,255,255,.15);color:#fff;cursor:pointer;text-align:left;transition:transform .15s,border-color .15s,background .15s}
+#liraScr .lb-song:hover{transform:translateY(-2px);border-color:rgba(159,233,255,.6)}
+#liraScr .lb-song.sel{border-color:#9fe9ff;background:linear-gradient(135deg,rgba(127,240,255,.24),rgba(201,168,255,.24));box-shadow:0 0 22px rgba(127,240,255,.35)}
+#liraScr .lb-song .n{font-size:clamp(12px,2.5vh,21px);font-weight:700;line-height:1.15}
+#liraScr .lb-song .m{font-size:clamp(10px,1.7vh,14px);color:rgba(255,255,255,.65)}
+#liraScr .lb-song .s{font-size:clamp(13px,2.5vh,21px);color:#ffd45a;letter-spacing:2px}
+#liraScr .lb-song .nv{font-style:normal;padding:1px 7px;border-radius:999px;background:rgba(255,255,255,.14);margin-right:4px}
+#liraScr .lb-song .nv-Fácil{background:rgba(80,220,140,.3)}#liraScr .lb-song .nv-Médio{background:rgba(255,200,60,.3)}#liraScr .lb-song .nv-Difícil{background:rgba(255,95,130,.35)}
+#liraScr .lb-modes{display:grid;grid-template-columns:1fr 1fr;gap:12px;flex:0 0 auto}
+#liraScr .lb-card,#liraScr .lb-opt{background:rgba(255,255,255,.07);border:2px solid rgba(255,255,255,.15);color:#fff;border-radius:14px;cursor:pointer;transition:border-color .15s,background .15s}
+#liraScr .lb-card{display:flex;flex-direction:column;gap:.6vh;padding:1.8vh 12px;text-align:center;align-items:center}
+#liraScr .lb-card b{font-size:clamp(11px,2.1vh,17px)}
+#liraScr .lb-card small{font-size:clamp(9px,1.55vh,13px);color:rgba(255,255,255,.65)}
+#liraScr .lb-opt{padding:1.7vh 6px;font-weight:700;font-size:clamp(11px,2vh,16px)}
+#liraScr .lb-card.sel,#liraScr .lb-opt.sel{border-color:#ffd45a;background:linear-gradient(135deg,rgba(255,212,90,.25),rgba(255,95,192,.2));box-shadow:0 0 16px rgba(255,212,90,.35)}
+#liraScr #lrOpts{display:none;flex-direction:column;gap:1.2vh;flex:0 0 auto}
+#liraScr .lb-row3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+#liraScr .lb-row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+#liraScr .lb-set.livre .lb-modes,#liraScr .lb-set.livre #lrOpts{opacity:.3;pointer-events:none}
+#liraScr .lb-play{margin-top:auto;flex:0 0 auto;padding:2.1vh;border:none;border-radius:16px;cursor:pointer;font-family:var(--font-pixel,monospace);font-size:clamp(13px,2.4vh,20px);letter-spacing:3px;color:#150d3b;background:linear-gradient(135deg,#7ff0ff,#b794ff);box-shadow:0 0 26px rgba(127,240,255,.45);animation:lrPulse 1.6s ease-in-out infinite}
+@media (max-width:760px){
+  #liraScr .lr-lobby{padding:1.4vh 12px 1.6vh}
+  #liraScr .lb-body{grid-template-columns:1fr;grid-template-rows:minmax(0,1.1fr) minmax(0,1fr);gap:1.4vh}
+  #liraScr .lb-grid{gap:6px}
+  #liraScr .lb-song{padding:0 8px;gap:.3vh}
+  #liraScr .lb-song .m{display:none}
+  #liraScr .lb-card small{display:none}
+  #liraScr .lb-card{padding:1.2vh 6px}
+  #liraScr .lb-opt{padding:1.2vh 4px}
+}
 #liraScr .lr-modes .lr-chip{font-family:var(--font-pixel,monospace);font-size:9px;letter-spacing:1px;padding:9px 14px}
 #liraScr .lr-fall{position:absolute;inset:0;width:100%;height:100%;display:none;z-index:4;touch-action:none}
 #liraScr .lr-fall.on{display:block}
@@ -259,7 +309,7 @@
       <div class="lr-stars">${stars}</div>
       <div class="lr-top">
         <div class="lr-bar">
-          <button class="lr-back" data-a="close">◀ VOLTAR</button>
+          <button class="lr-back" data-a="lobby">◀ MENU</button>
           <div class="lr-title">LIRA ESTELAR</div>
           <div class="lr-sp"></div>
           <button class="lr-back" data-a="mudo" id="lrMudo" title="Quando ligado, tocar uma nota errada não faz som"></button>
@@ -267,21 +317,36 @@
           <div class="lr-stat">ERROS <b id="lrErr">0</b></div>
           <div class="lr-stat">SEQ <b id="lrStreak">0</b></div>
         </div>
-        <div class="lr-modes">
-          <button class="lr-chip" data-a="modo-maestro" id="lrMM">🎼 MODO MAESTRO</button>
-          <button class="lr-chip" data-a="modo-frenesi" id="lrMF">🌠 FRENESI ESTELAR</button>
-          <span id="lrOpts" style="display:none;gap:8px;margin-left:auto;flex-wrap:wrap">
-            <button class="lr-chip" data-a="dif-facil" id="lrDfacil">🟢 FÁCIL</button>
-            <button class="lr-chip" data-a="dif-medio" id="lrDmedio">🟡 MÉDIO</button>
-            <button class="lr-chip" data-a="dif-dificil" id="lrDdificil">🔴 DIFÍCIL</button>
-            <button class="lr-chip" data-a="nt-todas" id="lrNT">🎹 21 NOTAS</button>
-            <button class="lr-chip" data-a="nt-facil" id="lrNF">4 BOTÕES</button>
-          </span>
-        </div>
-        <div class="lr-songs" id="lrSongs"></div>
         <div class="lr-queue" id="lrQueue"></div>
         <div class="lr-prog"><i id="lrProg"></i></div>
         <div class="lr-hint" id="lrHint"></div>
+      </div>
+      <div class="lr-lobby">
+        <div class="lb-head"><button class="lr-back" data-a="close">◀ SAIR</button><div class="lb-title">LIRA ESTELAR</div></div>
+        <div class="lb-body">
+          <section class="lb-songs"><div class="lb-h">1 · ESCOLHA A MÚSICA</div><div class="lb-grid" id="lrSongs"></div></section>
+          <section class="lb-set" id="lbSet">
+            <div class="lb-h">2 · ESCOLHA O MODO</div>
+            <div class="lb-modes">
+              <button class="lb-card" data-a="modo-maestro" id="lrMM"><b>🎼 MODO MAESTRO</b><small>A lira te guia nota por nota</small></button>
+              <button class="lb-card" data-a="modo-frenesi" id="lrMF"><b>🌠 FRENESI ESTELAR</b><small>Estrelas caem no ritmo</small></button>
+            </div>
+            <div id="lrOpts">
+              <div class="lb-h">3 · DIFICULDADE (VELOCIDADE)</div>
+              <div class="lb-row3">
+                <button class="lb-opt" data-a="dif-facil" id="lrDfacil">🟢 FÁCIL</button>
+                <button class="lb-opt" data-a="dif-medio" id="lrDmedio">🟡 MÉDIO</button>
+                <button class="lb-opt" data-a="dif-dificil" id="lrDdificil">🔴 DIFÍCIL</button>
+              </div>
+              <div class="lb-h">NOTAS</div>
+              <div class="lb-row2">
+                <button class="lb-opt" data-a="nt-todas" id="lrNT">🎹 21 NOTAS</button>
+                <button class="lb-opt" data-a="nt-facil" id="lrNF">4 BOTÕES (A S D F)</button>
+              </div>
+            </div>
+            <button class="lb-play" data-a="jogar">▶ JOGAR</button>
+          </section>
+        </div>
       </div>
       <div class="lr-stage"><div class="lr-grid" id="lrGrid">${grid}</div><canvas class="lr-fall" id="lrFall"></canvas></div>
       <div class="lr-end" id="lrEnd"><div class="lr-card" id="lrCard"></div></div>`;
@@ -293,9 +358,13 @@
       c.addEventListener('pointerdown',e=>{ e.preventDefault(); tocar(+c.dataset.cell); });
     });
     root.addEventListener('click',e=>{
+      const sg = e.target.closest('[data-song]');
+      if(sg){ song = sg.dataset.song ? SONGS.find(x=>x.id===sg.dataset.song) : null; renderSongs(); return; }
       const b = e.target.closest('[data-a]'); if(!b) return;
       const a = b.dataset.a;
       if(a==='close') fechar();
+      else if(a==='lobby') voltarLobby();
+      else if(a==='jogar') iniciarJogo();
       else if(a==='demo') ouvir();
       else if(a==='mudo'){ mudoErro = !mudoErro; try{ localStorage.setItem(KEY_MUDO, mudoErro?'1':'0'); }catch(_){} rotuloMudo(); }
       else if(a==='free') escolher(null);
@@ -329,9 +398,11 @@
   function renderSongs(){
     const best = loadBest(), el = root.querySelector('#lrSongs');
     const stars = n => '★'.repeat(n)+'☆'.repeat(3-n);
-    el.innerHTML = `<button class="lr-chip ${song?'':'sel'}" data-a="free">🎵 Livre</button>` +
-      SONGS.map(s=>`<button class="lr-chip ${song===s?'sel':''}" data-song="${s.id}">${s.nome} <small>${s.nivel} · ${stars(best[bestKey(s.id)]||0)}</small></button>`).join('');
-    el.querySelectorAll('[data-song]').forEach(b=>b.addEventListener('click',()=>escolher(SONGS.find(s=>s.id===b.dataset.song))));
+    el.innerHTML = SONGS.map(x=>`<button class="lb-song ${song===x?'sel':''}" data-song="${x.id}"><span class="n">${x.nome}</span><span class="m"><i class="nv nv-${x.nivel}">${x.nivel}</i>${x.steps.length} notas</span><span class="s">${stars(best[bestKey(x.id)]||0)}</span></button>`).join('')
+      + `<button class="lb-song ${song?'':'sel'}" data-song=""><span class="n">🎵 Modo Livre</span><span class="m">Toque à vontade, sem guia</span></button>`;
+    const total = SONGS.length+1, cols = total>12 ? 4 : 3;
+    el.style.gridTemplateColumns = `repeat(${cols},1fr)`; el.style.gridTemplateRows = `repeat(${Math.ceil(total/cols)},1fr)`;
+    root.querySelector('#lbSet').classList.toggle('livre', !song);
   }
 
   function pararDemo(){ demoTimers.forEach(clearTimeout); demoTimers = []; demoOn = false; cells.forEach(c=>c.classList.remove('demo')); }
@@ -340,6 +411,7 @@
     pararDemo(); frenesiParar();
     song = s; idx = 0; got = new Set(); errors = 0; streak = 0; bestStreak = 0; done = false;
     root.querySelector('#lrEnd').classList.remove('on');
+    root.querySelector('.lr-title').textContent = song ? song.nome : 'LIRA ESTELAR · LIVRE';
     renderSongs(); atualizar();
   }
 
@@ -440,12 +512,12 @@
   function trocarDif(d){
     if(!DIFS[d] || d===dif) return;
     dif = d; try{ localStorage.setItem(KEY_DIF, d); }catch(_){}
-    rotuloModo(); escolher(song); if(fv) fzGeom();
+    rotuloModo();
   }
   function trocarFacil(v){
     if(v===facil) return;
     facil = v; try{ localStorage.setItem(KEY_FACIL, v?'1':'0'); }catch(_){}
-    rotuloModo(); escolher(song); if(fv) fzGeom();
+    rotuloModo();
   }
   let fz = null;   // partida em andamento (null = treino antes de começar)
   let fv = null;   // vista (loop de desenho + geometria) — vive enquanto o Frenesi está na tela
@@ -454,7 +526,7 @@
   function trocarModo(m){
     if(m===modo) return;
     modo = m; try{ localStorage.setItem(KEY_MODO, m); }catch(_){}
-    rotuloModo(); escolher(song);
+    rotuloModo();
   }
   function rotuloModo(){
     root.querySelector('#lrMM').classList.toggle('sel', modo==='maestro');
@@ -673,7 +745,7 @@
       <div class="lr-stars-row">${star}</div>
       <p>Pontos: <b>${f.score}</b> · Perfeitos: <b>${f.perfect}</b> · Bons: <b>${f.good}</b></p>
       <p>Errou: <b>${f.miss}</b> · Toques fora: <b>${f.stray}</b> · Maior combo: <b>${f.max}</b></p>
-      <div class="lr-btns"><button class="lr-btn pri" data-a="again">Jogar de novo</button><button class="lr-btn" data-a="next">Próxima música</button><button class="lr-btn" data-a="free">Modo livre</button></div>`;
+      <div class="lr-btns"><button class="lr-btn pri" data-a="again">Jogar de novo</button><button class="lr-btn" data-a="next">Próxima música</button><button class="lr-btn" data-a="lobby">Menu de músicas</button></div>`;
     fz = null;
     root.querySelector('#lrEnd').classList.add('on');
   }
@@ -712,7 +784,7 @@
       <h2>MÚSICA COMPLETA!</h2><p>${song.nome}</p>
       <div class="lr-stars-row">${star}</div>
       <p>Precisão: <b>${Math.round(prec*100)}%</b> · Erros: <b>${errors}</b> · Maior sequência: <b>${bestStreak}</b></p>
-      <div class="lr-btns"><button class="lr-btn pri" data-a="again">Tocar de novo</button><button class="lr-btn" data-a="next">Próxima música</button><button class="lr-btn" data-a="free">Modo livre</button></div>`;
+      <div class="lr-btns"><button class="lr-btn pri" data-a="again">Tocar de novo</button><button class="lr-btn" data-a="next">Próxima música</button><button class="lr-btn" data-a="lobby">Menu de músicas</button></div>`;
     root.querySelector('#lrEnd').classList.add('on');
   }
 
@@ -731,10 +803,25 @@
     root.querySelector('#lrHint').textContent = 'Ouvindo… (clique em "Ouvir" de novo pra parar)';
   }
 
+  function iniciarJogo(){
+    root.classList.add('jogando');
+    escolher(song);
+    if(modo==='frenesi' && song) frenesiIniciar();
+  }
+  function voltarLobby(){
+    pararDemo(); frenesiParar(); fzVista(false);
+    root.querySelector('#lrEnd').classList.remove('on');
+    cells.forEach(c=>c.classList.remove('target','next','multi'));
+    root.classList.remove('jogando');
+    root.querySelector('.lr-title').textContent = 'LIRA ESTELAR';
+    renderSongs(); rotuloModo();
+  }
+
   function onKey(e){
     if(!openFlag) return;
     e.stopImmediatePropagation(); // o resto do Uniko Wave não deve reagir às teclas aqui
-    if(e.code==='Escape'){ e.preventDefault(); fechar(); return; }
+    if(e.code==='Escape'){ e.preventDefault(); if(root.classList.contains('jogando')) voltarLobby(); else fechar(); return; }
+    if(!root.classList.contains('jogando')){ if(e.code==='Enter'){ e.preventDefault(); iniciarJogo(); } return; }
     if(e.repeat) return;
     if(modo==='frenesi' && song && facil){ // 4 botões: A S D F
       const l = FACIL_KEYS.indexOf(e.code);
@@ -747,15 +834,19 @@
     }
   }
 
+  let jaAbriu = false;
   function abrir(){
     build();
     openFlag = true; root.classList.add('on');
     try{ if(typeof pauseMenuMusic==='function') pauseMenuMusic(); }catch(_){}
     audio();
-    escolher(SONGS[0]);
+    root.classList.remove('jogando');
+    if(!jaAbriu){ song = SONGS[0]; jaAbriu = true; }
+    renderSongs(); rotuloModo();
   }
   function fechar(){
     pararDemo(); frenesiParar(); fzVista(false); openFlag = false;
+    if(root) root.classList.remove('jogando');
     if(root) root.classList.remove('on');
     try{ if(typeof playMenuMusic==='function') playMenuMusic(); }catch(_){}
   }

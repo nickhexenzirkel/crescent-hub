@@ -74,7 +74,7 @@ Abra a pasta `vault/` como um cofre (vault) no Obsidian.
 - [[unikowave-cloud-save]] — Uniko Wave — save por CONTA (personagens/carteira/perfil) no Supabase, não mais só localStorage
 - [[unikowave-gacha-audicao]] — Uniko Wave — aba Audição (gacha estilo Genshin) para conquistar personagens com GW
 - [[unikowave-guerra-estelar]] — Uniko Wave — modo Guerra Estelar (estilo Muse Dash) com Mizuki
-- [[unikowave-lira-estelar]] — Uniko Wave — modo Lira Estelar (estilo lira do Genshin): 21 notas, círculo dourado guia a próxima nota
+- [[unikowave-lira-estelar]] — Uniko Wave — modo Lira Estelar (lira do Genshin): lobby grande, Maestro e Frenesi (21 notas ou 4 botões, 3 dificuldades), músicas por tablatura (também pelo Dashboard RH; precisa SQL supabase_uniko_wave_lira.sql)
 - [[unikowave-mapas-texturas]] — Dashboard RH → Oficina Uniko Wave ganhou a sub-aba "Mapas & Texturas" (cenário de fundo imagem/vídeo + esteira, minions, boss); PRECISA rodar supabase_uniko_wave_cenarios.sql
 - [[unikowave-mobile]] — Uniko Wave no celular — detecção mobile, jogo mais fácil e toque/layout responsivo
 - [[unikowave-note-generation]] — Como o mapa de notas do Uniko Wave é gerado (RNG semeado, densidade, padrões)

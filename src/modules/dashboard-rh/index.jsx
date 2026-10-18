@@ -17,6 +17,7 @@ import PaineisTab from './PaineisTab';
 import VisitanteConfigTab from './VisitanteConfigTab';
 import CorreiosTab from './CorreiosTab';
 import OficinaWaveSkinsTab from './OficinaWaveSkinsTab';
+import OficinaWaveLiraTab from './OficinaWaveLiraTab';
 import { useContrachequeModo, saveContrachequeModo } from '../../shared/contrachequeModo';
 import ContrachequeGeradoUniko from './ContrachequeGeradoUniko';
 import {
@@ -3782,6 +3783,8 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin', initialTa
                 <div style={{fontSize:12.5,color:T.textS,lineHeight:1.5}}>
                   {owSub==='cenarios'
                     ? <>Monte <b>mapas e texturas</b> pro jogo: cenário de fundo (imagem ou vídeo) no Teclado Estelar e na Guerra Estelar, mais a esteira, os minions, o minion grande e o boss. Campo que você deixar vazio mantém a arte original. Cada mapa publicado vira uma opção no seletor <b>“Mapa”</b> da tela de preview — quem joga escolhe qual usar.</>
+                    : owSub==='lira'
+                    ? <>Adicione <b>músicas novas à Lira Estelar</b> colando a <b>tablatura</b> em texto (mesmo formato da Columbina Lullaby, NodKrai e I Loved You). Cada letra é uma tecla da lira, letras coladas são acorde e traços são pausas. A música aparece na biblioteca da Lira Estelar pra todo mundo, sem deploy.</>
                     : owSub==='skins'
                     ? <>Crie <b>skins</b> — um visual alternativo pra um personagem que <b>já existe</b> (não cria personagem novo). O jogador compra direto com os <b>GW que ganha jogando partidas</b> (sem gacha, preço fixo que você define) e equipa na tela de personagens.</>
                     : <>Crie personagens pro <b>Uniko Wave</b>. Elas entram no gacha da <b>Audição</b> (jogadores conquistam com GW) e valem nos dois modos — ritmo e Guerra Estelar. Só imagens PNG (fundo transparente) + nome, descrição e cor.</>}
@@ -3790,7 +3793,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin', initialTa
 
               {/* Sub-abas */}
               <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
-                {[{k:'personagens',label:'🎭 Personagens'},{k:'cenarios',label:'🗺️ Mapas & Texturas'},{k:'skins',label:'🎨 Skins'}].map(t=>{
+                {[{k:'personagens',label:'🎭 Personagens'},{k:'cenarios',label:'🗺️ Mapas & Texturas'},{k:'skins',label:'🎨 Skins'},{k:'lira',label:'🎵 Lira Estelar'}].map(t=>{
                   const on = owSub===t.k;
                   return (
                     <button key={t.k} onClick={()=>setOwSub(t.k)} style={{padding:'9px 18px',borderRadius:10,cursor:'pointer',fontFamily:'var(--font-body)',fontSize:13.5,fontWeight:on?700:600,
@@ -4043,6 +4046,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin', initialTa
               })()}
 
               {owSub==='skins' && <OficinaWaveSkinsTab cardBg={cardBg} adminName={adminName} owLista={owLista}/>}
+              {owSub==='lira' && <OficinaWaveLiraTab cardBg={cardBg} adminName={adminName}/>}
             </div>
           )}
 
