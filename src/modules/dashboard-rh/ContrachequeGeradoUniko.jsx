@@ -84,13 +84,13 @@ const ContrachequeGeradoUniko = ({ cardBg, empList, onGerado }) => {
 
   const salario = Number(emp?.salary) || 0;
   const inss = Number(emp?.inss) || 0;
-  const vt = Number(emp?.vt) || 0;
   const ir = Number(emp?.ir) || 0;
   const fgts = +(salario * 0.08).toFixed(2);
 
+  // 1K Service NUNCA entra no contracheque (pedido explícito do dono,
+  // 17/10/2026) — mesmo que o funcionário tenha o campo `vt` preenchido.
   const verbas = [
     salario > 0 && { cod: '011', descricao: 'Salário-Base', referencia: '30 dia(s)', provento: salario },
-    vt > 0 && { cod: '', descricao: '1K Service', referencia: '', provento: vt },
     inss > 0 && { cod: '310', descricao: 'INSS', referencia: salario ? `${((inss / salario) * 100).toFixed(0)}%` : '', desconto: inss },
     ir > 0 && { cod: '', descricao: 'IRRF', referencia: '', desconto: ir },
   ].filter(Boolean);
@@ -198,7 +198,6 @@ const ContrachequeGeradoUniko = ({ cardBg, empList, onGerado }) => {
 
               <div style={{ fontSize: 12.5, color: T.textS, background: T.surfaceSub || 'rgba(0,0,0,0.04)', borderRadius: 10, padding: '10px 12px', lineHeight: 1.7 }}>
                 Salário-Base: <strong>R$ {salario.toFixed(2)}</strong><br/>
-                {vt > 0 && <>1K Service: <strong>R$ {vt.toFixed(2)}</strong><br/></>}
                 INSS (cadastrado): <strong>R$ {inss.toFixed(2)}</strong><br/>
                 {ir > 0 && <>IRRF (cadastrado): <strong>R$ {ir.toFixed(2)}</strong><br/></>}
                 FGTS (8%, calculado): <strong>R$ {fgts.toFixed(2)}</strong>
