@@ -8,7 +8,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { T } from '../../contexts/theme';
 import { supabase } from '../../contexts/user';
 import { detectarBpm, msPorTraco } from './detectarBpm';
-import { transcreverLira } from './transcreverLira';
+import { transcreverLira, tocarPrevia, NIVEIS_TRANSCRICAO } from './transcreverLira';
 
 const TECLAS = 'QWERTYUASDFGHJZXCVBNM';
 const NIVEIS = ['Fácil', 'Médio', 'Difícil'];
@@ -152,7 +152,16 @@ const OficinaWaveLiraTab = ({ cardBg, adminName }) => {
   };
   // Áudio → tablatura. Descobre o andamento (se ainda não foi) e transcreve as notas.
   const [transc, setTransc] = useState('');
-  const [maxNotas, setMaxNotas] = useState('2');
+  const [nivelTr, setNivelTr] = useState('equilibrado');
+  const [parar, setParar] = useState(null);   // função que para a prévia, se estiver tocando
+  const previa = () => {
+    if (parar) { parar(); setParar(null); return; }
+    const u = Math.min(400, Math.max(40, parseInt(unit, 10) || 105));
+    const stop = tocarPrevia(tab, u);
+    const total = limparLinhas(tab).join('').length * u + 4000;
+    const t = setTimeout(() => setParar(null), Math.min(total, 240000));
+    setParar(() => () => { clearTimeout(t); stop(); });
+  };
   const transcrever = async (e) => {
     const arq = e.target.files?.[0]; e.target.value = '';
     if (!arq) return;
@@ -163,7 +172,7 @@ const OficinaWaveLiraTab = ({ cardBg, adminName }) => {
       if (!b) { b = await detectarBpm(arq); setBpm(b); }
       const u = Math.min(400, Math.max(40, msPorTraco(b, +tracosTempo)));
       setUnit(String(u));
-      const r = await transcreverLira(arq, { unit: u, maxNotas: +maxNotas, aoProgresso: setTransc });
+      const r = await transcreverLira(arq, { unit: u, nivel: nivelTr, aoProgresso: setTransc });
       setTab(r.tab);
       const ajuste = [r.tom && `tom ${r.tom > 0 ? '+' : ''}${r.tom} semitons`, r.oitava && `${Math.abs(r.oitava)} oitava(s) ${r.oitava > 0 ? 'acima' : 'abaixo'}`].filter(Boolean).join(', ');
       setMsg(`✅ ${r.notas} notas (${r.acordes} acordes) a ${b} BPM${ajuste ? ' — ajustado pra caber na lira: ' + ajuste : ''}. Ouça no jogo e corrija o que ficou estranho.`);
@@ -311,12 +320,17 @@ const OficinaWaveLiraTab = ({ cardBg, adminName }) => {
             {detectando ? (transc || 'Analisando…') : '🎼 Gerar tablatura do áudio'}
             <input type="file" accept="audio/*" onChange={transcrever} disabled={detectando} style={{ display: 'none' }}/>
           </label>
-          <span style={{ fontSize: 12, color: T.textS }}>notas juntas (máx.):</span>
-          <select value={maxNotas} onChange={e => setMaxNotas(e.target.value)} style={{ ...inputSt, width: 'auto', padding: '7px 9px' }}>
-            {[1, 2, 3].map(n => <option key={n} value={n}>{n}</option>)}
+          <span style={{ fontSize: 12, color: T.textS }}>fidelidade:</span>
+          <select value={nivelTr} onChange={e => setNivelTr(e.target.value)} style={{ ...inputSt, width: 'auto', padding: '7px 9px' }}>
+            {Object.entries(NIVEIS_TRANSCRICAO).map(([k, v]) => <option key={k} value={k}>{v.rotulo}</option>)}
           </select>
+          {tab.trim() && (
+            <button onClick={previa} style={{ padding: '8px 14px', borderRadius: 9, border: `1px solid ${T.border}`, background: 'transparent', cursor: 'pointer', fontSize: 12.5, fontWeight: 600, color: T.text }}>
+              {parar ? '⏹ Parar' : '▶ Ouvir prévia'}
+            </button>
+          )}
           <span style={{ fontSize: 12, color: T.textT, flex: 1, minWidth: 200 }}>
-            Envia o MP3: o sistema acha o andamento, o tom e as notas e escreve a tablatura abaixo. Funciona melhor com piano, violão ou melodia limpa. O som no jogo continua sendo o da lira.
+            Envia o MP3: o sistema acha o andamento, o tom e as notas e escreve a tablatura abaixo. <b>Simples</b> = só as notas fortes, uma por vez; <b>Equilibrado</b> = melodia + acorde quando é nítido; <b>Fiel</b> = tudo que achar (pesado). Funciona melhor com piano, violão ou melodia limpa.
           </span>
         </div>
         <div>

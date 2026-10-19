@@ -42,7 +42,16 @@ function forca(x, ini, sr, midi) {
   return v;
 }
 
-export async function transcreverLira(arquivo, { unit, maxNotas = 2, aoProgresso } = {}) {
+// Quão "fiel" ao áudio: simples = só as notas fortes e claras, uma por vez (fácil de jogar);
+// equilibrado = melodia + acorde só quando é nítido; fiel = tudo que achar (pode ficar pesado).
+export const NIVEIS_TRANSCRICAO = {
+  simples:      { rotulo: 'Simples',      limiar: 2.6, maxNotas: 1, relAcorde: 0.85, espaco: 2,   prominencia: 2.6 },
+  equilibrado:  { rotulo: 'Equilibrado',  limiar: 2.0, maxNotas: 2, relAcorde: 0.75, espaco: 1.5, prominencia: 2.2 },
+  fiel:         { rotulo: 'Fiel',         limiar: 1.6, maxNotas: 3, relAcorde: 0.55, espaco: 1,   prominencia: 1.8 },
+};
+
+export async function transcreverLira(arquivo, { unit, nivel = 'equilibrado', aoProgresso } = {}) {
+  const cfg = NIVEIS_TRANSCRICAO[nivel] || NIVEIS_TRANSCRICAO.equilibrado;
   const Ctx = window.AudioContext || window.webkitAudioContext;
   if (!Ctx) throw new Error('Este navegador não consegue ler áudio.');
   const ctx = new Ctx();
@@ -75,14 +84,14 @@ export async function transcreverLira(arquivo, { unit, maxNotas = 2, aoProgresso
   const flux = new Float32Array(n);
   for (let i = 1; i < n; i++) flux[i] = Math.max(0, env[i] - env[i - 1]);
   const ataques = [];
-  const J = 20, minDist = Math.max(4, Math.round(unit / 10 * 0.7));
+  const J = 20, minDist = Math.max(4, Math.round(unit / 10 * cfg.espaco));
   for (let i = 1; i < n - 3; i++) {
     let m = 0, c = 0;
     for (let k = Math.max(0, i - J); k < Math.min(n, i + J); k++) { m += flux[k]; c++; }
     m /= c;
     let pico = true;
     for (let k = Math.max(0, i - 3); k <= i + 3; k++) if (flux[k] > flux[i]) { pico = false; break; }
-    if (pico && flux[i] > m * 1.6 + 1e-4) {
+    if (pico && flux[i] > m * cfg.limiar + 1e-4) {
       const ult = ataques[ataques.length - 1];
       if (ult && i - ult.i < minDist) { if (flux[i] > ult.f) { ult.i = i; ult.f = flux[i]; } }
       else ataques.push({ i, f: flux[i] });
@@ -126,17 +135,24 @@ export async function transcreverLira(arquivo, { unit, maxNotas = 2, aoProgresso
   for (const a of achados) {
     const topo = a.pontos[0];
     if (topo.v < piso) continue;
+    // som sem altura definida (bateria, chiado, voz falada) espalha energia por todas as notas:
+    // se a mais forte não se destaca da mediana, não é nota — fica pausa em vez de barulho
+    const mediana = a.pontos[10].v || 1e-9;
+    if (topo.v / mediana < cfg.prominencia) continue;
     const escolhidas = [topo.idx];
-    for (let k = 1; k < a.pontos.length && escolhidas.length < maxNotas; k++) {
+    for (let k = 1; k < a.pontos.length && escolhidas.length < cfg.maxNotas; k++) {
       const p = a.pontos[k];
-      if (p.v < topo.v * 0.55) break;
-      // oitava de uma já escolhida = quase sempre só o harmônico dela
-      if (escolhidas.some(e => CELULAS[e].pc === CELULAS[p.idx].pc)) continue;
+      if (p.v < topo.v * cfg.relAcorde) break;
+      // mesma nota em outra oitava = quase sempre só o harmônico; vizinha = vazamento do espectro
+      if (escolhidas.some(e => CELULAS[e].pc === CELULAS[p.idx].pc || Math.abs(e - p.idx) < 2)) continue;
       escolhidas.push(p.idx);
     }
     const slot = Math.round((a.i - t0) * 10 / unit);
     const atual = porSlot.get(slot);
     if (!atual || topo.v > atual.v) porSlot.set(slot, { cel: escolhidas, v: topo.v });
+    // a mesma nota de novo logo depois costuma ser só eco/cauda da anterior, não uma batida nova
+    const anterior = porSlot.get(slot - 1);
+    if (anterior && anterior.cel.join() === escolhidas.join() && !porSlot.get(slot - 2)) porSlot.delete(slot);
   }
   if (porSlot.size < 4) throw new Error('Não deu pra montar uma melodia com esse áudio.');
 
@@ -154,4 +170,27 @@ export async function transcreverLira(arquivo, { unit, maxNotas = 2, aoProgresso
   }
   if (atual.replace(/-/g, '')) linhas.push(atual.replace(/-+$/, ''));
   return { tab: linhas.join('\n'), notas, acordes, tom: melhor.t, oitava: melhor.o / 12 };
+}
+
+// Prévia: toca a tablatura gerada (pluck simples) pra o RH ouvir e comparar com a música.
+export function tocarPrevia(tab, unit) {
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  const ac = new Ctx(); const mestre = ac.createGain(); mestre.gain.value = 0.35; mestre.connect(ac.destination);
+  const mapa = {}; CELULAS.forEach(c => { mapa[c.letra] = c.midi; });
+  let t = ac.currentTime + 0.1;
+  for (const l of (tab || '').split(/\r?\n/).map(x => x.replace(/\s+/g, '')).filter(Boolean)) {
+    const re = /([A-Z]+)([-_]*)/g; let m;
+    while ((m = re.exec(l))) {
+      for (const ch of new Set(m[1])) {
+        if (mapa[ch] === undefined) continue;
+        const o = ac.createOscillator(), g = ac.createGain();
+        o.type = 'triangle'; o.frequency.value = hz(mapa[ch]);
+        g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.6, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.7);
+        o.connect(g); g.connect(mestre); o.start(t); o.stop(t + 0.75);
+      }
+      t += (m[2].length + 1) * unit / 1000;
+    }
+    t += 3 * unit / 1000;
+  }
+  return () => { try { ac.close(); } catch { /* já fechado */ } };
 }
