@@ -1498,7 +1498,11 @@ const MenuLayoutNovo = ({ mods, onSelect, getModuleColor, authUser, userPhoto, a
       const next = dif > 0
         ? { mod: porLinhaMod <= LINHA_MOD_MAX - LINHA_MOD ? Math.round(porLinhaMod) : 0, wid: 0 }
         : { mod: 0, wid: porLinhaWid <= LINHA_MAX - LINHA ? Math.round(porLinhaWid) : 0 };
-      return next.mod === f.mod && next.wid === f.wid ? f : next;
+      // Tolerância de 1px: com zoom/escala fracionada (125%, 150%) o navegador
+      // arredonda cada linha pra pixel do dispositivo, então a medição muda um
+      // tiquinho conforme a folga aplicada e o cálculo ficava alternando entre
+      // dois valores — a grade inteira subia e descia sem parar.
+      return Math.abs(next.mod - f.mod) <= 1 && Math.abs(next.wid - f.wid) <= 1 ? f : next;
     });
     medir();
     const ro = new ResizeObserver(medir);
