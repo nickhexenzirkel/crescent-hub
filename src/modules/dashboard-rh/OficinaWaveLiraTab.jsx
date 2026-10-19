@@ -7,6 +7,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { T } from '../../contexts/theme';
 import { supabase } from '../../contexts/user';
+import { detectarBpm, msPorTraco } from './detectarBpm';
 
 const TECLAS = 'QWERTYUASDFGHJZXCVBNM';
 const NIVEIS = ['Fácil', 'Médio', 'Difícil'];
@@ -132,6 +133,34 @@ const OficinaWaveLiraTab = ({ cardBg, adminName }) => {
   const [tab, setTab] = useState('');
   const [salvando, setSalvando] = useState(false);
   const [msg, setMsg] = useState('');
+  const [editId, setEditId] = useState(null);   // música em edição (null = criando)
+  const [bpm, setBpm] = useState(null);
+  const [tracosTempo, setTracosTempo] = useState('4');
+  const [detectando, setDetectando] = useState(false);
+
+  // Lê o áudio, descobre o BPM e já preenche os ms por traço.
+  const detectar = async (e) => {
+    const arq = e.target.files?.[0]; e.target.value = '';
+    if (!arq) return;
+    setDetectando(true); setMsg('');
+    try {
+      const b = await detectarBpm(arq);
+      setBpm(b); setUnit(String(Math.min(400, Math.max(40, msPorTraco(b, +tracosTempo)))));
+    } catch (err) { setBpm(null); setMsg('⚠️ ' + (err.message || 'Erro ao detectar o andamento.')); }
+    setDetectando(false);
+  };
+  const mudarTracos = (v) => {
+    setTracosTempo(v);
+    if (bpm) setUnit(String(Math.min(400, Math.max(40, msPorTraco(bpm, +v)))));
+  };
+
+  const editar = (s) => {
+    setEditId(s.id); setNome(s.nome); setNivel(s.nivel || 'Médio'); setUnit(String(s.unit)); setTab(s.tab || '');
+    setBpm(null); setMsg(''); window.scrollTo?.({ top: 0, behavior: 'smooth' });
+  };
+  const cancelarEdicao = () => {
+    setEditId(null); setNome(''); setTab(''); setUnit('105'); setNivel('Médio'); setBpm(null); setMsg('');
+  };
 
   const carregar = async () => {
     setLoading(true);
@@ -154,14 +183,16 @@ const OficinaWaveLiraTab = ({ cardBg, adminName }) => {
     const u = Math.min(400, Math.max(40, parseInt(unit, 10) || 105));
     setSalvando(true); setMsg('');
     try {
-      const id = `${slugify(n)}-${Math.random().toString(36).slice(2, 6)}`;
       const linhas = limparLinhas(tab).join('\n');
-      const { error } = await supabase.from('uniko_wave_lira_songs').insert({
-        id, nome: n, nivel, unit: u, tab: linhas, created_by: adminName || null,
-      });
+      const editando = !!editId;
+      const { error } = editando
+        ? await supabase.from('uniko_wave_lira_songs').update({ nome: n, nivel, unit: u, tab: linhas }).eq('id', editId)
+        : await supabase.from('uniko_wave_lira_songs').insert({
+          id: `${slugify(n)}-${Math.random().toString(36).slice(2, 6)}`, nome: n, nivel, unit: u, tab: linhas, created_by: adminName || null,
+        });
       if (error) throw error;
-      setNome(''); setTab(''); setUnit('105'); setNivel('Médio');
-      setMsg('✅ Música adicionada! Aparece na Lira Estelar na próxima vez que o jogo abrir.');
+      cancelarEdicao();
+      setMsg(editando ? '✅ Música atualizada! Vale na próxima vez que o jogo abrir.' : '✅ Música adicionada! Aparece na Lira Estelar na próxima vez que o jogo abrir.');
       await carregar();
       setTimeout(() => setMsg(''), 6000);
     } catch (e) { setMsg('⚠️ ' + (e.message || 'Erro ao salvar (o SQL supabase_uniko_wave_lira.sql já foi rodado?)')); }
@@ -170,7 +201,7 @@ const OficinaWaveLiraTab = ({ cardBg, adminName }) => {
 
   const excluir = async (s) => {
     if (!window.confirm(`Excluir a música "${s.nome}" da Lira Estelar?`)) return;
-    try { await supabase.from('uniko_wave_lira_songs').delete().eq('id', s.id); await carregar(); }
+    try { await supabase.from('uniko_wave_lira_songs').delete().eq('id', s.id); if (editId === s.id) cancelarEdicao(); await carregar(); }
     catch (e) { setMsg('⚠️ Erro ao excluir: ' + (e.message || '')); setTimeout(() => setMsg(''), 5000); }
   };
 
@@ -220,7 +251,8 @@ const OficinaWaveLiraTab = ({ cardBg, adminName }) => {
         {cfgMsg && <div style={{ fontSize: 12.5, color: cfgMsg.startsWith('✅') ? '#16a34a' : '#C04050', padding: '8px 12px', borderRadius: 9, background: cfgMsg.startsWith('✅') ? 'rgba(34,197,94,0.08)' : 'rgba(192,64,80,0.06)' }}>{cfgMsg}</div>}
       </div>
 
-      <div style={{ padding: 18, borderRadius: 13, background: cardBg, border: `1px solid ${T.border}`, boxShadow: T.shM, display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ padding: 18, borderRadius: 13, background: cardBg, border: `1px solid ${editId ? T.gold : T.border}`, boxShadow: T.shM, display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {editId && <div style={{ fontSize: 13, fontWeight: 700, color: T.gold }}>✏️ Editando "{nome || 'música'}"</div>}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 150px 150px', gap: 12 }}>
           <div>
             <label style={labelSt}>Nome da música</label>
@@ -236,6 +268,21 @@ const OficinaWaveLiraTab = ({ cardBg, adminName }) => {
             <label style={labelSt} title="Quantos milissegundos dura cada traço. Menor = música mais rápida.">Ms por traço</label>
             <input type="number" min="40" max="400" value={unit} onChange={e => setUnit(e.target.value)} style={inputSt}/>
           </div>
+        </div>
+        {/* Andamento automático: o áudio original da música diz o BPM */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '10px 12px', borderRadius: 10, border: `1px dashed ${T.border}` }}>
+          <label style={{ padding: '8px 14px', borderRadius: 9, border: `1px solid ${T.border}`, cursor: detectando ? 'default' : 'pointer', fontSize: 12.5, fontWeight: 600, color: T.text, opacity: detectando ? .6 : 1 }}>
+            {detectando ? 'Analisando…' : '🎧 Detectar pelo áudio da música'}
+            <input type="file" accept="audio/*" onChange={detectar} disabled={detectando} style={{ display: 'none' }}/>
+          </label>
+          <span style={{ fontSize: 12, color: T.textS }}>traços por tempo:</span>
+          <select value={tracosTempo} onChange={e => mudarTracos(e.target.value)} style={{ ...inputSt, width: 'auto', padding: '7px 9px' }}>
+            {[1, 2, 3, 4, 6, 8].map(n => <option key={n} value={n}>{n}</option>)}
+          </select>
+          <span style={{ fontSize: 12, color: T.textT, flex: 1, minWidth: 180 }}>
+            {bpm ? <>≈ <b>{bpm} BPM</b> → <b>{unit} ms</b> por traço. Se ficou rápido ou lento demais, mude os traços por tempo ou ajuste o campo acima.</>
+              : 'Envie o MP3 da música: o andamento é descoberto sozinho e os ms por traço são preenchidos. O áudio não é guardado.'}
+          </span>
         </div>
         <div>
           <label style={labelSt}>Tablatura (uma linha por trecho)</label>
@@ -264,8 +311,14 @@ const OficinaWaveLiraTab = ({ cardBg, adminName }) => {
             style={{ padding: '11px 26px', borderRadius: 10, border: 'none', cursor: salvando ? 'default' : 'pointer',
               background: `linear-gradient(135deg,${T.gold},${T.goldL || T.gold}cc)`, color: '#fff', fontWeight: 700, fontSize: 14, fontFamily: 'var(--font-body)',
               opacity: salvando ? .6 : 1, boxShadow: `0 3px 12px ${T.goldLine}44` }}>
-            {salvando ? 'Salvando…' : '🎵 Adicionar música'}
+            {salvando ? 'Salvando…' : editId ? '💾 Salvar alterações' : '🎵 Adicionar música'}
           </button>
+          {editId && (
+            <button onClick={cancelarEdicao} disabled={salvando}
+              style={{ marginLeft: 10, padding: '11px 20px', borderRadius: 10, border: `1px solid ${T.border}`, background: 'transparent', color: T.text, cursor: 'pointer', fontWeight: 600, fontSize: 14, fontFamily: 'var(--font-body)' }}>
+              Cancelar
+            </button>
+          )}
         </div>
       </div>
 
@@ -289,6 +342,10 @@ const OficinaWaveLiraTab = ({ cardBg, adminName }) => {
                     {s.nivel} · {a.passos} passos · {a.acordes} acordes · {s.unit} ms/traço
                   </div>
                 </div>
+                <button onClick={() => editar(s)} title="Editar"
+                  style={{ width: 30, height: 30, borderRadius: 8, border: `1px solid ${T.border}`, background: 'transparent', cursor: 'pointer', color: T.text, flexShrink: 0 }}>
+                  ✏️
+                </button>
                 <button onClick={() => excluir(s)} title="Excluir"
                   style={{ width: 30, height: 30, borderRadius: 8, border: '1px solid rgba(192,64,80,0.25)', background: 'rgba(192,64,80,0.05)', cursor: 'pointer', color: '#C04050', flexShrink: 0 }}>
                   ✕
