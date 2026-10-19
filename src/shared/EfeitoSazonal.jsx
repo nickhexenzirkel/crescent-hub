@@ -27,12 +27,30 @@ const SAZONAL_TEMA_APLICADO_KEY = 'uniko_sazonal_tema_aplicado';
 
 // Morcego — mesma imagem do Uniko Vampire Robot (ver shared/vampireScene.jsx
 // → VampBat), não desenho próprio: é a forma de morcego que o dono pediu.
-const IconBat = ({ size = 24, flip = false, rot = 0 }) => (
-  <img src="/morcego.png" alt="" style={{
-    width: size, height: 'auto', display: 'block',
-    transform: `scaleX(${flip ? -1 : 1}) rotate(${rot}deg)`,
-    filter: 'drop-shadow(0 3px 5px rgba(0,0,0,.55))',
-  }}/>
+// Morcego de silhueta, de frente, com as duas asas batendo (keyframes sazBatE/sazBatD no
+// HALLOWEEN_CSS: cada asa gira em torno do corpo e achata um pouco no meio do bater).
+// `fase` (0–1) desencontra o bater de um morcego pro outro.
+const ASA = 'M47 30 C38 17 20 13 2 24 C9 25 12 30 17 36 C21 31 25 37 29 42 C33 37 40 41 47 40 Z';
+const IconBat = ({ size = 24, flip = false, rot = 0, fase = 0 }) => (
+  <svg width={size} height={size * 0.62} viewBox="0 0 100 62" style={{
+    display: 'block', transform: `scaleX(${flip ? -1 : 1}) rotate(${rot}deg)`,
+    filter: 'drop-shadow(0 3px 5px rgba(0,0,0,.55))', overflow: 'visible',
+  }}>
+    <g fill="#0b0612">
+      <g style={{ transformOrigin: '47px 34px', transformBox: 'view-box', animation: `sazBatE .42s ease-in-out ${-fase * .42}s infinite` }}>
+        <path d={ASA}/>
+      </g>
+      <g transform="translate(100,0) scale(-1,1)">
+        <g style={{ transformOrigin: '47px 34px', transformBox: 'view-box', animation: `sazBatE .42s ease-in-out ${-fase * .42}s infinite` }}>
+          <path d={ASA}/>
+        </g>
+      </g>
+      <ellipse cx="50" cy="35" rx="5.5" ry="11"/>
+      <circle cx="50" cy="22" r="6"/>
+      <path d="M45 19 L44 9 L49 16 Z M55 19 L56 9 L51 16 Z"/>
+    </g>
+    <circle cx="48" cy="21.5" r="1.1" fill="#ff3b3b"/><circle cx="52" cy="21.5" r="1.1" fill="#ff3b3b"/>
+  </svg>
 );
 
 // Abóbora — imagem enviada pelo dono (public/abobora-halloween.png),
@@ -156,12 +174,24 @@ const MontanhaNeve = () => (
 /* ───────────────────────── CSS (keyframes) ───────────────────────── */
 
 const HALLOWEEN_CSS = `
-@keyframes sazVoarMorcego {
-  0%   { transform: translate(-10vw, 70vh) scale(.8); opacity: 0; }
-  8%   { opacity: .85; }
-  50%  { transform: translate(55vw, 15vh) scale(1.1); }
-  92%  { opacity: .85; }
-  100% { transform: translate(115vw, 55vh) scale(.9); opacity: 0; }
+@keyframes sazBatE {
+  0%,100% { transform: rotate(22deg) scaleY(1); }
+  50%     { transform: rotate(-42deg) scaleY(.72); }
+}
+/* Rota de voo com 5 pontos (--x0/--y0 … --x4/--y4, em vw/vh) — cada morcego passa por
+   cantos e lugares diferentes da tela, sai por um lado e volta a entrar por outro. */
+@keyframes sazMorcegoRota {
+  0%   { transform: translate(var(--x0), var(--y0)); opacity: 0; }
+  5%   { opacity: .92; }
+  28%  { transform: translate(var(--x1), var(--y1)); }
+  52%  { transform: translate(var(--x2), var(--y2)); }
+  76%  { transform: translate(var(--x3), var(--y3)); }
+  95%  { opacity: .92; }
+  100% { transform: translate(var(--x4), var(--y4)); opacity: 0; }
+}
+@keyframes sazMorcegoBalanca {
+  0%,100% { transform: translateY(0) rotate(-7deg); }
+  50%     { transform: translateY(-1.6vmin) rotate(7deg); }
 }
 @keyframes sazBobPumpkin {
   0%,100% { transform: translateY(0) rotate(-4deg); }
@@ -424,10 +454,16 @@ const LuaMisteriosa = () => (
 );
 
 const EfeitoHalloween = () => {
+  // pontos [x,y] em vw/vh: começa fora da tela, passa por cantos/centro e sai por outro lado
   const morcegos = [
-    { top: '10%', dur: '16s', delay: '0s', size: 30, flip: false, rot: -6 },
-    { top: '28%', dur: '21s', delay: '-6s', size: 24, flip: true, rot: 4 },
-    { top: '46%', dur: '18s', delay: '-11s', size: 28, flip: false, rot: 8 },
+    { r: [[-10,20],[8,6],[50,30],[90,8],[112,40]], dur: 24, delay: 0, size: 38 },
+    { r: [[110,70],[92,88],[50,60],[6,90],[-12,60]], dur: 28, delay: -9, size: 44 },
+    { r: [[50,-10],[92,10],[70,50],[95,85],[112,100]], dur: 22, delay: -4, size: 32 },
+    { r: [[-10,90],[10,70],[4,30],[15,8],[30,-12]], dur: 26, delay: -15, size: 40 },
+    { r: [[110,10],[60,18],[30,40],[5,10],[-12,25]], dur: 20, delay: -7, size: 30 },
+    { r: [[30,112],[45,75],[80,92],[95,60],[112,45]], dur: 30, delay: -21, size: 46 },
+    { r: [[-10,50],[25,30],[55,8],[75,35],[112,12]], dur: 23, delay: -12, size: 34 },
+    { r: [[112,92],[75,70],[40,88],[8,55],[-12,30]], dur: 27, delay: -18, size: 36 },
   ];
   const nuvens = [
     { top: '5%', dur: '60s', delay: '0s', scale: 1.4, op: .14 },
@@ -456,12 +492,18 @@ const EfeitoHalloween = () => {
             <IconNuvem w={92 * n.scale} h={38 * n.scale} op={n.op}/>
           </div>
         ))}
-        {morcegos.map((m, i) => (
-          <div key={'mc' + i} style={{ position: 'absolute', top: m.top, left: 0,
-            animation: `sazVoarMorcego ${m.dur} ease-in-out ${m.delay} infinite` }}>
-            <IconBat size={m.size} flip={m.flip} rot={m.rot}/>
-          </div>
-        ))}
+        {morcegos.map((m, i) => {
+          const vars = {};
+          m.r.forEach(([x, y], k) => { vars['--x' + k] = x + 'vw'; vars['--y' + k] = y + 'vh'; });
+          return (
+            <div key={'mc' + i} style={{ position: 'absolute', top: 0, left: 0, ...vars,
+              animation: `sazMorcegoRota ${m.dur}s ease-in-out ${m.delay}s infinite` }}>
+              <div style={{ animation: `sazMorcegoBalanca ${1.3 + (i % 3) * 0.35}s ease-in-out ${-i * 0.4}s infinite` }}>
+                <IconBat size={m.size} fase={(i * 0.37) % 1}/>
+              </div>
+            </div>
+          );
+        })}
         {/* vários fantasmas — cada um com sua própria duração/atraso, então
             aparecem em momentos diferentes e podem se cruzar na tela (pedido
             explícito: "mais fantasmas"). Mesmo keyframe de 2 ângulos de cada,
@@ -517,7 +559,7 @@ const BurstMorcegos = () => {
           '--bx': b.bx, '--by': b.by, '--br': b.br,
           animation: `sazBurstBat ${b.dur} cubic-bezier(.17,.82,.32,1) ${b.delay} forwards`,
         }}>
-          <IconBat size={b.size} flip={b.flip}/>
+          <IconBat size={b.size} flip={b.flip} fase={(i * 0.31) % 1}/>
         </div>
       ))}
     </div>
