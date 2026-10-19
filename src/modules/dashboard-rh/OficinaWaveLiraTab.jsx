@@ -8,6 +8,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { T } from '../../contexts/theme';
 import { supabase } from '../../contexts/user';
 import { detectarBpm, msPorTraco } from './detectarBpm';
+import { transcreverLira } from './transcreverLira';
 
 const TECLAS = 'QWERTYUASDFGHJZXCVBNM';
 const NIVEIS = ['Fácil', 'Médio', 'Difícil'];
@@ -149,6 +150,26 @@ const OficinaWaveLiraTab = ({ cardBg, adminName }) => {
     } catch (err) { setBpm(null); setMsg('⚠️ ' + (err.message || 'Erro ao detectar o andamento.')); }
     setDetectando(false);
   };
+  // Áudio → tablatura. Descobre o andamento (se ainda não foi) e transcreve as notas.
+  const [transc, setTransc] = useState('');
+  const [maxNotas, setMaxNotas] = useState('2');
+  const transcrever = async (e) => {
+    const arq = e.target.files?.[0]; e.target.value = '';
+    if (!arq) return;
+    if (tab.trim() && !window.confirm('Isso vai substituir a tablatura que está no campo. Continuar?')) return;
+    setDetectando(true); setMsg(''); setTransc('Analisando o andamento…');
+    try {
+      let b = bpm;
+      if (!b) { b = await detectarBpm(arq); setBpm(b); }
+      const u = Math.min(400, Math.max(40, msPorTraco(b, +tracosTempo)));
+      setUnit(String(u));
+      const r = await transcreverLira(arq, { unit: u, maxNotas: +maxNotas, aoProgresso: setTransc });
+      setTab(r.tab);
+      const ajuste = [r.tom && `tom ${r.tom > 0 ? '+' : ''}${r.tom} semitons`, r.oitava && `${Math.abs(r.oitava)} oitava(s) ${r.oitava > 0 ? 'acima' : 'abaixo'}`].filter(Boolean).join(', ');
+      setMsg(`✅ ${r.notas} notas (${r.acordes} acordes) a ${b} BPM${ajuste ? ' — ajustado pra caber na lira: ' + ajuste : ''}. Ouça no jogo e corrija o que ficou estranho.`);
+    } catch (err) { setMsg('⚠️ ' + (err.message || 'Erro ao transcrever o áudio.')); }
+    setTransc(''); setDetectando(false);
+  };
   const mudarTracos = (v) => {
     setTracosTempo(v);
     if (bpm) setUnit(String(Math.min(400, Math.max(40, msPorTraco(bpm, +v)))));
@@ -282,6 +303,20 @@ const OficinaWaveLiraTab = ({ cardBg, adminName }) => {
           <span style={{ fontSize: 12, color: T.textT, flex: 1, minWidth: 180 }}>
             {bpm ? <>≈ <b>{bpm} BPM</b> → <b>{unit} ms</b> por traço. Se ficou rápido ou lento demais, mude os traços por tempo ou ajuste o campo acima.</>
               : 'Envie o MP3 da música: o andamento é descoberto sozinho e os ms por traço são preenchidos. O áudio não é guardado.'}
+          </span>
+        </div>
+        {/* Áudio → notas: monta a tablatura sozinho */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '10px 12px', borderRadius: 10, border: `1px dashed ${T.border}` }}>
+          <label style={{ padding: '8px 14px', borderRadius: 9, border: `1px solid ${T.gold}`, background: T.goldGl, cursor: detectando ? 'default' : 'pointer', fontSize: 12.5, fontWeight: 700, color: T.text, opacity: detectando ? .6 : 1 }}>
+            {detectando ? (transc || 'Analisando…') : '🎼 Gerar tablatura do áudio'}
+            <input type="file" accept="audio/*" onChange={transcrever} disabled={detectando} style={{ display: 'none' }}/>
+          </label>
+          <span style={{ fontSize: 12, color: T.textS }}>notas juntas (máx.):</span>
+          <select value={maxNotas} onChange={e => setMaxNotas(e.target.value)} style={{ ...inputSt, width: 'auto', padding: '7px 9px' }}>
+            {[1, 2, 3].map(n => <option key={n} value={n}>{n}</option>)}
+          </select>
+          <span style={{ fontSize: 12, color: T.textT, flex: 1, minWidth: 200 }}>
+            Envia o MP3: o sistema acha o andamento, o tom e as notas e escreve a tablatura abaixo. Funciona melhor com piano, violão ou melodia limpa. O som no jogo continua sendo o da lira.
           </span>
         </div>
         <div>
