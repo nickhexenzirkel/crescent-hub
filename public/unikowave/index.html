@@ -1769,6 +1769,10 @@ html.m-menu.m-land .cspot-ability{padding:8px 12px}
     #bootSplash .bs-load{position:absolute;left:50%;bottom:clamp(28px,6vh,64px);width:min(520px,70vw);transform:translateX(-50%)}
     #bootSplash .bs-track{height:10px;border-radius:999px;background:rgba(255,255,255,.12);overflow:hidden}
     #bootSplash .bs-fill{height:100%;width:0;border-radius:999px;background:#4AA6FF;transition:width 11s linear}
+    #bootSplash .bs-skip{position:absolute;right:clamp(16px,3vw,36px);top:clamp(16px,3vw,36px);z-index:2;padding:10px 20px;border-radius:999px;cursor:pointer;
+      background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.3);color:#fff;font:800 13px/1 'Inter','Segoe UI',system-ui,sans-serif;letter-spacing:.14em;
+      transition:background .2s}
+    #bootSplash .bs-skip:hover{background:rgba(255,255,255,.22)}
     #bootSplash .bs-load small{display:block;margin-top:10px;font-size:13px;font-weight:700;letter-spacing:.14em;color:rgba(255,255,255,.55)}
   </style>
   <div class="bs-sky" id="bsSky"></div>
@@ -1792,6 +1796,7 @@ html.m-menu.m-land .cspot-ability{padding:8px 12px}
     <div class="bs-warn">Totalmente adaptada e pronta pra jogar</div>
     <div class="bs-tags"><span class="bs-tag">📱 Em pé (vertical)</span><span class="bs-tag">📲 Deitado (horizontal)</span><span class="bs-tag">▲▼ Botões na tela</span></div>
   </div>
+  <button type="button" class="bs-skip" id="bsSkip">PULAR ▶</button>
   <div class="bs-load"><div class="bs-track"><div class="bs-fill" id="bsFill"></div></div><small id="bsTxt">CARREGANDO…</small></div>
   <script>
   (function(){
@@ -1803,10 +1808,17 @@ html.m-menu.m-land .cspot-ability{padding:8px 12px}
     sky.innerHTML=h;
     var s1=document.getElementById('bsScene1'), s2=document.getElementById('bsScene2'), s3=document.getElementById('bsScene3'), fill=document.getElementById('bsFill'), txt=document.getElementById('bsTxt');
     requestAnimationFrame(function(){ requestAnimationFrame(function(){ s1.classList.add('bs-on'); fill.style.width='100%'; }); });
-    setTimeout(function(){ s1.classList.remove('bs-on'); s2.classList.add('bs-on'); txt.textContent='QUASE LÁ…'; }, 3000);
-    setTimeout(function(){ s2.classList.remove('bs-on'); s3.classList.add('bs-on'); txt.textContent='PRONTO PRA JOGAR…'; }, 6000);
-    setTimeout(function(){ root.classList.add('bs-out'); }, 11000);
-    setTimeout(function(){ if(root.parentNode) root.parentNode.removeChild(root); }, 11700);
+    var tm=[];
+    tm.push(setTimeout(function(){ s1.classList.remove('bs-on'); s2.classList.add('bs-on'); txt.textContent='QUASE LÁ…'; }, 3000));
+    tm.push(setTimeout(function(){ s2.classList.remove('bs-on'); s3.classList.add('bs-on'); txt.textContent='PRONTO PRA JOGAR…'; }, 6000));
+    tm.push(setTimeout(function(){ root.classList.add('bs-out'); }, 11000));
+    tm.push(setTimeout(function(){ if(root.parentNode) root.parentNode.removeChild(root); }, 11700));
+    // PULAR: cancela a sequência e abre o jogo já (fade curto)
+    document.getElementById('bsSkip').addEventListener('click', function(){
+      tm.forEach(clearTimeout);
+      root.classList.add('bs-out');
+      setTimeout(function(){ if(root.parentNode) root.parentNode.removeChild(root); }, 650);
+    });
   })();
   </script>
 </div>
