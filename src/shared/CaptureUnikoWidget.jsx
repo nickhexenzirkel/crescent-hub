@@ -468,14 +468,24 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
     return wrap(
         <div style={{ pointerEvents: 'auto', width: '100%', borderRadius: 18, padding: 3, background: `conic-gradient(${mth.border.join(',')})`, boxShadow: `0 18px 50px ${mth.accent}66`, animation: 'cuToastIn .4s ease' }}>
           <style>{`@keyframes cuToastIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}`}</style>
-          <div style={{ borderRadius: 15, background: mth.scene, display: 'flex', alignItems: 'center', gap: 16, padding: '16px 22px' }}>
-            <img src={mu.img} alt={mu.name} style={{ width: 72, height: 72, objectFit: 'contain', flexShrink: 0, filter: `drop-shadow(0 0 16px ${mth.accent})` }}/>
-            <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ position: 'relative', isolation: 'isolate', borderRadius: 15, minHeight: 'clamp(230px,22vw,320px)', overflow: 'hidden',
+            display: 'flex', alignItems: 'center', gap: 'clamp(18px,3vw,36px)', padding: 'clamp(24px,4vw,46px)' }}>
+            {/* O card mais alto permite preencher toda a área sem o recorte extremo do layout antigo. */}
+            <div aria-hidden="true" style={{ position: 'absolute', inset: 0, zIndex: -2, background: mth.scene,
+              backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }}/>
+            <div aria-hidden="true" style={{ position: 'absolute', inset: 0, zIndex: -1,
+              background: 'linear-gradient(90deg,rgba(4,7,13,.48) 0%,rgba(4,7,13,.2) 46%,rgba(4,7,13,.05) 76%,transparent 100%)' }}/>
+            <img src={mu.img} alt={mu.name} style={{ width: 'clamp(108px,12vw,158px)', height: 'clamp(108px,12vw,158px)',
+              objectFit: 'contain', flexShrink: 0, filter: `drop-shadow(0 0 24px ${mth.accent}) drop-shadow(0 12px 20px rgba(0,0,0,.5))` }}/>
+            <div style={{ minWidth: 0, flex: 1, maxWidth: 760, textShadow: '0 2px 14px rgba(0,0,0,.75)' }}>
               <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '.16em', color: mth.glow, textShadow: `0 0 10px ${mth.accent}` }}>★ UNIKO RESGATADO ★</div>
-              <div style={{ fontSize: 17, fontWeight: 900, color: '#fff', fontFamily: 'var(--font-brand)', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {perSlot ? `Você resgatou o ${mu.shortName || mu.name}!` : 'Você resgatou!'}
+              <div style={{ fontSize: 'clamp(22px,2.4vw,34px)', fontWeight: 900, color: '#fff', fontFamily: 'var(--font-brand)', marginTop: 4, lineHeight: 1.08 }}>
+                {mu.shortName || mu.name}
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 7 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: mth.ink, marginTop: 7 }}>
+                {perSlot ? 'Este Uniko agora faz parte da sua coleção!' : 'Você resgatou este Uniko!'}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 12 }}>
                 <span style={{ fontSize: 11.5, color: mth.ink, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={mth.ink} strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l3 2"/></svg>
                   {fmtWhen(myWin.at)}
@@ -485,10 +495,10 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
               </div>
               {/* Quem já pegou tem a MESMA curiosidade de quem não pegou: quantas vagas
                   tinham e quem mais conseguiu — antes só aparecia no painel "não fui eu". */}
-              <div style={{ fontSize: 11, fontWeight: 700, color: mth.ink, marginTop: 7 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: mth.ink, marginTop: 12 }}>
                 {winners.length} de {maxWinners} {maxWinners === 1 ? 'vaga usada' : 'vagas usadas'}
               </div>
-              <div style={{ fontSize: 11, color: mth.ink, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <div style={{ fontSize: 'clamp(13px,1.15vw,15px)', fontWeight: 600, color: mth.ink, marginTop: 6, lineHeight: 1.55 }}>
                 Capturaram: {winners.map(w => w.player).join(', ')}
               </div>
             </div>
@@ -514,9 +524,16 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
     return wrap(
         <div style={{ pointerEvents: 'auto', width: '100%', borderRadius: 18, padding: 3, background: `conic-gradient(${th.border.join(',')})`, boxShadow: `0 18px 50px ${th.accent}66`, animation: 'cuToastIn .4s ease' }}>
           <style>{`@keyframes cuToastIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}`}</style>
-          <div style={{ borderRadius: 15, background: th.scene, display: 'flex', alignItems: 'center', gap: 16, padding: '16px 22px' }}>
-            <img src={uniko.img} alt={uniko.name} style={{ width: 72, height: 72, objectFit: 'contain', flexShrink: 0, opacity: .5, filter: 'grayscale(.6)' }}/>
-            <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ position: 'relative', isolation: 'isolate', borderRadius: 15, minHeight: 'clamp(230px,22vw,320px)', overflow: 'hidden',
+            display: 'flex', alignItems: 'center', gap: 'clamp(18px,3vw,36px)', padding: 'clamp(24px,4vw,46px)' }}>
+            {/* Preenche toda a largura; a altura maior reduz a perda vertical da imagem. */}
+            <div aria-hidden="true" style={{ position: 'absolute', inset: 0, zIndex: -2, background: th.scene,
+              backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }}/>
+            <div aria-hidden="true" style={{ position: 'absolute', inset: 0, zIndex: -1,
+              background: 'linear-gradient(90deg,rgba(4,7,13,.5) 0%,rgba(4,7,13,.22) 46%,rgba(4,7,13,.06) 76%,transparent 100%)' }}/>
+            <img src={uniko.img} alt={uniko.name} style={{ width: 'clamp(108px,12vw,158px)', height: 'clamp(108px,12vw,158px)',
+              objectFit: 'contain', flexShrink: 0, opacity: .72, filter: 'grayscale(.35) drop-shadow(0 12px 20px rgba(0,0,0,.5))' }}/>
+            <div style={{ minWidth: 0, flex: 1, maxWidth: 840, textShadow: '0 2px 14px rgba(0,0,0,.75)' }}>
               {/* "1 de 3 vagas usadas" sozinho era contraditório (relato do
                   usuário): sobrava vaga na conta e ninguém conseguia pegar.
                   Sobrar vaga aqui só acontece quando o ENCONTRO ACABOU (a
@@ -526,20 +543,23 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
               <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '.16em', color: th.glow, textShadow: `0 0 10px ${th.accent}` }}>
                 {isFull ? '★ TODAS AS VAGAS FORAM USADAS ★' : encontroAberto ? '★ ALGUÉM JÁ CAPTUROU ★' : '★ O ENCONTRO ACABOU ★'}
               </div>
-              <div style={{ fontSize: 15, fontWeight: 800, color: '#fff', fontFamily: 'var(--font-brand)', marginTop: 1 }}>
+              <div style={{ fontSize: 'clamp(22px,2.4vw,34px)', fontWeight: 900, color: '#fff', fontFamily: 'var(--font-brand)', marginTop: 4, lineHeight: 1.08 }}>
+                {uniko.shortName || uniko.name}
+              </div>
+              <div style={{ fontSize: 'clamp(16px,1.6vw,22px)', fontWeight: 800, color: th.ink, fontFamily: 'var(--font-brand)', marginTop: 7 }}>
                 {isFull
                   ? `${winners.length} de ${maxWinners} vagas usadas`
                   : `${winners.length} de ${maxWinners} ${maxWinners === 1 ? 'vaga foi usada' : 'vagas foram usadas'}`}
               </div>
               {!isFull && (
-                <div style={{ fontSize: 11.5, color: th.ink, marginTop: 4 }}>
+                <div style={{ fontSize: 12, color: th.ink, marginTop: 8, lineHeight: 1.45 }}>
                   {encontroAberto
                     ? `Ainda ${sobrando === 1 ? 'sobra 1 vaga' : `sobram ${sobrando} vagas`} — o encontro continua!`
                     : `${sobrando === 1 ? 'A outra vaga ficou' : `As outras ${sobrando} vagas ficaram`} sem dono — o encontro foi encerrado.`}
                 </div>
               )}
-              <div style={{ fontSize: 11.5, color: th.ink, marginTop: 5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {isFull ? '' : 'Capturou: '}{winners.map(w => w.player).join(', ')}
+              <div style={{ fontSize: 'clamp(13px,1.15vw,15px)', fontWeight: 600, color: th.ink, marginTop: 11, lineHeight: 1.55 }}>
+                {isFull ? 'Capturaram: ' : 'Capturou: '}{winners.map(w => w.player).join(', ')}
               </div>
             </div>
           </div>

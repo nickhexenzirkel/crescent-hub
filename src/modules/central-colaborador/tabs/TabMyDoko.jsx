@@ -411,16 +411,49 @@ const ColecaoUnikos = ({ onPhotoChange }) => {
         const okPhoto = photoOk === u.id;
         const vars = owned ? getSkinVariations(u.id) : [];
         return (
-          <div onClick={() => setDetail(null)} style={{ position: 'fixed', inset: 0, zIndex: 3000, background: 'rgba(6,8,14,.7)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-            <div onClick={e => e.stopPropagation()} style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 20, width: 'min(560px,94vw)', maxHeight: '88vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 70px rgba(0,0,0,.5)' }}>
-              <div style={{ position: 'relative', padding: '22px 20px', background: th.scene || 'radial-gradient(120% 90% at 50% 0%,#20242c,#0d0f13)', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
-                <button onClick={() => setDetail(null)} style={{ position: 'absolute', top: 10, right: 12, border: 'none', background: 'rgba(0,0,0,.35)', width: 30, height: 30, borderRadius: '50%', cursor: 'pointer', color: '#fff', fontSize: 20, lineHeight: 1 }}>×</button>
-                <img src={u.img} alt={u.name} style={{ width: 96, height: 96, objectFit: 'contain', filter: owned ? `drop-shadow(0 0 18px ${th.accent})` : 'grayscale(.55) opacity(.6)' }}/>
-                <div style={{ fontSize: 18, fontWeight: 800, color: '#fff', fontFamily: 'var(--font-brand)', marginTop: 8 }}>{u.shortName || u.name}</div>
-                <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,.75)', marginTop: 2 }}>{u.tagline}</div>
+          <div onClick={() => setDetail(null)} style={{ position: 'fixed', inset: 0, zIndex: 3000, background: 'rgba(6,8,14,.82)', backdropFilter: 'blur(14px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: isMobile ? 10 : 24 }}>
+            <div onClick={e => e.stopPropagation()} style={{ position: 'relative', background: T.surface, border: `1px solid ${T.border}`, borderRadius: isMobile ? 18 : 24,
+              width: isMobile ? '96vw' : 'min(1480px,96vw)', height: isMobile ? '92vh' : 'min(900px,92vh)', overflow: 'hidden',
+              display: 'flex', flexDirection: isMobile ? 'column' : 'row', boxShadow: '0 32px 100px rgba(0,0,0,.62)' }}>
+              <button onClick={() => setDetail(null)} aria-label="Fechar detalhes"
+                style={{ position: 'absolute', top: isMobile ? 10 : 16, right: isMobile ? 10 : 16, zIndex: 8, border: '1px solid rgba(255,255,255,.22)',
+                  background: 'rgba(4,8,16,.6)', backdropFilter: 'blur(10px)', width: 38, height: 38, borderRadius: '50%', cursor: 'pointer',
+                  color: '#fff', fontSize: 24, lineHeight: 1, boxShadow: '0 8px 24px rgba(0,0,0,.25)' }}>×</button>
+
+              {/* Painel cinematográfico: deixa o cenário respirar e aparecer quase inteiro. */}
+              <div style={{ position: 'relative', flex: isMobile ? '0 0 250px' : '1 1 68%', minWidth: 0, minHeight: isMobile ? 250 : 0,
+                background: th.scene || 'radial-gradient(120% 90% at 50% 0%,#20242c,#0d0f13)', backgroundSize: 'cover',
+                backgroundPosition: 'center', backgroundRepeat: 'no-repeat', overflow: 'hidden' }}>
+                <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg,rgba(5,8,14,.04) 38%,rgba(5,8,14,.88) 100%)' }}/>
+                <div style={{ position: 'absolute', left: isMobile ? 18 : 34, right: isMobile ? 58 : 34, bottom: isMobile ? 18 : 32, color: '#fff' }}>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '5px 10px', borderRadius: 999,
+                    background: 'rgba(5,8,14,.45)', border: '1px solid rgba(255,255,255,.18)', backdropFilter: 'blur(8px)',
+                    fontSize: 10.5, fontWeight: 800, letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 10 }}>
+                    {owned ? 'Na sua coleção' : 'Ainda bloqueado'}
+                  </div>
+                  <div style={{ fontSize: isMobile ? 24 : 36, lineHeight: 1.05, fontWeight: 900, fontFamily: 'var(--font-brand)',
+                    textShadow: '0 3px 20px rgba(0,0,0,.55)' }}>{u.shortName || u.name}</div>
+                  <div style={{ fontSize: isMobile ? 12 : 15, color: 'rgba(255,255,255,.8)', marginTop: 7, maxWidth: 620,
+                    lineHeight: 1.45, textShadow: '0 2px 12px rgba(0,0,0,.5)' }}>{u.tagline}</div>
+                </div>
               </div>
 
-              <div style={{ padding: '16px 20px 20px', overflowY: 'auto' }}>
+              {/* Painel lateral: Uniko grande, ações e detalhes. */}
+              <div style={{ width: isMobile ? '100%' : 'min(470px,36vw)', flex: isMobile ? '1 1 auto' : '0 0 min(470px,36vw)',
+                minHeight: 0, overflowY: 'auto', background: T.surface }}>
+                <div style={{ minHeight: isMobile ? 190 : 310, padding: isMobile ? '18px 20px 10px' : '28px 32px 14px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  background: `radial-gradient(circle at 50% 48%,${th.accent || T.border}2e 0%,transparent 66%)` }}>
+                  <img src={u.img} alt={u.name} style={{ width: isMobile ? 170 : 280, height: isMobile ? 170 : 280, maxWidth: '85%', objectFit: 'contain',
+                    filter: owned ? `drop-shadow(0 12px 28px ${th.accent || 'rgba(0,0,0,.3)'}88)` : 'grayscale(.55) opacity(.6)' }}/>
+                </div>
+
+                <div style={{ padding: isMobile ? '8px 20px 24px' : '8px 32px 32px' }}>
+                  <div style={{ fontSize: isMobile ? 18 : 22, fontWeight: 900, color: T.text, fontFamily: 'var(--font-brand)', marginBottom: 3 }}>
+                    {u.shortName || u.name}
+                  </div>
+                  <div style={{ fontSize: 12.5, color: T.textT, lineHeight: 1.45, marginBottom: 16 }}>{u.tagline}</div>
+
                 {!owned && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: T.textT, marginBottom: 10 }}>
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
@@ -459,14 +492,14 @@ const ColecaoUnikos = ({ onPhotoChange }) => {
 
                 {/* ações (só pra quem já tem) */}
                 {owned && (
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: vars.length ? 18 : 0 }}>
+                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: vars.length ? 24 : 0 }}>
                     <button onClick={() => setAsPhoto(u.img, u.id)}
-                      style={{ flex: 1, minWidth: 120, padding: '9px 12px', borderRadius: 10, border: `1px solid ${T.border}`, background: okPhoto ? 'rgba(40,200,112,.15)' : (T.surfaceSub || 'rgba(0,0,0,.04)'), color: okPhoto ? (T.success || '#28a060') : T.text, cursor: 'pointer', fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-body)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                      style={{ flex: 1, minWidth: 150, padding: '11px 14px', borderRadius: 11, border: `1px solid ${T.border}`, background: okPhoto ? 'rgba(40,200,112,.15)' : (T.surfaceSub || 'rgba(0,0,0,.04)'), color: okPhoto ? (T.success || '#28a060') : T.text, cursor: 'pointer', fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-body)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
                       {okPhoto ? <><IcoCheck/>Foto salva!</> : <><IcoCam/>Usar como foto</>}
                     </button>
                     {canAssist && (
                       <button onClick={() => { if (!(isActive && u.id === 'default')) setActiveAssistantSkin(isActive ? 'default' : u.id); }}
-                        style={{ flex: 1, minWidth: 120, padding: '9px 12px', borderRadius: 10, border: 'none', cursor: (isActive && u.id === 'default') ? 'default' : 'pointer', fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-body)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                        style={{ flex: 1, minWidth: 150, padding: '11px 14px', borderRadius: 11, border: 'none', cursor: (isActive && u.id === 'default') ? 'default' : 'pointer', fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-body)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
                           background: isActive ? (T.surfaceSub || 'rgba(0,0,0,.06)') : `linear-gradient(135deg,${th.accent2},${th.accent})`,
                           color: isActive ? T.textS : '#fff' }}>
                         {isActive ? (u.id === 'default' ? <><IcoCheck/>Assistente ativo</> : <><IcoUndo/>Remover assistente</>) : <><IcoBot/>Usar como assistente</>}
@@ -481,18 +514,19 @@ const ColecaoUnikos = ({ onPhotoChange }) => {
                     <div style={{ fontSize: 11.5, fontWeight: 700, color: T.textT, display: 'inline-flex', alignItems: 'center', gap: 5, marginBottom: 8 }}>
                       <IcoEye size={13}/>Variações da carinha
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(90px,1fr))', gap: 10 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(110px,1fr))', gap: 12 }}>
                       {vars.map((v, i) => (
                         <div key={i} style={{ borderRadius: 14, overflow: 'hidden', border: `1px solid ${T.border}`, background: th.scene || (T.surfaceSub || 'rgba(0,0,0,.04)') }}>
-                          <div style={{ height: 76, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <img src={v.img} alt={v.label} style={{ width: 58, height: 58, objectFit: 'contain', filter: th.accent ? `drop-shadow(0 0 8px ${th.accent}aa)` : 'none' }}/>
+                          <div style={{ height: 96, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <img src={v.img} alt={v.label} style={{ width: 74, height: 74, objectFit: 'contain', filter: th.accent ? `drop-shadow(0 0 8px ${th.accent}aa)` : 'none' }}/>
                           </div>
-                          <div style={{ padding: '6px 7px', textAlign: 'center', fontSize: 10.5, fontWeight: 600, color: T.text, background: T.surface }}>{v.label}</div>
+                          <div style={{ padding: '7px 8px', textAlign: 'center', fontSize: 11, fontWeight: 700, color: T.text, background: T.surface }}>{v.label}</div>
                         </div>
                       ))}
                     </div>
                   </div>
                 )}
+                </div>
               </div>
             </div>
           </div>
