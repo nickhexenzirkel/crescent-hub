@@ -323,6 +323,7 @@ export const PdfEditor = ({ onDoc }) => {
   const [selId, setSelId]   = useState(null);
   const [focusId, setFocusId] = useState(null);
   const [tool, setTool]     = useState('select');
+  const [repeatWhiteout, setRepeatWhiteout] = useState(false);
   const [activePage, setActivePage] = useState(0);
   const [sigOpen, setSigOpen] = useState(false);
   const [busy, setBusy]     = useState(false);
@@ -613,18 +614,32 @@ export const PdfEditor = ({ onDoc }) => {
   };
   const addWhiteout = useCallback((pageId, xPt, topPt) => {
     pushHistory();
-    const id = uid();
-    setAnnos(p => [...p, { id, pageId, type:'whiteout', x:xPt-60, top:topPt-20, w:120, h:40 }]);
-    setSelId(id); setTool('select');
-  }, [pushHistory]);
+    const group = repeatWhiteout ? uid() : null;
+    const targets = repeatWhiteout
+      ? [pageId, ...pagesRef.current.filter(p => p.id !== pageId).map(p => p.id)]
+      : [pageId];
+    const created = targets.map(targetPageId => ({
+      id:uid(), pageId:targetPageId, type:'whiteout',
+      x:xPt-60, top:topPt-20, w:120, h:40, group,
+    }));
+    setAnnos(p => [...p, ...created]);
+    setSelId(created[0].id);
+  }, [pushHistory, repeatWhiteout]);
   // Cria o whiteout já com a área exata que o usuário arrastou (em vez de um
   // tamanho fixo pra depois mover/redimensionar).
   const addWhiteoutRect = useCallback((pageId, xPt, topPt, wPt, hPt) => {
     pushHistory();
-    const id = uid();
-    setAnnos(p => [...p, { id, pageId, type:'whiteout', x:xPt, top:topPt, w:wPt, h:hPt }]);
-    setSelId(id); setTool('select');
-  }, [pushHistory]);
+    const group = repeatWhiteout ? uid() : null;
+    const targets = repeatWhiteout
+      ? [pageId, ...pagesRef.current.filter(p => p.id !== pageId).map(p => p.id)]
+      : [pageId];
+    const created = targets.map(targetPageId => ({
+      id:uid(), pageId:targetPageId, type:'whiteout',
+      x:xPt, top:topPt, w:wPt, h:hPt, group,
+    }));
+    setAnnos(p => [...p, ...created]);
+    setSelId(created[0].id);
+  }, [pushHistory, repeatWhiteout]);
   const addImageAnno = (dataUrl, type, repeat=false) => {
     const img = new Image();
     img.onload = () => {
@@ -976,7 +991,15 @@ export const PdfEditor = ({ onDoc }) => {
       {error && <div style={{marginBottom:12,padding:'10px 14px',background:'rgba(192,64,80,0.06)',border:'1px solid rgba(192,64,80,0.2)',borderRadius:10,fontSize:13.5,color:T.danger}}>{error}</div>}
 
       {tool==='text' && <div style={{marginBottom:10,fontSize:12.5,color:T.textT}}>Clique sobre um texto do PDF para editá-lo, ou clique numa área vazia para adicionar texto novo.</div>}
-      {tool==='whiteout' && <div style={{marginBottom:10,fontSize:12.5,color:T.textT}}>Arraste sobre a área que quer cobrir de branco (ou só clique pra inserir uma caixa padrão).</div>}
+      {tool==='whiteout' && (
+        <div style={{marginBottom:10,display:'flex',alignItems:'center',justifyContent:'space-between',gap:16,flexWrap:'wrap'}}>
+          <div style={{fontSize:12.5,color:T.textT}}>Arraste sobre a área que quer cobrir de branco (ou só clique pra inserir uma caixa padrão).</div>
+          <label style={{display:'flex',alignItems:'center',gap:8,fontSize:12.5,color:T.textS,cursor:'pointer'}}>
+            <input type="checkbox" checked={repeatWhiteout} onChange={e=>setRepeatWhiteout(e.target.checked)}/>
+            Aplicar em todas as páginas
+          </label>
+        </div>
+      )}
 
       <div style={{display:'flex',gap:14,alignItems:'flex-start'}}>
         {/* Miniaturas */}
