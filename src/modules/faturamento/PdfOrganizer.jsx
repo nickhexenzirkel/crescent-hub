@@ -28,11 +28,13 @@ export const PdfOrganizer = ({ onDoc }) => {
   const [error, setError]         = useState('');
   const [canUndo, setCanUndo]     = useState(false);
   const [salvo, setSalvo]         = useState(false);
+  const [pdfDropHover, setPdfDropHover] = useState(false);
 
   const srcRef   = useRef(null);
   const pagesRef = useRef(pages);
   const poolRef  = useRef(0);
   const histRef  = useRef([]);
+  const dragDepthRef = useRef(0);
   const fileInput = useRef();
   const addInput  = useRef();
 
@@ -99,17 +101,24 @@ export const PdfOrganizer = ({ onDoc }) => {
     } finally { setBusy(false); }
   };
 
-  /* ── adicionar outro PDF (páginas entram no fim) ── */
-  const adicionar = async (file) => {
-    if (!file) return;
-    if (!srcRef.current) { abrir(file); return; }
+  /* ── adicionar PDFs em lote (páginas entram no fim) ── */
+  const adicionarArquivos = async (fileList) => {
+    const files = Array.from(fileList || []).filter(file =>
+      file?.type === 'application/pdf' || /\.pdf$/i.test(file?.name || '')
+    );
+    if (!files.length || busy) return;
+    const jaTemDocumento = !!srcRef.current;
     setError(''); setBusy(true);
     try {
-      const A = await PDFDocument.load(srcRef.current.slice(), { ignoreEncryption: true });
-      const B = await PDFDocument.load(new Uint8Array(await file.arrayBuffer()), { ignoreEncryption: true });
+      const A = jaTemDocumento
+        ? await PDFDocument.load(srcRef.current.slice(), { ignoreEncryption: true })
+        : await PDFDocument.create();
       const antes = A.getPageCount();
-      const copiadas = await A.copyPages(B, B.getPageIndices());
-      copiadas.forEach(pg => A.addPage(pg));
+      for (const file of files) {
+        const B = await PDFDocument.load(new Uint8Array(await file.arrayBuffer()), { ignoreEncryption: true });
+        const copiadas = await A.copyPages(B, B.getPageIndices());
+        copiadas.forEach(pg => A.addPage(pg));
+      }
       const merged = new Uint8Array(await A.save());
       const doc = await loadPdfDoc(merged.slice());
       // as novas vão pro FIM do documento de origem, então os `ref` que já
@@ -117,14 +126,50 @@ export const PdfOrganizer = ({ onDoc }) => {
       const dims = await readPageSizes(doc, antes);
       const novas = dims.map((d, i) => ({ id: uid(), ref: antes + i, w: d.w, h: d.h }));
       srcRef.current = merged;
-      pushHistory();
+      if (jaTemDocumento) {
+        pushHistory();
+      } else {
+        limparThumbs(poolRef.current);
+        poolRef.current = novoPoolId();
+        setPoolId(poolRef.current);
+        setFileName(files[0].name);
+        histRef.current = [];
+        setCanUndo(false);
+      }
       setPdf(doc);
-      setPages(p => [...p, ...novas]);
-      setOrigPages(o => [...o, ...novas]);
+      setPages(p => jaTemDocumento ? [...p, ...novas] : novas);
+      setOrigPages(o => jaTemDocumento ? [...o, ...novas] : novas);
+      setPreviewIdx(null);
       setSalvo(false);
     } catch (e) {
-      setError('Não foi possível adicionar o PDF: ' + (e?.message || 'erro'));
+      setError('Não foi possível adicionar os PDFs: ' + (e?.message || 'erro'));
     } finally { setBusy(false); }
+  };
+
+  const temArquivos = (e) => Array.from(e.dataTransfer?.types || []).includes('Files');
+  const onPdfDragEnter = (e) => {
+    if (!temArquivos(e) || busy) return;
+    e.preventDefault();
+    dragDepthRef.current += 1;
+    setPdfDropHover(true);
+  };
+  const onPdfDragOver = (e) => {
+    if (!temArquivos(e) || busy) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  };
+  const onPdfDragLeave = (e) => {
+    if (!temArquivos(e)) return;
+    e.preventDefault();
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+    if (!dragDepthRef.current) setPdfDropHover(false);
+  };
+  const onPdfDrop = (e) => {
+    if (!temArquivos(e) || busy) return;
+    e.preventDefault();
+    dragDepthRef.current = 0;
+    setPdfDropHover(false);
+    adicionarArquivos(e.dataTransfer.files);
   };
 
   /* ── mover / excluir / restaurar ── */
@@ -202,12 +247,12 @@ export const PdfOrganizer = ({ onDoc }) => {
           Carregue um PDF para reorganizar as páginas — arraste pra mudar a ordem, exclua o que não precisa e amplie qualquer página pra conferir antes de salvar.
         </p>
         <input ref={fileInput} type="file" accept=".pdf" style={{display:'none'}} onChange={e=>{ abrir(e.target.files[0]); e.target.value=''; }}/>
-        <div onClick={()=>fileInput.current?.click()} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault(); abrir(e.dataTransfer.files[0]);}}
+        <div onClick={()=>fileInput.current?.click()} onDragOver={onPdfDragOver} onDrop={onPdfDrop}
           style={{border:`2px dashed ${T.border}`,borderRadius:14,padding:'48px 32px',textAlign:'center',cursor:'pointer',background:T.surface}}>
           {busy ? <div style={{color:T.textS}}>Abrindo...</div> : (
             <>
               <div style={{fontSize:34,marginBottom:10}}>🗂️</div>
-              <div style={{fontSize:15,fontWeight:500,color:T.text,marginBottom:6}}>Solte o PDF aqui ou clique para selecionar</div>
+              <div style={{fontSize:15,fontWeight:500,color:T.text,marginBottom:6}}>Solte um ou mais PDFs aqui ou clique para selecionar</div>
               <div style={{fontSize:13,color:T.textT}}>Formato aceito: <strong style={{color:T.textS}}>.pdf</strong></div>
             </>
           )}
@@ -235,7 +280,7 @@ export const PdfOrganizer = ({ onDoc }) => {
         <button style={tbBtn()} onClick={()=>addInput.current?.click()} disabled={busy}>
           <I><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></I> Adicionar PDF
         </button>
-        <input ref={addInput} type="file" accept=".pdf" style={{display:'none'}} onChange={e=>{ adicionar(e.target.files[0]); e.target.value=''; }}/>
+        <input ref={addInput} type="file" accept=".pdf" multiple style={{display:'none'}} onChange={e=>{ adicionarArquivos(e.target.files); e.target.value=''; }}/>
         <button style={tbBtn({background:T.gold,color:'#fff',border:'none',fontWeight:700})} onClick={salvar} disabled={busy}>
           <I><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></I>
           {busy ? 'Salvando...' : 'Salvar como...'}
@@ -258,11 +303,21 @@ export const PdfOrganizer = ({ onDoc }) => {
 
       {error && <div style={{marginBottom:12,padding:'10px 14px',background:'rgba(192,64,80,0.06)',border:'1px solid rgba(192,64,80,0.2)',borderRadius:10,fontSize:13.5,color:T.danger}}>{error}</div>}
 
-      <PageOrganizer
-        pdf={pdf} poolId={poolId} pages={pages} busy={busy}
-        onMove={mover} onDelete={excluir}
-        onRestore={restaurar} podeRestaurar={ordemMudou}
-        onPreview={setPreviewIdx}/>
+      <div onDragEnter={onPdfDragEnter} onDragOver={onPdfDragOver} onDragLeave={onPdfDragLeave} onDrop={onPdfDrop}
+        style={{position:'relative',borderRadius:12,outline:pdfDropHover?`2px dashed ${T.gold}`:'none',outlineOffset:6}}>
+        {pdfDropHover && (
+          <div style={{position:'absolute',inset:0,zIndex:40,display:'flex',alignItems:'center',justifyContent:'center',background:'rgba(255,255,255,.88)',borderRadius:12,pointerEvents:'none'}}>
+            <div style={{padding:'16px 22px',border:`2px dashed ${T.gold}`,borderRadius:12,background:T.surface,color:T.text,fontSize:14,fontWeight:600,textAlign:'center'}}>
+              Solte os PDFs para adicionar as páginas ao final
+            </div>
+          </div>
+        )}
+        <PageOrganizer
+          pdf={pdf} poolId={poolId} pages={pages} busy={busy}
+          onMove={mover} onDelete={excluir}
+          onRestore={restaurar} podeRestaurar={ordemMudou}
+          onPreview={setPreviewIdx}/>
+      </div>
 
       {previewIdx != null && (
         <PagePreviewModal pdf={pdf} pages={pages} idx={clamp(previewIdx,0,pages.length-1)}
@@ -270,4 +325,4 @@ export const PdfOrganizer = ({ onDoc }) => {
       )}
     </div>
   );
-};
+};s
