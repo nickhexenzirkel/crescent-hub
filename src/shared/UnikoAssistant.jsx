@@ -139,10 +139,9 @@ const TIPS = [
   { text: 'Dica: me peça lembretes! Tipo "me lembre de bater o ponto às 14:30". ⏰', sprite: 'ALARME' },
 ];
 
-// Kill-switch do Blog Secreto — desativado a pedido do usuário (jul/2026), até segunda
-// ordem. Com isso em `true`: painel mostra um aviso no lugar do chat, e os polls
-// (mensagens + notificação proativa) nem rodam. Pra reativar, só voltar pra `false`.
-const BLOG_SECRETO_DISABLED = true;
+// Kill-switch de emergência. O Blog Secreto está ativo; volte para `true` somente
+// se for necessário interromper mensagens e notificações sem remover a interface.
+const BLOG_SECRETO_DISABLED = false;
 
 // Emojis do picker do Blog Secreto — grade curada fixa (sem dependência/API externa).
 const EMOJI_LIST = [
@@ -152,12 +151,28 @@ const EMOJI_LIST = [
   '🎉','🎊','💯','😴','☕','🍕','🍺','🎮','🎵','🐱','🐶','🤫','🕵️','🚀','⚡','🌈',
 ];
 
-// "Rosto" anônimo por `pseudo_tag` (atribuído no servidor, ver supabase_uniko_blog_
-// secreto_pseudonimo.sql — NUNCA é o autor de verdade, só um número sequencial sem
-// relação com o nome). Cada pessoa diferente pega sempre a mesma cor — dá pra
-// diferenciar "várias pessoas anônimas" sem revelar quem ninguém é.
+// Identidade anônima por `pseudo_tag` (atribuído no servidor). O mesmo número sempre
+// resolve para o mesmo nome, emoji e cor, sem revelar qualquer dado real do autor.
+const ANON_IDENTITIES = [
+  ['Raposa Misteriosa', '🦊'], ['Coruja Lunar', '🦉'], ['Gato Nebuloso', '🐈‍⬛'],
+  ['Lobo Gentil', '🐺'], ['Panda Cósmico', '🐼'], ['Coelho Astral', '🐇'],
+  ['Guaxinim Curioso', '🦝'], ['Lontra Sonhadora', '🦦'], ['Sapo Oráculo', '🐸'],
+  ['Tigre Sereno', '🐯'], ['Urso Polar', '🐻‍❄️'], ['Polvo Violeta', '🐙'],
+  ['Borboleta Solar', '🦋'], ['Pinguim Estelar', '🐧'], ['Leão Dourado', '🦁'],
+  ['Cervo Encantado', '🦌'], ['Baleia Azul', '🐋'], ['Dragão Tímido', '🐉'],
+  ['Abelha Noturna', '🐝'], ['Fênix Secreta', '🔥'],
+];
 const ANON_COLORS = ['#e67e22','#3498db','#9b59b6','#1abc9c','#e74c3c','#2ecc71','#f39c12','#16a085','#8e44ad','#d35400'];
-const anonColor = (tag) => ANON_COLORS[((tag ?? 0) % ANON_COLORS.length + ANON_COLORS.length) % ANON_COLORS.length];
+const anonIndex = (tag, length) => {
+  const numeric = Number(tag);
+  const value = Number.isFinite(numeric) && numeric > 0 ? numeric - 1 : (numeric || 0);
+  return (value % length + length) % length;
+};
+const anonColor = (tag) => ANON_COLORS[anonIndex(tag, ANON_COLORS.length)];
+const anonIdentity = (tag) => {
+  const [name, emoji] = ANON_IDENTITIES[anonIndex(tag, ANON_IDENTITIES.length)];
+  return { name, emoji, label: `${name} ${emoji}` };
+};
 
 // Ícones das ações de mensagem do Blog Secreto (apagar/editar) — mesmo traço usado em
 // outros botões de excluir do app (Central Alexa: "Excluir tudo"/mês da Máquina do Tempo).
@@ -208,31 +223,39 @@ const qkeyOf = (s) => String(s || '').toLowerCase()
   .normalize('NFD').replace(/\p{Diacritic}/gu, '')
   .replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
 
-/* ── Moderação do Blog Secreto: bloqueia racismo e discriminação religiosa antes de
-   mandar. A maioria é checagem por FRASE (não palavra solta) pra não falso-positivar
-   em uso inocente ("café preto") — normalizada igual a FAQ (sem acento/pontuação,
-   minúsculo), pega variações de escrita/espaçamento. "crente" é EXCEÇÃO: bloqueada
-   como palavra solta mesmo sendo usada às vezes de forma neutra/autodescritiva ("sou
-   crente") — decisão explícita do usuário depois de eu avisar desse trade-off, prefere
-   barrar sempre a arriscar deixar passar um uso pejorativo. Backup no servidor
-   (trigger, ver supabase_uniko_blog_secreto_moderacao.sql) pra não dar pra burlar
-   chamando a API direto — esse aqui é só a barreira do lado do cliente, mais rápida e
-   com aviso na hora. Lista curada: só o que foi pedido + variações óbvias de grafia,
-   de propósito (não é um dicionário geral de ofensas). ── */
-const BLOCKED_CHAT_TERMS = [
-  'cabelo de bombril', 'cabelo bombril',
-  'cabelo pixaim', 'cabelo pichain', 'cabelo pichaim',
-  'pixaim', 'pichain', 'pichaim',
-  'cabelo duro', 'cabelo feio',
-  'preto feio', 'preta feia',
-  'preto nojento', 'preta nojenta',
-  'pessoa escura',
-  'crente',
+/* Moderação imediata no cliente. O servidor continua sendo a última barreira contra
+   requisições diretas; mantenha o trigger SQL de moderação alinhado com estes grupos. */
+const BLOCKED_CHAT_GROUPS = [
+  {
+    reason: 'palavrões ou linguagem imprópria',
+    terms: ['porra', 'caralho', 'merda', 'puta', 'puto', 'foda', 'foder', 'fodase', 'foda se', 'cacete', 'buceta', 'cuzao', 'cuzão'],
+  },
+  {
+    reason: 'ofensa, humilhação ou ataque pessoal',
+    terms: ['idiota', 'imbecil', 'burro', 'burra', 'otario', 'otaria', 'retardado', 'retardada', 'vagabundo', 'vagabunda', 'desgracado', 'desgracada', 'lixo humano', 'vai morrer', 'se mata', 'feio', 'feia', 'muito feio', 'muito feia', 'pessoa feia', 'voce e feio', 'voce e feia', 'e muito feio', 'e muito feia', 'gordo', 'gorda', 'voce e gordo', 'voce e gorda', 'e muito gordo', 'e muito gorda', 'gorda imensa', 'gordo imenso'],
+  },
+  {
+    reason: 'racismo ou discriminação racial',
+    terms: ['macaco', 'mamaco', 'cabelo de bombril', 'cabelo bombril', 'cabelo pixaim', 'cabelo pichain', 'cabelo pichaim', 'pixaim', 'pichain', 'pichaim', 'cabelo duro', 'cabelo feio', 'preto feio', 'preta feia', 'preto nojento', 'preta nojenta', 'pessoa escura'],
+  },
+  {
+    reason: 'preconceito contra orientação sexual ou identidade de gênero',
+    terms: ['viado', 'bicha', 'traveco', 'sapatão', 'sapatao', 'aberração de genero', 'aberracao de genero'],
+  },
+  {
+    reason: 'intolerância religiosa ou xenofobia',
+    terms: ['crente', 'macumbeiro', 'macumbeira', 'religiao de preto', 'volta pro seu pais', 'estrangeiro nojento', 'nordestino burro'],
+  },
 ];
-function containsBlockedContent(raw) {
+function findBlockedContent(raw) {
   const q = qkeyOf(raw);
-  if (!q) return false;
-  return BLOCKED_CHAT_TERMS.some(term => q.includes(qkeyOf(term)));
+  if (!q) return null;
+  const padded = ` ${q} `;
+  for (const group of BLOCKED_CHAT_GROUPS) {
+    const term = group.terms.find(item => padded.includes(` ${qkeyOf(item)} `));
+    if (term) return { reason: group.reason };
+  }
+  return null;
 }
 
 // Verifica se o gatilho `k` aparece como PALAVRA/FRASE INTEIRA em `q` (isolado por
@@ -626,13 +649,18 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
   const blogFileRef = useRef(null);      // <input type=file> escondido (imagem/gif/vídeo)
   const [blogAttach, setBlogAttach] = useState(null); // { url, type } pendente de envio, ou null
   const [blogAttachErr, setBlogAttachErr] = useState('');
-  const [blogModerationErr, setBlogModerationErr] = useState(''); // aviso de conteúdo bloqueado (racismo)
+  const [blogModerationAlert, setBlogModerationAlert] = useState(null); // { text, reason, action }
   const [showEmoji, setShowEmoji] = useState(false);
   const [editingBlogId, setEditingBlogId] = useState(null); // id da mensagem sendo editada, ou null
   const [editingText, setEditingText] = useState('');
   const [blogLightbox, setBlogLightbox] = useState(null); // url da imagem/gif aberta em tela cheia, ou null
   const [blogDragOver, setBlogDragOver] = useState(false); // arrastando um arquivo por cima da lista de mensagens?
   const [blogUnread, setBlogUnread] = useState(0); // mensagens novas de outras pessoas ainda não vistas
+  const [adminPseudoTag, setAdminPseudoTag] = useState('');
+  const [adminMuteMinutes, setAdminMuteMinutes] = useState('30');
+  const [adminModerationStatus, setAdminModerationStatus] = useState('');
+  const [adminModerating, setAdminModerating] = useState(false);
+  const [adminToolsOpen, setAdminToolsOpen] = useState(false);
   const [pos, setPos] = useState(() => {
     const s0 = getAssistantSkin(getActiveAssistantSkinId()), sc0 = getAssistantScale();
     return dockToPixels(loadDock(), Math.round((s0.iconSize || 84) * sc0), Math.round((s0.edgeMargin ?? 12) * sc0));
@@ -1055,13 +1083,14 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
     if (BLOG_SECRETO_DISABLED) return;
     const text = blogInput.trim().slice(0, 500);
     if ((!text && !blogAttach) || blogSending.current) return;
-    if (containsBlockedContent(text)) {
-      setBlogModerationErr('🚫 Essa mensagem não pode ser enviada — tem conteúdo racista/discriminatório. Revise o texto antes de mandar de novo.');
+    const violation = findBlockedContent(text);
+    if (violation) {
+      setBlogModerationAlert({ text, reason: violation.reason, action: 'enviada' });
       return;
     }
     blogSending.current = true;
     const attach = blogAttach;
-    setBlogInput(''); setBlogAttach(null); setBlogAttachErr(''); setBlogModerationErr(''); setShowEmoji(false);
+    setBlogInput(''); setBlogAttach(null); setBlogAttachErr(''); setBlogModerationAlert(null); setShowEmoji(false);
     try {
       const { data, error } = await _supabase.from('uniko_blog_secreto')
         .insert({
@@ -1077,14 +1106,80 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
           id: data.id, text, media_url: attach?.url || null, media_type: attach?.type || null,
           created_at: new Date().toISOString(),
         }]);
+      } else if (error) {
+        setBlogInput(text);
+        setBlogAttach(attach);
+        if (/silenciad/i.test(error.message || '')) {
+          setBlogModerationAlert({
+            text,
+            title: 'Você está temporariamente silenciado',
+            description: error.message,
+            action: 'enviada',
+          });
+        } else if (/racis|discrimin|ofens|conte[uú]do|permitid/i.test(error.message || '')) {
+          setBlogModerationAlert({ text, reason: 'conteúdo ofensivo ou discriminatório identificado pelo servidor', action: 'enviada' });
+        } else {
+          setBlogAttachErr('Não foi possível enviar agora. Tente novamente.');
+        }
       }
-    } catch {}
+    } catch {
+      setBlogInput(text);
+      setBlogAttach(attach);
+      setBlogAttachErr('Não foi possível enviar agora. Tente novamente.');
+    }
     blogSending.current = false;
   };
 
   const deleteBlogMessage = async (id) => {
     try { await _supabase.from('uniko_blog_secreto').delete().eq('id', id); } catch {}
     setBlogMessages(m => m.filter(x => x.id !== id));
+  };
+  const clearAllBlogMessages = async () => {
+    if (authUser?.role !== 'admin') return;
+    if (!window.confirm('Limpar todo o Blog Secreto? Todas as mensagens e anexos serão apagados para todos. Esta ação não pode ser desfeita.')) return;
+    setBlogAttachErr('');
+    try {
+      const { error } = await _supabase.from('uniko_blog_secreto').delete().not('id', 'is', null);
+      if (error) {
+        setBlogAttachErr('Não foi possível limpar o chat. Verifique a permissão de administrador no Supabase.');
+        return;
+      }
+      setBlogMessages([]);
+      myBlogIds.current.clear();
+      saveBlogMineIds(authUser?.name, []);
+      setBlogUnread(0);
+      setDocTitleUnread(0);
+      setAdminPseudoTag('');
+      setAdminModerationStatus('Chat limpo com sucesso.');
+    } catch {
+      setBlogAttachErr('Não foi possível limpar o chat agora. Tente novamente.');
+    }
+  };
+  const muteBlogIdentity = async () => {
+    if (authUser?.role !== 'admin' || !adminPseudoTag || adminModerating) return;
+    const tag = Number(adminPseudoTag);
+    const minutes = Number(adminMuteMinutes);
+    const identity = anonIdentity(tag);
+    if (!window.confirm(`Silenciar ${identity.label} por ${minutes < 60 ? `${minutes} minutos` : `${minutes / 60} hora(s)`}?`)) return;
+    setAdminModerating(true);
+    setAdminModerationStatus('');
+    try {
+      const { data, error } = await _supabase.rpc('uniko_blog_mute_pseudonym', {
+        p_pseudo_tag: tag,
+        p_minutes: minutes,
+        p_reason: 'Aplicado pelo painel de moderação do Blog Secreto',
+      });
+      if (error) {
+        setAdminModerationStatus(error.message || 'Não foi possível aplicar o silêncio.');
+      } else {
+        const until = data ? new Date(data).toLocaleString('pt-BR') : '';
+        setAdminModerationStatus(`${identity.label} está silenciado${until ? ` até ${until}` : ''}.`);
+      }
+    } catch {
+      setAdminModerationStatus('Não foi possível aplicar o silêncio agora.');
+    } finally {
+      setAdminModerating(false);
+    }
   };
 
   const startEditBlogMessage = (m) => { setEditingBlogId(m.id); setEditingText(m.text || ''); };
@@ -1094,15 +1189,32 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
     const text = editingText.trim().slice(0, 500);
     const target = blogMessages.find(x => x.id === id);
     if (!text && !target?.media_url) return; // não deixa esvaziar uma mensagem só-texto
-    if (containsBlockedContent(text)) {
-      setBlogModerationErr('🚫 Essa edição não pode ser salva — tem conteúdo racista/discriminatório. Revise o texto antes de salvar de novo.');
+    const violation = findBlockedContent(text);
+    if (violation) {
+      setBlogModerationAlert({ text, reason: violation.reason, action: 'salva' });
       return;
     }
-    setEditingBlogId(null);
     try {
-      await _supabase.from('uniko_blog_secreto').update({ text: text || null, edited: true }).eq('id', id);
+      const { error } = await _supabase.from('uniko_blog_secreto').update({ text: text || null, edited: true }).eq('id', id);
+      if (error) {
+        if (/silenciad/i.test(error.message || '')) {
+          setBlogModerationAlert({
+            text,
+            title: 'Você está temporariamente silenciado',
+            description: error.message,
+            action: 'salva',
+          });
+        } else {
+          setBlogAttachErr('Não foi possível salvar a edição agora.');
+        }
+        return;
+      }
+      setEditingBlogId(null);
+      setEditingText('');
       setBlogMessages(m => m.map(x => x.id === id ? { ...x, text, edited: true } : x));
-    } catch {}
+    } catch {
+      setBlogAttachErr('Não foi possível salvar a edição agora.');
+    }
   };
 
   // ── ARRASTAR o robô (estilo AssistiveTouch) — mouse + toque. Distingue toque de arraste:
@@ -1330,6 +1442,16 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
   const vh = typeof window !== 'undefined' ? window.innerHeight : 800;
   const onLeft = (pos.x + ICON / 2) < vw / 2;
   const onTop  = (pos.y + ICON / 2) < vh / 2;
+  const blogOpen = open && chatMode === 'blog';
+  const visibleIcon = blogOpen ? Math.min(64, Math.max(42, Math.round(ICON * .55))) : ICON;
+  const roomBelow = vh - pos.y - visibleIcon - 18;
+  const roomAbove = pos.y - 18;
+  const panelBelow = roomBelow >= roomAbove;
+  const panelRoom = Math.max(220, (panelBelow ? roomBelow : roomAbove) - 8);
+  const panelHeight = Math.min(chatMode === 'blog' ? 640 : 440, panelRoom);
+  const blogIdentities = [...new Set(blogMessages.filter(m => m.pseudo_tag != null).map(m => Number(m.pseudo_tag)).filter(Number.isFinite))]
+    .sort((a, b) => a - b)
+    .map(tag => ({ tag, ...anonIdentity(tag) }));
 
   return (
     <div className="uniko-assistant" style={{ position: 'fixed', left: pos.x, top: pos.y, width: ICON, height: ICON, zIndex: 9990, pointerEvents: 'none', transition: dragging ? 'none' : 'left .28s cubic-bezier(.22,1,.36,1), top .28s cubic-bezier(.22,1,.36,1)' }}>
@@ -1384,7 +1506,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
             transition: 'transform .35s cubic-bezier(.34,1.56,.64,1), filter .35s ease',
             filter: `drop-shadow(0 8px 22px ${T.goldLine || accent}${hovered && !dragging ? '99' : '55'})`,
           }}>
-          <UnikoFace size={ICON} src={(captureAlert || numeroAlert) && !open ? IMG.CAPTURE : sprite} talking={talking} skin={skin} />
+          <UnikoFace size={visibleIcon} src={(captureAlert || numeroAlert) && !open ? IMG.CAPTURE : sprite} talking={talking} skin={skin} />
         </button>
       </div>
 
@@ -1406,13 +1528,19 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
 
       {/* ── Painel de chat ── */}
       {open && (
-        <div style={{ pointerEvents: 'auto', position: 'absolute', ...(onLeft ? { left: 0 } : { right: 0 }), ...(onTop ? { top: ICON + 22 } : { bottom: ICON + 22 }), width: chatMode === 'blog' ? 'min(460px, calc(100vw - 36px))' : 'min(360px, calc(100vw - 36px))', height: chatMode === 'blog' ? 560 : 440, maxHeight: 'calc(100vh - 160px)', background: panelBg, border: `1px solid ${T.border || 'rgba(0,0,0,.1)'}`, borderRadius: 18, boxShadow: '0 18px 60px rgba(0,0,0,0.28)', display: 'flex', flexDirection: 'column', overflow: 'hidden', transition: 'width .22s ease, height .22s ease', animation: 'uaPop .25s ease', ...(fixado ? { position: 'fixed', left: geo.x, top: geo.y, right: 'auto', bottom: 'auto', width: geo.w, height: geo.h, maxHeight: 'none', transition: 'none' } : {}) }}>
+        <div style={{ pointerEvents: 'auto', position: 'absolute', ...(onLeft ? { left: 0 } : { right: 0 }),
+          ...(panelBelow ? { top: visibleIcon + 14 } : { bottom: ICON + 14 }),
+          width: chatMode === 'blog' ? 'min(540px, calc(100vw - 24px))' : 'min(360px, calc(100vw - 24px))',
+          height: panelHeight, maxHeight: panelHeight, background: panelBg, border: `1px solid ${T.border || 'rgba(0,0,0,.1)'}`,
+          borderRadius: 20, boxShadow: '0 24px 80px rgba(0,0,0,0.34)', display: 'flex', flexDirection: 'column', overflow: 'hidden',
+          transition: 'width .22s ease, height .22s ease', animation: 'uaPop .25s ease',
+          ...(fixado ? { position: 'fixed', left: geo.x, top: geo.y, right: 'auto', bottom: 'auto', width: geo.w, height: geo.h, maxHeight: 'none', transition: 'none' } : {}) }}>
           {/* header */}
           <div onPointerDown={iniciarGeo('mover')} title={fixado ? 'Arraste para mover' : undefined} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', cursor: fixado ? 'grab' : 'default', touchAction: fixado ? 'none' : 'auto', userSelect: fixado ? 'none' : 'auto', borderBottom: `1px solid ${T.border || 'rgba(0,0,0,.08)'}`, background: `linear-gradient(135deg,${accent}22,transparent)` }}>
             <div style={{ width: 30, height: 30, position: 'relative', flexShrink: 0 }}><UnikoFace size={30} src={sprite} talking={talking} skin={skin} /></div>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 13.5, fontWeight: 800, color: T.text }}>UNIKO</div>
-              <div style={{ fontSize: 10.5, color: T.textT || '#8a8', fontWeight: 600 }}>{chatMode === 'blog' ? 'Chat anônimo' : 'Assistente do sistema'}</div>
+              <div style={{ fontSize: 10.5, color: T.textT || '#8a8', fontWeight: 600 }}>{chatMode === 'blog' ? 'Comunidade anônima · moderação ativa' : 'Assistente do sistema'}</div>
             </div>
             <button onPointerDown={(e) => e.stopPropagation()} onClick={alternarFixado} title={fixado ? 'Desafixar (volta a fechar normalmente)' : 'Fixar o painel aberto'} style={{ border: 'none', background: fixado ? accent : 'transparent', borderRadius: 8, cursor: 'pointer', color: fixado ? (T.dark ? '#3a2a05' : '#fff') : (T.textS || '#888'), fontSize: 14, lineHeight: 1, padding: '4px 6px', opacity: fixado ? 1 : .8 }}>📌</button>
             <button onPointerDown={(e) => e.stopPropagation()} onClick={() => { setOpen(false); if (fixadoRef.current) alternarFixado(); }} title="Fechar" style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: T.textS || '#888', fontSize: 20, lineHeight: 1, padding: 4 }}>×</button>
@@ -1480,14 +1608,18 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
             onDragOver={e => { e.preventDefault(); if (!blogDragOver) setBlogDragOver(true); }}
             onDragLeave={e => { if (e.currentTarget === e.target) setBlogDragOver(false); }}
             onDrop={e => { e.preventDefault(); setBlogDragOver(false); const file = e.dataTransfer?.files?.[0]; if (file) handleBlogFile(file); }}
-            style={{ flex: 1, overflowY: 'auto', padding: '12px 12px', display: 'flex', flexDirection: 'column', gap: 2, position: 'relative', outline: blogDragOver ? `2px dashed ${accent}` : 'none', outlineOffset: -4, background: blogDragOver ? `${accent}0d` : undefined }}>
+            style={{ flex: 1, overflowY: 'auto', padding: '14px 14px 18px', display: 'flex', flexDirection: 'column', gap: 2, position: 'relative',
+              outline: blogDragOver ? `2px dashed ${accent}` : 'none', outlineOffset: -4,
+              background: blogDragOver ? `${accent}14` : `radial-gradient(circle at 50% 0%,${accent}12,transparent 42%),${T.surfaceSub || 'rgba(0,0,0,.025)'}` }}>
             {blogDragOver && (
               <div style={{ position: 'absolute', inset: 0, zIndex: 5, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', background: panelBg + 'ee', fontSize: 13, fontWeight: 700, color: accent }}>
                 📎 Solte aqui pra anexar
               </div>
             )}
-            <div style={{ fontSize: 11, color: T.textT || '#8a8', textAlign: 'center', padding: '2px 8px 10px', lineHeight: 1.5 }}>
-              🤫 Chat anônimo e global — todo mundo vê, ninguém sabe quem escreveu. Seja gente boa 💛
+            <div style={{ fontSize: 11.5, color: T.textS || T.textT || '#888', textAlign: 'left', padding: '11px 13px', lineHeight: 1.5,
+              marginBottom: 8, borderRadius: 13, border: `1px solid ${accent}33`, background: `linear-gradient(135deg,${accent}16,transparent)` }}>
+              <div style={{ fontSize: 12.5, fontWeight: 800, color: T.text, marginBottom: 3 }}>🤫 Entre identidades, não entre ataques</div>
+              Todo mundo vê a conversa, mas ninguém vê seu nome real. Ofensas, palavrões e preconceitos são bloqueados automaticamente.
             </div>
             {blogLoading && blogMessages.length === 0 && <div style={{ textAlign: 'center', fontSize: 12, color: T.textT || '#8a8' }}>Carregando...</div>}
             {!blogLoading && blogMessages.length === 0 && <div style={{ textAlign: 'center', fontSize: 12, color: T.textT || '#8a8' }}>Ninguém escreveu nada ainda. Seja o primeiro! 👀</div>}
@@ -1509,14 +1641,15 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
                 ? `14px ${grouped ? 6 : 14}px ${groupedWithNext ? 14 : 4}px 14px`
                 : `${grouped ? 6 : 14}px 14px 14px ${groupedWithNext ? 14 : 4}px`;
               const color = anonColor(m.pseudo_tag);
+              const identity = anonIdentity(m.pseudo_tag);
               return (
-                <div key={m.id} className="ua-blogmsg" style={{ alignSelf: mine ? 'flex-end' : 'flex-start', maxWidth: '84%', position: 'relative', marginTop: grouped ? 0 : 10 }}>
+                <div key={m.id} className="ua-blogmsg" style={{ alignSelf: mine ? 'flex-end' : 'flex-start', maxWidth: '86%', position: 'relative', marginTop: grouped ? 0 : 12 }}>
                   {!grouped && (
-                    <div style={{ fontSize: 9.5, color: mine ? (T.textD || '#aaa') : color, marginBottom: 2, textAlign: mine ? 'right' : 'left', fontWeight: 700, letterSpacing: '.04em' }}>
-                      {mine ? 'VOCÊ' : 'ANÔNIMO'}
+                    <div style={{ fontSize: 10.5, color: mine ? (T.textD || '#aaa') : color, marginBottom: 4, textAlign: mine ? 'right' : 'left', fontWeight: 800, letterSpacing: '.02em' }}>
+                      {mine ? 'VOCÊ' : identity.label}
                     </div>
                   )}
-                  <div style={{ background: mine ? `linear-gradient(135deg,${accent},${T.goldLine || accent})` : (T.surfaceSub || 'rgba(0,0,0,0.05)'), color: mine ? (T.dark ? '#3a2a05' : '#fff') : (T.text || '#222'), borderRadius: bubbleRadius, padding: m.media_url ? 6 : '8px 12px', fontSize: 13, lineHeight: 1.5, wordBreak: 'break-word', borderLeft: mine ? undefined : `3px solid ${color}` }}>
+                  <div style={{ background: mine ? `linear-gradient(135deg,${accent},${T.goldLine || accent})` : (T.surface || T.surfaceSub || 'rgba(0,0,0,0.05)'), color: mine ? (T.dark ? '#3a2a05' : '#fff') : (T.text || '#222'), borderRadius: bubbleRadius, padding: m.media_url ? 7 : '10px 13px', fontSize: 13.5, lineHeight: 1.55, wordBreak: 'break-word', border: mine ? 'none' : `1px solid ${color}38`, borderLeft: mine ? undefined : `4px solid ${color}`, boxShadow: mine ? `0 7px 18px ${accent}28` : '0 5px 16px rgba(0,0,0,.07)' }}>
                     {m.media_url && m.media_type === 'video' && (
                       <video src={m.media_url} controls autoPlay muted loop playsInline style={{ display: 'block', maxWidth: '100%', maxHeight: 220, borderRadius: 10, marginBottom: (m.text || editing) ? 6 : 0 }} />
                     )}
@@ -1526,7 +1659,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
                     )}
                     {editing ? (
                       <div style={{ padding: m.media_url ? '0 6px 4px' : 0 }}>
-                        <textarea value={editingText} onChange={e => { setEditingText(e.target.value); if (blogModerationErr) setBlogModerationErr(''); }} maxLength={500} rows={2} autoFocus
+                        <textarea value={editingText} onChange={e => setEditingText(e.target.value)} maxLength={500} rows={2} autoFocus
                           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveEditBlogMessage(m.id); } if (e.key === 'Escape') cancelEditBlogMessage(); }}
                           style={{ width: '100%', resize: 'none', border: `1px solid ${mine ? 'rgba(58,42,5,.3)' : (T.border || 'rgba(0,0,0,.2)')}`, borderRadius: 8, padding: 6, fontSize: 13, fontFamily: 'var(--font-body)', background: mine ? 'rgba(255,255,255,.4)' : (T.surface || '#fff'), color: 'inherit', boxSizing: 'border-box' }} />
                         <div style={{ display: 'flex', gap: 6, marginTop: 4, justifyContent: mine ? 'flex-end' : 'flex-start' }}>
@@ -1561,10 +1694,36 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
             })}
           </div>
 
-          {/* Aviso de conteúdo bloqueado (racismo/discriminação) — barra o envio */}
-          {blogModerationErr && (
-            <div style={{ margin: '0 10px 8px', padding: '9px 12px', borderRadius: 10, background: '#C0405022', border: '1.5px solid #C0405066', color: '#C04050', fontSize: 12, fontWeight: 700, lineHeight: 1.45 }}>
-              {blogModerationErr}
+          {/* Bloqueio educativo: a tentativa não sai do navegador até a pessoa confirmar ciência. */}
+          {blogModerationAlert && (
+            <div role="alertdialog" aria-modal="true" aria-labelledby="blog-moderation-title"
+              style={{ position: 'absolute', inset: 0, zIndex: 30, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                padding: 20, background: 'rgba(7,10,18,.72)', backdropFilter: 'blur(8px)' }}>
+              <div style={{ width: 'min(400px,100%)', padding: '22px', borderRadius: 18, background: panelBg,
+                border: '1.5px solid #C0405066', boxShadow: '0 24px 70px rgba(0,0,0,.42)' }}>
+                <div style={{ width: 42, height: 42, borderRadius: 13, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  background: '#C0405018', color: '#C04050', fontSize: 22, marginBottom: 13 }}>!</div>
+                <div id="blog-moderation-title" style={{ fontSize: 17, fontWeight: 900, color: T.text, marginBottom: 6 }}>
+                  {blogModerationAlert.title || 'Mensagem bloqueada'}
+                </div>
+                <div style={{ fontSize: 12.5, color: T.textS || T.textT, lineHeight: 1.55 }}>
+                  {blogModerationAlert.description
+                    || `Ela não foi ${blogModerationAlert.action} porque contém ${blogModerationAlert.reason}. O Blog Secreto é anônimo, mas continua sendo um espaço de respeito.`}
+                </div>
+                <div style={{ margin: '14px 0', padding: '11px 12px', borderRadius: 11, background: T.surfaceSub || 'rgba(0,0,0,.05)',
+                  borderLeft: '3px solid #C04050', color: T.text, fontSize: 12.5, lineHeight: 1.5, maxHeight: 110, overflowY: 'auto', wordBreak: 'break-word' }}>
+                  “{blogModerationAlert.text}”
+                </div>
+                <div style={{ fontSize: 11.5, color: T.textT, lineHeight: 1.5, marginBottom: 15 }}>
+                  Revise a mensagem antes de tentar novamente. Novas tentativas também serão bloqueadas.
+                </div>
+                <button onClick={() => setBlogModerationAlert(null)} autoFocus
+                  style={{ width: '100%', border: 'none', borderRadius: 11, padding: '11px 14px', cursor: 'pointer',
+                    background: `linear-gradient(135deg,${accent},${T.goldLine || accent})`, color: T.dark ? '#3a2a05' : '#fff',
+                    fontSize: 12.5, fontWeight: 900, fontFamily: 'var(--font-body)' }}>
+                  Estou ciente e não devo enviar esse tipo de mensagem
+                </button>
+              </div>
             </div>
           )}
 
@@ -1602,7 +1761,66 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
 
           {/* input */}
           <input ref={blogFileRef} type="file" accept="image/*,video/*" onChange={onBlogFileChange} style={{ display: 'none' }} />
-          <div style={{ display: 'flex', gap: 6, padding: 10, borderTop: `1px solid ${T.border || 'rgba(0,0,0,.08)'}` }}>
+          {authUser?.role === 'admin' && (
+            <div style={{ padding: '8px 11px 7px', borderTop: `1px solid ${T.border || 'rgba(0,0,0,.08)'}`,
+              background: `linear-gradient(135deg,${accent}0d,${panelBg})` }}>
+              <button onClick={() => setAdminToolsOpen(open => !open)} aria-expanded={adminToolsOpen}
+                style={{ width: '100%', height: 28, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  border: 'none', background: 'transparent', color: T.textT, cursor: 'pointer', padding: '0 2px',
+                  fontSize: 10, fontWeight: 900, letterSpacing: '.06em', fontFamily: 'var(--font-body)' }}>
+                <span>MODERAÇÃO</span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: accent, letterSpacing: 0 }}>
+                  {adminToolsOpen ? 'Minimizar' : 'Abrir'}
+                  <span aria-hidden="true" style={{ fontSize: 12 }}>{adminToolsOpen ? '▴' : '▾'}</span>
+                </span>
+              </button>
+              {adminToolsOpen && (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap', paddingTop: 6 }}>
+                    <select value={adminPseudoTag} onChange={e => { setAdminPseudoTag(e.target.value); setAdminModerationStatus(''); }}
+                      aria-label="Pseudônimo para silenciar"
+                      style={{ flex: '1 1 150px', minWidth: 0, height: 30, padding: '0 8px', borderRadius: 8,
+                        border: `1px solid ${T.border || 'rgba(0,0,0,.15)'}`, background: T.surface || panelBg,
+                        color: T.text, fontSize: 10.5, fontWeight: 700, fontFamily: 'var(--font-body)' }}>
+                      <option value="">Escolha um pseudônimo</option>
+                      {blogIdentities.map(identity => (
+                        <option key={identity.tag} value={identity.tag}>{identity.label}</option>
+                      ))}
+                    </select>
+                    <select value={adminMuteMinutes} onChange={e => setAdminMuteMinutes(e.target.value)}
+                      aria-label="Tempo de silêncio"
+                      style={{ height: 30, padding: '0 7px', borderRadius: 8, border: `1px solid ${T.border || 'rgba(0,0,0,.15)'}`,
+                        background: T.surface || panelBg, color: T.text, fontSize: 10.5, fontWeight: 700, fontFamily: 'var(--font-body)' }}>
+                      <option value="5">5 min</option>
+                      <option value="15">15 min</option>
+                      <option value="30">30 min</option>
+                      <option value="60">1 hora</option>
+                      <option value="480">8 horas</option>
+                      <option value="1440">1 dia</option>
+                      <option value="10080">7 dias</option>
+                    </select>
+                    <button onClick={muteBlogIdentity} disabled={!adminPseudoTag || adminModerating}
+                      style={{ height: 30, padding: '0 10px', borderRadius: 8, border: `1px solid ${accent}66`,
+                        background: adminPseudoTag ? `${accent}20` : (T.surfaceSub || 'rgba(0,0,0,.04)'),
+                        color: adminPseudoTag ? accent : T.textD, cursor: adminPseudoTag && !adminModerating ? 'pointer' : 'default',
+                        fontSize: 10.5, fontWeight: 900, fontFamily: 'var(--font-body)' }}>
+                      {adminModerating ? 'Aplicando…' : 'Silenciar'}
+                    </button>
+                    <button onClick={clearAllBlogMessages} title="Apagar todas as mensagens do Blog Secreto"
+                      style={{ height: 30, flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 5, padding: '0 9px',
+                        borderRadius: 8, border: '1px solid #C0405044', background: '#C0405012', color: '#C04050',
+                        cursor: 'pointer', fontSize: 10.5, fontWeight: 800, fontFamily: 'var(--font-body)' }}>
+                      <TrashIcon /> Limpar
+                    </button>
+                  </div>
+                  {adminModerationStatus && (
+                    <div style={{ marginTop: 6, fontSize: 10.5, lineHeight: 1.4, color: T.textS }}>{adminModerationStatus}</div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: 7, padding: 11, borderTop: `1px solid ${T.border || 'rgba(0,0,0,.08)'}`, background: panelBg }}>
             <button onClick={pickBlogFile} title="Anexar imagem/gif/vídeo"
               style={{ border: `1px solid ${T.border || 'rgba(0,0,0,.15)'}`, background: T.surfaceSub || 'rgba(0,0,0,0.03)', borderRadius: 10, width: 36, flexShrink: 0, cursor: 'pointer', fontSize: 15 }}>
               📎
@@ -1611,10 +1829,10 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
               style={{ border: `1px solid ${T.border || 'rgba(0,0,0,.15)'}`, background: showEmoji ? `${accent}33` : (T.surfaceSub || 'rgba(0,0,0,0.03)'), borderRadius: 10, width: 36, flexShrink: 0, cursor: 'pointer', fontSize: 15 }}>
               😀
             </button>
-            <input value={blogInput} onChange={e => { setBlogInput(e.target.value); if (blogModerationErr) setBlogModerationErr(''); }} onKeyDown={e => { if (e.key === 'Enter') sendBlogMessage(); }} onPaste={onBlogInputPaste}
+            <input value={blogInput} onChange={e => setBlogInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') sendBlogMessage(); }} onPaste={onBlogInputPaste}
               maxLength={500} placeholder="Escreva algo anônimo... (Ctrl+V cola imagem)"
-              style={{ flex: 1, minWidth: 0, padding: '9px 12px', borderRadius: 10, border: `1px solid ${T.border || 'rgba(0,0,0,.15)'}`, background: T.surfaceSub || 'rgba(0,0,0,0.03)', color: T.text, fontSize: 13, outline: 'none', fontFamily: 'var(--font-body)' }} />
-            <button onClick={sendBlogMessage} style={{ border: 'none', borderRadius: 10, padding: '0 16px', background: `linear-gradient(135deg,${accent},${T.goldLine || accent})`, color: (T.dark ? '#3a2a05' : '#fff'), fontWeight: 800, fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font-body)', flexShrink: 0 }}>
+              style={{ flex: 1, minWidth: 0, padding: '10px 13px', borderRadius: 11, border: `1px solid ${T.border || 'rgba(0,0,0,.15)'}`, background: T.surfaceSub || 'rgba(0,0,0,0.03)', color: T.text, fontSize: 13, outline: 'none', fontFamily: 'var(--font-body)' }} />
+            <button onClick={sendBlogMessage} style={{ border: 'none', borderRadius: 11, padding: '0 17px', background: `linear-gradient(135deg,${accent},${T.goldLine || accent})`, color: (T.dark ? '#3a2a05' : '#fff'), fontWeight: 800, fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font-body)', flexShrink: 0, boxShadow: `0 6px 16px ${accent}30` }}>
               Enviar
             </button>
           </div>
