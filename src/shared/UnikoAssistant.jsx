@@ -151,8 +151,8 @@ const EMOJI_LIST = [
   '🎉','🎊','💯','😴','☕','🍕','🍺','🎮','🎵','🐱','🐶','🤫','🕵️','🚀','⚡','🌈',
 ];
 
-// Identidade anônima por `pseudo_tag` (atribuído no servidor). O mesmo número sempre
-// resolve para o mesmo nome, emoji e cor, sem revelar qualquer dado real do autor.
+// Identidade anônima por `pseudo_tag` (atribuído no servidor). O mesmo número resolve
+// para o mesmo nome, emoji e cor, mas o servidor troca esse número a cada dois dias.
 const ANON_IDENTITIES = [
   ['Raposa Misteriosa', '🦊'], ['Coruja Lunar', '🦉'], ['Gato Nebuloso', '🐈‍⬛'],
   ['Lobo Gentil', '🐺'], ['Panda Cósmico', '🐼'], ['Coelho Astral', '🐇'],
@@ -650,6 +650,8 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
   const [blogAttach, setBlogAttach] = useState(null); // { url, type } pendente de envio, ou null
   const [blogAttachErr, setBlogAttachErr] = useState('');
   const [blogModerationAlert, setBlogModerationAlert] = useState(null); // { text, reason, action }
+  const [blogReplyTo, setBlogReplyTo] = useState(null); // mensagem escolhida com botão direito
+  const [blogContextMenu, setBlogContextMenu] = useState(null); // { message, x, y }
   const [showEmoji, setShowEmoji] = useState(false);
   const [editingBlogId, setEditingBlogId] = useState(null); // id da mensagem sendo editada, ou null
   const [editingText, setEditingText] = useState('');
@@ -695,6 +697,9 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
     loadBlogMineIds(authUser.name).forEach(id => myBlogIds.current.add(id));
     forceBlogMineReload(n => n + 1);
   }, [authUser?.name]);
+  useEffect(() => {
+    if (!open) setBlogContextMenu(null);
+  }, [open]);
 
   // Carrega as respostas REGISTRADAS pelo admin (uniko_qa_cache, in_faq=true). Elas VENCEM a FAQ
   // curada — senão palavras-chave da FAQ (ex.: "banco de horas") sombreariam a resposta registrada.
@@ -995,7 +1000,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
         // cronológica — igual o PROATIVO 4, `ascending:true` com limit ficava travado
         // nas 200 primeiras mensagens de sempre assim que passava desse total.
         const { data: raw } = await _supabase.from('uniko_blog_secreto')
-          .select('id,text,media_url,media_type,edited,pseudo_tag,created_at').order('created_at', { ascending: false }).limit(200);
+          .select('id,text,media_url,media_type,edited,pseudo_tag,reply_to_id,reply_text,reply_pseudo_tag,created_at').order('created_at', { ascending: false }).limit(200);
         if (!alive || !raw) return;
         const data = raw.slice().reverse();
         setBlogMessages(prev => {
@@ -1090,11 +1095,13 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
     }
     blogSending.current = true;
     const attach = blogAttach;
-    setBlogInput(''); setBlogAttach(null); setBlogAttachErr(''); setBlogModerationAlert(null); setShowEmoji(false);
+    const reply = blogReplyTo;
+    setBlogInput(''); setBlogAttach(null); setBlogReplyTo(null); setBlogAttachErr(''); setBlogModerationAlert(null); setShowEmoji(false);
     try {
       const { data, error } = await _supabase.from('uniko_blog_secreto')
         .insert({
           text: text || null, media_url: attach?.url || null, media_type: attach?.type || null,
+          reply_to_id: reply?.id || null,
           author: authUser?.name || 'anon',
         })
         .select('id').single();
@@ -1104,11 +1111,13 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
         blogNearBottomRef.current = true; // mandei uma mensagem → sempre desce até ela
         setBlogMessages(m => [...m, {
           id: data.id, text, media_url: attach?.url || null, media_type: attach?.type || null,
+          reply_to_id: reply?.id || null, reply_text: reply?.text || null, reply_pseudo_tag: reply?.pseudo_tag ?? null,
           created_at: new Date().toISOString(),
         }]);
       } else if (error) {
         setBlogInput(text);
         setBlogAttach(attach);
+        setBlogReplyTo(reply);
         if (/silenciad/i.test(error.message || '')) {
           setBlogModerationAlert({
             text,
@@ -1125,6 +1134,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
     } catch {
       setBlogInput(text);
       setBlogAttach(attach);
+      setBlogReplyTo(reply);
       setBlogAttachErr('Não foi possível enviar agora. Tente novamente.');
     }
     blogSending.current = false;
@@ -1619,7 +1629,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
             <div style={{ fontSize: 11.5, color: T.textS || T.textT || '#888', textAlign: 'left', padding: '11px 13px', lineHeight: 1.5,
               marginBottom: 8, borderRadius: 13, border: `1px solid ${accent}33`, background: `linear-gradient(135deg,${accent}16,transparent)` }}>
               <div style={{ fontSize: 12.5, fontWeight: 800, color: T.text, marginBottom: 3 }}>🤫 Entre identidades, não entre ataques</div>
-              Todo mundo vê a conversa, mas ninguém vê seu nome real. Ofensas, palavrões e preconceitos são bloqueados automaticamente.
+              Todo mundo vê a conversa, mas ninguém vê seu nome real, e os pseudônimos mudam a cada 2 dias. Clique com o botão direito em uma mensagem para responder. Ofensas, palavrões e preconceitos são bloqueados automaticamente.
             </div>
             {blogLoading && blogMessages.length === 0 && <div style={{ textAlign: 'center', fontSize: 12, color: T.textT || '#8a8' }}>Carregando...</div>}
             {!blogLoading && blogMessages.length === 0 && <div style={{ textAlign: 'center', fontSize: 12, color: T.textT || '#8a8' }}>Ninguém escreveu nada ainda. Seja o primeiro! 👀</div>}
@@ -1642,14 +1652,38 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
                 : `${grouped ? 6 : 14}px 14px 14px ${groupedWithNext ? 14 : 4}px`;
               const color = anonColor(m.pseudo_tag);
               const identity = anonIdentity(m.pseudo_tag);
+              const replyIdentity = anonIdentity(m.reply_pseudo_tag);
               return (
-                <div key={m.id} className="ua-blogmsg" style={{ alignSelf: mine ? 'flex-end' : 'flex-start', maxWidth: '86%', position: 'relative', marginTop: grouped ? 0 : 12 }}>
+                <div key={m.id} className="ua-blogmsg"
+                  onContextMenu={e => {
+                    e.preventDefault();
+                    const menuWidth = 190;
+                    setBlogContextMenu({
+                      message: m,
+                      x: Math.max(8, Math.min(e.clientX, window.innerWidth - menuWidth - 8)),
+                      y: Math.max(8, e.clientY - 42),
+                    });
+                  }}
+                  title="Clique com o botão direito para responder"
+                  style={{ alignSelf: mine ? 'flex-end' : 'flex-start', maxWidth: '86%', position: 'relative', marginTop: grouped ? 0 : 12 }}>
                   {!grouped && (
                     <div style={{ fontSize: 10.5, color: mine ? (T.textD || '#aaa') : color, marginBottom: 4, textAlign: mine ? 'right' : 'left', fontWeight: 800, letterSpacing: '.02em' }}>
                       {mine ? 'VOCÊ' : identity.label}
                     </div>
                   )}
                   <div style={{ background: mine ? `linear-gradient(135deg,${accent},${T.goldLine || accent})` : (T.surface || T.surfaceSub || 'rgba(0,0,0,0.05)'), color: mine ? (T.dark ? '#3a2a05' : '#fff') : (T.text || '#222'), borderRadius: bubbleRadius, padding: m.media_url ? 7 : '10px 13px', fontSize: 13.5, lineHeight: 1.55, wordBreak: 'break-word', border: mine ? 'none' : `1px solid ${color}38`, borderLeft: mine ? undefined : `4px solid ${color}`, boxShadow: mine ? `0 7px 18px ${accent}28` : '0 5px 16px rgba(0,0,0,.07)' }}>
+                    {(m.reply_to_id || m.reply_text) && (
+                      <div style={{ marginBottom: 7, padding: '7px 9px', borderRadius: 8,
+                        background: mine ? 'rgba(255,255,255,.18)' : (T.surfaceSub || 'rgba(0,0,0,.05)'),
+                        borderLeft: `3px solid ${anonColor(m.reply_pseudo_tag)}`, fontSize: 11, lineHeight: 1.35 }}>
+                        <div style={{ fontWeight: 900, color: mine ? 'inherit' : anonColor(m.reply_pseudo_tag), marginBottom: 2 }}>
+                          {replyIdentity.label}
+                        </div>
+                        <div style={{ opacity: .82, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 300 }}>
+                          {m.reply_text || 'Mensagem com mídia'}
+                        </div>
+                      </div>
+                    )}
                     {m.media_url && m.media_type === 'video' && (
                       <video src={m.media_url} controls autoPlay muted loop playsInline style={{ display: 'block', maxWidth: '100%', maxHeight: 220, borderRadius: 10, marginBottom: (m.text || editing) ? 6 : 0 }} />
                     )}
@@ -1694,6 +1728,26 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
             })}
           </div>
 
+          {blogContextMenu && (
+            <div onMouseDown={() => setBlogContextMenu(null)} onContextMenu={e => { e.preventDefault(); setBlogContextMenu(null); }}
+              style={{ position: 'fixed', inset: 0, zIndex: 40, pointerEvents: 'auto' }}>
+              <button
+                onMouseDown={e => e.stopPropagation()}
+                onClick={() => {
+                  setBlogReplyTo(blogContextMenu.message);
+                  setBlogContextMenu(null);
+                }}
+                style={{ position: 'fixed', left: blogContextMenu.x, top: blogContextMenu.y,
+                  display: 'inline-flex', alignItems: 'center', gap: 7, minHeight: 34, padding: '7px 11px',
+                  borderRadius: 9, border: `1px solid ${T.border || 'rgba(0,0,0,.14)'}`,
+                  background: panelBg, color: T.text, boxShadow: '0 10px 30px rgba(0,0,0,.24)',
+                  cursor: 'pointer', fontSize: 11.5, fontWeight: 800, fontFamily: 'var(--font-body)', whiteSpace: 'nowrap' }}>
+                <span aria-hidden="true" style={{ color: accent, fontSize: 15, lineHeight: 1 }}>↩</span>
+                Responder a esta mensagem
+              </button>
+            </div>
+          )}
+
           {/* Bloqueio educativo: a tentativa não sai do navegador até a pessoa confirmar ciência. */}
           {blogModerationAlert && (
             <div role="alertdialog" aria-modal="true" aria-labelledby="blog-moderation-title"
@@ -1724,6 +1778,24 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
                   Estou ciente e não devo enviar esse tipo de mensagem
                 </button>
               </div>
+            </div>
+          )}
+
+          {blogReplyTo && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 11px',
+              borderTop: `1px solid ${T.border || 'rgba(0,0,0,.08)'}`, background: `${accent}0d` }}>
+              <div style={{ width: 3, alignSelf: 'stretch', borderRadius: 3, background: anonColor(blogReplyTo.pseudo_tag) }}/>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 10.5, fontWeight: 900, color: anonColor(blogReplyTo.pseudo_tag), marginBottom: 1 }}>
+                  Respondendo a {anonIdentity(blogReplyTo.pseudo_tag).label}
+                </div>
+                <div style={{ fontSize: 11, color: T.textS, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {blogReplyTo.text || 'Mensagem com mídia'}
+                </div>
+              </div>
+              <button onClick={() => setBlogReplyTo(null)} aria-label="Cancelar resposta"
+                style={{ width: 26, height: 26, borderRadius: '50%', border: 'none', background: T.surfaceSub || 'rgba(0,0,0,.06)',
+                  color: T.textS, cursor: 'pointer', fontSize: 16, lineHeight: 1 }}>×</button>
             </div>
           )}
 
