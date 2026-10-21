@@ -468,6 +468,8 @@ const saveDock = (d) => { try { localStorage.setItem(POS_KEY, JSON.stringify(d))
    você mesmo já sabia que eram suas. Mantém só os últimos 500 ids (não cresce pra sempre). ── */
 const blogMineKey = (userName) => `uniko_blog_mine_${(userName || 'anon').toLowerCase()}`;
 const blogNotifKey = (userName) => `uniko_blog_notifications_${(userName || 'anon').toLowerCase()}`;
+const blogSoundKey = (userName) => `uniko_blog_sound_${(userName || 'anon').toLowerCase()}`;
+const blogAlertsKey = (userName) => `uniko_blog_alerts_${(userName || 'anon').toLowerCase()}`;
 const loadBlogMineIds = (userName) => {
   try { return JSON.parse(localStorage.getItem(blogMineKey(userName)) || '[]'); } catch { return []; }
 };
@@ -663,11 +665,20 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
   const [blogLightbox, setBlogLightbox] = useState(null); // url da imagem/gif aberta em tela cheia, ou null
   const [blogDragOver, setBlogDragOver] = useState(false); // arrastando um arquivo por cima da lista de mensagens?
   const [blogUnread, setBlogUnread] = useState(0); // mensagens novas de outras pessoas ainda não vistas
-  const [blogNotificationsEnabled, setBlogNotificationsEnabled] = useState(() => {
-    try { return localStorage.getItem(blogNotifKey(authUser?.name)) !== '0'; } catch { return true; }
-  });
-  const blogNotificationsRef = useRef(blogNotificationsEnabled);
-  blogNotificationsRef.current = blogNotificationsEnabled;
+  const readBlogPreference = (key) => {
+    try {
+      const own = localStorage.getItem(key(authUser?.name));
+      if (own != null) return own !== '0';
+      return localStorage.getItem(blogNotifKey(authUser?.name)) !== '0';
+    } catch { return true; }
+  };
+  const [blogSoundEnabled, setBlogSoundEnabled] = useState(() => readBlogPreference(blogSoundKey));
+  const [blogAlertsEnabled, setBlogAlertsEnabled] = useState(() => readBlogPreference(blogAlertsKey));
+  const [showBlogNotificationSettings, setShowBlogNotificationSettings] = useState(false);
+  const blogSoundRef = useRef(blogSoundEnabled);
+  const blogAlertsRef = useRef(blogAlertsEnabled);
+  blogSoundRef.current = blogSoundEnabled;
+  blogAlertsRef.current = blogAlertsEnabled;
   const [adminPseudoTag, setAdminPseudoTag] = useState('');
   const [adminMuteMinutes, setAdminMuteMinutes] = useState('30');
   const [adminModerationStatus, setAdminModerationStatus] = useState('');
@@ -713,17 +724,26 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
     forceBlogMineReload(n => n + 1);
   }, [authUser?.name]);
   useEffect(() => {
-    try { setBlogNotificationsEnabled(localStorage.getItem(blogNotifKey(authUser?.name)) !== '0'); }
-    catch { setBlogNotificationsEnabled(true); }
+    setBlogSoundEnabled(readBlogPreference(blogSoundKey));
+    setBlogAlertsEnabled(readBlogPreference(blogAlertsKey));
   }, [authUser?.name]);
-  const toggleBlogNotifications = () => {
-    setBlogNotificationsEnabled(enabled => {
+  const toggleBlogSound = () => {
+    setBlogSoundEnabled(enabled => {
       const next = !enabled;
-      try { localStorage.setItem(blogNotifKey(authUser?.name), next ? '1' : '0'); } catch {}
+      try { localStorage.setItem(blogSoundKey(authUser?.name), next ? '1' : '0'); } catch {}
+      if (!next) {
+        try { if (_blogAudioCtx?.state === 'running') _blogAudioCtx.suspend(); } catch {}
+      }
+      return next;
+    });
+  };
+  const toggleBlogAlerts = () => {
+    setBlogAlertsEnabled(enabled => {
+      const next = !enabled;
+      try { localStorage.setItem(blogAlertsKey(authUser?.name), next ? '1' : '0'); } catch {}
       if (!next) {
         setBlogUnread(0);
         setDocTitleUnread(0);
-        try { if (_blogAudioCtx?.state === 'running') _blogAudioCtx.suspend(); } catch {}
       }
       return next;
     });
@@ -999,12 +1019,12 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
         latestNew = r; newCount++;
       }
       if (!latestNew) return;
-      if (!blogNotificationsRef.current) return;
       // Não interrompe quem já está de olho no Blog Secreto aberto agora — nesse caso
       // quem toca o som (e zera o não-lidas) é o poll do próprio painel (4s).
       if (openRef.current && chatModeRef.current === 'blog') return;
+      if (blogSoundRef.current) playBlogNotifSound();
+      if (!blogAlertsRef.current) return;
       setBlogUnread(c => c + newCount);
-      playBlogNotifSound();
       const mediaWord = { image: 'uma imagem 🖼️', gif: 'um gif 🎞️', video: 'um vídeo 🎥' }[latestNew.media_type];
       const msg = latestNew.text
         ? `Mensagens novas no Blog Secreto: Fulano de tal falou que "${latestNew.text.length > 60 ? latestNew.text.slice(0, 60) + '…' : latestNew.text}"`
@@ -1040,7 +1060,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
           // mensagem nova de ALGUÉM QUE NÃO SOU EU.
           if (prev.length > 0) {
             const prevIds = new Set(prev.map(x => x.id));
-            if (blogNotificationsRef.current && data.some(r => !prevIds.has(r.id) && !myBlogIds.current.has(r.id))) playBlogNotifSound();
+            if (blogSoundRef.current && data.some(r => !prevIds.has(r.id) && !myBlogIds.current.has(r.id))) playBlogNotifSound();
           }
           return data;
         });
@@ -1649,7 +1669,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
           </div>
 
           {/* sub-abas: Perguntas vs Blog Secreto */}
-          <div style={{ display: 'flex', gap: 4, padding: '8px 10px 0', borderBottom: `1px solid ${T.border || 'rgba(0,0,0,.08)'}` }}>
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'flex-end', gap: 4, padding: '8px 10px 0', borderBottom: `1px solid ${T.border || 'rgba(0,0,0,.08)'}` }}>
             {[
               { id: 'perguntas', label: '💬 Perguntas' },
               { id: 'tarefas', label: '✅ Tarefas' },
@@ -1657,7 +1677,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
             ].map(v => {
               const on = chatMode === v.id;
               return (
-                <button key={v.id} onClick={() => setChatMode(v.id)}
+                <button key={v.id} onClick={() => { setChatMode(v.id); if (v.id !== 'blog') setShowBlogNotificationSettings(false); }}
                   style={{
                     padding: '7px 12px', borderRadius: '10px 10px 0 0', cursor: 'pointer', border: 'none',
                     background: on ? (T.surfaceSub || 'rgba(0,0,0,0.05)') : 'transparent',
@@ -1670,6 +1690,51 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
                 </button>
               );
             })}
+            {chatMode === 'blog' && (
+              <>
+                <button onClick={() => setShowBlogNotificationSettings(show => !show)}
+                  aria-expanded={showBlogNotificationSettings}
+                  style={{ marginLeft: 'auto', marginBottom: 5, padding: '5px 7px', borderRadius: 8,
+                    border: `1px solid ${T.border || 'rgba(0,0,0,.12)'}`,
+                    background: showBlogNotificationSettings ? `${accent}20` : 'transparent',
+                    color: showBlogNotificationSettings ? accent : T.textT, cursor: 'pointer',
+                    fontSize: 9.5, fontWeight: 800, fontFamily: 'var(--font-body)', whiteSpace: 'nowrap' }}>
+                  Desativar notificações do UNIKO
+                </button>
+                {showBlogNotificationSettings && (
+                  <div style={{ position: 'absolute', right: 10, top: 43, zIndex: 25, width: 250, padding: 12,
+                    borderRadius: 13, border: `1px solid ${T.border || 'rgba(0,0,0,.12)'}`,
+                    background: panelBg, boxShadow: '0 14px 40px rgba(0,0,0,.28)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
+                      <div>
+                        <div style={{ fontSize: 11.5, fontWeight: 900, color: T.text }}>Som de novas mensagens</div>
+                        <div style={{ fontSize: 9.5, color: T.textT, marginTop: 2 }}>Controla apenas o toque sonoro.</div>
+                      </div>
+                      <button onClick={toggleBlogSound} role="switch" aria-checked={blogSoundEnabled}
+                        style={{ position: 'relative', width: 34, height: 20, flexShrink: 0, borderRadius: 10, border: 'none',
+                          background: blogSoundEnabled ? accent : (T.textD || '#888'), cursor: 'pointer', padding: 0 }}>
+                        <span style={{ position: 'absolute', top: 2, left: blogSoundEnabled ? 16 : 2,
+                          width: 16, height: 16, borderRadius: '50%', background: '#fff',
+                          boxShadow: '0 1px 3px rgba(0,0,0,.3)', transition: 'left .2s' }}/>
+                      </button>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                      <div>
+                        <div style={{ fontSize: 11.5, fontWeight: 900, color: T.text }}>Mensagens do UNIKO</div>
+                        <div style={{ fontSize: 9.5, color: T.textT, marginTop: 2 }}>Desativa balões, avisos e não lidas do blog.</div>
+                      </div>
+                      <button onClick={toggleBlogAlerts} role="switch" aria-checked={blogAlertsEnabled}
+                        style={{ position: 'relative', width: 34, height: 20, flexShrink: 0, borderRadius: 10, border: 'none',
+                          background: blogAlertsEnabled ? accent : (T.textD || '#888'), cursor: 'pointer', padding: 0 }}>
+                        <span style={{ position: 'absolute', top: 2, left: blogAlertsEnabled ? 16 : 2,
+                          width: 16, height: 16, borderRadius: '50%', background: '#fff',
+                          boxShadow: '0 1px 3px rgba(0,0,0,.3)', transition: 'left .2s' }}/>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
           </div>
 
           {chatMode === 'tarefas' && <AssistenteTarefasPainel authUser={authUser} accent={accent} />}
@@ -1720,22 +1785,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
             )}
             <div style={{ fontSize: 11.5, color: T.textS || T.textT || '#888', textAlign: 'left', padding: '11px 13px', lineHeight: 1.5,
               marginBottom: 8, borderRadius: 13, border: `1px solid ${accent}33`, background: `linear-gradient(135deg,${accent}16,transparent)` }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-                <div style={{ flex: 1, fontSize: 12.5, fontWeight: 800, color: T.text }}>🤫 Entre identidades, não entre ataques</div>
-                <button onClick={toggleBlogNotifications} role="switch" aria-checked={blogNotificationsEnabled}
-                  title={blogNotificationsEnabled ? 'Desativar sons e avisos do Blog Secreto' : 'Ativar sons e avisos do Blog Secreto'}
-                  style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 6, border: 'none',
-                    background: 'transparent', color: T.textS, cursor: 'pointer', padding: 0,
-                    fontSize: 9.5, fontWeight: 800, fontFamily: 'var(--font-body)' }}>
-                  <span>{blogNotificationsEnabled ? 'Avisos ligados' : 'Avisos desligados'}</span>
-                  <span aria-hidden="true" style={{ position: 'relative', width: 30, height: 17, borderRadius: 9,
-                    background: blogNotificationsEnabled ? accent : (T.textD || '#888'), transition: 'background .2s' }}>
-                    <span style={{ position: 'absolute', top: 2, left: blogNotificationsEnabled ? 15 : 2,
-                      width: 13, height: 13, borderRadius: '50%', background: '#fff',
-                      boxShadow: '0 1px 3px rgba(0,0,0,.3)', transition: 'left .2s' }}/>
-                  </span>
-                </button>
-              </div>
+              <div style={{ fontSize: 12.5, fontWeight: 800, color: T.text, marginBottom: 4 }}>🤫 Entre identidades, não entre ataques</div>
               Todo mundo vê a conversa, mas ninguém vê seu nome real, e os pseudônimos mudam a cada 2 dias. Clique com o botão direito em uma mensagem para responder. Ofensas, palavrões e preconceitos são bloqueados automaticamente.
             </div>
             {blogLoading && blogMessages.length === 0 && <div style={{ textAlign: 'center', fontSize: 12, color: T.textT || '#8a8' }}>Carregando...</div>}
