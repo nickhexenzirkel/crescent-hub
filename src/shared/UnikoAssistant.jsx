@@ -467,6 +467,7 @@ const saveDock = (d) => { try { localStorage.setItem(POS_KEY, JSON.stringify(d))
    insert) — não muda a anonimidade em nada pros outros, é local e só sobre mensagens que
    você mesmo já sabia que eram suas. Mantém só os últimos 500 ids (não cresce pra sempre). ── */
 const blogMineKey = (userName) => `uniko_blog_mine_${(userName || 'anon').toLowerCase()}`;
+const blogNotifKey = (userName) => `uniko_blog_notifications_${(userName || 'anon').toLowerCase()}`;
 const loadBlogMineIds = (userName) => {
   try { return JSON.parse(localStorage.getItem(blogMineKey(userName)) || '[]'); } catch { return []; }
 };
@@ -662,6 +663,11 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
   const [blogLightbox, setBlogLightbox] = useState(null); // url da imagem/gif aberta em tela cheia, ou null
   const [blogDragOver, setBlogDragOver] = useState(false); // arrastando um arquivo por cima da lista de mensagens?
   const [blogUnread, setBlogUnread] = useState(0); // mensagens novas de outras pessoas ainda não vistas
+  const [blogNotificationsEnabled, setBlogNotificationsEnabled] = useState(() => {
+    try { return localStorage.getItem(blogNotifKey(authUser?.name)) !== '0'; } catch { return true; }
+  });
+  const blogNotificationsRef = useRef(blogNotificationsEnabled);
+  blogNotificationsRef.current = blogNotificationsEnabled;
   const [adminPseudoTag, setAdminPseudoTag] = useState('');
   const [adminMuteMinutes, setAdminMuteMinutes] = useState('30');
   const [adminModerationStatus, setAdminModerationStatus] = useState('');
@@ -706,6 +712,22 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
     loadBlogMineIds(authUser.name).forEach(id => myBlogIds.current.add(id));
     forceBlogMineReload(n => n + 1);
   }, [authUser?.name]);
+  useEffect(() => {
+    try { setBlogNotificationsEnabled(localStorage.getItem(blogNotifKey(authUser?.name)) !== '0'); }
+    catch { setBlogNotificationsEnabled(true); }
+  }, [authUser?.name]);
+  const toggleBlogNotifications = () => {
+    setBlogNotificationsEnabled(enabled => {
+      const next = !enabled;
+      try { localStorage.setItem(blogNotifKey(authUser?.name), next ? '1' : '0'); } catch {}
+      if (!next) {
+        setBlogUnread(0);
+        setDocTitleUnread(0);
+        try { if (_blogAudioCtx?.state === 'running') _blogAudioCtx.suspend(); } catch {}
+      }
+      return next;
+    });
+  };
   useEffect(() => {
     if (!open) setBlogContextMenu(null);
   }, [open]);
@@ -977,6 +999,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
         latestNew = r; newCount++;
       }
       if (!latestNew) return;
+      if (!blogNotificationsRef.current) return;
       // Não interrompe quem já está de olho no Blog Secreto aberto agora — nesse caso
       // quem toca o som (e zera o não-lidas) é o poll do próprio painel (4s).
       if (openRef.current && chatModeRef.current === 'blog') return;
@@ -1017,7 +1040,7 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
           // mensagem nova de ALGUÉM QUE NÃO SOU EU.
           if (prev.length > 0) {
             const prevIds = new Set(prev.map(x => x.id));
-            if (data.some(r => !prevIds.has(r.id) && !myBlogIds.current.has(r.id))) playBlogNotifSound();
+            if (blogNotificationsRef.current && data.some(r => !prevIds.has(r.id) && !myBlogIds.current.has(r.id))) playBlogNotifSound();
           }
           return data;
         });
@@ -1697,7 +1720,22 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
             )}
             <div style={{ fontSize: 11.5, color: T.textS || T.textT || '#888', textAlign: 'left', padding: '11px 13px', lineHeight: 1.5,
               marginBottom: 8, borderRadius: 13, border: `1px solid ${accent}33`, background: `linear-gradient(135deg,${accent}16,transparent)` }}>
-              <div style={{ fontSize: 12.5, fontWeight: 800, color: T.text, marginBottom: 3 }}>🤫 Entre identidades, não entre ataques</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                <div style={{ flex: 1, fontSize: 12.5, fontWeight: 800, color: T.text }}>🤫 Entre identidades, não entre ataques</div>
+                <button onClick={toggleBlogNotifications} role="switch" aria-checked={blogNotificationsEnabled}
+                  title={blogNotificationsEnabled ? 'Desativar sons e avisos do Blog Secreto' : 'Ativar sons e avisos do Blog Secreto'}
+                  style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 6, border: 'none',
+                    background: 'transparent', color: T.textS, cursor: 'pointer', padding: 0,
+                    fontSize: 9.5, fontWeight: 800, fontFamily: 'var(--font-body)' }}>
+                  <span>{blogNotificationsEnabled ? 'Avisos ligados' : 'Avisos desligados'}</span>
+                  <span aria-hidden="true" style={{ position: 'relative', width: 30, height: 17, borderRadius: 9,
+                    background: blogNotificationsEnabled ? accent : (T.textD || '#888'), transition: 'background .2s' }}>
+                    <span style={{ position: 'absolute', top: 2, left: blogNotificationsEnabled ? 15 : 2,
+                      width: 13, height: 13, borderRadius: '50%', background: '#fff',
+                      boxShadow: '0 1px 3px rgba(0,0,0,.3)', transition: 'left .2s' }}/>
+                  </span>
+                </button>
+              </div>
               Todo mundo vê a conversa, mas ninguém vê seu nome real, e os pseudônimos mudam a cada 2 dias. Clique com o botão direito em uma mensagem para responder. Ofensas, palavrões e preconceitos são bloqueados automaticamente.
             </div>
             {blogLoading && blogMessages.length === 0 && <div style={{ textAlign: 'center', fontSize: 12, color: T.textT || '#8a8' }}>Carregando...</div>}
