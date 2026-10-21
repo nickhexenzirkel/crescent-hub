@@ -246,6 +246,10 @@ const BLOCKED_CHAT_GROUPS = [
     reason: 'intolerância religiosa ou xenofobia',
     terms: ['crente', 'macumbeiro', 'macumbeira', 'religiao de preto', 'volta pro seu pais', 'estrangeiro nojento', 'nordestino burro'],
   },
+  {
+    reason: 'nomes ou termos bloqueados pela moderação',
+    terms: ['vg', 'joao', 'gabriel', 'mota', 'mara', 'alty', 'kaua', 'linhares', 'herbert', 'filipe', 'felipe', 'karina', 'renata', 'nick', 'nicolas', 'ander', 'anderson', 'cleanderson', 'karol', 'karolzinha', 'rian', 'tiago', 'gui', 'guilherme', 'tay', 'tayson', 'alan', 'paixao', 'mikael', 'raniere', 'rene', 'klayton', 'renato', 'cle', 'gorda', 'baleia', 'imensa', 'feia', 'feio'],
+  },
 ];
 function findBlockedContent(raw) {
   const q = qkeyOf(raw);
@@ -663,6 +667,11 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
   const [adminModerationStatus, setAdminModerationStatus] = useState('');
   const [adminModerating, setAdminModerating] = useState(false);
   const [adminToolsOpen, setAdminToolsOpen] = useState(false);
+  const [adminTermsOpen, setAdminTermsOpen] = useState(false);
+  const [adminBannedTerms, setAdminBannedTerms] = useState([]);
+  const [adminNewTerm, setAdminNewTerm] = useState('');
+  const [adminTermsLoading, setAdminTermsLoading] = useState(false);
+  const [adminTermsStatus, setAdminTermsStatus] = useState('');
   const [pos, setPos] = useState(() => {
     const s0 = getAssistantSkin(getActiveAssistantSkinId()), sc0 = getAssistantScale();
     return dockToPixels(loadDock(), Math.round((s0.iconSize || 84) * sc0), Math.round((s0.edgeMargin ?? 12) * sc0));
@@ -1189,6 +1198,66 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
       setAdminModerationStatus('Não foi possível aplicar o silêncio agora.');
     } finally {
       setAdminModerating(false);
+    }
+  };
+  const loadAdminBannedTerms = async () => {
+    if (authUser?.role !== 'admin' || adminTermsLoading) return;
+    setAdminTermsLoading(true);
+    setAdminTermsStatus('');
+    try {
+      const { data, error } = await _supabase.rpc('uniko_blog_list_banned_terms');
+      if (error) setAdminTermsStatus(error.message || 'Não foi possível carregar a lista.');
+      else setAdminBannedTerms(Array.isArray(data) ? data : []);
+    } catch {
+      setAdminTermsStatus('Não foi possível carregar a lista.');
+    } finally {
+      setAdminTermsLoading(false);
+    }
+  };
+  const toggleAdminBannedTerms = () => {
+    const next = !adminTermsOpen;
+    setAdminTermsOpen(next);
+    if (next && !adminBannedTerms.length) loadAdminBannedTerms();
+  };
+  const addAdminBannedTerm = async () => {
+    const term = adminNewTerm.trim();
+    if (!term || adminTermsLoading) return;
+    setAdminTermsLoading(true);
+    setAdminTermsStatus('');
+    try {
+      const { error } = await _supabase.rpc('uniko_blog_add_banned_term', {
+        p_term: term,
+        p_category: 'Termo definido pela moderação',
+      });
+      if (error) {
+        setAdminTermsStatus(error.message || 'Não foi possível adicionar o termo.');
+      } else {
+        setAdminNewTerm('');
+        setAdminTermsStatus(`“${term}” foi adicionado ao bloqueio.`);
+        const { data } = await _supabase.rpc('uniko_blog_list_banned_terms');
+        setAdminBannedTerms(Array.isArray(data) ? data : []);
+      }
+    } catch {
+      setAdminTermsStatus('Não foi possível adicionar o termo.');
+    } finally {
+      setAdminTermsLoading(false);
+    }
+  };
+  const removeAdminBannedTerm = async (item) => {
+    if (adminTermsLoading || !window.confirm(`Remover “${item.term}” da lista de bloqueio?`)) return;
+    setAdminTermsLoading(true);
+    setAdminTermsStatus('');
+    try {
+      const { error } = await _supabase.rpc('uniko_blog_remove_banned_term', { p_id: item.id });
+      if (error) setAdminTermsStatus(error.message || 'Não foi possível remover o termo.');
+      else {
+        setAdminBannedTerms(list => list.filter(term => term.id !== item.id));
+        setAdminTermsStatus(`“${item.term}” foi removido da lista.`);
+      }
+    } catch {
+      setAdminTermsStatus('Não foi possível remover o termo.');
+    } finally {
+      setAdminTermsLoading(false);
     }
   };
 
@@ -1878,6 +1947,13 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
                         fontSize: 10.5, fontWeight: 900, fontFamily: 'var(--font-body)' }}>
                       {adminModerating ? 'Aplicando…' : 'Silenciar'}
                     </button>
+                    <button onClick={toggleAdminBannedTerms} aria-expanded={adminTermsOpen}
+                      style={{ height: 30, padding: '0 10px', borderRadius: 8, border: `1px solid ${T.border || 'rgba(0,0,0,.15)'}`,
+                        background: adminTermsOpen ? `${accent}20` : (T.surfaceSub || 'rgba(0,0,0,.04)'),
+                        color: adminTermsOpen ? accent : T.textS, cursor: 'pointer',
+                        fontSize: 10.5, fontWeight: 900, fontFamily: 'var(--font-body)' }}>
+                      Palavras bloqueadas
+                    </button>
                     <button onClick={clearAllBlogMessages} title="Apagar todas as mensagens do Blog Secreto"
                       style={{ height: 30, flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 5, padding: '0 9px',
                         borderRadius: 8, border: '1px solid #C0405044', background: '#C0405012', color: '#C04050',
@@ -1887,6 +1963,56 @@ const UnikoAssistant = ({ authUser, notif, onDismissNotif, inPortal = false }) =
                   </div>
                   {adminModerationStatus && (
                     <div style={{ marginTop: 6, fontSize: 10.5, lineHeight: 1.4, color: T.textS }}>{adminModerationStatus}</div>
+                  )}
+                  {adminTermsOpen && (
+                    <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid ${T.border || 'rgba(0,0,0,.08)'}` }}>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <input value={adminNewTerm} onChange={e => setAdminNewTerm(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') addAdminBannedTerm(); }}
+                          maxLength={120} placeholder="Nova palavra ou frase..."
+                          style={{ flex: 1, minWidth: 0, height: 31, boxSizing: 'border-box', padding: '0 9px', borderRadius: 8,
+                            border: `1px solid ${T.border || 'rgba(0,0,0,.15)'}`, background: T.surface || panelBg,
+                            color: T.text, fontSize: 11, outline: 'none', fontFamily: 'var(--font-body)' }}/>
+                        <button onClick={addAdminBannedTerm} disabled={!adminNewTerm.trim() || adminTermsLoading}
+                          style={{ height: 31, padding: '0 11px', borderRadius: 8, border: 'none',
+                            background: adminNewTerm.trim() ? accent : (T.surfaceSub || 'rgba(0,0,0,.06)'),
+                            color: adminNewTerm.trim() ? (T.dark ? '#3a2a05' : '#fff') : T.textD,
+                            cursor: adminNewTerm.trim() && !adminTermsLoading ? 'pointer' : 'default',
+                            fontSize: 10.5, fontWeight: 900, fontFamily: 'var(--font-body)' }}>
+                          Adicionar
+                        </button>
+                      </div>
+                      {adminTermsStatus && (
+                        <div style={{ marginTop: 6, fontSize: 10.5, lineHeight: 1.4, color: T.textS }}>{adminTermsStatus}</div>
+                      )}
+                      <div style={{ maxHeight: 150, overflowY: 'auto', marginTop: 7, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {adminTermsLoading && !adminBannedTerms.length && (
+                          <div style={{ padding: 8, textAlign: 'center', color: T.textT, fontSize: 10.5 }}>Carregando lista…</div>
+                        )}
+                        {!adminTermsLoading && !adminBannedTerms.length && (
+                          <div style={{ padding: 8, textAlign: 'center', color: T.textT, fontSize: 10.5 }}>Nenhum termo cadastrado.</div>
+                        )}
+                        {adminBannedTerms.map(item => (
+                          <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px',
+                            borderRadius: 8, background: T.surfaceSub || 'rgba(0,0,0,.04)', border: `1px solid ${T.border || 'rgba(0,0,0,.08)'}` }}>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: 11, fontWeight: 800, color: T.text, wordBreak: 'break-word' }}>{item.term}</div>
+                              <div style={{ fontSize: 9.5, color: T.textT, marginTop: 1 }}>{item.category}</div>
+                            </div>
+                            {item.created_by === 'Sistema' ? (
+                              <span style={{ flexShrink: 0, padding: '4px 5px', color: T.textD, fontSize: 9.5, fontWeight: 700 }}>Protegido</span>
+                            ) : (
+                              <button onClick={() => removeAdminBannedTerm(item)} disabled={adminTermsLoading}
+                                style={{ flexShrink: 0, border: 'none', background: 'transparent', color: '#C04050',
+                                  cursor: adminTermsLoading ? 'default' : 'pointer', padding: '4px 5px',
+                                  fontSize: 10, fontWeight: 800, fontFamily: 'var(--font-body)' }}>
+                                Remover
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   )}
                 </>
               )}
