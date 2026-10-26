@@ -7,7 +7,9 @@ metadata:
 
 **Capture o Uniko** — evento estilo Pokémon GO dentro do **Portal do Colaborador**. O RH define uma **janela** (início/fim) e qual Uniko fica disponível; dentro dela o widget **surge num momento aleatório** no card da tela Início.
 
-**Regras-chave (v2):** **SÓ UM** colaborador captura por evento (lock global `capture_uniko_event`, 1º insert vence). A captura é feita **arrastando o assistente UNIKO do canto e soltando em cima do Uniko** do widget (não tem bolinha interna). Quem captura ganha **100 Prismas Comuns + 100 Premium** (creditados em `mercado_state` via `awardPrismas`; mostrados no widget) e o Uniko **vai pra coleção do My Uniko** (`addToMyUnikoCollection` → localStorage `uniko_captured_<tag>`, seção "Capturados" no modal do TabMyDoko, equipável como skin `cap_<id>`).
+**Limite atual:** cada evento aceita de 1 a **15 capturadores**. O Dashboard RH controla esse número na fila de spawns. Para permitir vagas acima de 10 no banco, aplicar `supabase_capture_uniko_max_winners_15.sql` no SQL Editor do Supabase.
+
+**Regras atuais:** cada evento aceita de **1 a 15 capturadores**. O RPC `capture_uniko_try` ocupa slots atomicamente em `capture_uniko_event`, impedindo que duas pessoas ganhem a mesma vaga. A captura é feita **arrastando o assistente UNIKO do canto e soltando em cima do Uniko** do widget. Os vencedores recebem a recompensa configurada e o Uniko vai para a coleção. O teto de 15 também precisa estar aplicado no banco usando `supabase_capture_uniko_max_winners_15.sql`.
 
 **Arquivos:**
 - `src/shared/captureUniko.js` — núcleo: `CAPTURE_UNIKOS` (roster por id, cada um com `theme` de borda/cenário), config em `settings` (key `capture_uniko_config`, JSON `{enabled,startAt,endAt,unikoId}`) via `loadCaptureConfig/saveCaptureConfig`, janela (`isWithinWindow`), estado por usuário+evento no localStorage (`isCaptureDone/markCaptureDone`), **pub/sub** `emitCaptureState/onCaptureState` (liga widget⇆assistente), e `saveCaptureToCollection` (tabela Supabase).

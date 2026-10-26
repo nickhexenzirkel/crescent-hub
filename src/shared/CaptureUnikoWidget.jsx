@@ -3,7 +3,7 @@
 // no App, aparece como um card FLUTUANTE em qualquer lugar do sistema (Portal, Central
 // Alexa, Editor...) e NÃO some ao navegar. Toca um SOM de alerta ao surgir.
 // MECÂNICA: arraste o assistente UNIKO (canto) e solte em cima do Uniko pra arremessar.
-// • O admin escolhe quantos colaboradores capturam por evento (1 a 10, campo maxWinners
+// • O admin escolhe quantos colaboradores capturam por evento (1 a 15, campo maxWinners
 //   do cfg — padrão 3 se não vier definido); as N primeiras tentativas bem-sucedidas
 //   ganham; da próxima em diante o evento já está esgotado — lock por slot no Supabase.
 // • Quem captura ganha os Prismas do Uniko (uniko.reward) e o Uniko vai pra coleção.
@@ -98,7 +98,7 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
     loadCustomUnikos().then(() => forceRefresh(n => n + 1));
   }, [unikoKey]);
 
-  // Até maxWinners (o admin escolhe, 1 a 10, padrão 3) pessoas capturam o mesmo evento —
+  // Até maxWinners (o admin escolhe, 1 a 15, padrão 3) pessoas capturam o mesmo evento —
   // cada uma vê o PRÓPRIO resultado; quem ainda não capturou continua vendo o encontro
   // disponível até esgotarem as vagas.
   const maxWinners = maxWinnersFor(cfg);
@@ -262,7 +262,7 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
     });
   }, [available, cfg, uniko]);
 
-  /* ── Alguém (um dos até 5) capturou? → acumula na lista; quando fecha as 5 vagas,
+  /* ── Alguém (um dos até 15) capturou? → acumula na lista; quando fecha as vagas,
        some pra quem ainda não capturou. Realtime (quase instantâneo, requer
        supabase_capture_uniko_realtime.sql) + poll de 4s como fallback caso o
        realtime não esteja habilitado no projeto Supabase. ── */

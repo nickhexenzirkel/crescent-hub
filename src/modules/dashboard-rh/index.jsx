@@ -4162,7 +4162,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin', initialTa
                   <div>
                     <label style={lblSt}>Vagas</label>
                     <select value={schedForm.maxWinners} onChange={e=>setSchedForm(f=>({...f,maxWinners:Number(e.target.value)}))} style={{...inpSt,cursor:'pointer'}}>
-                      {[1,2,3,4,5,6,7,8,9,10].map(n=><option key={n} value={n}>{n} {n===1?'pessoa':'pessoas'}</option>)}
+                      {Array.from({length:15},(_,i)=>i+1).map(n=><option key={n} value={n}>{n} {n===1?'pessoa':'pessoas'}</option>)}
                     </select>
                   </div>
                 </div>
