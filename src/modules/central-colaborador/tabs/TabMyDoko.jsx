@@ -54,6 +54,10 @@ const ColecaoUnikos = ({ onPhotoChange }) => {
   const [activeAssistant, setActiveAssistant] = useState(getActiveAssistantSkinId);
   const [photoOk, setPhotoOk] = useState(null); // id com feedback "Salvo!"
   const [detail, setDetail] = useState(null);   // uniko aberto no modal de variações
+  const [fundosVideo, setFundosVideo] = useState({});
+  const [erroFundosVideo, setErroFundosVideo] = useState('');
+  const [fundoPreview, setFundoPreview] = useState(null);
+  const [erroFundoPreview, setErroFundoPreview] = useState(false);
   const [customUnikos, setCustomUnikos] = useState(() => getCustomUnikos()); // Unikos da Oficina
   const [search, setSearch] = useState(''); // busca por nome na coleção
   const [filtro, setFiltro] = useState('todos'); // todos | obtidos | faltam
@@ -113,6 +117,35 @@ const ColecaoUnikos = ({ onPhotoChange }) => {
     };
   }, []);
   useEffect(() => onAssistantSkinChange((id) => setActiveAssistant(id || 'default')), []);
+  useEffect(() => {
+    let alive = true;
+    const carregarFundos = async () => {
+      try {
+        const { data, error } = await supabase.from('uniko_bg_videos').select('uniko_id,video_url');
+        if (!alive) return;
+        if (error) throw new Error(error.message);
+        setErroFundosVideo('');
+        setFundosVideo(Object.fromEntries((data || []).filter((item) => item.video_url).map(({ uniko_id, video_url }) => [uniko_id, video_url])));
+      } catch (error) {
+        if (!alive) return;
+        console.error('[colecao-uniko] Falha ao carregar fundos de vídeo:', error);
+        setErroFundosVideo(error.message || 'Não foi possível carregar os fundos de vídeo.');
+      }
+    };
+    void carregarFundos();
+    let ch;
+    try {
+      ch = supabase.channel('mydoko-bg-videos')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'uniko_bg_videos' }, carregarFundos)
+        .subscribe();
+    } catch (e) {
+      console.error('[colecao-uniko] Falha ao acompanhar fundos de vídeo:', e);
+    }
+    return () => {
+      alive = false;
+      try { supabase.removeChannel(ch); } catch {}
+    };
+  }, []);
   // Categorias: carrega e acompanha em tempo real (RH criou tag / marcou Uniko).
   useEffect(() => {
     let alive = true;
@@ -410,6 +443,7 @@ const ColecaoUnikos = ({ onPhotoChange }) => {
         const isActive = activeAssistant === u.id;
         const okPhoto = photoOk === u.id;
         const vars = owned ? getSkinVariations(u.id) : [];
+        const fundoUrl = fundosVideo[u.id];
         return (
           <div onClick={() => setDetail(null)} style={{ position: 'fixed', inset: 0, zIndex: 3000, background: 'rgba(6,8,14,.82)', backdropFilter: 'blur(14px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: isMobile ? 10 : 24 }}>
             <div onClick={e => e.stopPropagation()} style={{ position: 'relative', background: T.surface, border: `1px solid ${T.border}`, borderRadius: isMobile ? 18 : 24,
@@ -453,6 +487,11 @@ const ColecaoUnikos = ({ onPhotoChange }) => {
                     {u.shortName || u.name}
                   </div>
                   <div style={{ fontSize: 12.5, color: T.textT, lineHeight: 1.45, marginBottom: 16 }}>{u.tagline}</div>
+                  {erroFundosVideo && owned && (
+                    <div role="alert" style={{ marginBottom: 14, color: T.danger, fontSize: 11.5 }}>
+                      Não foi possível verificar o fundo de vídeo. Confirme se <code>supabase_uniko_bg_videos.sql</code> já foi executado no Supabase principal.
+                    </div>
+                  )}
 
                 {!owned && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: T.textT, marginBottom: 10 }}>
@@ -487,6 +526,18 @@ const ColecaoUnikos = ({ onPhotoChange }) => {
                         <span style={{ color: owned ? th.accent : T.textT, marginTop: 1, opacity: owned ? 1 : .7 }}><IcoSpark size={13}/></span>{p}
                       </div>
                     ))}
+                  </div>
+                )}
+
+                {owned && fundoUrl && (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap',
+                    padding: '10px 12px', marginBottom: 14, borderRadius: 11, border: `1px solid ${T.border}`, background: T.surfaceSub || 'rgba(0,0,0,.04)' }}>
+                    <span style={{ color: T.textS, fontSize: 12, fontWeight: 700 }}>Fundo de Vídeo Disponível</span>
+                    <button onClick={() => { setErroFundoPreview(false); setFundoPreview({ url: fundoUrl, uniko: u }); }}
+                      style={{ border: 0, borderRadius: 8, padding: '8px 12px', color: '#fff', background: th.accent || T.gold,
+                        fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                      Ver fundo
+                    </button>
                   </div>
                 )}
 
@@ -532,6 +583,42 @@ const ColecaoUnikos = ({ onPhotoChange }) => {
           </div>
         );
       })()}
+      {fundoPreview && (
+        <div onClick={(event) => { if (event.target === event.currentTarget) setFundoPreview(null); }}
+          style={{ position: 'fixed', inset: 0, zIndex: 4000, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: isMobile ? 12 : 28, background: 'rgba(3,6,12,.9)', backdropFilter: 'blur(8px)' }}>
+          <div role="dialog" aria-modal="true" aria-label={`Prévia do fundo de vídeo de ${fundoPreview.uniko.name}`}
+            style={{ position: 'relative', width: 'min(1200px,96vw)', aspectRatio: '16 / 9', maxHeight: '86vh', overflow: 'hidden',
+              borderRadius: isMobile ? 14 : 22, background: '#10131a', border: `1px solid ${T.border}`, boxShadow: '0 28px 90px rgba(0,0,0,.6)' }}>
+            {!erroFundoPreview ? (
+              <video src={fundoPreview.url} muted autoPlay loop playsInline onError={() => setErroFundoPreview(true)}
+                style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}/>
+            ) : (
+              <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', color: '#fff', padding: 24, textAlign: 'center' }}>
+                Não foi possível carregar este fundo de vídeo.
+              </div>
+            )}
+            <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', pointerEvents: 'none',
+              background: 'linear-gradient(180deg,rgba(0,0,0,.08),rgba(0,0,0,.18))' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                gap: isMobile ? 8 : 12, width: isMobile ? 'min(78%,320px)' : 'min(40%,380px)',
+                height: isMobile ? 'min(76%,420px)' : 'min(82%,520px)', padding: isMobile ? 14 : 22,
+                boxSizing: 'border-box', borderRadius: isMobile ? 18 : 26, background: '#fff',
+                boxShadow: '0 12px 40px rgba(0,0,0,.38)' }}>
+                <img src={fundoPreview.uniko.img} alt={fundoPreview.uniko.name}
+                  style={{ width: '100%', flex: '1 1 0', minHeight: 0, objectFit: 'contain' }}/>
+                <div style={{ width: '100%', color: '#17324a', fontSize: isMobile ? 19 : 27, lineHeight: 1.15,
+                  fontWeight: 800, fontFamily: 'var(--font-brand)', textAlign: 'center', overflowWrap: 'anywhere' }}>
+                  {fundoPreview.uniko.shortName || fundoPreview.uniko.name}
+                </div>
+              </div>
+            </div>
+            <button onClick={() => setFundoPreview(null)} aria-label="Fechar prévia do fundo"
+              style={{ position: 'absolute', top: 12, right: 12, zIndex: 2, width: 38, height: 38, border: '1px solid rgba(255,255,255,.5)',
+                borderRadius: '50%', color: '#fff', background: 'rgba(0,0,0,.6)', fontSize: 24, lineHeight: 1, cursor: 'pointer' }}>×</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
