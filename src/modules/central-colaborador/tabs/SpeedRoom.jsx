@@ -25,6 +25,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { supabase, getAuthUser, USER } from '../../../contexts/user';
 import { useGamePlaytime } from '../../../hooks/useGamePlaytime';
+import { recordUnikoGamesWin } from '../../../shared/prismaMissions';
 import { Corrida, TRACADOS, MAPAS, MAPA_PADRAO, TRACADO_PADRAO, TRILHAS, hashSeed, PreviaPista,
   CARROS, getCarroEscolhido } from './TabUnikoFaster';
 
@@ -406,7 +407,8 @@ function Sala({ roomId, onSairDaSala, onSairApp, telaCheia, toggleTelaCheia }) {
       const list = Object.values(ch.presenceState())
         .map(arr => arr[arr.length - 1])   // a ÚLTIMA entrada de cada key, nunca a primeira
         .filter(Boolean)
-        .filter(p => p.room === roomId);
+        .filter(p => p.room === roomId)
+        .map(p => ({ ...p, isAdmin: !!p.isAdmin }));
       const seen = new Set();
       setPlayers(list.filter(p => p?.name && (seen.has(p.name) ? false : (seen.add(p.name), true))));
     };
@@ -417,7 +419,8 @@ function Sala({ roomId, onSairDaSala, onSairApp, telaCheia, toggleTelaCheia }) {
         if (status !== 'SUBSCRIBED') return;
         // `carro` é só o ID curto (ex.: 'kawaii'), nunca a imagem em si — mesma
         // regra do Uniko Paint pra payload de presence (nunca um blob grande).
-        const r = await ch.track({ name: nome, room: roomId, entrouEm: entrouEmRef.current, carro: getCarroEscolhido().id });
+        const r = await ch.track({ name: nome, room: roomId, entrouEm: entrouEmRef.current, carro: getCarroEscolhido().id,
+          isAdmin: getAuthUser()?.role === 'admin' });
         if (r !== 'ok') console.error('[uniko-speed] presence track falhou:', r);
       });
     const poll = setInterval(refresh, 2000);   // rede de segurança (é leitura LOCAL, não vai à rede)
@@ -460,7 +463,21 @@ function Sala({ roomId, onSairDaSala, onSairApp, telaCheia, toggleTelaCheia }) {
     chanRef.current?.send({ type: 'broadcast', event: 'pos', payload: { ...payload, name: nome } });
   }, [nome]);
 
-  const onRaceEnd = useCallback(() => { setMeuFimHouve(true); }, []);
+  const onRaceEnd = useCallback(({ rank, placements, matchId } = {}) => {
+    setMeuFimHouve(true);
+    if (rank !== 1) return;
+    const current = stateRef.current;
+    const roles = Object.fromEntries((current?.jogadores || []).map(p => [p.name, !!p.isAdmin]));
+    const finalPlacements = (placements || []).map(p => ({
+      ...p,
+      isAdmin: roles[p.name] ?? p.isAdmin ?? false,
+    }));
+    recordUnikoGamesWin({
+      game: 'speed',
+      matchId: matchId || current?.winMatchId,
+      placements: finalPlacements,
+    }).catch(e => console.error('[uniko-speed] falha ao registrar vitória na Prisma Store:', e));
+  }, []);
 
   /* ── Iniciar corrida (só o host): sorteia a seed compartilhada, monta a
      lista de jogadores (cada um com o PRÓPRIO carro, não mais um sorteio
@@ -485,12 +502,12 @@ function Sala({ roomId, onSairDaSala, onSairApp, telaCheia, toggleTelaCheia }) {
     const seed = hashSeed(`${roomId}|${tracado}|${raceCounter}`);
     const jogadores = players.map(p => {
       const carro = CARROS.find(c => c.id === p.carro) || CARROS[0];
-      return { name: p.name, cor: carro.cor, spr: carro.spr };
+      return { name: p.name, cor: carro.cor, spr: carro.spr, isAdmin: !!p.isAdmin };
     });
     await pushState({
       phase: 'racing', raceCounter, seed, tracado, mapa, trilha, laps,
       countdownEndsAt: Date.now() + COUNTDOWN_MS,
-      jogadores,
+      jogadores, winMatchId: crypto.randomUUID(),
     });
     setMeuFimHouve(false);
     setIniciando(false);
@@ -520,6 +537,8 @@ function Sala({ roomId, onSairDaSala, onSairApp, telaCheia, toggleTelaCheia }) {
           multiplayer roomId={roomId} seed={state.seed} laps={state.laps}
           countdownEndsAt={state.countdownEndsAt} humanPlayers={humanPlayers}
           remoteRivaisRef={remoteRivaisRef} onPosTick={onPosTick} onRaceEnd={onRaceEnd}
+          matchId={state.winMatchId} playerName={nome}
+          playerIsAdmin={state.jogadores?.find(p => p.name === nome)?.isAdmin ?? getAuthUser()?.role === 'admin'}
           trilha={state.trilha} mapa={state.mapa || MAPA_PADRAO} tracado={state.tracado ?? TRACADO_PADRAO}
           bestRef={bestRef} setBest={setBest} hud={hud} setHud={setHud}
           pausado={pausado} setPausado={setPausado} carro={getCarroEscolhido().id}

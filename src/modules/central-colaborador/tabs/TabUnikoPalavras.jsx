@@ -27,7 +27,7 @@ import { supabase, getAuthUser, USER } from '../../../contexts/user';
 import { nowMs, ensureServerClock } from '../../../shared/captureUniko';
 import { getActiveAssistantSkinId, getAssistantSkin } from '../../../shared/assistantSkin';
 import { useGamePlaytime } from '../../../hooks/useGamePlaytime';
-import { recordUnikoPalavrasWin } from '../../../shared/prismaMissions';
+import { recordUnikoGamesWin } from '../../../shared/prismaMissions';
 
 const MASCOTE = '/uniko-palavras.png';
 const CENARIO = "url('/uniko-palavras-cenario.jpg') center / cover no-repeat";
@@ -430,18 +430,29 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
   }, [roomId, aplicaEstado]);
 
   useEffect(() => {
-    if (!isHost || state?.phase !== 'fim' || !state?.missionWinner || state.winRecorded) return;
+    if (!isHost || state?.phase !== 'fim' || !state?.vencedor || state.winRecorded) return;
     let alive = true;
     let saving = false;
     const recordWin = async () => {
       if (saving) return;
       saving = true;
       try {
-        await recordUnikoPalavrasWin({ roomId, player: state.missionWinner });
-        if (!alive) return;
         const current = stateRef.current;
-        if (current?.phase === 'fim' && current.missionWinner === state.missionWinner && !current.winRecorded) {
-          await pushState({ ...current, winRecorded: true });
+        if (!current?.winMatchId) {
+          await pushState({ ...current, winMatchId: crypto.randomUUID() });
+          return;
+        }
+        const names = [current.vencedor, ...(current.eliminationOrder || []).slice().reverse()]
+          .filter((player, index, list) => player && list.indexOf(player) === index);
+        await recordUnikoGamesWin({
+          game: 'palavras',
+          matchId: current.winMatchId,
+          placements: names.map(name => ({ name, isAdmin: !!current.admins?.[name] })),
+        });
+        if (!alive) return;
+        const latest = stateRef.current;
+        if (latest?.phase === 'fim' && latest.winMatchId === current.winMatchId && !latest.winRecorded) {
+          await pushState({ ...latest, winRecorded: true });
         }
       } catch (e) {
         console.error('[uniko-palavras] falha ao registrar vitória na Prisma Store:', e);
@@ -452,7 +463,7 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
     recordWin();
     const retry = setInterval(recordWin, 15_000);
     return () => { alive = false; clearInterval(retry); };
-  }, [isHost, state?.phase, state?.missionWinner, state?.winRecorded, roomId, pushState]);
+  }, [isHost, state?.phase, state?.vencedor, state?.winMatchId, state?.winRecorded, roomId, pushState]);
 
   useEffect(() => {
     let vivo = true;
@@ -675,7 +686,8 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
     const vidas = {}; ordem.forEach(n => { vidas[n] = ini; });
     const admins = Object.fromEntries(players.map(p => [p.name, !!p.isAdmin]));
     pushState({ ...s, phase: 'jogando', ordem, vidas, admins, eliminationOrder: [], letras: [], vez: ordem[0], iniciador: ordem[0], round: 1, evento: null,
-      duvida: null, aviso: null, olhadas: {}, vencedor: null, missionWinner: null, winRecorded: false, endsAt: nowMs() + TURN_MS });
+      duvida: null, aviso: null, olhadas: {}, vencedor: null, missionWinner: null, winRecorded: false,
+      winMatchId: crypto.randomUUID(), endsAt: nowMs() + TURN_MS });
   };
   const escolherVidas = (e) => {
     const n = Number(e.currentTarget.dataset.n);

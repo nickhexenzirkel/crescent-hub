@@ -54,7 +54,7 @@ create table if not exists public.mercado_missions (
   -- 'dia' | 'mes' | 'unica' — quando o resgate reinicia
   period      text    not null default 'dia',
   -- COMO o progresso é medido (ver MISSION_METRICS em src/shared/prismaMissions.js):
-  -- 'playtime' | 'vitoria_palavras' | 'compras' | 'colecao' | 'feedback' | 'rank_mes' | 'manual'
+  -- 'playtime' | 'game_wins' | 'compras' | 'colecao' | 'feedback' | 'rank_mes' | 'manual'
   metric      text    not null default 'manual',
   -- só p/ metric='playtime': 'wave' | 'speed' | 'stop' | 'paint' | 'palavras' | 'any'
   game        text    not null default 'any',
@@ -80,6 +80,67 @@ set games = case when game = 'any' then array['any']::text[] else array[game]::t
 where cardinality(games) = 0;
 
 create index if not exists mercado_missions_sort_idx on public.mercado_missions (sort);
+
+-- Migra a antiga missão de crédito automático do Palavras para a missão
+-- configurável de resgate manual. Se houver várias, preserva a primeira e
+-- desativa as demais sem apagar as definições/recompensas existentes.
+do $$
+declare
+  v_mission_id text;
+begin
+  select id into v_mission_id
+  from public.mercado_missions
+  where metric = 'vitoria_palavras'
+  order by sort, id
+  limit 1;
+
+  if v_mission_id is not null and not exists (
+    select 1 from public.mercado_missions where metric = 'game_wins'
+  ) then
+    update public.mercado_missions
+    set title = 'Vitórias Uniko Games',
+        descr = 'Ganhe partidas elegíveis para resgatar até 3 bônus por dia',
+        period = 'dia',
+        metric = 'game_wins',
+        game = 'any',
+        games = array['any']::text[],
+        param = 0,
+        goal = 3,
+        updated_at = now()
+    where id = v_mission_id;
+  end if;
+
+  update public.mercado_missions
+  set metric = 'manual',
+      active = false,
+      maintenance = true,
+      updated_at = now()
+  where metric = 'vitoria_palavras';
+end $$;
+
+insert into public.mercado_missions
+  (id, title, descr, period, metric, game, games, param, goal, comum, premium, maintenance, active, sort)
+select
+  'c_game_wins',
+  'Vitórias Uniko Games',
+  'Ganhe partidas elegíveis para resgatar até 3 bônus por dia',
+  'dia',
+  'game_wins',
+  'any',
+  array['any']::text[],
+  0,
+  3,
+  0,
+  0,
+  false,
+  false,
+  coalesce((select max(sort) + 1 from public.mercado_missions), 11)
+where not exists (select 1 from public.mercado_missions where metric = 'game_wins')
+on conflict (id) do nothing;
+
+create unique index if not exists mercado_missions_one_game_wins_idx
+  on public.mercado_missions (metric)
+  where metric = 'game_wins';
 
 alter table public.mercado_missions enable row level security;
 
@@ -111,3 +172,140 @@ insert into public.mercado_missions (id, title, descr, period, metric, game, par
   ('c_colec_pequeno', 'Pequeno Colecionador',  'Tenha 10 Unikos na sua Coleção',                            'unica', 'colecao',  'any',  0, 10,   0,  50, false,  9),
   ('c_colec_grande',  'Grande Colecionador',   'Tenha mais de 20 Unikos na sua Coleção',                    'unica', 'colecao',  'any',  0, 21,   0,  50, false, 10)
 on conflict (id) do nothing;
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- 3) VITÓRIAS UNIKO GAMES: registro pendente + resgate atômico
+-- ─────────────────────────────────────────────────────────────────────────
+create unique index if not exists mercado_history_uniko_game_claim_once_idx
+  on public.mercado_history (player, descr)
+  where kind = 'uniko_game_win_claim';
+
+-- Registra uma vitória só se a missão estiver ativa. O ID de partida é a chave
+-- idempotente; placar/quantidade de prêmio são lidos da definição da missão.
+create or replace function public.mercado_record_uniko_game_win(
+  p_match_id uuid,
+  p_player text,
+  p_game text
+)
+returns boolean
+language plpgsql
+set search_path = public
+as $$
+declare
+  v_comum integer;
+  v_premium integer;
+  v_player text;
+begin
+  if p_match_id is null or nullif(trim(p_player), '') is null or p_game is null
+     or p_game not in ('palavras', 'stop', 'paint', 'speed') then
+    raise exception 'Dados inválidos para registrar a vitória.';
+  end if;
+
+  perform pg_advisory_xact_lock(hashtext(trim(p_player)));
+
+  select player into v_player
+  from public.mercado_history
+  where id = p_match_id and kind = 'uniko_game_win';
+  if found then
+    return v_player = trim(p_player);
+  end if;
+
+  select comum, premium into v_comum, v_premium
+  from public.mercado_missions
+  where metric = 'game_wins' and period = 'dia' and active and not maintenance
+  limit 1;
+  if not found or (coalesce(v_comum, 0) <= 0 and coalesce(v_premium, 0) <= 0) then
+    return false;
+  end if;
+
+  insert into public.mercado_history (id, player, kind, descr, comum, premium)
+  values (
+    p_match_id,
+    trim(p_player),
+    'uniko_game_win',
+    'Vitória Uniko Games · ' || p_game,
+    v_comum,
+    v_premium
+  );
+  return true;
+end;
+$$;
+
+-- O marcador de resgate e o crédito acontecem na mesma transação. Assim, cliques
+-- repetidos/retries não duplicam o saldo e uma falha não deixa a vitória presa.
+create or replace function public.mercado_claim_uniko_game_win(
+  p_player text,
+  p_win_id uuid
+)
+returns table (comum integer, premium integer)
+language plpgsql
+set search_path = public
+as $$
+declare
+  v_comum integer;
+  v_premium integer;
+  v_start timestamptz;
+  v_claim_id uuid;
+  v_descr text := 'Vitória: ' || p_win_id::text;
+  v_claimed integer;
+begin
+  if nullif(trim(p_player), '') is null or p_win_id is null then
+    raise exception 'Dados inválidos para resgatar a vitória.';
+  end if;
+
+  perform pg_advisory_xact_lock(hashtext(trim(p_player)));
+
+  select h.comum, h.premium into v_comum, v_premium
+  from public.mercado_history h
+  where h.player = trim(p_player)
+    and h.kind = 'uniko_game_win_claim'
+    and h.descr = v_descr;
+  if found then
+    return query select coalesce(v_comum, 0), coalesce(v_premium, 0);
+    return;
+  end if;
+
+  select h.comum, h.premium into v_comum, v_premium
+  from public.mercado_history h
+  where h.id = p_win_id
+    and h.player = trim(p_player)
+    and h.kind = 'uniko_game_win';
+  if not found then
+    raise exception 'Esta vitória não está disponível para resgate.';
+  end if;
+
+  v_start := date_trunc('day', now() at time zone 'America/Fortaleza')
+    at time zone 'America/Fortaleza';
+  select count(*) into v_claimed
+  from public.mercado_history h
+  where h.player = trim(p_player)
+    and h.kind = 'uniko_game_win_claim'
+    and h.created_at >= v_start;
+  if v_claimed >= 3 then
+    raise exception 'Você já resgatou o limite de 3 vitórias de hoje.';
+  end if;
+
+  insert into public.mercado_history (player, kind, descr, comum, premium)
+  values (trim(p_player), 'uniko_game_win_claim', v_descr, v_comum, v_premium)
+  on conflict (player, descr) where kind = 'uniko_game_win_claim' do nothing
+  returning id into v_claim_id;
+
+  if v_claim_id is null then
+    select h.comum, h.premium into v_comum, v_premium
+    from public.mercado_history h
+    where h.player = trim(p_player)
+      and h.kind = 'uniko_game_win_claim'
+      and h.descr = v_descr;
+    return query select coalesce(v_comum, 0), coalesce(v_premium, 0);
+    return;
+  end if;
+
+  perform public.mercado_credit(trim(p_player), coalesce(v_comum, 0), coalesce(v_premium, 0));
+  return query select coalesce(v_comum, 0), coalesce(v_premium, 0);
+end;
+$$;
+
+grant execute on function public.mercado_record_uniko_game_win(uuid, text, text)
+  to anon, authenticated;
+grant execute on function public.mercado_claim_uniko_game_win(text, uuid)
+  to anon, authenticated;

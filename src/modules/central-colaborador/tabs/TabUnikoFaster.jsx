@@ -16,8 +16,10 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useRef, useState, useMemo } from 'react';
 import { T } from '../../../contexts/theme';
+import { getAuthUser } from '../../../contexts/user';
 import { SpeedFrame } from './SpeedFrame';
 import { useGamePlaytime } from '../../../hooks/useGamePlaytime';
+import { recordUnikoGamesWin } from '../../../shared/prismaMissions';
 // Import circular de propósito: SpeedRoom reaproveita Corrida/TRACADOS/etc.
 // exportados lá embaixo neste arquivo. Seguro aqui porque nenhum dos dois
 // lados usa o que importa do outro NO TOPO do módulo — só dentro do corpo de
@@ -736,6 +738,12 @@ const TabUnikoFaster = () => {
     conteudo = (
       <Corrida key={corridaKey} trilha={trilha} mapa={mapa} tracado={tracado} bestRef={bestRef} setBest={setBest} hud={hud} setHud={setHud}
         pausado={pausado} setPausado={setPausado} carro={meuCarro} telaCheia={telaCheia} toggleTelaCheia={toggleTelaCheia}
+        playerName={getAuthUser()?.name || 'Colaborador'} playerIsAdmin={getAuthUser()?.role === 'admin'}
+        onRaceEnd={({ rank, matchId, placements }) => {
+          if (rank !== 1) return;
+          recordUnikoGamesWin({ game: 'speed', matchId, placements })
+            .catch(e => console.error('[uniko-speed] falha ao registrar vitória na Prisma Store:', e));
+        }}
         onReiniciar={() => { setPausado(false); setCorridaKey(k => k + 1); }}
         onSair={() => { setTela('menu'); setPausado(false); setEtapa(0); }} />
     );
@@ -773,6 +781,7 @@ const TabUnikoFaster = () => {
 const Corrida = ({ trilha, mapa, tracado, bestRef, setBest, hud, setHud, pausado, setPausado, onSair, onReiniciar,
   multiplayer = false, seed = null, laps = null, countdownEndsAt = null, humanPlayers = null,
   remoteRivaisRef = null, onPosTick = null, onRaceEnd = null, carro = null,
+  playerName = '', playerIsAdmin = false, matchId = null,
   telaCheia = false, toggleTelaCheia = null }) => {
   const canvasRef = useRef(null);
   const teclas = useRef({});
@@ -782,6 +791,7 @@ const Corrida = ({ trilha, mapa, tracado, bestRef, setBest, hud, setHud, pausado
   useEffect(() => { pausadoRef.current = pausado; }, [pausado]);
   const [fim, setFim] = useState(null);      // {rank, voltas} quando a corrida acaba
   const fimRef = useRef(false);
+  const soloMatchIdRef = useRef(crypto.randomUUID());
   const ytHolder = useRef(null);             // <div> que a API do YouTube vira player
 
   // Música via IFrame API: toca UMA vez (sem loop) e, quando ACABA, sinaliza o
@@ -830,7 +840,7 @@ const Corrida = ({ trilha, mapa, tracado, bestRef, setBest, hud, setHud, pausado
         // iguais à posição inicial pra não "puxar" o carro assim que o 1º
         // pacote real chegar.
         targetPos: posInicial, targetX: xInicial, targetSpeed: 0, targetTraveled: 0, recebidoEm: 0,
-        base: 0, speed: 0, traveled: 0, lento: 0, turbo: 0,
+        base: 0, speed: 0, traveled: 0, lento: 0, turbo: 0, isAdmin: !!p.isAdmin,
       };
     });
     const rivais = multiplayer ? [...bots, ...rivaisHumanos] : bots;
@@ -1097,7 +1107,15 @@ const Corrida = ({ trilha, mapa, tracado, bestRef, setBest, hud, setHud, pausado
           st.rank = 1 + rivais.reduce((c, r) => c + (r.traveled > st.traveled ? 1 : 0), 0);
           fimRef.current = true;
           setFim({ rank: st.rank, voltas: st.volta, campo: rivais.length + 1 });
-          if (onRaceEnd) onRaceEnd({ rank: st.rank, traveled: st.traveled });
+          if (onRaceEnd) {
+            const placements = [
+              { name: playerName, traveled: st.traveled, isAdmin: playerIsAdmin },
+              ...rivais.filter(r => r.isHuman && r.name).map(r => ({
+                name: r.name, traveled: r.traveled, isAdmin: r.isAdmin,
+              })),
+            ].sort((a, b) => b.traveled - a.traveled);
+            onRaceEnd({ rank: st.rank, traveled: st.traveled, placements, matchId: matchId || soloMatchIdRef.current });
+          }
         }
 
         // ── RIVAIS ──

@@ -30,6 +30,7 @@ import { useGamePlaytime } from '../../../hooks/useGamePlaytime';
 import { ConvidarButton } from '../../../shared/FriendsInvite';
 import { readPendingJoin, clearPendingJoin, GAME_JOIN_EVENT } from '../../../shared/gameInvites';
 import { getActiveAssistantSkinId, getAssistantSkin } from '../../../shared/assistantSkin';
+import { recordUnikoGamesWin } from '../../../shared/prismaMissions';
 
 // Arte do Uniko assistente ATIVO do usuário (a carinha de olhos abertos) — pra
 // mostrar no STOP. Sem borda: só a imagem.
@@ -1003,7 +1004,9 @@ const Sala = ({ roomId, name, players, onLeave }) => {
     const recentUnion = [...new Set([...(state.recentes || []), ...loadRecentLetras()])].filter(l => habilitadas.includes(l));
     const cap = Math.max(0, Math.floor(habilitadas.length * 0.6));
     const seed = recentUnion.slice(-cap);
-    pushState({ ...state, totalRounds: laps, scores: {}, usadas: seed, round: 0 });
+    const admins = Object.fromEntries(players.map(p => [p.name, !!p.isAdmin]));
+    pushState({ ...state, totalRounds: laps, scores: {}, usadas: seed, round: 0,
+      admins, winMatchId: crypto.randomUUID(), winRecorded: false });
     setTimeout(() => novaRodada(1, {}, seed), 60);
   };
 
@@ -1019,6 +1022,40 @@ const Sala = ({ roomId, name, players, onLeave }) => {
       }).then(({ error }) => { if (error) console.error('[uniko-stop] ranking:', error.message); });
     });
   };
+
+  useEffect(() => {
+    if (!isHost || state?.phase !== 'over' || state.winRecorded) return;
+    let alive = true;
+    let saving = false;
+    const recordWin = async () => {
+      if (saving) return;
+      saving = true;
+      try {
+        const current = stateRef.current;
+        if (!current?.winMatchId) {
+          await pushState({ ...current, winMatchId: crypto.randomUUID() });
+          return;
+        }
+        const placements = Object.entries(current.scores || {})
+          .map(([name, score], order) => ({ name, score: Number(score) || 0, order }))
+          .sort((a, b) => b.score - a.score || a.order - b.order)
+          .map(({ name }) => ({ name, isAdmin: !!current.admins?.[name] }));
+        await recordUnikoGamesWin({ game: 'stop', matchId: current.winMatchId, placements });
+        if (!alive) return;
+        const latest = stateRef.current;
+        if (latest?.phase === 'over' && latest.winMatchId === current.winMatchId && !latest.winRecorded) {
+          await pushState({ ...latest, winRecorded: true });
+        }
+      } catch (e) {
+        console.error('[uniko-stop] falha ao registrar vitória na Prisma Store:', e);
+      } finally {
+        saving = false;
+      }
+    };
+    recordWin();
+    const retry = setInterval(recordWin, 15_000);
+    return () => { alive = false; clearInterval(retry); };
+  }, [isHost, state?.phase, state?.winMatchId, state?.winRecorded, roomId, pushState]);
 
   /* Pontuação clássica: 10 se ninguém repetiu, 5 se repetiu, 0 se não vale ou a
      maioria contestou. */
@@ -1723,6 +1760,7 @@ const Sala = ({ roomId, name, players, onLeave }) => {
    ═══════════════════════════════════════════════════════════════════════════ */
 const TabUnikoStop = () => {
   const name = useMemo(() => myName(), []);
+  const isAdmin = getAuthUser()?.role === 'admin';
   const [photo] = useState(() => myPhotoSrc());
   const [room, setRoom] = useState(null);
   const [todos, setTodos] = useState([]);
@@ -1755,7 +1793,7 @@ const TabUnikoStop = () => {
     const ch = lobbyChan.current; if (!ch) return;
     const list = Object.values(ch.presenceState())
       .map(arr => arr[arr.length - 1]).filter(Boolean)
-      .map(p => ({ name: p.name, photo: p.photo, room: p.room, entrouEm: p.entrouEm }));
+      .map(p => ({ name: p.name, photo: p.photo, room: p.room, entrouEm: p.entrouEm, isAdmin: !!p.isAdmin }));
     const seen = new Set();
     setTodos(list.filter(p => p?.name && (seen.has(p.name) ? false : (seen.add(p.name), true))));
   }, []);
@@ -1770,7 +1808,7 @@ const TabUnikoStop = () => {
       .on('presence', { event: 'leave' }, refreshPresence);
     ch.subscribe(async (st) => {
       if (st !== 'SUBSCRIBED') return;
-      const r = await ch.track({ name, photo, room, entrouEm });
+      const r = await ch.track({ name, photo, room, entrouEm, isAdmin: getAuthUser()?.role === 'admin' });
       if (r !== 'ok') console.error('[uniko-stop] presence track falhou:', r);
       refreshPresence();
     });
@@ -1786,8 +1824,8 @@ const TabUnikoStop = () => {
   // Eu SEMPRE estou na minha sala — não espero o eco da presence pra saber disso.
   const naSala = useMemo(() => {
     const l = porSala[room] || [];
-    return l.some(p => p.name === name) ? l : [{ name, photo, room, entrouEm }, ...l];
-  }, [porSala, room, name, photo, entrouEm]);
+    return l.some(p => p.name === name) ? l : [{ name, photo, room, entrouEm, isAdmin }, ...l];
+  }, [porSala, room, name, photo, entrouEm, isAdmin]);
 
   const cardBg = T.surface || '#fff';
   if (sqlMissing) return (

@@ -11,8 +11,9 @@ Mesma arquitetura do [[uniko-stop]]: tabela `uniko_palavras_state`, host escreve
 
 O tempo jogado é registrado para missões da Prisma Store nas fases `jogando`, `duvida`
 e `pausa` (sem contar lobby ou tela final), desde que a aba esteja visível.
-Missões configuradas pelo administrador também podem contar vitórias; ao atingir a meta,
-a recompensa é creditada automaticamente. Se o vencedor da partida for administrador,
-a vitória da missão é atribuída ao colaborador comum que permaneceu por mais tempo.
+Vitórias entram na missão diária **Vitórias Uniko Games**: o prêmio fica pendente na
+Prisma Store e só é creditado quando o colaborador clica em **Resgatar vitória** (até
+3 resgates por dia). Se o vencedor for admin, a recompensa vai ao próximo colocado
+elegível pela ordem de sobrevivência; moderadores podem recebê-la.
 
 **Why:** pedido do usuário (30/set/2026). **How to apply:** PRECISA rodar `supabase_uniko_palavras.sql`; sem ranking/convites; não foi testado em sala real com 2+ pessoas.

@@ -21,7 +21,7 @@ O que mudou:
   métrica, meta, recompensa). Antes era a constante `PRISMA_MISSIONS` no código, então
   mudar o valor de uma missão exigia deploy.
 - `src/shared/prismaMissions.js` virou orientado a MÉTRICA (`MISSION_METRICS`):
-  playtime / compras / colecao / feedback / rank_mes / manual. É o que deixa o admin
+  playtime / game_wins / compras / colecao / feedback / rank_mes / manual. É o que deixa o admin
   criar "Jogue 15 min no Uniko Paint" sem tocar em código.
 - O save de cada colaborador (`mercado_state.data.missions`) agora guarda só
   `{id, claimed, claimedAt}` — a definição não é mais copiada pra dentro do save de
@@ -36,10 +36,20 @@ O que mudou:
   em `mercado_missions.games` (array). Missões antigas continuam usando `game`, que é
   preservado para compatibilidade. Se o SQL atual ainda não foi executado, rode-o
   novamente para adicionar a coluna sem apagar as definições existentes.
-- O administrador pode criar missões por vitórias no Uniko Palavras e definir meta e
-  recompensa na Prisma Store. Ao atingir a meta, os Prismas configurados são creditados
-  automaticamente, uma vez por período. Se o vencedor for administrador, a vitória da
-  missão vai para o colaborador comum que permaneceu por mais tempo na partida.
+- **Vitórias Uniko Games:** a missão diária limita em 3 os resgates por colaborador.
+  Cada vitória de Palavras, Stop, Paint ou Speed cria um prêmio pendente na Prisma Store;
+  o saldo só muda quando a pessoa clica em **Resgatar vitória**. O administrador configura
+  o valor em Prismas na definição da missão. O Uniko Wave fica fora por não ter vencedor.
+  Se o primeiro colocado for exatamente `admin`, a recompensa passa ao próximo colocado
+  que não seja admin; moderadores continuam elegíveis. O SQL usa registro idempotente e
+  RPC transacional para impedir crédito duplicado em clique/retry concorrente.
+- A migração converte a antiga missão de vitória automática do Palavras para a missão
+  genérica, preservando o valor configurado. Se não existir, cria a missão desativada e
+  sem recompensa; o admin configura o valor e a ativa em Prisma Store → Administrador →
+  Missões.
+- Paint só conta tempo nas fases `drawing` e `reveal`; Stop conta nas fases de rodada ativa,
+  nunca no lobby nem depois do fim. Falhas ao gravar/consultar playtime são registradas
+  no console; a Prisma Store avisa quando não consegue calcular o progresso.
 - Paint só conta nas fases `drawing` e `reveal`; Stop conta nas fases de rodada ativa,
   nunca no lobby nem depois do fim. Falhas ao gravar/consultar playtime são registradas
   no console; a Prisma Store avisa quando não consegue calcular o progresso.

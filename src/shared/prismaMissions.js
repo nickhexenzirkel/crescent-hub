@@ -31,8 +31,8 @@ const isSysDj = (n) => {
 export const MISSION_METRICS = [
   { id: 'playtime', label: 'Minutos jogados',        unit: 'minutos',  game: true,  param: null,      cumulative: true,
     hint: 'Marque um ou mais jogos; o tempo deles será somado. A meta é em MINUTOS.' },
-  { id: 'vitoria_palavras', label: 'Vitórias no Uniko Palavras', unit: 'vitórias', game: false, param: null, cumulative: true,
-    hint: 'Conta as vitórias e credita automaticamente a recompensa configurada ao atingir a meta, no máximo uma vez por período.' },
+  { id: 'game_wins', label: 'Vitórias Uniko Games', unit: 'resgates por dia', game: false, param: null, cumulative: false,
+    hint: 'Cada vitória elegível gera uma recompensa pendente para resgate manual. Até 3 resgates por dia; Uniko Wave não tem bônus de vitória.' },
   { id: 'compras',  label: 'Compras na loja',        unit: 'compras',  game: false, param: null,      cumulative: false,
     hint: 'Total de prêmios/Unikos já comprados na Prisma Store.' },
   { id: 'colecao',  label: 'Unikos na Coleção',      unit: 'Unikos',   game: false, param: null,      cumulative: false,
@@ -57,6 +57,7 @@ export const DEFAULT_MISSIONS = [
   // ── DIÁRIAS ──
   { id: 'c_uniko20',   title: 'Maratona Uniko Wave',  desc: 'Jogue 20 minutos no Uniko Wave',                      period: 'dia',   metric: 'playtime', game: 'wave', param: 0, goal: 20, comum: 100, premium: 0,   progress: 0, claimed: false },
   { id: 'c_uniko40',   title: 'Maratona Uniko Wave',  desc: 'Jogue 40 minutos no Uniko Wave',                      period: 'dia',   metric: 'playtime', game: 'wave', param: 0, goal: 40, comum: 0,   premium: 10,  progress: 0, claimed: false },
+  { id: 'c_game_wins', title: 'Vitórias Uniko Games', desc: 'Ganhe partidas elegíveis para resgatar até 3 bônus por dia', period: 'dia', metric: 'game_wins', game: 'any', param: 0, goal: 3, comum: 0, premium: 0, progress: 0, claimed: false, active: false },
   // ── MENSAIS ──
   { id: 'c_feedback',  title: 'Voz ativa',            desc: 'Dê um feedback no sistema',                           period: 'mes',   metric: 'feedback', game: 'any',  param: 0, goal: 1,  comum: 0,   premium: 30,  progress: 0, claimed: false },
   { id: 'c_rank1',     title: '🥇 Top 1 do mês',       desc: '1º lugar de quem mais colocou música no mês passado', period: 'mes',   metric: 'rank_mes', game: 'any',  param: 1, goal: 1,  comum: 0,   premium: 100, progress: 0, claimed: false },
@@ -106,7 +107,7 @@ export async function loadMissionDefs({ seed = true } = {}) {
   } catch (e) {
     console.error('[prisma-store] não consegui carregar as missões (usando os padrões):', e);
   }
-  return DEFAULT_MISSIONS.map(m => ({ ...m, active: true }));
+  return DEFAULT_MISSIONS.map(m => ({ ...m, active: m.active !== false }));
 }
 
 // Grava a lista inteira (upsert + apaga o que saiu). Usado só pelo admin.
@@ -134,89 +135,33 @@ const gamesForMission = (mission) => {
 };
 const playtimeKey = (mission) => `${gamesForMission(mission).join(',')}|${mission.period}`;
 const gamesFromPlaytimeKey = (key) => key.split('|')[0].split(',');
-const palavrasWinDescription = (roomId) => `Vitória no Uniko Palavras · Sala ${roomId}`;
-
 const dateStartIso = (date) => {
   const [year, month, day] = date.split('-').map(Number);
   return new Date(year, month - 1, day).toISOString();
 };
 
-const periodKey = (period, today) => {
-  if (period === 'dia') return today;
-  if (period === 'mes') return today.slice(0, 7);
-  return 'unica';
-};
-const palavrasRewardDescription = (mission, today) =>
-  `Prêmio automático · Uniko Palavras · missão ${mission.id} · ${periodKey(mission.period, today)}`;
+const UNIKO_WIN_GAMES = new Set(['palavras', 'stop', 'paint', 'speed']);
 
-export async function recordUnikoPalavrasWin({ roomId, player } = {}) {
-  const name = (player || '').trim();
-  if (!roomId || !name) throw new Error('Partida ou vencedor inválido ao registrar a vitória.');
-  const descr = palavrasWinDescription(roomId);
-  const { data, error: lookupError } = await supabase.from('mercado_history')
-    .select('id').eq('player', name).eq('kind', 'vitoria_palavras').eq('descr', descr).limit(1).maybeSingle();
-  if (lookupError) throw lookupError;
-  if (!data) {
-    const { error: insertError } = await supabase.from('mercado_history').insert({
-      player: name, kind: 'vitoria_palavras', descr,
-    });
-    if (insertError) throw insertError;
-  }
+export async function recordUnikoGamesWin({ game, matchId, placements } = {}) {
+  if (!UNIKO_WIN_GAMES.has(game)) throw new Error('Jogo inválido ao registrar a vitória Uniko Games.');
+  if (!matchId || !Array.isArray(placements)) throw new Error('Partida ou classificação inválida ao registrar a vitória.');
 
-  const defs = (await loadMissionDefs({ seed: false }))
-    .filter(m => m.metric === 'vitoria_palavras' && m.active !== false && !m.maintenance);
-  if (!defs.length) return;
+  const ranking = placements.filter(p => p?.name?.trim()).map(p => ({
+    name: p.name.trim(),
+    isAdmin: p.isAdmin === true,
+  }));
+  const winner = ranking[0];
+  if (!winner) return false;
+  const recipient = winner.isAdmin ? ranking.find(p => !p.isAdmin) : winner;
+  if (!recipient) return false;
 
-  const today = _today();
-  const monthStart = `${today.slice(0, 7)}-01`;
-  const { data: playerState, error: stateError } = await supabase.from('mercado_state')
-    .select('data').eq('player', name).maybeSingle();
-  if (stateError) throw stateError;
-  const baseline = playerState?.data?.missionBaseline || {};
-  const counts = {};
-
-  for (const mission of defs) {
-    let raw = counts[mission.period];
-    if (raw == null) {
-      let q = supabase.from('mercado_history').select('id', { count: 'exact', head: true })
-        .eq('player', name).eq('kind', 'vitoria_palavras');
-      const start = mission.period === 'dia' ? today : mission.period === 'mes' ? monthStart : null;
-      if (start) q = q.gte('created_at', dateStartIso(start));
-      const { count, error } = await q;
-      if (error) throw error;
-      raw = counts[mission.period] = count || 0;
-    }
-
-    const reset = baseline[mission.id];
-    const resetApplies = reset && (mission.period === 'dia' ? reset.d === today
-      : mission.period === 'mes' ? (reset.d || '').slice(0, 7) === today.slice(0, 7) : true);
-    const progress = resetApplies ? Math.max(0, raw - (reset.v || 0)) : raw;
-    if (progress < (Number(mission.goal) || 1)) continue;
-
-    const rewardDescr = palavrasRewardDescription(mission, today);
-    const { data: existingReward, error: rewardLookupError } = await supabase.from('mercado_history')
-      .select('id').eq('player', name).eq('kind', 'premio_vitoria_palavras')
-      .eq('descr', rewardDescr).limit(1).maybeSingle();
-    if (rewardLookupError) throw rewardLookupError;
-    if (existingReward) continue;
-
-    const comum = Number(mission.comum) || 0;
-    const premium = Number(mission.premium) || 0;
-    const { data: reward, error: rewardInsertError } = await supabase.from('mercado_history')
-      .insert({ player: name, kind: 'premio_vitoria_palavras', descr: rewardDescr, comum, premium })
-      .select('id').maybeSingle();
-    if (rewardInsertError) throw rewardInsertError;
-    if (!reward?.id) throw new Error(`Não consegui reservar a recompensa da missão "${mission.title}".`);
-
-    const { error: creditError } = await supabase.rpc('mercado_credit', {
-      p_player: name, p_comum: comum, p_premium: premium,
-    });
-    if (creditError) {
-      const { error: cleanupError } = await supabase.from('mercado_history').delete().eq('id', reward.id);
-      if (cleanupError) console.error('[prisma-store] não consegui liberar a reserva da recompensa:', cleanupError);
-      throw creditError;
-    }
-  }
+  const { data, error } = await supabase.rpc('mercado_record_uniko_game_win', {
+    p_match_id: matchId,
+    p_player: recipient.name,
+    p_game: game,
+  });
+  if (error) throw error;
+  return data === true;
 }
 
 // Calcula o progresso AO VIVO de cada missão.
@@ -283,27 +228,21 @@ export async function loadMissionProgress({ userName, purchases, baseline, missi
     });
   }));
 
-  const winPeriods = [...new Set(defs.filter(m => m.metric === 'vitoria_palavras').map(m => m.period))];
-  const winsByPeriod = {};
-  await Promise.all(winPeriods.map(async (period) => {
-    let q = supabase.from('mercado_history').select('id', { count: 'exact', head: true })
-      .eq('player', userName).eq('kind', 'vitoria_palavras');
-    const from = periodStart(period);
-    if (from) q = q.gte('created_at', `${from}T00:00:00`);
-    const { count, error } = await q;
-    if (error) throw error;
-    winsByPeriod[period] = count || 0;
-  }));
-  const winMissions = defs.filter(m => m.metric === 'vitoria_palavras');
+  const winMissions = defs.filter(m => m.metric === 'game_wins');
   if (winMissions.length) {
-    const rewardDescriptions = winMissions.map(m => palavrasRewardDescription(m, today));
-    const { data, error } = await supabase.from('mercado_history').select('descr')
-      .eq('player', userName).eq('kind', 'premio_vitoria_palavras').in('descr', rewardDescriptions);
-    if (error) throw error;
-    const awardedDescriptions = new Set((data || []).map(row => row.descr));
-    prog.__autoClaimedMissionIds = winMissions
-      .filter(m => awardedDescriptions.has(palavrasRewardDescription(m, today)))
-      .map(m => m.id);
+    const start = dateStartIso(today);
+    const { data: winRows, error: winError } = await supabase.from('mercado_history')
+      .select('id').eq('player', userName).eq('kind', 'uniko_game_win').order('created_at', { ascending: true });
+    if (winError) throw winError;
+    const winIds = (winRows || []).map(row => row.id);
+    const { data: claimRows, error: claimError } = await supabase.from('mercado_history')
+      .select('descr,created_at').eq('player', userName).eq('kind', 'uniko_game_win_claim')
+      .order('created_at', { ascending: true });
+    if (claimError) throw claimError;
+    const claimedIds = new Set((claimRows || []).map(row => row.descr.replace('Vitória: ', '')));
+    const claimsToday = (claimRows || []).filter(row => row.created_at >= start).length;
+    prog.__gameWinPendingIds = winIds.filter(id => !claimedIds.has(id));
+    prog[winMissions[0].id] = Math.min(3, claimsToday);
   }
 
   // ── rank_mes: quem mais colocou música no MÊS PASSADO (já fechado), não no mês
@@ -349,7 +288,7 @@ export async function loadMissionProgress({ userName, purchases, baseline, missi
         v = Math.floor(baseAdj(m.id, raw, m.period) / 60);
         break;
       }
-      case 'vitoria_palavras': v = baseAdj(m.id, winsByPeriod[m.period] || 0, m.period); break;
+      case 'game_wins': v = Math.min(3, prog[m.id] || 0); break;
       case 'compras':  v = buys || 0; break;
       case 'colecao':  v = owned; break;
       case 'feedback': v = baseAdj(m.id, feedbacks, m.period); break;
@@ -399,21 +338,6 @@ export async function snapshotMissionBaseline({ players, missions } = {}) {
     });
     ptMissions.filter(m => playtimeKey(m) === key)
       .forEach(m => list.forEach(p => { out[p][m.id] = { v: secs[p] || 0, d: today }; }));
-  }));
-
-  const winMissions = defs.filter(m => m.metric === 'vitoria_palavras');
-  const winPeriods = [...new Set(winMissions.map(m => m.period))];
-  await Promise.all(winPeriods.map(async (period) => {
-    let q = supabase.from('mercado_history').select('player')
-      .in('player', list).eq('kind', 'vitoria_palavras');
-    const from = periodStart(period);
-    if (from) q = q.gte('created_at', `${from}T00:00:00`);
-    const { data, error } = await q;
-    if (error) throw error;
-    const counts = {};
-    for (const row of data || []) counts[row.player] = (counts[row.player] || 0) + 1;
-    winMissions.filter(m => m.period === period)
-      .forEach(m => list.forEach(p => { out[p][m.id] = { v: counts[p] || 0, d: today }; }));
   }));
 
   return out;

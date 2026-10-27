@@ -40,6 +40,7 @@ import { getSkinVariations, hasAssistantSkin } from '../../../shared/assistantSk
 import { useGamePlaytime } from '../../../hooks/useGamePlaytime';
 import { ConvidarButton } from '../../../shared/FriendsInvite';
 import { readPendingJoin, clearPendingJoin, GAME_JOIN_EVENT } from '../../../shared/gameInvites';
+import { recordUnikoGamesWin } from '../../../shared/prismaMissions';
 
 const ROUND_MS  = 80_000;   // tempo pra desenhar
 const REVEAL_MS = 5_000;    // tela de "a palavra era..."
@@ -1922,7 +1923,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker, zoomOut })
   };
 
   /* ── Motor da partida (só o host escreve) ────────────────────────────── */
-  const startRound = (queue, scores, round, totalRounds, usadas, themeId, nome, elenco) => {
+  const startRound = (queue, scores, round, totalRounds, usadas, themeId, nome, elenco, matchId = null) => {
     const base = stateRef.current || {};
     // O TEMA NUNCA PODE SE PERDER. Antes este objeto era montado do ZERO, sem o
     // estado anterior: bastava `themeId` chegar undefined (ex.: host aperta
@@ -1955,6 +1956,8 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker, zoomOut })
       hints: 0,
       reports: [], drawerRoundPts: 0,   // zera denúncias e pontos ganhos NESTA rodada
       pulada: false, denunciada: false, // o spread acima traria a marca da rodada anterior
+      winMatchId: matchId || base.winMatchId || null,
+      winRecorded: false,
       // quem já estava quando a partida começou (+ quem entrou depois e já foi
       // encaixado na fila) — sem isso não dá pra saber quem é "novo"
       elenco: elenco || [...new Set(queue)],
@@ -1981,16 +1984,53 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker, zoomOut })
     });
   };
 
+  useEffect(() => {
+    if (!isHost || state?.phase !== 'over' || state.winRecorded) return;
+    let alive = true;
+    let saving = false;
+    const recordWin = async () => {
+      if (saving) return;
+      saving = true;
+      try {
+        const current = stateRef.current;
+        if (!current?.winMatchId) {
+          await pushState({ ...current, winMatchId: crypto.randomUUID() });
+          return;
+        }
+        const placements = Object.entries(current.scores || {})
+          .map(([name, score], order) => ({ name, score: Number(score) || 0, order }))
+          .sort((a, b) => b.score - a.score || a.order - b.order)
+          .map(({ name }) => ({ name, isAdmin: !!current.admins?.[name] }));
+        await recordUnikoGamesWin({ game: 'paint', matchId: current.winMatchId, placements });
+        if (!alive) return;
+        const latest = stateRef.current;
+        if (latest?.phase === 'over' && latest.winMatchId === current.winMatchId && !latest.winRecorded) {
+          await pushState({ ...latest, winRecorded: true });
+        }
+      } catch (e) {
+        console.error('[uniko-paint] falha ao registrar vitória na Prisma Store:', e);
+      } finally {
+        saving = false;
+      }
+    };
+    recordWin();
+    const retry = setInterval(recordWin, 15_000);
+    return () => { alive = false; clearInterval(retry); };
+  }, [isHost, state?.phase, state?.winMatchId, state?.winRecorded, roomId, pushState]);
+
   const startGame = () => {
     if (!state) return;                 // sem o state da sala não há tema — ver startRound
     const ordem = embaralhar(players.map(p => p.name));
     const queue = Array.from({ length: laps }, () => ordem).flat();
+    const winMatchId = crypto.randomUUID();
+    const admins = Object.fromEntries(players.map(p => [p.name, !!p.isAdmin]));
+    pushState({ ...state, admins, winMatchId, winRecorded: false });
     // Semeia o baralho da partida com as palavras RECENTES da sala (as das últimas
     // partidas) já marcadas como usadas → elas ficam pro fim e as palavras novas/menos
     // vistas saem primeiro. Assim "tema Geral de novo" não repete as mesmas de sempre.
     const pool0 = themeById(state.themeId).words;
     const recSeed = (state.recentes || []).filter(w => pool0.includes(w));
-    startRound(queue, {}, 1, queue.length, recSeed, state.themeId, state.nome, ordem);
+    startRound(queue, {}, 1, queue.length, recSeed, state.themeId, state.nome, ordem, winMatchId);
   };
 
   useEffect(() => {
@@ -3060,6 +3100,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker, zoomOut })
 const TabUnikoPaint = ({ zoomOut }) => {
   const { compacto, pequeno } = useTela(zoomOut);
   const [name, setName]   = useState(() => myName());
+  const isAdmin = getAuthUser()?.role === 'admin';
   const [photo, setPhoto] = useState(() => myPhotoSrc());   // URL — não o data URL!
   const [room, setRoom]   = useState(null);       // null = lobby
   const [todos, setTodos] = useState([]);         // [{name, photo, room}]
@@ -3120,7 +3161,7 @@ const TabUnikoPaint = ({ zoomOut }) => {
     const estado = ch.presenceState();
     const list = Object.entries(estado).map(([key, arr]) => {
       const e = escolherEntrada(arr);
-      return e ? { id: e.id || key, name: e.name, conta: e.conta, photo: e.photo, room: e.room, entrouEm: e.entrouEm } : null;
+      return e ? { id: e.id || key, name: e.name, conta: e.conta, photo: e.photo, room: e.room, entrouEm: e.entrouEm, isAdmin: !!e.isAdmin } : null;
     }).filter(Boolean);
     setTodos(list);
 
@@ -3148,7 +3189,7 @@ const TabUnikoPaint = ({ zoomOut }) => {
       // Se o track falhar, ninguém enxerga ninguém — então isso PRECISA aparecer
       // no console em vez de sumir calado (foi assim que o payload gigante da
       // foto passou despercebido).
-      const r = await ch.track({ id: idDaConta(), conn: CONEXAO, name, conta: authName(), photo, room, entrouEm });
+      const r = await ch.track({ id: idDaConta(), conn: CONEXAO, name, conta: authName(), photo, room, entrouEm, isAdmin: getAuthUser()?.role === 'admin' });
       if (r !== 'ok') console.error('[uniko-paint] presence track falhou:', r);
       refreshPresence();
     });
@@ -3171,8 +3212,8 @@ const TabUnikoPaint = ({ zoomOut }) => {
   const naSala = useMemo(() => {
     const l = porSala[room] || [];
     const eu = idDaConta();
-    return l.some(p => p.id === eu || p.name === name) ? l : [{ id: eu, name, photo, room }, ...l];
-  }, [porSala, room, name, photo]);
+    return l.some(p => p.id === eu || p.name === name) ? l : [{ id: eu, name, photo, room, isAdmin }, ...l];
+  }, [porSala, room, name, photo, isAdmin]);
 
   /* ── Seletor de foto (compartilhado por lobby e sala) ────────────────── */
   const [owned, setOwned] = useState(() => getCapturedCollection());

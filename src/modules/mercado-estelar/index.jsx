@@ -594,6 +594,8 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto, initialTab, onlyTabs, aco
   // (minutos jogados, compras, coleção, ranking da Alexa e feedback — ver a métrica
   // de cada missão em prismaMissions.js).
   const [liveProg, setLiveProg] = useState({});
+  const [missionRefresh, setMissionRefresh] = useState(0);
+  const [claimingWinId, setClaimingWinId] = useState(null);
   useEffect(() => {
     if (!loaded) return;
     let alive = true;
@@ -611,7 +613,7 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto, initialTab, onlyTabs, aco
       }
     })();
     return () => { alive = false; };
-  }, [loaded, state.history, userName, state.missionBaseline, missionDefs]); // eslint-disable-line
+  }, [loaded, state.history, userName, state.missionBaseline, missionDefs, missionRefresh]); // eslint-disable-line
 
   // Missões com progresso AO VIVO + resgate que REINICIA por período (diária=por dia,
   // mensal=por mês, única=pra sempre). claimedAt guarda quando foi resgatada.
@@ -629,6 +631,7 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto, initialTab, onlyTabs, aco
       ...def,
       progress: liveProg[def.id] || 0,
       claimed: stillClaimed(def, recs.get(def.id)) || autoClaimed.has(def.id),
+      pendingWinIds: def.metric === 'game_wins' ? (liveProg.__gameWinPendingIds || []) : [],
     }));
   })();
 
@@ -757,8 +760,29 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto, initialTab, onlyTabs, aco
   });
 
   // ── Missões ──
-  const claimMission = (m) => {
+  const claimMission = async (m, winId) => {
     if (!podeResgatarMissao) { flash('Visitantes não podem resgatar missões.'); return; }
+    if (m.metric === 'game_wins') {
+      if (!winId || m.progress >= 3 || claimingWinId) return;
+      setClaimingWinId(winId);
+      try {
+        const { data, error } = await supabase.rpc('mercado_claim_uniko_game_win', {
+          p_player: userName,
+          p_win_id: winId,
+        });
+        if (error) throw error;
+        const reward = Array.isArray(data) ? data[0] : data;
+        setMissionRefresh(value => value + 1);
+        flash(`Vitória resgatada: +${reward?.comum || 0} Prisma Comum e +${reward?.premium || 0} Prisma Premium.`);
+      } catch (e) {
+        console.error('[prisma-store] falha ao resgatar vitória Uniko Games:', e);
+        flash('Não foi possível resgatar esta vitória. Atualize a tela e tente novamente.');
+        setMissionRefresh(value => value + 1);
+      } finally {
+        setClaimingWinId(null);
+      }
+      return;
+    }
     if (m.progress < m.goal || m.claimed) return;
     let nextSnapshot = null;
     setState(s => {
@@ -855,7 +879,7 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto, initialTab, onlyTabs, aco
 
         {tab === 'loja'      && <Loja items={state.items} balances={state} onBuy={setConfirmarItem} ownedUnikoIds={ownedUnikoIds} expiresAt={state.expiresAt} isMobile={isMobile} cardBg={cardBg} />}
         {tab === 'colecao'   && <Colecao collection={state.collection || []} items={state.items} isMobile={isMobile} cardBg={cardBg} />}
-        {tab === 'missoes'   && <Missoes missions={missionsLive} onClaim={claimMission} isMobile={isMobile} cardBg={cardBg} />}
+        {tab === 'missoes'   && <Missoes missions={missionsLive} onClaim={claimMission} claimingWinId={claimingWinId} isMobile={isMobile} cardBg={cardBg} />}
         {tab === 'carteira'  && <Carteira state={state} setState={setState} addHistory={addHistory} flash={flash} isMobile={isMobile} cardBg={cardBg} me={userName} applyCredit={applyCredit} />}
         {tab === 'checkin'   && <Checkin canCheckin={canCheckin} todayOff={todayOff} todayHoliday={todayHoliday} onCheckin={doCheckin} checkins={state.checkins || []} history={state.history || []} streak={streak} nextReward={nextReward} earned={earned} isMobile={isMobile} cardBg={cardBg} />}
         {tab === 'historico' && <Historico history={state.history} isMobile={isMobile} cardBg={cardBg} />}
@@ -1469,7 +1493,7 @@ const PERIOD_META = {
   mes:   { label: 'Mensal',  color: '#9B6FE8' },
   unica: { label: 'Única',   color: '#F5B63A' },
 };
-const Missoes = ({ missions, onClaim, isMobile, cardBg }) => {
+const Missoes = ({ missions, onClaim, claimingWinId, isMobile, cardBg }) => {
   const [filter, setFilter] = useState('all'); // all | dia | mes | unica
   const FILTERS = [
     { id: 'all', label: 'Todas' }, { id: 'dia', label: 'Diário' },
@@ -1497,8 +1521,13 @@ const Missoes = ({ missions, onClaim, isMobile, cardBg }) => {
     <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill,minmax(320px,1fr))', gap: 14 }}>
       {shown.map(m => {
         const maint = !!m.maintenance;
-        const done = !maint && m.progress >= m.goal;
-        const claimable = done && !m.claimed;
+        const gameWins = m.metric === 'game_wins';
+        const pendingWinIds = m.pendingWinIds || [];
+        const done = !maint && m.progress >= (gameWins ? 3 : m.goal);
+        const claimable = gameWins
+          ? !maint && m.progress < 3 && pendingWinIds.length > 0 && !claimingWinId
+          : done && !m.claimed;
+        const claimingThisWin = gameWins && claimingWinId && pendingWinIds.includes(claimingWinId);
         const pct = Math.min(100, Math.round((m.progress / m.goal) * 100));
         const pm = PERIOD_META[m.period] || PERIOD_META.dia;
         return (
@@ -1522,12 +1551,22 @@ const Missoes = ({ missions, onClaim, isMobile, cardBg }) => {
               <div style={{ flex: 1, height: 8, borderRadius: 999, background: T.surfaceSub || 'rgba(0,0,0,0.07)', overflow: 'hidden' }}>
                 <div style={{ width: `${pct}%`, height: '100%', borderRadius: 999, background: done ? `linear-gradient(90deg,${T.gold},${T.goldL || T.gold})` : T.goldV || T.gold, transition: 'width .3s' }} />
               </div>
-              <span style={{ fontSize: 11.5, color: T.textT, fontWeight: 600, flexShrink: 0 }}>{fmt(m.progress)}/{fmt(m.goal)}</span>
+              <span style={{ fontSize: 11.5, color: T.textT, fontWeight: 600, flexShrink: 0 }}>
+                {fmt(m.progress)}/{gameWins ? 3 : fmt(m.goal)}
+                {gameWins ? ' hoje' : ''}
+              </span>
             </div>
+            {gameWins && (
+              <div style={{ fontSize: 11.5, color: pendingWinIds.length ? T.gold : T.textT, margin: '-7px 0 11px' }}>
+                {pendingWinIds.length
+                  ? `${pendingWinIds.length} vitória${pendingWinIds.length === 1 ? '' : 's'} aguardando resgate`
+                  : 'Vitórias pendentes aparecerão aqui para resgate.'}
+              </div>
+            )}
 
             <button
               disabled={!claimable}
-              onClick={() => claimable && onClaim(m)}
+              onClick={() => claimable && onClaim(m, gameWins ? pendingWinIds[0] : undefined)}
               style={{
                 width: '100%', padding: '10px', borderRadius: 9,
                 border: claimable ? 'none' : `1px solid ${T.border}`,
@@ -1537,7 +1576,10 @@ const Missoes = ({ missions, onClaim, isMobile, cardBg }) => {
                 fontWeight: 700, fontSize: 13, fontFamily: 'var(--font-body)',
                 display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7,
               }}>
-              {maint ? '🔧 Em manutenção' : m.claimed ? '✓ Resgatado' : done ? '✨ Resgatar' : 'Em andamento'}
+              {maint ? '🔧 Em manutenção'
+                : claimingThisWin ? 'Resgatando…'
+                  : gameWins ? done ? '✓ Limite diário atingido' : claimable ? '🏆 Resgatar vitória' : 'Aguardando vitória'
+                    : m.claimed ? '✓ Resgatado' : done ? '✨ Resgatar' : 'Em andamento'}
             </button>
           </div>
         );
@@ -2486,7 +2528,7 @@ const missionRule = (m) => {
       const labels = games.includes('any') ? 'qualquer jogo' : games.map(game => GAME_LABEL[game] || game).join(' + ');
       return `${m.goal} min em ${labels} ${per}`;
     }
-    case 'vitoria_palavras': return `${m.goal} vitória${m.goal === 1 ? '' : 's'} no Uniko Palavras ${per}`;
+    case 'game_wins': return 'Vitórias elegíveis em Uniko Palavras, Stop, Paint e Speed · até 3 resgates por dia';
     case 'compras':  return `${m.goal} compra${m.goal === 1 ? '' : 's'} na loja`;
     case 'colecao':  return `${m.goal} Uniko${m.goal === 1 ? '' : 's'} na Coleção`;
     case 'feedback': return `${m.goal} feedback${m.goal === 1 ? '' : 's'} ${per}`;
@@ -2517,11 +2559,22 @@ const MissionEditor = ({ mission, onSave, onCancel, flash, cardBg }) => {
     maintenance: !!mission.maintenance, active: mission.active !== false,
   }));
   const set = (k, v) => setD(x => ({ ...x, [k]: v }));
+  const setMetric = (metric) => setD(x => ({
+    ...x,
+    metric,
+    ...(metric === 'game_wins' ? {
+      title: x.title.trim() ? x.title : 'Vitórias Uniko Games',
+      desc: x.desc.trim() ? x.desc : 'Ganhe partidas para receber uma recompensa pendente e resgatá-la na Prisma Store.',
+      period: 'dia',
+      goal: '3',
+    } : {}),
+  }));
+  const gameWins = d.metric === 'game_wins';
   const meta = METRIC_META[d.metric] || METRIC_META.manual;
   const fieldStyle = { width: '100%', padding: '9px 11px', borderRadius: 9, border: `1.5px solid ${T.border}`, background: cardBg, color: T.text, fontSize: 13.5, fontFamily: 'var(--font-body)', outline: 'none', boxSizing: 'border-box' };
 
   const save = () => {
-    const goal = parseInt(d.goal, 10);
+    const goal = gameWins ? 3 : parseInt(d.goal, 10);
     const comum = parseInt(d.comum, 10) || 0, premium = parseInt(d.premium, 10) || 0;
     if (!d.title.trim()) { flash('Informe o título da missão'); return; }
     if (!goal || goal <= 0) { flash('A meta precisa ser maior que zero'); return; }
@@ -2529,7 +2582,7 @@ const MissionEditor = ({ mission, onSave, onCancel, flash, cardBg }) => {
     if (meta.game && !d.games.length) { flash('Selecione pelo menos um jogo'); return; }
     const games = d.games.includes('any') ? ['any'] : d.games;
     onSave({
-      title: d.title.trim(), desc: d.desc.trim(), period: d.period, metric: d.metric,
+      title: d.title.trim(), desc: d.desc.trim(), period: gameWins ? 'dia' : d.period, metric: d.metric,
       game: !meta.game || games.length !== 1 ? 'any' : games[0], games: meta.game ? games : ['any'],
       param: meta.param ? (parseInt(d.param, 10) || 1) : 0,
       goal, comum, premium, maintenance: d.maintenance, active: d.active,
@@ -2559,25 +2612,27 @@ const MissionEditor = ({ mission, onSave, onCancel, flash, cardBg }) => {
 
       <div>
         <label style={lbl}>Período</label>
-        <div style={{ display: 'flex', gap: 6 }}>
-          {MISSION_PERIODS.map(p => {
-            const on = d.period === p.id; const c = PERIOD_META[p.id]?.color || T.gold;
-            return (
-              <button key={p.id} onClick={() => set('period', p.id)} style={{
-                flex: 1, padding: '8px 6px', borderRadius: 9, cursor: 'pointer', fontFamily: 'var(--font-body)',
-                border: `1.5px solid ${on ? c : T.border}`, background: on ? c + '18' : 'transparent', color: on ? c : T.textS,
-              }}>
-                <div style={{ fontSize: 12.5, fontWeight: 700 }}>{p.label}</div>
-                <div style={{ fontSize: 10, color: T.textT }}>{p.hint}</div>
-              </button>
-            );
-          })}
-        </div>
+        {gameWins
+          ? <div style={{ ...fieldStyle, color: T.textS }}>Diário · até 3 resgates por colaborador, por dia</div>
+          : <div style={{ display: 'flex', gap: 6 }}>
+            {MISSION_PERIODS.map(p => {
+              const on = d.period === p.id; const c = PERIOD_META[p.id]?.color || T.gold;
+              return (
+                <button key={p.id} onClick={() => set('period', p.id)} style={{
+                  flex: 1, padding: '8px 6px', borderRadius: 9, cursor: 'pointer', fontFamily: 'var(--font-body)',
+                  border: `1.5px solid ${on ? c : T.border}`, background: on ? c + '18' : 'transparent', color: on ? c : T.textS,
+                }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 700 }}>{p.label}</div>
+                  <div style={{ fontSize: 10, color: T.textT }}>{p.hint}</div>
+                </button>
+              );
+            })}
+          </div>}
       </div>
 
       <div>
         <label style={lbl}>O que é medido</label>
-        <select value={d.metric} onChange={e => set('metric', e.target.value)} style={{ ...fieldStyle, cursor: 'pointer' }}>
+        <select value={d.metric} onChange={e => setMetric(e.target.value)} style={{ ...fieldStyle, cursor: 'pointer' }}>
           {MISSION_METRICS.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
         </select>
         <div style={{ fontSize: 11.5, color: T.textT, marginTop: 5, lineHeight: 1.45 }}>{meta.hint}</div>
@@ -2608,8 +2663,10 @@ const MissionEditor = ({ mission, onSave, onCancel, flash, cardBg }) => {
           </div>
         )}
         <div style={{ flex: 1 }}>
-          <label style={lbl}>Meta ({meta.unit})</label>
-          <input type="number" min="1" value={d.goal} onChange={e => set('goal', e.target.value)} style={fieldStyle} />
+          <label style={lbl}>{gameWins ? 'Limite diário' : `Meta (${meta.unit})`}</label>
+          {gameWins
+            ? <div style={{ ...fieldStyle, color: T.textS }}>3 resgates por colaborador, por dia</div>
+            : <input type="number" min="1" value={d.goal} onChange={e => set('goal', e.target.value)} style={fieldStyle} />}
         </div>
       </div>
 
@@ -2675,6 +2732,10 @@ const AdminMissoes = ({ missions, setMissions, flash, isMobile, cardBg }) => {
   };
 
   const addMission = async (data) => {
+    if (data.metric === 'game_wins' && missions.some(m => m.metric === 'game_wins')) {
+      flash('A missão "Vitórias Uniko Games" já está cadastrada.');
+      return;
+    }
     const id = 'm' + Date.now().toString(36);
     const saved = await commit([...missions, { ...data, id, progress: 0, claimed: false }]);
     if (saved) {
@@ -2682,7 +2743,13 @@ const AdminMissoes = ({ missions, setMissions, flash, isMobile, cardBg }) => {
       flash(`Missão "${data.title}" criada`);
     }
   };
-  const patchMission = (id, patch) => commit(missions.map(m => m.id === id ? { ...m, ...patch } : m));
+  const patchMission = (id, patch) => {
+    if (patch.metric === 'game_wins' && missions.some(m => m.id !== id && m.metric === 'game_wins')) {
+      flash('A missão "Vitórias Uniko Games" já está cadastrada.');
+      return;
+    }
+    return commit(missions.map(m => m.id === id ? { ...m, ...patch } : m));
+  };
   const removeMission = async (m) => {
     if (!window.confirm(`Apagar a missão "${m.title}"? Ela some da aba Missões de todos os colaboradores.`)) return;
     if (await commit(missions.filter(x => x.id !== m.id), [m.id])) flash('Missão apagada');
