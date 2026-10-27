@@ -5,6 +5,7 @@ import { StarDivider, Card, Btn, Tag, SHead, Moon, Logo, UnikoIcon } from '../..
 import { splitContrachequesPDF, normName, onlyDigits } from './contrachequeSplit';
 import UnikoQATab from './UnikoQATab';
 import ArmazenamentoTab from './ArmazenamentoTab';
+import MonitoramentoUsoTab from './MonitoramentoUsoTab';
 import PedidosAjusteTab from './PedidosAjusteTab';
 import ImagensSiteTab from './ImagensSiteTab';
 import { aplicarVisibilidade, useVisibilidade } from '../../shared/visibilidade';
@@ -2176,6 +2177,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin', initialTa
   });
 
   const TABS=[
+    {id:'monitoramento-uso', label:'Monitoramento de Uso', icon:<><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></>},
     {id:'pedidos_ajuste', label:'Ajuste Inteligente', icon:<><path d="M14.7 6.3a4 4 0 00-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 005.4-5.4L15 12l-3-3z"/></>},
     {id:'funcionarios',   label:'Funcionários',      icon:<><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="23" y1="11" x2="17" y2="11"/><line x1="20" y1="8" x2="20" y2="14"/></>},
     {id:'gerenciar',      label:'Gerenciar Usuários', icon:<><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></>},
@@ -3602,6 +3604,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin', initialTa
           {/* ── TAB: PERGUNTAS DO UNIKO (cache/aprendizado da IA) ── */}
           {tab==='uniko_ia'&&<UnikoQATab cardBg={cardBg}/>}
           {tab==='armazenamento'&&<ArmazenamentoTab/>}
+          {tab==='monitoramento-uso'&&role==='admin'&&<MonitoramentoUsoTab/>}
           {tab==='imagens_site'&&<ImagensSiteTab cardBg={cardBg}/>}
           {tab==='modulos_abas'&&<VisibilidadeTab cardBg={cardBg}/>}
           {tab==='pedidos_ajuste'&&<PedidosAjusteTab cardBg={cardBg}/>}

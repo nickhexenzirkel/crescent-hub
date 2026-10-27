@@ -17,6 +17,7 @@ Abra a pasta `vault/` como um cofre (vault) no Obsidian.
 - [[agente-ia]] — agente independente que resolve Pedidos de Ajuste (branch + build + pull request)
 - [[arquivo-anual]] — Arquivo anual (.ukarq) do WhatsApp e Call: baixar o ano, excluir e importar
 - [[armazenamento-supabase]] — aba do Dashboard RH com o uso do Supabase
+- [[monitoramento-uso]] — Dashboard RH: presença, tempo ativo, módulos, temas e coleção de Unikos
 - [[widget-eventos-hoje]] — card Eventos de hoje abaixo do bom dia
 - [[alexa-token-persistencia]] — Como o token da Alexa é gerado, onde vive e por que se auto-renova agora (crescent-hub-server)
 - [[atualizacoes-mural]] — Mural de Atualizações emitido pelo RH — moldura em tela cheia pra todos, com som e desktop
@@ -93,4 +94,3 @@ Abra a pasta `vault/` como um cofre (vault) no Obsidian.
 - [[commit-push-sem-confirmar]] — Preferência do usuário — pode fazer git commit e push sem pedir autorização
 - [[extensao-download-atualizada]] — Botão "Baixar extensão" (Meus Lembretes + ExtensionPrompt) deve sempre entregar a extensão atual; zip regenerado por hook pre-commit
 - [[feedback-idioma-portugues]] — Usuário quer que eu sempre responda em português, mesmo em respostas de texto livre (não só em código/commits)
-

@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { T, FONTS, applyTheme } from './contexts/theme';
+import { useState, useEffect, useRef } from 'react';
+import { T, FONTS, onThemeChange } from './contexts/theme';
 import { SERVER_URL, supabase as _supabase, loadUserPhoto, fetchPhotoByName, USER } from './contexts/user';
 import { criarUsuarioVisitante, isVisitante } from './shared/visitante';
 import { useVisitanteConfig, moduloLiberadoVisitante, abasVisitante } from './shared/visitanteConfig';
@@ -56,6 +56,9 @@ const IcoPrestacaoContas = (
 export default function CrescentHub() {
   const [screen, ss]       = useState('landing');
   const [authUser, setAuthUser] = useState(null);
+  const [usageTheme, setUsageTheme] = useState(() => localStorage.getItem('ch_theme') || 'blue');
+  const usageOwner = useRef('');
+  const usageWarned = useRef(new Set());
   // Configuração do modo visitante (Dashboard RH → Configurar Visitante) —
   // módulos/abas liberados pra quem entra sem login. Carrega sozinho (hook
   // com cache próprio, ver shared/visitanteConfig.js), não precisa de efeito aqui.
@@ -108,6 +111,58 @@ export default function CrescentHub() {
   // pra sempre (só escondido via `active`) — ver Beneficios7.
   const [visited7Beneficios, setVisited7Beneficios] = useState(false);
   useEffect(() => { if (screen === '7-beneficios') setVisited7Beneficios(true); }, [screen]);
+  useEffect(() => onThemeChange((key) => setUsageTheme(key)), []);
+  useEffect(() => {
+    if (!authUser?.id || isVisitante(authUser)) return;
+    if (!usageOwner.current) {
+      usageOwner.current = globalThis.crypto?.randomUUID?.() || Math.random().toString(36).slice(2);
+    }
+    let encerrado = false;
+    const lockKey = `uniko_usage_owner_${authUser.id}`;
+    const podeRegistrar = (ativo) => {
+      try {
+        const lock = JSON.parse(localStorage.getItem(lockKey) || 'null');
+        if (ativo) {
+          if (lock && lock.expiresAt > Date.now() && lock.owner !== usageOwner.current) return false;
+          localStorage.setItem(lockKey, JSON.stringify({ owner: usageOwner.current, expiresAt: Date.now() + 45000 }));
+          return true;
+        }
+        if (lock?.owner !== usageOwner.current) return false;
+        localStorage.removeItem(lockKey);
+        return true;
+      } catch {
+        return true;
+      }
+    };
+    const registrar = async () => {
+      const ativo = document.visibilityState === 'visible' && document.hasFocus();
+      if (!podeRegistrar(ativo)) return;
+      const { error } = await _supabase.rpc('record_uniko_usage_heartbeat', {
+        p_module: screen,
+        p_theme: usageTheme,
+        p_is_active: ativo,
+      });
+      if (encerrado) return;
+      if (error && !usageWarned.current.has(error.message)) {
+        usageWarned.current.add(error.message);
+        console.warn('[monitoramento-uso] Não foi possível registrar a atividade:', error.message);
+      }
+      if (!error) usageWarned.current.clear();
+    };
+    const aoMudarAtividade = () => { void registrar(); };
+    void registrar();
+    const intervalo = setInterval(aoMudarAtividade, 20000);
+    document.addEventListener('visibilitychange', aoMudarAtividade);
+    window.addEventListener('focus', aoMudarAtividade);
+    window.addEventListener('blur', aoMudarAtividade);
+    return () => {
+      encerrado = true;
+      clearInterval(intervalo);
+      document.removeEventListener('visibilitychange', aoMudarAtividade);
+      window.removeEventListener('focus', aoMudarAtividade);
+      window.removeEventListener('blur', aoMudarAtividade);
+    };
+  }, [authUser, screen, usageTheme]);
 
   /* Favoritar Editor/Organizar/Mesclar de PDF (Oficina Estelar) no navegador
      e abrir DIRETO neles — ver rotaFerramenta.js. Guarda o alvo (se o hash de
