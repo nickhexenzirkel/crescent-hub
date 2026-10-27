@@ -60,6 +60,10 @@ const TB = {
   sakuraDark: {bg:'linear-gradient(135deg,#12060F,#1E0C18,#281020,#160812)', b1:'#F4C8E258',b2:'#F9DCEC25',b3:'#9A406A40', p1:'#FDEEF6',p2:'#E7A3C6',p3:'#9A406A', rings:false, spot:true,  shooting:true },
   ocean:      {bg:'linear-gradient(120deg,#B9DFF0 0%,#C8D9EE 34%,#DDCFEA 66%,#F2C9DD 100%)', b1:'#63B5D1A0',b2:'#E988B2A0',b3:'#9A86C9A0', p1:'#F5E9F7',p2:'#A6CBE2',p3:'#918FC5', rings:true,  spot:true,  shooting:true, text:'#21485C', textMuted:'#476D80', star:'#918FC5', shadow:'0 10px 40px rgba(48,103,130,.20)', pillBg:'rgba(255,255,255,.42)', pillBorder:'rgba(71,109,128,.22)', pillText:'#315A70' },
   oceanDark:  {bg:'linear-gradient(120deg,#0B263B 0%,#17374D 30%,#393451 66%,#462B49 100%)', b1:'#54B7D990',b2:'#E77CB890',b3:'#9A83D0A0', p1:'#F2D9EF',p2:'#BD9AD9',p3:'#75558F', rings:true,  spot:true,  shooting:true },
+  oceanBlue:  {bg:'linear-gradient(120deg,#D8EBF5 0%,#BEDCED 38%,#A4CDE2 72%,#D4E8F2 100%)', b1:'#4D94B7A0',b2:'#8CC2DCA0',b3:'#286B91A0', p1:'#EAF6FC',p2:'#91C3DC',p3:'#397FA3', rings:true,  spot:true,  shooting:true, text:'#16394D', textMuted:'#3B657D', star:'#4D94B7', shadow:'0 10px 40px rgba(36,93,125,.22)', pillBg:'rgba(255,255,255,.46)', pillBorder:'rgba(40,100,132,.22)', pillText:'#285875' },
+  oceanBlueDark:{bg:'linear-gradient(120deg,#071824 0%,#0E3045 38%,#15516B 72%,#0B2639 100%)', b1:'#55A9CCA0',b2:'#8CCFE2A0',b3:'#287DA3A0', p1:'#D8F1FA',p2:'#65B5D2',p3:'#174E6B', rings:true,  spot:true,  shooting:true },
+  praia:      {bg:'linear-gradient(120deg,#E8E3D3 0%,#CDE7DF 30%,#A5DBD7 62%,#83C9D0 100%)', b1:'#50B8B8A0',b2:'#C4DED0A0',b3:'#E5D6BCA0', p1:'#F7F1E2',p2:'#74C7C4',p3:'#338E91', rings:true,  spot:true,  shooting:true, text:'#24464A', textMuted:'#4B7071', star:'#338E91', shadow:'0 10px 40px rgba(47,116,117,.20)', pillBg:'rgba(255,255,255,.46)', pillBorder:'rgba(68,133,135,.22)', pillText:'#315D5E' },
+  praiaDark:  {bg:'linear-gradient(120deg,#09212A 0%,#10434D 38%,#17616A 72%,#0C303C 100%)', b1:'#45B9B2A0',b2:'#9BD6C7A0',b3:'#2A8193A0', p1:'#E0F2E5',p2:'#72C9C1',p3:'#19566B', rings:true,  spot:true,  shooting:true },
   beige:      {bg:'linear-gradient(135deg,#1A140D,#281F15,#33281C,#1E1710)', b1:'#E6D5BE48',b2:'#F4EBDD20',b3:'#8A674040', p1:'#F4EBDD',p2:'#E6D5BE',p3:'#8A6740', rings:true,  spot:false, shooting:true },
   beigeDark:  {bg:'linear-gradient(135deg,#100C08,#1A140E,#221A12,#140F0A)', b1:'#E6D5BE44',b2:'#F4EBDD1C',b3:'#6E513240', p1:'#F4EBDD',p2:'#CDB692',p3:'#6E5132', rings:true,  spot:false, shooting:true },
   black:      {bg:'linear-gradient(135deg,#0A0A0C,#151518,#1C1C20,#0E0E10)', b1:'#8E8E9650',b2:'#FFFFFF18',b3:'#3A3A4040', p1:'#EDEDF2',p2:'#8E8E96',p3:'#2C2C30', rings:true,  spot:false, shooting:true },
@@ -174,24 +178,68 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
   const imgAspect   = useRef(1);      // naturalHeight/naturalWidth of current photo
 
   const P    = getBanner(activeTheme);
-  const portalOceanoClaro = activeTheme === 'ocean';
-  const portalOceano = portalOceanoClaro || activeTheme === 'oceanDark';
-  const coresPortalOceano = portalOceanoClaro
-    ? ['#458FB2', '#918FC5', '#D477A2', '#7584C9', '#5BAFBC']
-    : ['#78C7E4', '#C4A5E8', '#F09ABF', '#9FAFF0', '#74D5D0'];
-  const fundosCardOceano = portalOceanoClaro
-    ? [
+  const portalOceanoAzul = activeTheme === 'oceanBlue' || activeTheme === 'oceanBlueDark';
+  const portalPraia = activeTheme === 'praia' || activeTheme === 'praiaDark';
+  const portalOceanoClaro = activeTheme === 'ocean' || activeTheme === 'oceanBlue' || activeTheme === 'praia';
+  const portalOceano = portalOceanoAzul || portalPraia || activeTheme === 'ocean' || activeTheme === 'oceanDark';
+  const coresPortalOceano = portalPraia
+    ? (portalOceanoClaro
+      ? ['#338E91', '#60BFC0', '#C49A65', '#4D9DA7', '#76B6A8']
+      : ['#7BD3CA', '#A8D9CA', '#E4CC9E', '#50B5B7', '#89CDD1'])
+    : portalOceanoAzul
+      ? (portalOceanoClaro
+      ? ['#286B91', '#4D94B7', '#65A6CA', '#317A9E', '#87BBD3']
+      : ['#82C8E2', '#5AAECF', '#B7D9EA', '#478FB2', '#9AD1E5'])
+      : (portalOceanoClaro
+        ? ['#458FB2', '#918FC5', '#D477A2', '#7584C9', '#5BAFBC']
+        : ['#78C7E4', '#C4A5E8', '#F09ABF', '#9FAFF0', '#74D5D0']);
+  const corAcentoOceano = portalPraia
+    ? (portalOceanoClaro ? '#338E91' : '#7BD3CA')
+    : portalOceanoAzul ? (portalOceanoClaro ? '#286B91' : '#82C8E2') : '#9B6BFF';
+  const corAcentoSecundarioOceano = portalPraia
+    ? (portalOceanoClaro ? '#4DABAD' : '#9BD6C7')
+    : portalOceanoAzul ? (portalOceanoClaro ? '#4D94B7' : '#5AAECF') : '#27C6DE';
+  const fundosCardOceano = portalPraia
+    ? (portalOceanoClaro
+      ? [
+        'linear-gradient(135deg,#F7F3E8,#E9F1E7)',
+        'linear-gradient(135deg,#DDF1EA,#CDE9E4)',
+        'linear-gradient(135deg,#F5EBDD,#E8F1E8)',
+        'linear-gradient(135deg,#D7EFEB,#EAF2E6)',
+      ]
+      : [
+        'linear-gradient(135deg,rgba(49,113,109,.38),rgba(22,79,91,.38))',
+        'linear-gradient(135deg,rgba(28,92,102,.40),rgba(37,111,113,.34))',
+        'linear-gradient(135deg,rgba(69,105,89,.36),rgba(31,94,105,.38))',
+        'linear-gradient(135deg,rgba(30,99,105,.38),rgba(22,73,91,.42))',
+      ])
+    : portalOceanoAzul
+      ? (portalOceanoClaro
+      ? [
+        'linear-gradient(135deg,#E7F3F9,#DDECF5)',
+        'linear-gradient(135deg,#E1EFF7,#D5E8F3)',
+        'linear-gradient(135deg,#D8EBF5,#E6F2F8)',
+        'linear-gradient(135deg,#EDF6FA,#D8EAF4)',
+      ]
+      : [
+        'linear-gradient(135deg,rgba(30,91,121,.38),rgba(17,63,91,.38))',
+        'linear-gradient(135deg,rgba(24,79,107,.40),rgba(33,103,133,.34))',
+        'linear-gradient(135deg,rgba(18,70,100,.42),rgba(40,116,146,.34))',
+        'linear-gradient(135deg,rgba(22,85,114,.38),rgba(13,54,82,.42))',
+      ])
+      : portalOceanoClaro
+      ? [
       'linear-gradient(135deg,#F0F9FC,#EAF3FA)',
       'linear-gradient(135deg,#F5F0FA,#EAEAF7)',
       'linear-gradient(135deg,#FCEFF5,#F6EAF3)',
       'linear-gradient(135deg,#ECF7FA,#F2EFF8)',
-    ]
-    : [
+      ]
+      : [
       'linear-gradient(135deg,rgba(42,105,135,.38),rgba(78,67,125,.34))',
       'linear-gradient(135deg,rgba(77,69,126,.36),rgba(42,103,132,.34))',
       'linear-gradient(135deg,rgba(119,61,103,.34),rgba(82,68,135,.34))',
       'linear-gradient(135deg,rgba(43,105,128,.36),rgba(107,67,122,.32))',
-    ];
+      ];
   const fundoCardOceano = (indice) => portalOceano
     ? fundosCardOceano[indice % fundosCardOceano.length]
     : undefined;
@@ -548,7 +596,7 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
                   <span style={{fontSize:11.5,color:P.pillText||'rgba(255,255,255,.85)',fontWeight:600,whiteSpace:'nowrap'}}>
                     {vacationCountdown.expired
                       ? 'Férias: data-limite alcançada'
-                      : <>Férias em <b style={{color:portalOceanoClaro?'#918FC5':'#FFD98A'}}>{vacationCountdown.months}{vacationCountdown.months===1?' mês':' meses'} e {vacationCountdown.days}{vacationCountdown.days===1?' dia':' dias'}</b></>}
+                      : <>Férias em <b style={{color:portalOceanoAzul?corAcentoOceano:portalOceanoClaro?'#918FC5':'#FFD98A'}}>{vacationCountdown.months}{vacationCountdown.months===1?' mês':' meses'} e {vacationCountdown.days}{vacationCountdown.days===1?' dia':' dias'}</b></>}
                   </span>
                 </div>
               )}
@@ -613,11 +661,11 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
               <img src={unikoWave} alt="Uniko Wave" style={{width:'100%',height:'100%',objectFit:'cover'}}/>
             </div>
             <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:10,color:'#9B6BFF',fontWeight:700,letterSpacing:'.06em'}}>RITMO</div>
+              <div style={{fontSize:10,color:corAcentoOceano,fontWeight:700,letterSpacing:'.06em'}}>RITMO</div>
               <div style={{fontSize:15,fontWeight:700,color:T.text,lineHeight:1.1}}>Uniko Wave</div>
               <div style={{fontSize:10.5,color:T.textT,marginTop:2}}>Jogue e ganhe prismas</div>
             </div>
-            <span style={{width:30,height:30,borderRadius:'50%',background:'rgba(155,107,255,.14)',border:'1px solid rgba(155,107,255,.3)',color:'#9B6BFF',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,flexShrink:0}}>▶</span>
+            <span style={{width:30,height:30,borderRadius:'50%',background:portalOceanoAzul?(portalOceanoClaro?'rgba(77,148,183,.13)':'rgba(85,169,202,.18)'):'rgba(155,107,255,.14)',border:`1px solid ${portalOceanoAzul?(portalOceanoClaro?'rgba(77,148,183,.3)':'rgba(85,169,202,.34)'):'rgba(155,107,255,.3)'}`,color:corAcentoOceano,display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,flexShrink:0}}>▶</span>
           </div>
         </Card>
 
@@ -625,13 +673,13 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
         <Card className="home-card" style={{padding:'14px 16px',background:fundoCardOceano(2)}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
             <span style={{fontSize:13,fontWeight:600,color:T.text}}>Missões em andamento</span>
-            <span style={{fontSize:10,color:'#9B6BFF',fontWeight:700,letterSpacing:'.04em'}}>PRISMA</span>
+            <span style={{fontSize:10,color:corAcentoOceano,fontWeight:700,letterSpacing:'.04em'}}>PRISMA</span>
           </div>
           <div style={{display:'flex',flexDirection:'column',gap:9}}>
             {missoes.length===0
               ? <div style={{fontSize:11,color:T.textT,textAlign:'center',padding:'10px 0'}}>Nenhuma missão em andamento</div>
               : missoes.map(m=>{
-                  const col = m.premium ? '#9B6BFF' : '#27C6DE';
+                  const col = m.premium ? corAcentoOceano : corAcentoSecundarioOceano;
                   const pct = Math.min(100, Math.round((m.progress/m.goal)*100));
                   return (
                     <div key={m.id}>
@@ -655,8 +703,8 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
             <span style={{fontSize:10.5,color:T.textT}}>Sua carteira</span>
           </div>
           <div style={{display:'flex',gap:9}}>
-            {[{k:'comum',src:'/PrismaComum.png',label:'Comum',col:'#27C6DE',v:prismas.comum},
-              {k:'premium',src:'/PrismaPremium.png',label:'Premium',col:'#9B6BFF',v:prismas.premium}].map(p=>(
+            {[{k:'comum',src:'/PrismaComum.png',label:'Comum',col:corAcentoSecundarioOceano,v:prismas.comum},
+              {k:'premium',src:'/PrismaPremium.png',label:'Premium',col:corAcentoOceano,v:prismas.premium}].map(p=>(
               <div key={p.k} style={{flex:1,display:'flex',alignItems:'center',gap:8,padding:'8px 10px',borderRadius:10,background:fundoCardOceano(p.k==='premium'?2:0)||T.surface,border:`1px solid ${T.border}`}}>
                 <img src={p.src} alt={p.label} onError={e=>{e.target.style.display='none';}} style={{width:26,height:26,objectFit:'contain',flexShrink:0}}/>
                 <div style={{minWidth:0}}>

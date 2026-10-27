@@ -49,7 +49,7 @@ const ThemeGrid = ({activeTheme,onTheme}) => {
           letterSpacing:'.09em',textTransform:'uppercase',fontWeight:600}}>MODO CLARO</span>
       </div>
       <div style={{display:'flex',flexDirection:'column',gap:7}}>
-        {['blue','purple','lilac','pink','sakura','ocean','red','green','orange','beige','black','gray'].map(key=>(
+        {['blue','purple','lilac','pink','sakura','ocean','oceanBlue','praia','red','green','orange','beige','black','gray'].map(key=>(
           <LinhaTema key={key} th={THEMES[key]} isActive={activeTheme===key} onClick={()=>onTheme(key)}/>
         ))}
       </div>
@@ -66,7 +66,7 @@ const ThemeGrid = ({activeTheme,onTheme}) => {
           letterSpacing:'.09em',textTransform:'uppercase',fontWeight:600}}>MODO ESCURO</span>
       </div>
       <div style={{display:'flex',flexDirection:'column',gap:7}}>
-        {['blueDark','purpleDark','lilacDark','pinkDark','sakuraDark','oceanDark','redDark','greenDark','orangeDark','beigeDark','blackDark','grayDark'].map(key=>(
+        {['blueDark','purpleDark','lilacDark','pinkDark','sakuraDark','oceanDark','oceanBlueDark','praiaDark','redDark','greenDark','orangeDark','beigeDark','blackDark','grayDark'].map(key=>(
           <LinhaTema key={key} th={THEMES[key]} isActive={activeTheme===key} onClick={()=>onTheme(key)} escuro/>
         ))}
       </div>

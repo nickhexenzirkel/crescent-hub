@@ -174,6 +174,8 @@ const SeletorTamanho = ({ tam, onTam }) => (
 );
 
 const TONS_ICONES_OCEANO = ['#7EB5D7', '#C7C9DE', '#918FC5', '#F1BBD1', '#58BDD0'];
+const TONS_ICONES_AZUIS = ['#4D94B7', '#8CC2DC', '#286B91', '#69AFCB', '#B7D9EA'];
+const TONS_ICONES_PRAIA = ['#338E91', '#60BFC0', '#2A7E96', '#ABD8CD', '#C5DAC6'];
 const TONS_INTERIOR_OCEANO = {
   claro: [
     ['rgba(244,160,197,0.28)', 'rgba(126,181,215,0.24)', 'rgba(199,201,222,0.22)'],
@@ -186,6 +188,34 @@ const TONS_INTERIOR_OCEANO = {
     ['rgba(145,143,197,0.17)', 'rgba(241,187,209,0.16)', 'rgba(126,181,215,0.15)'],
     ['rgba(126,181,215,0.18)', 'rgba(199,201,222,0.16)', 'rgba(244,160,197,0.15)'],
     ['rgba(199,201,222,0.17)', 'rgba(126,181,215,0.16)', 'rgba(241,187,209,0.16)'],
+  ],
+};
+const TONS_INTERIOR_AZUIS = {
+  claro: [
+    ['rgba(77,148,183,0.22)', 'rgba(140,194,220,0.20)', 'rgba(183,217,234,0.18)'],
+    ['rgba(40,107,145,0.19)', 'rgba(105,175,203,0.21)', 'rgba(140,194,220,0.18)'],
+    ['rgba(105,175,203,0.22)', 'rgba(183,217,234,0.20)', 'rgba(77,148,183,0.18)'],
+    ['rgba(140,194,220,0.21)', 'rgba(40,107,145,0.17)', 'rgba(183,217,234,0.19)'],
+  ],
+  escuro: [
+    ['rgba(85,169,202,0.21)', 'rgba(35,91,125,0.19)', 'rgba(155,211,230,0.16)'],
+    ['rgba(112,198,220,0.19)', 'rgba(34,116,153,0.20)', 'rgba(85,169,202,0.17)'],
+    ['rgba(35,91,125,0.21)', 'rgba(155,211,230,0.17)', 'rgba(63,143,177,0.19)'],
+    ['rgba(63,143,177,0.20)', 'rgba(112,198,220,0.18)', 'rgba(34,116,153,0.17)'],
+  ],
+};
+const TONS_INTERIOR_PRAIA = {
+  claro: [
+    ['rgba(70,187,190,0.22)', 'rgba(197,218,198,0.20)', 'rgba(106,202,202,0.18)'],
+    ['rgba(42,126,150,0.19)', 'rgba(171,216,205,0.21)', 'rgba(70,187,190,0.18)'],
+    ['rgba(96,191,192,0.22)', 'rgba(238,226,194,0.20)', 'rgba(48,170,177,0.18)'],
+    ['rgba(171,216,205,0.21)', 'rgba(42,126,150,0.17)', 'rgba(201,226,210,0.19)'],
+  ],
+  escuro: [
+    ['rgba(69,190,188,0.21)', 'rgba(31,99,126,0.19)', 'rgba(175,218,198,0.16)'],
+    ['rgba(119,205,196,0.19)', 'rgba(38,142,155,0.20)', 'rgba(69,190,188,0.17)'],
+    ['rgba(31,99,126,0.21)', 'rgba(175,218,198,0.17)', 'rgba(91,174,181,0.19)'],
+    ['rgba(91,174,181,0.20)', 'rgba(119,205,196,0.18)', 'rgba(38,142,155,0.17)'],
   ],
 };
 const colorirPartesSvg = (elemento, cores, cursor) => {
@@ -215,11 +245,23 @@ const Moldura = ({ tam, colunas, linhas, editando, onTam, onAbrir, cor, aura, re
   const [aceso, setAceso] = useState(false);
   const levanta = aceso && !editando && onAbrir;
   const [a1, a2, a3] = levanta ? [2, 4.6, 7.2] : [1.6, 4.2, 6.8];
-  const tonsInterior = TONS_INTERIOR_OCEANO[T.dark ? 'escuro' : 'claro'][(i || 0) % 4];
+  const azulOceano = T.key === 'oceanBlue' || T.key === 'oceanBlueDark';
+  const praia = T.key === 'praia' || T.key === 'praiaDark';
+  const tonsInterior = (praia ? TONS_INTERIOR_PRAIA : azulOceano ? TONS_INTERIOR_AZUIS : TONS_INTERIOR_OCEANO)[T.dark ? 'escuro' : 'claro'][(i || 0) % 4];
+  const gradienteBorda = praia
+    ? 'linear-gradient(135deg,#E9DFC8 0%,#69C7C4 18%,#38A6AA 38%,#D4E7D7 56%,#287D91 76%,#B9DDCF 100%) border-box'
+    : azulOceano
+      ? 'linear-gradient(135deg,#D0E8F4 0%,#6EAFCE 18%,#347FA4 38%,#A4D0E3 56%,#1F5F80 76%,#8EC2DA 100%) border-box'
+      : 'linear-gradient(135deg,#7EB5D7 0%,#A6DBE6 16%,#C7C9DE 31%,#EBA9CA 46%,#918FC5 62%,#F3C1D6 77%,#7EB5D7 100%) border-box';
+  const halosOceano = praia
+    ? `0 0 0 ${a1}px ${T.dark ? 'rgba(77,190,183,0.48)' : 'rgba(74,164,166,0.36)'}, 0 0 0 ${a1 + 0.7}px ${T.dark ? 'rgba(175,218,198,0.40)' : 'rgba(171,216,205,0.40)'}, 0 0 0 ${a2}px ${T.dark ? 'rgba(35,119,135,0.36)' : 'rgba(42,126,150,0.32)'}, 0 0 0 ${a3}px ${T.dark ? 'rgba(91,174,181,0.30)' : 'rgba(96,191,192,0.26)'}, `
+    : azulOceano
+      ? `0 0 0 ${a1}px ${T.dark ? 'rgba(91,177,210,0.48)' : 'rgba(77,148,183,0.36)'}, 0 0 0 ${a1 + 0.7}px ${T.dark ? 'rgba(158,211,230,0.40)' : 'rgba(140,194,220,0.40)'}, 0 0 0 ${a2}px ${T.dark ? 'rgba(48,117,151,0.36)' : 'rgba(40,107,145,0.32)'}, 0 0 0 ${a3}px ${T.dark ? 'rgba(91,177,210,0.30)' : 'rgba(105,175,203,0.26)'}, `
+      : `0 0 0 ${a1}px ${T.dark ? 'rgba(126,181,215,0.50)' : 'rgba(126,181,215,0.38)'}, 0 0 0 ${a1 + 0.7}px ${T.dark ? 'rgba(244,161,197,0.50)' : 'rgba(244,161,197,0.42)'}, 0 0 0 ${a2}px ${T.dark ? 'rgba(199,201,222,0.38)' : 'rgba(199,201,222,0.34)'}, 0 0 0 ${a3}px ${T.dark ? 'rgba(145,143,197,0.32)' : 'rgba(145,143,197,0.25)'}, `;
   const pintura = reefBorder ? {
-    background:`radial-gradient(ellipse at 100% 0%, ${tonsInterior[0]} 0%, transparent 62%) padding-box, radial-gradient(ellipse at 0% 100%, ${tonsInterior[1]} 0%, transparent 58%) padding-box, radial-gradient(ellipse at 55% 52%, ${tonsInterior[2]} 0%, transparent 78%) padding-box, linear-gradient(${T.surface}, ${T.surface}) padding-box, linear-gradient(135deg, #7EB5D7 0%, #A6DBE6 16%, #C7C9DE 31%, #EBA9CA 46%, #918FC5 62%, #F3C1D6 77%, #7EB5D7 100%) border-box`,
+    background:`radial-gradient(ellipse at 100% 0%, ${tonsInterior[0]} 0%, transparent 62%) padding-box, radial-gradient(ellipse at 0% 100%, ${tonsInterior[1]} 0%, transparent 58%) padding-box, radial-gradient(ellipse at 55% 52%, ${tonsInterior[2]} 0%, transparent 78%) padding-box, linear-gradient(${T.surface}, ${T.surface}) padding-box, ${gradienteBorda}`,
     border:'2.5px solid transparent',
-    boxShadow:`0 0 0 ${a1}px ${T.dark ? 'rgba(126,181,215,0.50)' : 'rgba(126,181,215,0.38)'}, 0 0 0 ${a1 + 0.7}px ${T.dark ? 'rgba(244,161,197,0.50)' : 'rgba(244,161,197,0.42)'}, 0 0 0 ${a2}px ${T.dark ? 'rgba(199,201,222,0.38)' : 'rgba(199,201,222,0.34)'}, 0 0 0 ${a3}px ${T.dark ? 'rgba(145,143,197,0.32)' : 'rgba(145,143,197,0.25)'}, ${levanta ? T.shL : T.sh}`,
+    boxShadow:`${halosOceano}${levanta ? T.shL : T.sh}`,
   } : aura ? {
     background:T.surface,
     border:'none',
@@ -263,8 +305,12 @@ const TileModulo = ({ m, i, tam, cor, modo, onTam, onAbrir }) => {
   // soltem em cima — o solto vai pra logo depois dele).
   const arrastavel = reorderMode && !m.fixo;
   const borda = arrastavel ? `1.5px dashed ${arrastando ? cor : tom(cor, 0.2, .6)}` : undefined;
-  const iconeOceano = (T.key === 'ocean' || T.key === 'oceanDark') && cor === m.color;
-  const coresIcone = TONS_ICONES_OCEANO.map((_, indice) => TONS_ICONES_OCEANO[(indice + i * 2) % TONS_ICONES_OCEANO.length]);
+  const azulOceano = T.key === 'oceanBlue' || T.key === 'oceanBlueDark';
+  const praia = T.key === 'praia' || T.key === 'praiaDark';
+  const temaOceano = azulOceano || praia || T.key === 'ocean' || T.key === 'oceanDark';
+  const iconeOceano = temaOceano && cor === m.color;
+  const paletaIcones = praia ? TONS_ICONES_PRAIA : azulOceano ? TONS_ICONES_AZUIS : TONS_ICONES_OCEANO;
+  const coresIcone = paletaIcones.map((_, indice) => paletaIcones[(indice + i * 2) % paletaIcones.length]);
   const icone = iconeOceano
     ? colorirPartesSvg(m.icon, coresIcone, { value:0 })
     : m.icon;
@@ -273,7 +319,7 @@ const TileModulo = ({ m, i, tam, cor, modo, onTam, onAbrir }) => {
 
   return (
     <Moldura tam={tam} colunas={largo ? 2 : 1} editando={sizeMode} onTam={onTam} cor={cor} aura={cor}
-      reefBorder={T.key === 'ocean' || T.key === 'oceanDark'} i={i}
+      reefBorder={temaOceano} i={i}
       onAbrir={reorderMode ? null : onAbrir}
       draggable={arrastavel}
       onDragStart={arrastavel ? (e) => { modo.setDragModId(m.id); e.dataTransfer.effectAllowed = 'move'; } : undefined}

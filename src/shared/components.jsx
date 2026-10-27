@@ -133,6 +133,10 @@ const LavaLamp = () => {
   const tons = paletaDeBolhas(T);
   const coresOceano = T.key === 'ocean' || T.key === 'oceanDark'
     ? [T.b1, T.b5, T.b3, T.b2, T.b4, T.b5]
+    : T.key === 'oceanBlue' || T.key === 'oceanBlueDark'
+      ? [T.b1, T.b3, T.b5, T.b2, T.b4, T.b7]
+      : T.key === 'praia' || T.key === 'praiaDark'
+        ? [T.b1, T.b3, T.b2, T.b5, T.b4, T.b7]
     : null;
   const cor = (i) => coresOceano
     ? coresOceano[i % coresOceano.length]
