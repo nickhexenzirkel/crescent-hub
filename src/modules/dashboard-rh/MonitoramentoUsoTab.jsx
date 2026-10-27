@@ -133,7 +133,7 @@ export default function MonitoramentoUsoTab() {
         ...personalizados.map(({ id, name }) => ({ id, name })),
       ];
       setDados({ funcionarios, dias, presencas, capturas, roster });
-      setSelecionado((atual) => funcionarios.some((pessoa) => pessoa.id === atual) ? atual : (funcionarios[0]?.id || ''));
+      setSelecionado((atual) => funcionarios.some((pessoa) => pessoa.id === atual) ? atual : '');
       setAtualizadoEm(new Date());
     } catch (e) {
       if (idRequisicao !== requisicaoAtual.current) return;
@@ -206,6 +206,12 @@ export default function MonitoramentoUsoTab() {
 
   const pessoaSelecionada = resumo.funcionarioPorId.get(selecionado);
   const usoSelecionado = resumo.ranking.find((pessoa) => pessoa.id === selecionado);
+  const modulosExibidos = selecionado
+    ? Object.entries(usoSelecionado?.modulos || {})
+      .filter(([, segundos]) => segundos > 0)
+      .map(([id, segundos]) => ({ id, nome: MODULOS[id] || id, segundos }))
+      .sort((a, b) => b.segundos - a.segundos)
+    : resumo.modulos;
   const presencaSelecionada = dados.presencas.find((presenca) => presenca.employee_id === selecionado);
   const diasPessoa = resumo.labelsDias.map((dia) => ({
     ...dia,
@@ -219,7 +225,7 @@ export default function MonitoramentoUsoTab() {
   const unikosPossuidos = dados.roster.filter((uniko) => ehAdmin || idsPossuidos.has(uniko.id));
   const unikosFaltantes = ehAdmin ? [] : dados.roster.filter((uniko) => !idsPossuidos.has(uniko.id));
   const themes = resumo.temas;
-  const maxModulo = Math.max(1, ...resumo.modulos.map((modulo) => modulo.segundos));
+  const maxModulo = Math.max(1, ...modulosExibidos.map((modulo) => modulo.segundos));
   const maxTema = Math.max(1, ...themes.map(([, quantidade]) => quantidade));
   const maxPessoa = Math.max(1, ...resumo.ranking.slice(0, 8).map((pessoa) => pessoa.segundos));
 
@@ -291,15 +297,15 @@ export default function MonitoramentoUsoTab() {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(min(100%,360px),1fr))', gap: 16 }}>
-        <Cartao titulo="Uso por módulo" subtitulo="Tempo acumulado no período selecionado">
-          {resumo.modulos.length ? (
+        <Cartao titulo="Uso por módulo" subtitulo={`Tempo acumulado no período selecionado${pessoaSelecionada ? ` · ${pessoaSelecionada.name}` : ' · todos os colaboradores'}`}>
+          {modulosExibidos.length ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {resumo.modulos.map((modulo, indice) => (
+              {modulosExibidos.map((modulo, indice) => (
                 <BarraProgresso key={modulo.id} rotulo={modulo.nome} valor={modulo.segundos} maximo={maxModulo}
                   cor={CORES[indice % CORES.length]} detalhe={fmtTempo(modulo.segundos)} />
               ))}
             </div>
-          ) : <div style={{ color: T.textT, fontSize: 13 }}>Ainda não há uso registrado no período.</div>}
+          ) : <div style={{ color: T.textT, fontSize: 13 }}>{selecionado ? 'Essa pessoa ainda não tem uso registrado no período.' : 'Ainda não há uso registrado no período.'}</div>}
         </Cartao>
         <Cartao titulo="Temas registrados" subtitulo="Último tema observado por colaborador">
           {themes.length ? (
@@ -336,19 +342,24 @@ export default function MonitoramentoUsoTab() {
                 <strong style={{ color: T.text, fontSize: 13 }}>{pessoaSelecionada?.name || 'Selecione uma pessoa'}</strong>
                 <select aria-label="Selecionar colaborador" value={selecionado} onChange={(e) => setSelecionado(e.target.value)}
                   style={{ maxWidth: 170, padding: '6px 8px', borderRadius: 8, border: `1px solid ${T.border}`, color: T.text, background: T.surface, font: 'inherit', fontSize: 12 }}>
+                  <option value="">Todos os colaboradores</option>
                   {dados.funcionarios.map((pessoa) => <option key={pessoa.id} value={pessoa.id}>{pessoa.name}</option>)}
                 </select>
               </div>
-              <GraficoBarras itens={diasPessoa} cor={T.purple || '#8B6CE8'} />
-              <div style={{ color: T.textT, fontSize: 11, marginTop: -4 }}>
-                {fmtTempo(usoSelecionado?.segundos || 0)} no período
-                {presencaSelecionada?.theme_key && ` · Tema: ${THEMES[presencaSelecionada.theme_key]?.name || presencaSelecionada.theme_key}`}
-                {' · '}{resumo.modulos
-                  .filter((modulo) => usoSelecionado?.modulos[modulo.id])
-                  .sort((a, b) => (usoSelecionado?.modulos[b.id] || 0) - (usoSelecionado?.modulos[a.id] || 0))
-                  .slice(0, 3)
-                  .map((modulo) => `${modulo.nome}: ${fmtTempo(usoSelecionado.modulos[modulo.id])}`).join(' · ') || 'Sem uso registrado'}
-              </div>
+              {selecionado ? (
+                <>
+                  <GraficoBarras itens={diasPessoa} cor={T.purple || '#8B6CE8'} />
+                  <div style={{ color: T.textT, fontSize: 11, marginTop: -4 }}>
+                    {fmtTempo(usoSelecionado?.segundos || 0)} no período
+                    {presencaSelecionada?.theme_key && ` · Tema: ${THEMES[presencaSelecionada.theme_key]?.name || presencaSelecionada.theme_key}`}
+                    {' · '}{resumo.modulos
+                      .filter((modulo) => usoSelecionado?.modulos[modulo.id])
+                      .sort((a, b) => (usoSelecionado?.modulos[b.id] || 0) - (usoSelecionado?.modulos[a.id] || 0))
+                      .slice(0, 3)
+                      .map((modulo) => `${modulo.nome}: ${fmtTempo(usoSelecionado.modulos[modulo.id])}`).join(' · ') || 'Sem uso registrado'}
+                  </div>
+                </>
+              ) : <div style={{ color: T.textT, fontSize: 12, padding: '22px 4px' }}>Selecione uma pessoa para ver o histórico diário individual.</div>}
             </div>
           </div>
         ) : <div style={{ color: T.textT, fontSize: 13 }}>Ainda não há dados de uso. O histórico começa após a instalação do monitoramento.</div>}

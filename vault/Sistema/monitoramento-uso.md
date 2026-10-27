@@ -7,6 +7,7 @@ A aba **Monitoramento de Uso**, exclusiva de administradores no Dashboard RH, re
 
 - presença recente e módulo aberto;
 - tempo ativo geral, por módulo e por colaborador, em períodos de 7, 30 ou 90 dias;
+- detalhamento por módulo acompanha a pessoa selecionada em **Uso individual**; sem pessoa selecionada, mostra o agregado de todos os colaboradores;
 - médias e maior tempo individual no período;
 - último tema registrado por colaborador e distribuição desses temas;
 - coleção de Unikos capturados e os itens ainda não registrados na coleção.
