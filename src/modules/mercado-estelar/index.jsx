@@ -618,6 +618,7 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto, initialTab, onlyTabs, aco
   const missionsLive = (() => {
     const td = todayStr(), mo = td.slice(0, 7);
     const recs = new Map((state.missions || []).map(x => [x.id, x]));
+    const autoClaimed = new Set(liveProg.__autoClaimedMissionIds || []);
     const stillClaimed = (def, rec) => {
       if (!rec?.claimed) return false;
       if (def.period === 'dia') return rec.claimedAt === td;
@@ -627,7 +628,7 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto, initialTab, onlyTabs, aco
     return missionDefs.filter(m => m.active !== false).map(def => ({
       ...def,
       progress: liveProg[def.id] || 0,
-      claimed: stillClaimed(def, recs.get(def.id)),
+      claimed: stillClaimed(def, recs.get(def.id)) || autoClaimed.has(def.id),
     }));
   })();
 
@@ -2485,6 +2486,7 @@ const missionRule = (m) => {
       const labels = games.includes('any') ? 'qualquer jogo' : games.map(game => GAME_LABEL[game] || game).join(' + ');
       return `${m.goal} min em ${labels} ${per}`;
     }
+    case 'vitoria_palavras': return `${m.goal} vitória${m.goal === 1 ? '' : 's'} no Uniko Palavras ${per}`;
     case 'compras':  return `${m.goal} compra${m.goal === 1 ? '' : 's'} na loja`;
     case 'colecao':  return `${m.goal} Uniko${m.goal === 1 ? '' : 's'} na Coleção`;
     case 'feedback': return `${m.goal} feedback${m.goal === 1 ? '' : 's'} ${per}`;

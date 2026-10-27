@@ -31,6 +31,8 @@ const isSysDj = (n) => {
 export const MISSION_METRICS = [
   { id: 'playtime', label: 'Minutos jogados',        unit: 'minutos',  game: true,  param: null,      cumulative: true,
     hint: 'Marque um ou mais jogos; o tempo deles será somado. A meta é em MINUTOS.' },
+  { id: 'vitoria_palavras', label: 'Vitórias no Uniko Palavras', unit: 'vitórias', game: false, param: null, cumulative: true,
+    hint: 'Conta as vitórias e credita automaticamente a recompensa configurada ao atingir a meta, no máximo uma vez por período.' },
   { id: 'compras',  label: 'Compras na loja',        unit: 'compras',  game: false, param: null,      cumulative: false,
     hint: 'Total de prêmios/Unikos já comprados na Prisma Store.' },
   { id: 'colecao',  label: 'Unikos na Coleção',      unit: 'Unikos',   game: false, param: null,      cumulative: false,
@@ -132,6 +134,90 @@ const gamesForMission = (mission) => {
 };
 const playtimeKey = (mission) => `${gamesForMission(mission).join(',')}|${mission.period}`;
 const gamesFromPlaytimeKey = (key) => key.split('|')[0].split(',');
+const palavrasWinDescription = (roomId) => `Vitória no Uniko Palavras · Sala ${roomId}`;
+
+const dateStartIso = (date) => {
+  const [year, month, day] = date.split('-').map(Number);
+  return new Date(year, month - 1, day).toISOString();
+};
+
+const periodKey = (period, today) => {
+  if (period === 'dia') return today;
+  if (period === 'mes') return today.slice(0, 7);
+  return 'unica';
+};
+const palavrasRewardDescription = (mission, today) =>
+  `Prêmio automático · Uniko Palavras · missão ${mission.id} · ${periodKey(mission.period, today)}`;
+
+export async function recordUnikoPalavrasWin({ roomId, player } = {}) {
+  const name = (player || '').trim();
+  if (!roomId || !name) throw new Error('Partida ou vencedor inválido ao registrar a vitória.');
+  const descr = palavrasWinDescription(roomId);
+  const { data, error: lookupError } = await supabase.from('mercado_history')
+    .select('id').eq('player', name).eq('kind', 'vitoria_palavras').eq('descr', descr).limit(1).maybeSingle();
+  if (lookupError) throw lookupError;
+  if (!data) {
+    const { error: insertError } = await supabase.from('mercado_history').insert({
+      player: name, kind: 'vitoria_palavras', descr,
+    });
+    if (insertError) throw insertError;
+  }
+
+  const defs = (await loadMissionDefs({ seed: false }))
+    .filter(m => m.metric === 'vitoria_palavras' && m.active !== false && !m.maintenance);
+  if (!defs.length) return;
+
+  const today = _today();
+  const monthStart = `${today.slice(0, 7)}-01`;
+  const { data: playerState, error: stateError } = await supabase.from('mercado_state')
+    .select('data').eq('player', name).maybeSingle();
+  if (stateError) throw stateError;
+  const baseline = playerState?.data?.missionBaseline || {};
+  const counts = {};
+
+  for (const mission of defs) {
+    let raw = counts[mission.period];
+    if (raw == null) {
+      let q = supabase.from('mercado_history').select('id', { count: 'exact', head: true })
+        .eq('player', name).eq('kind', 'vitoria_palavras');
+      const start = mission.period === 'dia' ? today : mission.period === 'mes' ? monthStart : null;
+      if (start) q = q.gte('created_at', dateStartIso(start));
+      const { count, error } = await q;
+      if (error) throw error;
+      raw = counts[mission.period] = count || 0;
+    }
+
+    const reset = baseline[mission.id];
+    const resetApplies = reset && (mission.period === 'dia' ? reset.d === today
+      : mission.period === 'mes' ? (reset.d || '').slice(0, 7) === today.slice(0, 7) : true);
+    const progress = resetApplies ? Math.max(0, raw - (reset.v || 0)) : raw;
+    if (progress < (Number(mission.goal) || 1)) continue;
+
+    const rewardDescr = palavrasRewardDescription(mission, today);
+    const { data: existingReward, error: rewardLookupError } = await supabase.from('mercado_history')
+      .select('id').eq('player', name).eq('kind', 'premio_vitoria_palavras')
+      .eq('descr', rewardDescr).limit(1).maybeSingle();
+    if (rewardLookupError) throw rewardLookupError;
+    if (existingReward) continue;
+
+    const comum = Number(mission.comum) || 0;
+    const premium = Number(mission.premium) || 0;
+    const { data: reward, error: rewardInsertError } = await supabase.from('mercado_history')
+      .insert({ player: name, kind: 'premio_vitoria_palavras', descr: rewardDescr, comum, premium })
+      .select('id').maybeSingle();
+    if (rewardInsertError) throw rewardInsertError;
+    if (!reward?.id) throw new Error(`Não consegui reservar a recompensa da missão "${mission.title}".`);
+
+    const { error: creditError } = await supabase.rpc('mercado_credit', {
+      p_player: name, p_comum: comum, p_premium: premium,
+    });
+    if (creditError) {
+      const { error: cleanupError } = await supabase.from('mercado_history').delete().eq('id', reward.id);
+      if (cleanupError) console.error('[prisma-store] não consegui liberar a reserva da recompensa:', cleanupError);
+      throw creditError;
+    }
+  }
+}
 
 // Calcula o progresso AO VIVO de cada missão.
 //   purchases — nº de compras já carregado (opcional; senão consulta o histórico)
@@ -197,6 +283,29 @@ export async function loadMissionProgress({ userName, purchases, baseline, missi
     });
   }));
 
+  const winPeriods = [...new Set(defs.filter(m => m.metric === 'vitoria_palavras').map(m => m.period))];
+  const winsByPeriod = {};
+  await Promise.all(winPeriods.map(async (period) => {
+    let q = supabase.from('mercado_history').select('id', { count: 'exact', head: true })
+      .eq('player', userName).eq('kind', 'vitoria_palavras');
+    const from = periodStart(period);
+    if (from) q = q.gte('created_at', `${from}T00:00:00`);
+    const { count, error } = await q;
+    if (error) throw error;
+    winsByPeriod[period] = count || 0;
+  }));
+  const winMissions = defs.filter(m => m.metric === 'vitoria_palavras');
+  if (winMissions.length) {
+    const rewardDescriptions = winMissions.map(m => palavrasRewardDescription(m, today));
+    const { data, error } = await supabase.from('mercado_history').select('descr')
+      .eq('player', userName).eq('kind', 'premio_vitoria_palavras').in('descr', rewardDescriptions);
+    if (error) throw error;
+    const awardedDescriptions = new Set((data || []).map(row => row.descr));
+    prog.__autoClaimedMissionIds = winMissions
+      .filter(m => awardedDescriptions.has(palavrasRewardDescription(m, today)))
+      .map(m => m.id);
+  }
+
   // ── rank_mes: quem mais colocou música no MÊS PASSADO (já fechado), não no mês
   // corrente. Antes usava o mês em andamento: quem entrasse no top 3 nos primeiros
   // dias (com pouca gente tendo jogado ainda) já conseguia resgatar, mesmo sendo
@@ -240,6 +349,7 @@ export async function loadMissionProgress({ userName, purchases, baseline, missi
         v = Math.floor(baseAdj(m.id, raw, m.period) / 60);
         break;
       }
+      case 'vitoria_palavras': v = baseAdj(m.id, winsByPeriod[m.period] || 0, m.period); break;
       case 'compras':  v = buys || 0; break;
       case 'colecao':  v = owned; break;
       case 'feedback': v = baseAdj(m.id, feedbacks, m.period); break;
@@ -289,6 +399,21 @@ export async function snapshotMissionBaseline({ players, missions } = {}) {
     });
     ptMissions.filter(m => playtimeKey(m) === key)
       .forEach(m => list.forEach(p => { out[p][m.id] = { v: secs[p] || 0, d: today }; }));
+  }));
+
+  const winMissions = defs.filter(m => m.metric === 'vitoria_palavras');
+  const winPeriods = [...new Set(winMissions.map(m => m.period))];
+  await Promise.all(winPeriods.map(async (period) => {
+    let q = supabase.from('mercado_history').select('player')
+      .in('player', list).eq('kind', 'vitoria_palavras');
+    const from = periodStart(period);
+    if (from) q = q.gte('created_at', `${from}T00:00:00`);
+    const { data, error } = await q;
+    if (error) throw error;
+    const counts = {};
+    for (const row of data || []) counts[row.player] = (counts[row.player] || 0) + 1;
+    winMissions.filter(m => m.period === period)
+      .forEach(m => list.forEach(p => { out[p][m.id] = { v: counts[p] || 0, d: today }; }));
   }));
 
   return out;

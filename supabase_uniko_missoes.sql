@@ -54,9 +54,9 @@ create table if not exists public.mercado_missions (
   -- 'dia' | 'mes' | 'unica' — quando o resgate reinicia
   period      text    not null default 'dia',
   -- COMO o progresso é medido (ver MISSION_METRICS em src/shared/prismaMissions.js):
-  -- 'playtime' | 'compras' | 'colecao' | 'feedback' | 'rank_mes' | 'manual'
+  -- 'playtime' | 'vitoria_palavras' | 'compras' | 'colecao' | 'feedback' | 'rank_mes' | 'manual'
   metric      text    not null default 'manual',
-  -- só p/ metric='playtime': 'wave' | 'speed' | 'stop' | 'paint' | 'any'
+  -- só p/ metric='playtime': 'wave' | 'speed' | 'stop' | 'paint' | 'palavras' | 'any'
   game        text    not null default 'any',
   -- jogos somados em missões de playtime; vazio mantém compatibilidade com `game`
   games       text[]  not null default '{}',

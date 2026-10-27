@@ -1,4 +1,4 @@
-// ── Tempo jogado por JOGO — fonte única (Uniko Wave, Speed, Stop, Paint) ──
+// ── Tempo jogado por JOGO — fonte única dos jogos com missões de minutos ──
 // Alimenta as missões de "Maratona" da Prisma Store (ver prismaMissions.js).
 // Grava na tabela uniko_playtime, agora com a coluna `game`
 // (ver supabase_uniko_missoes.sql).
@@ -11,6 +11,7 @@ export const PLAYTIME_GAMES = [
   { id: 'speed', label: 'Uniko Speed' },
   { id: 'stop',  label: 'Uniko Stop'  },
   { id: 'paint', label: 'Uniko Paint' },
+  { id: 'palavras', label: 'Uniko Palavras' },
 ];
 export const GAME_LABEL = Object.fromEntries(PLAYTIME_GAMES.map(g => [g.id, g.label]));
 const VALID_GAMES = new Set(PLAYTIME_GAMES.map(g => g.id));

@@ -26,6 +26,8 @@ import { T } from '../../../contexts/theme';
 import { supabase, getAuthUser, USER } from '../../../contexts/user';
 import { nowMs, ensureServerClock } from '../../../shared/captureUniko';
 import { getActiveAssistantSkinId, getAssistantSkin } from '../../../shared/assistantSkin';
+import { useGamePlaytime } from '../../../hooks/useGamePlaytime';
+import { recordUnikoPalavrasWin } from '../../../shared/prismaMissions';
 
 const MASCOTE = '/uniko-palavras.png';
 const CENARIO = "url('/uniko-palavras-cenario.jpg') center / cover no-repeat";
@@ -144,6 +146,11 @@ const proxVivo = (s, de) => {
   }
   return de;
 };
+const missionWinnerFor = (s, winner) => {
+  if (!winner) return null;
+  if (!s.admins?.[winner]) return winner;
+  return [...(s.eliminationOrder || [])].reverse().find(player => !s.admins?.[player]) || null;
+};
 /* Ordem da roda: o host abre, depois o pessoal na ordem em que entrou na sala (fixa, nada de sorteio). */
 const ordenaJogadores = (players, hostName) => {
   const base = [...players].sort((a, b) => (a.entrouEm || 0) - (b.entrouEm || 0) || a.name.localeCompare(b.name));
@@ -162,10 +169,14 @@ const removerJogador = (s, quem) => {
   const vidas = { ...s.vidas }; delete vidas[quem];
   const vivos = ordem.filter(n => (vidas[n] || 0) > 0);
   const evento = { quem, texto: `${primeiro(quem)} saiu da partida`, palavra: null, ts: nowMs(), eliminado: false, saiu: true };
-  let n = { ...s, ordem, vidas };
+  const eliminationOrder = [...(s.eliminationOrder || []).filter(player => player !== quem), quem];
+  let n = { ...s, ordem, vidas, eliminationOrder };
   if (s.iniciador === quem) n.iniciador = ant !== quem ? ant : ordem[0];
   if (s.starter === quem) n.starter = prox;
-  if (vivos.length <= 1) return { ...n, phase: 'fim', vencedor: vivos[0] || null, evento, endsAt: null, duvida: null };
+  if (vivos.length <= 1) {
+    const vencedor = vivos[0] || null;
+    return { ...n, phase: 'fim', vencedor, missionWinner: missionWinnerFor(n, vencedor), evento, endsAt: null, duvida: null };
+  }
   if (s.phase === 'duvida' && (s.duvida?.por === quem || s.duvida?.alvo === quem)) {
     n = { ...n, phase: 'jogando', duvida: null, vez: s.vez === quem ? prox : s.vez, endsAt: nowMs() + TURN_MS,
       aviso: `${primeiro(quem)} saiu — a dúvida foi cancelada.` };
@@ -180,10 +191,17 @@ const perderVida = (s, quem, texto, palavra) => {
   const vidas = { ...s.vidas, [quem]: Math.max(0, (s.vidas?.[quem] || 0) - 1) };
   const vivos = (s.ordem || []).filter(n => vidas[n] > 0);
   const evento = { quem, texto, palavra: palavra || null, ts: nowMs(), eliminado: vidas[quem] === 0 };
-  if (vivos.length <= 1) return { ...s, vidas, evento, phase: 'fim', vencedor: vivos[0] || null, endsAt: null, duvida: null };
+  const eliminationOrder = vidas[quem] === 0
+    ? [...(s.eliminationOrder || []).filter(player => player !== quem), quem]
+    : s.eliminationOrder || [];
+  if (vivos.length <= 1) {
+    const vencedor = vivos[0] || null;
+    const fim = { ...s, vidas, eliminationOrder, vencedor };
+    return { ...fim, evento, phase: 'fim', missionWinner: missionWinnerFor(fim, vencedor), endsAt: null, duvida: null };
+  }
   // Quem abre a próxima rodada NÃO é quem perdeu: o posto de abrir gira no sentido da roda (quem abriu esta → o próximo vivo).
   const starter = proxVivo({ ...s, vidas }, s.iniciador ?? s.ordem?.[0]);
-  return { ...s, vidas, evento, phase: 'pausa', starter, endsAt: nowMs() + PAUSA_MS, duvida: null };
+  return { ...s, vidas, eliminationOrder, evento, phase: 'pausa', starter, endsAt: nowMs() + PAUSA_MS, duvida: null };
 };
 
 const blefeAguarda = (d) => d?.tipo === 'blefe' && !d.palavra;
@@ -363,6 +381,7 @@ const ChatSala = ({ mensagens, texto, setTexto, onEnviar, name, cardBg }) => {
 const Sala = ({ roomId, name, photo, players, onLeave }) => {
   useEffect(() => { const im = new Image(); im.src = MASCOTE_BRAVO; }, []);
   const [state, setState] = useState(null);
+  useGamePlaytime('palavras', ['jogando', 'duvida', 'pausa'].includes(state?.phase));
   const [now, setNow] = useState(() => nowMs());
   const [letra, setLetra] = useState('');
   const [palavra, setPalavra] = useState('');
@@ -411,6 +430,31 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
   }, [roomId, aplicaEstado]);
 
   useEffect(() => {
+    if (!isHost || state?.phase !== 'fim' || !state?.missionWinner || state.winRecorded) return;
+    let alive = true;
+    let saving = false;
+    const recordWin = async () => {
+      if (saving) return;
+      saving = true;
+      try {
+        await recordUnikoPalavrasWin({ roomId, player: state.missionWinner });
+        if (!alive) return;
+        const current = stateRef.current;
+        if (current?.phase === 'fim' && current.missionWinner === state.missionWinner && !current.winRecorded) {
+          await pushState({ ...current, winRecorded: true });
+        }
+      } catch (e) {
+        console.error('[uniko-palavras] falha ao registrar vitória na Prisma Store:', e);
+      } finally {
+        saving = false;
+      }
+    };
+    recordWin();
+    const retry = setInterval(recordWin, 15_000);
+    return () => { alive = false; clearInterval(retry); };
+  }, [isHost, state?.phase, state?.missionWinner, state?.winRecorded, roomId, pushState]);
+
+  useEffect(() => {
     let vivo = true;
     const load = async () => {
       const { data } = await supabase.from('uniko_palavras_state').select('state').eq('id', roomId).maybeSingle();
@@ -453,7 +497,7 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
         // 5 minutos sem acordo: os dois saem e ninguém vence.
         const ordem = s.ordem || [];
         const vidas = { ...s.vidas }; ordem.forEach(n => { vidas[n] = 0; });
-        pushState({ ...s, vidas, phase: 'fim', vencedor: null, duvida: null, endsAt: null,
+        pushState({ ...s, vidas, phase: 'fim', vencedor: null, missionWinner: null, duvida: null, endsAt: null,
           evento: { quem: null, texto: 'Os dois não chegaram a um acordo em 5 minutos — os dois foram eliminados e ninguém ganhou.', palavra: null, ts: nowMs(), eliminado: true, empate: true } });
       }
       return;
@@ -629,8 +673,9 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
     if (ordem.length < MIN_PLAYERS) return;
     const ini = Math.min(MAX_VIDAS, Math.max(1, s.vidasIni || VIDAS));
     const vidas = {}; ordem.forEach(n => { vidas[n] = ini; });
-    pushState({ ...s, phase: 'jogando', ordem, vidas, letras: [], vez: ordem[0], iniciador: ordem[0], round: 1, evento: null,
-      duvida: null, aviso: null, olhadas: {}, vencedor: null, endsAt: nowMs() + TURN_MS });
+    const admins = Object.fromEntries(players.map(p => [p.name, !!p.isAdmin]));
+    pushState({ ...s, phase: 'jogando', ordem, vidas, admins, eliminationOrder: [], letras: [], vez: ordem[0], iniciador: ordem[0], round: 1, evento: null,
+      duvida: null, aviso: null, olhadas: {}, vencedor: null, missionWinner: null, winRecorded: false, endsAt: nowMs() + TURN_MS });
   };
   const escolherVidas = (e) => {
     const n = Number(e.currentTarget.dataset.n);
@@ -828,6 +873,11 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
         <div style={{ fontFamily: 'var(--font-brand)', fontSize: 21, fontWeight: 800, color: T.text }}>
           {state.vencedor ? `${primeiro(state.vencedor)} venceu!` : 'Empate — ninguém ganhou'}
         </div>
+        {state.vencedor && state.missionWinner && state.vencedor !== state.missionWinner && (
+          <div style={{ fontSize: 12.5, color: T.textT, marginTop: 6 }}>
+            Para as missões, a vitória foi atribuída a {primeiro(state.missionWinner)}, pela colocação de sobrevivência.
+          </div>
+        )}
         {state.evento?.texto && <div style={{ fontSize: 13, color: T.textT, margin: '6px 0 12px' }}>{state.evento.texto}</div>}
         {isHost
           ? <button className="up-btn" onClick={voltarLobby} style={{ ...btnBase, background: `linear-gradient(135deg, ${P.azul}, ${P.ciano})` }}>Jogar de novo</button>
@@ -1159,7 +1209,7 @@ const TabUnikoPalavras = () => {
   const refreshPresence = useCallback(() => {
     const ch = lobbyChan.current; if (!ch) return;
     const list = Object.values(ch.presenceState()).map(arr => arr[arr.length - 1]).filter(Boolean)
-      .map(p => ({ name: p.name, photo: p.photo, room: p.room, entrouEm: p.entrouEm }));
+      .map(p => ({ name: p.name, photo: p.photo, room: p.room, entrouEm: p.entrouEm, isAdmin: !!p.isAdmin }));
     const seen = new Set();
     setTodos(list.filter(p => p?.name && (seen.has(p.name) ? false : (seen.add(p.name), true))));
   }, []);
@@ -1173,7 +1223,7 @@ const TabUnikoPalavras = () => {
       .on('presence', { event: 'leave' }, refreshPresence);
     ch.subscribe(async (st) => {
       if (st !== 'SUBSCRIBED') return;
-      const r = await ch.track({ name, photo, room, entrouEm });
+      const r = await ch.track({ name, photo, room, entrouEm, isAdmin: getAuthUser()?.role === 'admin' });
       if (r !== 'ok') console.error('[uniko-palavras] presence track falhou:', r);
       refreshPresence();
     });

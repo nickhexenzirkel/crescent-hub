@@ -1,6 +1,6 @@
 ---
 name: missoes-gerenciaveis
-description: Missões da Prisma Store viraram dados editáveis pelo admin + tempo jogado agora é medido em Wave/Speed/Stop/Paint; PRECISA rodar supabase_uniko_missoes.sql
+description: Missões da Prisma Store viraram dados editáveis pelo admin + tempo jogado agora é medido em Wave/Speed/Stop/Paint/Palavras; PRECISA rodar supabase_uniko_missoes.sql
 metadata: 
   type: project
 ---
@@ -29,12 +29,17 @@ O que mudou:
 - Prisma Store → Administrador → **Missões**: criar/editar/reordenar/pausar/apagar.
 - `src/hooks/useGamePlaytime.js` conta o tempo de partida (só com a aba visível,
   descarrega a cada 60s). Paint/Stop contam dentro da SALA; Speed conta só correndo
-  (solo `tela==='correndo'`, multi `phase==='racing'`); Wave continua mandando o tempo
-  exato de cada partida por postMessage.
+  (solo `tela==='correndo'`, multi `phase==='racing'`); Uniko Palavras conta nas fases
+  `jogando`, `duvida` e `pausa`; Wave continua mandando o tempo exato de cada partida
+  por postMessage.
 - Missões de minutos aceitam selecionar vários jogos; os tempos são somados e gravados
   em `mercado_missions.games` (array). Missões antigas continuam usando `game`, que é
   preservado para compatibilidade. Se o SQL atual ainda não foi executado, rode-o
   novamente para adicionar a coluna sem apagar as definições existentes.
+- O administrador pode criar missões por vitórias no Uniko Palavras e definir meta e
+  recompensa na Prisma Store. Ao atingir a meta, os Prismas configurados são creditados
+  automaticamente, uma vez por período. Se o vencedor for administrador, a vitória da
+  missão vai para o colaborador comum que permaneceu por mais tempo na partida.
 - Paint só conta nas fases `drawing` e `reveal`; Stop conta nas fases de rodada ativa,
   nunca no lobby nem depois do fim. Falhas ao gravar/consultar playtime são registradas
   no console; a Prisma Store avisa quando não consegue calcular o progresso.
