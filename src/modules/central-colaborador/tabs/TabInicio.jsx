@@ -58,6 +58,8 @@ const TB = {
   lilac:      {bg:'linear-gradient(135deg,#0B0B22,#15163A,#1C1E48,#10112C)', b1:'#9BA0FA55',b2:'#C8CBFF24',b3:'#4A4EB840', p1:'#D4D6FF',p2:'#9BA0FA',p3:'#4E52B8', rings:true,  spot:false, shooting:true },
   sakura:     {bg:'linear-gradient(135deg,#1C0A16,#2C1224,#381830,#200C1A)', b1:'#F4C8E255',b2:'#FFE4F228',b3:'#B8527F40', p1:'#FDEEF6',p2:'#F4C8E2',p3:'#B8527F', rings:false, spot:true,  shooting:true },
   sakuraDark: {bg:'linear-gradient(135deg,#12060F,#1E0C18,#281020,#160812)', b1:'#F4C8E258',b2:'#F9DCEC25',b3:'#9A406A40', p1:'#FDEEF6',p2:'#E7A3C6',p3:'#9A406A', rings:false, spot:true,  shooting:true },
+  ocean:      {bg:'linear-gradient(135deg,#D9F5FF,#BDEEFF,#E5F8FF,#D6F2F8)', b1:'#55B9D955',b2:'#F5BFD638',b3:'#83D7E848', p1:'#F2FCFF',p2:'#A9E7F5',p3:'#4D9DB8', rings:true,  spot:true,  shooting:true },
+  oceanDark:  {bg:'linear-gradient(135deg,#071A2A,#0B2B40,#10435A,#0A263B)', b1:'#54B7D958',b2:'#EF9FBE30',b3:'#65D2E050', p1:'#EAFBFF',p2:'#7BD2E6',p3:'#287B9A', rings:true,  spot:true,  shooting:true },
   beige:      {bg:'linear-gradient(135deg,#1A140D,#281F15,#33281C,#1E1710)', b1:'#E6D5BE48',b2:'#F4EBDD20',b3:'#8A674040', p1:'#F4EBDD',p2:'#E6D5BE',p3:'#8A6740', rings:true,  spot:false, shooting:true },
   beigeDark:  {bg:'linear-gradient(135deg,#100C08,#1A140E,#221A12,#140F0A)', b1:'#E6D5BE44',b2:'#F4EBDD1C',b3:'#6E513240', p1:'#F4EBDD',p2:'#CDB692',p3:'#6E5132', rings:true,  spot:false, shooting:true },
   black:      {bg:'linear-gradient(135deg,#0A0A0C,#151518,#1C1C20,#0E0E10)', b1:'#8E8E9650',b2:'#FFFFFF18',b3:'#3A3A4040', p1:'#EDEDF2',p2:'#8E8E96',p3:'#2C2C30', rings:true,  spot:false, shooting:true },

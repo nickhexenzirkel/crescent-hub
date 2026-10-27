@@ -179,12 +179,17 @@ const SeletorTamanho = ({ tam, onTam }) => (
    em três tons dessa cor — do mais forte, colado no card, ao mais claro e
    transparente por fora. É a mesma ideia da aura das bolhas da órbita, só que
    fina. Os anéis são sombras com spread (nada de blur), então não custam nada
-   por frame; no hover eles abrem um pouco. Sem `aura`: borda neutra (widgets). */
-const Moldura = ({ tam, colunas, linhas, editando, onTam, onAbrir, cor, aura, i, onHover, style, children, ...resto }) => {
+   por frame; no hover eles abrem um pouco. Os temas oceânicos usam uma borda
+   em gradiente nos módulos; sem `aura`: borda neutra (widgets). */
+const Moldura = ({ tam, colunas, linhas, editando, onTam, onAbrir, cor, aura, reefBorder, i, onHover, style, children, ...resto }) => {
   const [aceso, setAceso] = useState(false);
   const levanta = aceso && !editando && onAbrir;
-  const [a1, a2, a3] = levanta ? [2.5, 6, 10] : [2, 5, 8.5];
-  const pintura = aura ? {
+  const [a1, a2, a3] = levanta ? [2, 4.6, 7.2] : [1.6, 4.2, 6.8];
+  const pintura = reefBorder ? {
+    background:`linear-gradient(${T.surface}, ${T.surface}) padding-box, linear-gradient(135deg, #7EB5D7 0%, #A6DBE6 16%, #C7C9DE 31%, #EBA9CA 46%, #918FC5 62%, #F3C1D6 77%, #7EB5D7 100%) border-box`,
+    border:'2.5px solid transparent',
+    boxShadow:`0 0 0 ${a1}px ${T.dark ? 'rgba(126,181,215,0.50)' : 'rgba(126,181,215,0.38)'}, 0 0 0 ${a1 + 0.7}px ${T.dark ? 'rgba(244,161,197,0.50)' : 'rgba(244,161,197,0.42)'}, 0 0 0 ${a2}px ${T.dark ? 'rgba(199,201,222,0.38)' : 'rgba(199,201,222,0.34)'}, 0 0 0 ${a3}px ${T.dark ? 'rgba(145,143,197,0.32)' : 'rgba(145,143,197,0.25)'}, ${levanta ? T.shL : T.sh}`,
+  } : aura ? {
     background:T.surface,
     border:'none',
     // No tema escuro clarear a cor puxa pro cinza sobre o fundo escuro; lá os
@@ -231,7 +236,8 @@ const TileModulo = ({ m, i, tam, cor, modo, onTam, onAbrir }) => {
   const escolhido = coloringId === m.id ? { outline:`2px solid ${T.text}`, outlineOffset:12 } : null;
 
   return (
-    <Moldura tam={tam} colunas={largo ? 2 : 1} editando={sizeMode} onTam={onTam} cor={cor} aura={cor} i={i}
+    <Moldura tam={tam} colunas={largo ? 2 : 1} editando={sizeMode} onTam={onTam} cor={cor} aura={cor}
+      reefBorder={T.key === 'ocean' || T.key === 'oceanDark'} i={i}
       onAbrir={reorderMode ? null : onAbrir}
       draggable={arrastavel}
       onDragStart={arrastavel ? (e) => { modo.setDragModId(m.id); e.dataTransfer.effectAllowed = 'move'; } : undefined}

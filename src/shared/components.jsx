@@ -131,7 +131,12 @@ const LavaLamp = () => {
   })), []);
 
   const tons = paletaDeBolhas(T);
-  const cor = (i) => tons[(i * 3) % tons.length];   // passo 3: vizinhas nunca repetem o tom
+  const coresOceano = T.key === 'ocean' || T.key === 'oceanDark'
+    ? [T.b1, T.b5, T.b3, T.b2, T.b4, T.b7]
+    : null;
+  const cor = (i) => coresOceano
+    ? coresOceano[i % coresOceano.length]
+    : tons[(i * 3) % tons.length];   // passo 3: vizinhas nunca repetem o tom
 
   // A classe "lava-lamp" é o que o diagnóstico de performance (Ctrl+Alt+P,
   // tecla 2) usa pra apagar o fundo e medir quanto ele custa.
