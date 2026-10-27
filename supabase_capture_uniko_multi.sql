@@ -1,12 +1,12 @@
 -- "Capture o Uniko" — permite MÚLTIPLAS capturas por evento (antes era só 1: quem
 -- capturava primeiro "trancava" o evento pra todo mundo). O número de vagas agora é
--- CONFIGURÁVEL pelo admin no Dashboard RH (1 a 10, campo "Vagas" — padrão 3 se não
+-- CONFIGURÁVEL pelo admin no Dashboard RH (1 a 15, campo "Vagas" — padrão 3 se não
 -- definido) via o parâmetro p_max_winners. As N primeiras pessoas que conseguirem
 -- capturar ganham; a próxima tentativa em diante encontra o evento já esgotado.
 -- Rode no SQL Editor do Supabase (seguro rodar de novo, mesmo se já rodou versões
 -- anteriores desse arquivo).
 
--- Cada capturador ocupa um "slot" (1 a 10) dentro do mesmo evento.
+-- Cada capturador ocupa um "slot" (1 a 15) dentro do mesmo evento.
 alter table public.capture_uniko_event add column if not exists slot integer;
 
 -- Troca a chave: antes só event_id (por isso só 1 linha por evento). Agora
@@ -31,7 +31,7 @@ drop function if exists public.capture_uniko_try(text, text, text[], text[], int
 -- um consegue (unique_violation no outro, que passa pro próximo slot). Isso
 -- evita a corrida de "N+1 pessoas capturando ao mesmo tempo" sem precisar de
 -- lock explícito. p_max_winners vem do maxWinners configurado no evento
--- (travado entre 1 e 10 aqui também, por segurança, mesmo que o cliente já trave).
+-- (travado entre 1 e 15 aqui também, por segurança, mesmo que o cliente já trave).
 --
 -- p_uniko_ids/p_uniko_names/p_comums/p_premiums (ago/2026, corrige bug): recebe
 -- a lista INTEIRA de Unikos possíveis (um por vaga, `cfg.slotUnikoIds`) em vez
@@ -53,7 +53,7 @@ create or replace function public.capture_uniko_try(
 declare
   v_slot  integer;
   v_count integer;
-  v_max   integer := greatest(1, least(coalesce(p_max_winners, 3), 10));
+  v_max   integer := greatest(1, least(coalesce(p_max_winners, 3), 15));
   v_idx   integer;
   v_uid   text;
   v_uname text;

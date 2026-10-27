@@ -173,6 +173,36 @@ const SeletorTamanho = ({ tam, onTam }) => (
   </div>
 );
 
+const TONS_ICONES_OCEANO = ['#7EB5D7', '#C7C9DE', '#918FC5', '#F1BBD1', '#58BDD0'];
+const TONS_INTERIOR_OCEANO = {
+  claro: [
+    ['rgba(244,160,197,0.28)', 'rgba(126,181,215,0.24)', 'rgba(199,201,222,0.22)'],
+    ['rgba(145,143,197,0.24)', 'rgba(241,187,209,0.24)', 'rgba(126,181,215,0.20)'],
+    ['rgba(126,181,215,0.26)', 'rgba(199,201,222,0.24)', 'rgba(244,160,197,0.20)'],
+    ['rgba(199,201,222,0.25)', 'rgba(126,181,215,0.22)', 'rgba(241,187,209,0.23)'],
+  ],
+  escuro: [
+    ['rgba(244,160,197,0.18)', 'rgba(126,181,215,0.17)', 'rgba(199,201,222,0.15)'],
+    ['rgba(145,143,197,0.17)', 'rgba(241,187,209,0.16)', 'rgba(126,181,215,0.15)'],
+    ['rgba(126,181,215,0.18)', 'rgba(199,201,222,0.16)', 'rgba(244,160,197,0.15)'],
+    ['rgba(199,201,222,0.17)', 'rgba(126,181,215,0.16)', 'rgba(241,187,209,0.16)'],
+  ],
+};
+const colorirPartesSvg = (elemento, cores, cursor) => {
+  if (!React.isValidElement(elemento)) return elemento;
+  const ehForma = typeof elemento.type === 'string'
+    && ['path', 'circle', 'rect', 'line', 'polyline', 'polygon', 'ellipse'].includes(elemento.type);
+  const props = {};
+  if (ehForma) {
+    const tom = cores[cursor.value++ % cores.length];
+    if (elemento.props.stroke !== 'none') props.stroke = tom;
+    if (elemento.props.fill === 'currentColor') props.fill = tom;
+    if (elemento.props.strokeWidth) props.strokeWidth = 1.8;
+  }
+  const filhos = React.Children.map(elemento.props.children, filho => colorirPartesSvg(filho, cores, cursor));
+  return React.cloneElement(elemento, props, filhos);
+};
+
 /* Moldura comum de widget e tile: tamanho na grade, hover, tremida no modo
    de edição e o seletor de tamanho. O conteúdo é de quem usa. */
 /* `aura` (uma cor): em vez de borda, o card ganha três anéis finos em volta,
@@ -185,8 +215,9 @@ const Moldura = ({ tam, colunas, linhas, editando, onTam, onAbrir, cor, aura, re
   const [aceso, setAceso] = useState(false);
   const levanta = aceso && !editando && onAbrir;
   const [a1, a2, a3] = levanta ? [2, 4.6, 7.2] : [1.6, 4.2, 6.8];
+  const tonsInterior = TONS_INTERIOR_OCEANO[T.dark ? 'escuro' : 'claro'][(i || 0) % 4];
   const pintura = reefBorder ? {
-    background:`linear-gradient(${T.surface}, ${T.surface}) padding-box, linear-gradient(135deg, #7EB5D7 0%, #A6DBE6 16%, #C7C9DE 31%, #EBA9CA 46%, #918FC5 62%, #F3C1D6 77%, #7EB5D7 100%) border-box`,
+    background:`radial-gradient(ellipse at 100% 0%, ${tonsInterior[0]} 0%, transparent 62%) padding-box, radial-gradient(ellipse at 0% 100%, ${tonsInterior[1]} 0%, transparent 58%) padding-box, radial-gradient(ellipse at 55% 52%, ${tonsInterior[2]} 0%, transparent 78%) padding-box, linear-gradient(${T.surface}, ${T.surface}) padding-box, linear-gradient(135deg, #7EB5D7 0%, #A6DBE6 16%, #C7C9DE 31%, #EBA9CA 46%, #918FC5 62%, #F3C1D6 77%, #7EB5D7 100%) border-box`,
     border:'2.5px solid transparent',
     boxShadow:`0 0 0 ${a1}px ${T.dark ? 'rgba(126,181,215,0.50)' : 'rgba(126,181,215,0.38)'}, 0 0 0 ${a1 + 0.7}px ${T.dark ? 'rgba(244,161,197,0.50)' : 'rgba(244,161,197,0.42)'}, 0 0 0 ${a2}px ${T.dark ? 'rgba(199,201,222,0.38)' : 'rgba(199,201,222,0.34)'}, 0 0 0 ${a3}px ${T.dark ? 'rgba(145,143,197,0.32)' : 'rgba(145,143,197,0.25)'}, ${levanta ? T.shL : T.sh}`,
   } : aura ? {
@@ -232,6 +263,11 @@ const TileModulo = ({ m, i, tam, cor, modo, onTam, onAbrir }) => {
   // soltem em cima — o solto vai pra logo depois dele).
   const arrastavel = reorderMode && !m.fixo;
   const borda = arrastavel ? `1.5px dashed ${arrastando ? cor : tom(cor, 0.2, .6)}` : undefined;
+  const iconeOceano = (T.key === 'ocean' || T.key === 'oceanDark') && cor === m.color;
+  const coresIcone = TONS_ICONES_OCEANO.map((_, indice) => TONS_ICONES_OCEANO[(indice + i * 2) % TONS_ICONES_OCEANO.length]);
+  const icone = iconeOceano
+    ? colorirPartesSvg(m.icon, coresIcone, { value:0 })
+    : m.icon;
   // Selecionado no modo Cor: um contorno por fora da aura, pra não brigar com ela.
   const escolhido = coloringId === m.id ? { outline:`2px solid ${T.text}`, outlineOffset:12 } : null;
 
@@ -251,7 +287,11 @@ const TileModulo = ({ m, i, tam, cor, modo, onTam, onAbrir }) => {
 
       {/* Ícone solto na cor do módulo — sem quadradinho nem borda em volta. */}
       <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', color:cor }}>
-        {React.cloneElement(m.icon, { width: largo ? 52 : 34, height: largo ? 52 : 34, style:{ flexShrink:0, display:'block' } })}
+        {React.cloneElement(icone, {
+          width: largo ? 52 : 34,
+          height: largo ? 52 : 34,
+          style:{ ...icone.props.style, flexShrink:0, display:'block', color:iconeOceano ? coresIcone[0] : cor },
+        })}
         {!largo && !sizeMode && <span className="mln-seta" style={{ color:T.textT, marginTop:2 }}><Seta/></span>}
       </div>
 
