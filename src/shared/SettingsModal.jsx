@@ -6,25 +6,32 @@ import { useModoSazonal, MODOS_SAZONAIS } from './modoSazonal';
 
 const EMOJI_SAZONAL = { halloween: '🎃', natal: '🎄', pascoa: '🐰', carnaval: '🎭', saojoao: '🔥' };
 
-/* Linha de tema reaproveitada nas 3 colunas (claro/escuro/sazonal) — era
-   código repetido duas vezes antes do sazonal entrar como terceira coluna. */
+/* Cartão compacto com amostra da paleta e seleção acessível por teclado. */
 const LinhaTema = ({ th, isActive, onClick, escuro }) => (
-  <div onClick={onClick}
-    style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',
-      borderRadius:11,cursor:'pointer',
-      background:isActive?`${th.goldGl}`:'rgba(0,0,0,0.03)',
-      border:`1.5px solid ${isActive?th.goldLine+'66':'rgba(0,0,0,0.06)'}`,
-      transition:'all .18s'}}>
-    <div style={{width:28,height:28,borderRadius:'50%',flexShrink:0,
-      background:escuro?`linear-gradient(135deg,${th.page},${th.gold}88,${th.goldL})`:`linear-gradient(135deg,${th.goldV},${th.goldL},${th.gold})`,
-      boxShadow:isActive?`0 0 0 2px white,0 0 0 3.5px ${th.goldL}`:(escuro?`0 2px 6px ${th.gold}55`:`0 2px 6px ${th.gold}44`),
-      border:escuro?`1px solid ${th.goldLine}44`:'none'}}/>
-    <div style={{flex:1,fontFamily:'var(--font-body)',fontSize:13,
-      fontWeight:isActive?500:400,color:isActive?th.gold:'#0D1B2E'}}>{th.name}</div>
-    {isActive&&<svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-      <path d="M4 8L7 11L12 5.5" stroke={th.gold} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+  <button type="button" onClick={onClick} aria-pressed={isActive}
+    className={`settings-theme-card${isActive?' is-active':''}`}
+    style={{
+      '--theme-selected':`color-mix(in srgb, ${th.gold} 9%, white)`,
+      '--theme-border':`color-mix(in srgb, ${th.goldLine} 48%, #d8e0e8)`,
+      color:isActive?`color-mix(in srgb, ${th.gold} 72%, #526274)`:'#526274',
+    }}>
+    <span className="settings-theme-preview" style={{background:`linear-gradient(115deg,
+      color-mix(in srgb, ${escuro?th.page:th.goldV} 78%, white),
+      color-mix(in srgb, ${th.goldL} 72%, white),
+      color-mix(in srgb, ${th.gold} 42%, white),
+      color-mix(in srgb, ${escuro?th.surface:th.blueL||th.goldL} 74%, white))`}} aria-hidden="true"/>
+    <span className="settings-theme-info">
+      <span className="settings-theme-name">{th.name}</span>
+      <span className="settings-theme-swatches" aria-hidden="true">
+        {[th.gold,th.goldL,th.blueL||th.goldV,escuro?th.page:th.goldV].map((color,index)=>(
+          <span key={index} style={{background:`color-mix(in srgb, ${color} 70%, white)`}}/>
+        ))}
+      </span>
+    </span>
+    {isActive&&<svg className="settings-theme-check" width="15" height="15" viewBox="0 0 16 16" fill="none">
+      <path d="M4 8L7 11L12 5.5" stroke={`color-mix(in srgb, ${th.gold} 72%, #526274)`} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
     </svg>}
-  </div>
+  </button>
 );
 
 const ThemeGrid = ({activeTheme,onTheme}) => {
@@ -34,10 +41,10 @@ const ThemeGrid = ({activeTheme,onTheme}) => {
   const modoSazonal = useModoSazonal();
   const sazonalKey = MODOS_SAZONAIS.includes(modoSazonal) ? modoSazonal : null;
   return (
-  <div style={{display:'grid',gridTemplateColumns: sazonalKey ? '1fr 1px 1fr 1px 1fr' : '1fr 1px 1fr',gap:'0 18px'}}>
+  <div className="settings-theme-grid">
     {/* Modo Claro */}
-    <div>
-      <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:12}}>
+    <section className="settings-theme-group">
+      <div className="settings-theme-heading">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7A92A8" strokeWidth="1.7" strokeLinecap="round">
           <circle cx="12" cy="12" r="5"/>
           <line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
@@ -48,43 +55,40 @@ const ThemeGrid = ({activeTheme,onTheme}) => {
         <span style={{fontFamily:'var(--font-body)',fontSize:11,color:'#7A92A8',
           letterSpacing:'.09em',textTransform:'uppercase',fontWeight:600}}>MODO CLARO</span>
       </div>
-      <div style={{display:'flex',flexDirection:'column',gap:7}}>
+      <div className="settings-theme-options">
         {['blue','purple','lilac','pink','sakura','ocean','oceanBlue','praia','red','green','orange','beige','black','gray'].map(key=>(
           <LinhaTema key={key} th={THEMES[key]} isActive={activeTheme===key} onClick={()=>onTheme(key)}/>
         ))}
       </div>
-    </div>
-    {/* Divider */}
-    <div style={{background:'rgba(0,0,0,0.08)',borderRadius:1}}/>
+    </section>
     {/* Modo Escuro */}
-    <div>
-      <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:12}}>
+    <section className="settings-theme-group settings-theme-group-dark">
+      <div className="settings-theme-heading">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7A92A8" strokeWidth="1.7" strokeLinecap="round">
           <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
         </svg>
         <span style={{fontFamily:'var(--font-body)',fontSize:11,color:'#7A92A8',
           letterSpacing:'.09em',textTransform:'uppercase',fontWeight:600}}>MODO ESCURO</span>
       </div>
-      <div style={{display:'flex',flexDirection:'column',gap:7}}>
+      <div className="settings-theme-options">
         {['blueDark','purpleDark','lilacDark','pinkDark','sakuraDark','oceanDark','oceanBlueDark','praiaDark','redDark','greenDark','orangeDark','beigeDark','blackDark','grayDark'].map(key=>(
           <LinhaTema key={key} th={THEMES[key]} isActive={activeTheme===key} onClick={()=>onTheme(key)} escuro/>
         ))}
       </div>
-    </div>
+    </section>
     {/* Sazonal — só existe (na lista) enquanto Dashboard RH → Painéis → Modo
         Sazonal estiver ligado (Halloween, Natal, Páscoa, Carnaval ou São João). */}
-    {sazonalKey && <div style={{background:'rgba(0,0,0,0.08)',borderRadius:1}}/>}
     {sazonalKey && (
-      <div>
-        <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:12}}>
+      <section className="settings-theme-group settings-theme-group-seasonal">
+        <div className="settings-theme-heading">
           <span style={{fontSize:14,lineHeight:1}}>{EMOJI_SAZONAL[sazonalKey]}</span>
           <span style={{fontFamily:'var(--font-body)',fontSize:11,color:'#7A92A8',
             letterSpacing:'.09em',textTransform:'uppercase',fontWeight:600}}>SAZONAL</span>
         </div>
-        <div style={{display:'flex',flexDirection:'column',gap:7}}>
+        <div className="settings-theme-options settings-theme-options-seasonal">
           <LinhaTema th={THEMES[sazonalKey]} isActive={activeTheme===sazonalKey} onClick={()=>onTheme(sazonalKey)} escuro/>
         </div>
-      </div>
+      </section>
     )}
   </div>
   );
@@ -282,7 +286,7 @@ const SettingsModal = ({activeTheme,onTheme,onClose,painelInicial='theme'}) => {
         style={{display:'inline-flex',alignItems:'center',gap:7,padding:'8px 16px',
           borderRadius:10,border:'none',cursor:'pointer',fontFamily:'var(--font-body)',
           fontSize:13,fontWeight:active?700:500,
-          color:active?T.gold:'#7A92A8',
+          color:active?`color-mix(in srgb, ${T.gold} 76%, #647789)`:'#718396',
           background:active?(T.goldGl||'rgba(0,0,0,0.05)'):'transparent',
           transition:'all .15s'}}>
         {icon}{label}
@@ -295,16 +299,51 @@ const SettingsModal = ({activeTheme,onTheme,onClose,painelInicial='theme'}) => {
       background:'rgba(10,20,40,0.35)',backdropFilter:'blur(14px)',
       WebkitBackdropFilter:'blur(14px)',
       display:'flex',alignItems:'center',justifyContent:'center'}}>
-      <div onClick={e=>e.stopPropagation()} style={{
+      <style>{`
+        .settings-modal{width:min(1120px,94vw);max-height:94vh;display:flex;flex-direction:column;overflow:hidden}
+        .settings-modal-content{min-height:0;overflow-y:auto;overscroll-behavior:contain}
+        .settings-theme-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
+        .settings-theme-group{min-width:0}
+        .settings-theme-group-dark{border-left:1px solid rgba(0,0,0,.09);padding-left:18px}
+        .settings-theme-group-seasonal{grid-column:1/-1;border-top:1px solid rgba(0,0,0,.08);padding-top:12px}
+        .settings-theme-heading{display:flex;align-items:center;gap:6px;margin-bottom:9px}
+        .settings-theme-options{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+        .settings-theme-card{appearance:none;position:relative;min-width:0;min-height:74px;padding:8px;
+          display:flex;flex-direction:column;align-items:stretch;gap:6px;text-align:left;
+          border-radius:11px;cursor:pointer;background:rgba(247,249,251,.72);
+          border:1px solid rgba(102,123,143,.12);font-family:var(--font-body);
+          transition:border-color .16s ease,background .16s ease,box-shadow .16s ease}
+        .settings-theme-card:hover{border-color:var(--theme-border);
+          box-shadow:0 3px 10px rgba(45,65,85,.07)}
+        .settings-theme-card.is-active{background:var(--theme-selected);border-color:var(--theme-border);
+          box-shadow:0 0 0 1px color-mix(in srgb,var(--theme-border),transparent 70%)}
+        .settings-theme-card:focus-visible{outline:2px solid var(--theme-border);outline-offset:2px}
+        .settings-theme-preview{display:block;width:100%;height:29px;flex-shrink:0;border-radius:7px;
+          border:1px solid rgba(102,123,143,.10)}
+        .settings-theme-info{min-width:0;display:flex;align-items:center;justify-content:space-between;gap:5px}
+        .settings-theme-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11.5px;line-height:1.2;font-weight:500}
+        .settings-theme-swatches{display:flex;gap:2px;flex-shrink:0}
+        .settings-theme-swatches span{width:7px;height:7px;border-radius:50%;border:1px solid rgba(102,123,143,.12)}
+        .settings-theme-check{position:absolute;right:6px;top:6px;padding:2px;border-radius:50%;
+          background:rgba(255,255,255,.88);box-sizing:content-box}
+        .settings-theme-options-seasonal{grid-template-columns:repeat(4,minmax(0,1fr))}
+        @media(max-width:900px){.settings-theme-options{grid-template-columns:repeat(3,minmax(0,1fr))}}
+        @media(max-width:680px){
+          .settings-theme-grid{grid-template-columns:minmax(0,1fr);gap:14px}
+          .settings-theme-group-dark{border-left:0;border-top:1px solid rgba(0,0,0,.09);padding:12px 0 0}
+          .settings-theme-options{grid-template-columns:repeat(4,minmax(0,1fr))}
+          .settings-theme-group-seasonal{grid-column:auto}
+        }
+        @media(max-width:480px){.settings-theme-options{grid-template-columns:repeat(2,minmax(0,1fr))}.settings-theme-preview{height:28px}}
+      `}</style>
+      <div className="settings-modal" onClick={e=>e.stopPropagation()} style={{
         background:'rgba(255,255,255,0.96)',backdropFilter:'blur(24px)',
         border:'1px solid rgba(255,255,255,0.85)',borderRadius:22,
-        padding:'28px',width:660,maxWidth:'90vw',
-        // com 10 temas por coluna a janela passa de 700px: em tela de notebook baixa rola por dentro
-        maxHeight:'92vh',overflowY:'auto',boxSizing:'border-box',
+        padding:'24px',boxSizing:'border-box',
         boxShadow:'0 24px 64px rgba(0,0,0,0.20)',position:'relative'}}>
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:18}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14,flexShrink:0}}>
           <div>
-            <div style={{fontFamily:'var(--font-brand)',fontSize:17,fontWeight:700,color:'#0D1B2E'}}>Configurações</div>
+            <div style={{fontFamily:'var(--font-brand)',fontSize:17,fontWeight:650,color:'#42596B'}}>Configurações</div>
             <div style={{fontFamily:'var(--font-body)',fontSize:13,color:'#7A92A8',marginTop:2}}>
               {pane==='theme' ? 'Personalize o visual do sistema' : pane==='desempenho' ? 'Ganhe FPS desligando efeitos visuais pesados' : 'Gerencie os dados e a senha da sua conta'}
             </div>
@@ -315,7 +354,7 @@ const SettingsModal = ({activeTheme,onTheme,onClose,painelInicial='theme'}) => {
         </div>
 
         {/* Abas */}
-        <div style={{display:'flex',gap:6,marginBottom:20,padding:4,borderRadius:13,
+        <div style={{display:'flex',gap:6,marginBottom:14,padding:4,borderRadius:13,flexShrink:0,
           background:'rgba(0,0,0,0.04)',width:'fit-content'}}>
           <Tab id="theme" label="Tema"
             icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><circle cx="13.5" cy="6.5" r="1"/><circle cx="17.5" cy="10.5" r="1"/><circle cx="8.5" cy="7.5" r="1"/><circle cx="6.5" cy="12.5" r="1"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 011.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C22 6.012 17.5 2 12 2z"/></svg>}/>
@@ -325,12 +364,14 @@ const SettingsModal = ({activeTheme,onTheme,onClose,painelInicial='theme'}) => {
             icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>}/>
         </div>
 
-        {pane==='theme'
-          ? <ThemeGrid activeTheme={activeTheme} onTheme={onTheme}/>
-          : pane==='desempenho' ? <DesempenhoPanel/> : <AccountPanel/>}
+        <div className="settings-modal-content">
+          {pane==='theme'
+            ? <ThemeGrid activeTheme={activeTheme} onTheme={onTheme}/>
+            : pane==='desempenho' ? <DesempenhoPanel/> : <AccountPanel/>}
+        </div>
 
         <div style={{marginTop:18,fontFamily:'var(--font-body)',fontSize:11,
-          color:'#9AA8B8',textAlign:'center'}}>Clique fora para fechar</div>
+          color:'#9AA8B8',textAlign:'center',flexShrink:0}}>Clique fora para fechar</div>
       </div>
     </div>
   );
