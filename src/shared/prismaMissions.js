@@ -30,7 +30,7 @@ const isSysDj = (n) => {
 // `cumulative` = o "Zerar missões" do admin precisa tirar um snapshot dela
 export const MISSION_METRICS = [
   { id: 'playtime', label: 'Minutos jogados',        unit: 'minutos',  game: true,  param: null,      cumulative: true,
-    hint: 'Conta o tempo de partida no jogo escolhido. A meta é em MINUTOS.' },
+    hint: 'Marque um ou mais jogos; o tempo deles será somado. A meta é em MINUTOS.' },
   { id: 'compras',  label: 'Compras na loja',        unit: 'compras',  game: false, param: null,      cumulative: false,
     hint: 'Total de prêmios/Unikos já comprados na Prisma Store.' },
   { id: 'colecao',  label: 'Unikos na Coleção',      unit: 'Unikos',   game: false, param: null,      cumulative: false,
@@ -76,6 +76,7 @@ export const PRISMA_MISSIONS = DEFAULT_MISSIONS;
 export const missionToRow = (m, idx) => ({
   id: m.id, title: m.title, descr: m.desc || '', period: m.period || 'dia',
   metric: m.metric || 'manual', game: m.game || 'any', param: Number(m.param) || 0,
+  games: Array.isArray(m.games) && m.games.length ? m.games : [m.game || 'any'],
   goal: Number(m.goal) || 1, comum: Number(m.comum) || 0, premium: Number(m.premium) || 0,
   maintenance: !!m.maintenance, active: m.active !== false,
   sort: idx, updated_at: new Date().toISOString(),
@@ -83,6 +84,7 @@ export const missionToRow = (m, idx) => ({
 export const missionFromRow = (r) => ({
   id: r.id, title: r.title, desc: r.descr || '', period: r.period || 'dia',
   metric: r.metric || 'manual', game: r.game || 'any', param: r.param || 0,
+  games: Array.isArray(r.games) && r.games.length ? r.games : [r.game || 'any'],
   goal: r.goal || 1, comum: r.comum || 0, premium: r.premium || 0,
   maintenance: !!r.maintenance, active: r.active !== false,
   progress: 0, claimed: false,
@@ -123,6 +125,13 @@ const periodStart = (period) => {
   if (period === 'mes') return td.slice(0, 7) + '-01';
   return null;
 };
+
+const gamesForMission = (mission) => {
+  const games = Array.isArray(mission.games) && mission.games.length ? mission.games : [mission.game || 'any'];
+  return games.includes('any') ? ['any'] : [...new Set(games)].sort();
+};
+const playtimeKey = (mission) => `${gamesForMission(mission).join(',')}|${mission.period}`;
+const gamesFromPlaytimeKey = (key) => key.split('|')[0].split(',');
 
 // Calcula o progresso AO VIVO de cada missão.
 //   purchases — nº de compras já carregado (opcional; senão consulta o histórico)
@@ -176,12 +185,16 @@ export async function loadMissionProgress({ userName, purchases, baseline, missi
   // ── playtime: minutos jogados. Uma query por combinação jogo+período que
   // alguma missão realmente pede (não uma por missão) — duas Maratonas do
   // mesmo jogo no mesmo dia dividem a mesma leitura. ──
-  const ptCombos = [...new Set(defs.filter(m => m.metric === 'playtime')
-    .map(m => `${m.game || 'any'}|${m.period}`))];
+  const ptCombos = [...new Set(defs.filter(m => m.metric === 'playtime').map(playtimeKey))];
   const ptSeconds = {};
   await Promise.all(ptCombos.map(async (key) => {
-    const [game, period] = key.split('|');
-    ptSeconds[key] = await fetchPlaytimeSeconds({ player: userName, game, from: periodStart(period) });
+    const [, period] = key.split('|');
+    const selectedGames = gamesFromPlaytimeKey(key);
+    ptSeconds[key] = await fetchPlaytimeSeconds({
+      player: userName,
+      game: selectedGames.length === 1 ? selectedGames[0] : selectedGames,
+      from: periodStart(period),
+    });
   }));
 
   // ── rank_mes: quem mais colocou música no MÊS PASSADO (já fechado), não no mês
@@ -223,7 +236,7 @@ export async function loadMissionProgress({ userName, purchases, baseline, missi
     let v;
     switch (m.metric) {
       case 'playtime': {
-        const raw = ptSeconds[`${m.game || 'any'}|${m.period}`] || 0;
+        const raw = ptSeconds[playtimeKey(m)] || 0;
         v = Math.floor(baseAdj(m.id, raw, m.period) / 60);
         break;
       }
@@ -265,11 +278,16 @@ export async function snapshotMissionBaseline({ players, missions } = {}) {
 
   // Segundos jogados por jogo+período (uma query por combinação usada)
   const ptMissions = defs.filter(m => m.metric === 'playtime');
-  const combos = [...new Set(ptMissions.map(m => `${m.game || 'any'}|${m.period}`))];
+  const combos = [...new Set(ptMissions.map(playtimeKey))];
   await Promise.all(combos.map(async (key) => {
-    const [game, period] = key.split('|');
-    const secs = await fetchPlaytimeSecondsBulk({ players: list, game, from: periodStart(period) });
-    ptMissions.filter(m => `${m.game || 'any'}|${m.period}` === key)
+    const [, period] = key.split('|');
+    const selectedGames = gamesFromPlaytimeKey(key);
+    const secs = await fetchPlaytimeSecondsBulk({
+      players: list,
+      game: selectedGames.length === 1 ? selectedGames[0] : selectedGames,
+      from: periodStart(period),
+    });
+    ptMissions.filter(m => playtimeKey(m) === key)
       .forEach(m => list.forEach(p => { out[p][m.id] = { v: secs[p] || 0, d: today }; }));
   }));
 

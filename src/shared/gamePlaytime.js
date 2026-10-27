@@ -27,21 +27,24 @@ const today = () => {
 const myName = () => (getAuthUser()?.name || USER?.name || '').trim();
 
 // Acumula `seconds` no total do jogador naquele JOGO, no dia de hoje.
-// Silencioso de propósito: tempo jogado é métrica secundária, nunca pode
-// atrapalhar a partida com erro na tela.
+// Uma falha de medição não interrompe a partida, mas fica registrada no console.
 export async function addGamePlaytime(game, seconds, player) {
   const add = Math.round(Number(seconds) || 0);
   const p = (player || myName()).trim();
   if (add <= 0 || !p || !VALID_GAMES.has(game)) return;
   const day = today();
   try {
-    const { data } = await supabase.from('uniko_playtime')
+    const { data, error: readError } = await supabase.from('uniko_playtime')
       .select('seconds').eq('player', p).eq('day', day).eq('game', game).maybeSingle();
+    if (readError) throw readError;
     const cur = data?.seconds || 0;
-    await supabase.from('uniko_playtime').upsert(
+    const { error: writeError } = await supabase.from('uniko_playtime').upsert(
       { player: p, day, game, seconds: cur + add, updated_at: new Date().toISOString() },
       { onConflict: 'player,day,game' });
-  } catch {}
+    if (writeError) throw writeError;
+  } catch (e) {
+    console.error(`[prisma-store] falha ao contabilizar tempo do ${GAME_LABEL[game]}:`, e.message || e);
+  }
 }
 
 // Soma os SEGUNDOS jogados por um jogador num período.
@@ -52,11 +55,21 @@ export async function fetchPlaytimeSeconds({ player, game = 'any', from } = {}) 
   if (!p) return 0;
   try {
     let q = supabase.from('uniko_playtime').select('seconds,game,day').eq('player', p);
-    if (game && game !== 'any') q = q.eq('game', game);
+    if (Array.isArray(game)) {
+      const selectedGames = game.filter((id) => VALID_GAMES.has(id));
+      if (!game.includes('any')) {
+        if (!selectedGames.length) return 0;
+        q = q.in('game', selectedGames);
+      }
+    } else if (game && game !== 'any') q = q.eq('game', game);
     if (from) q = q.gte('day', from);
-    const { data } = await q;
+    const { data, error } = await q;
+    if (error) throw error;
     return (data || []).reduce((acc, r) => acc + (r.seconds || 0), 0);
-  } catch { return 0; }
+  } catch (e) {
+    console.error('[prisma-store] falha ao consultar tempo jogado:', e.message || e);
+    throw e;
+  }
 }
 
 // Mesma soma, mas pra VÁRIOS jogadores de uma vez (1 query) — usado no snapshot
@@ -67,13 +80,23 @@ export async function fetchPlaytimeSecondsBulk({ players, game = 'any', from } =
   if (!list.length) return out;
   try {
     let q = supabase.from('uniko_playtime').select('player,seconds').in('player', list);
-    if (game && game !== 'any') q = q.eq('game', game);
+    if (Array.isArray(game)) {
+      const selectedGames = game.filter((id) => VALID_GAMES.has(id));
+      if (!game.includes('any')) {
+        if (!selectedGames.length) return out;
+        q = q.in('game', selectedGames);
+      }
+    } else if (game && game !== 'any') q = q.eq('game', game);
     if (from) q = q.gte('day', from);
-    const { data } = await q;
+    const { data, error } = await q;
+    if (error) throw error;
     for (const r of (data || [])) {
       const k = (r.player || '').trim();
       if (k in out) out[k] += r.seconds || 0;
     }
-  } catch {}
+  } catch (e) {
+    console.error('[prisma-store] falha ao consultar o tempo jogado dos colaboradores:', e.message || e);
+    throw e;
+  }
   return out;
 }

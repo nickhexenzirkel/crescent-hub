@@ -58,6 +58,8 @@ create table if not exists public.mercado_missions (
   metric      text    not null default 'manual',
   -- só p/ metric='playtime': 'wave' | 'speed' | 'stop' | 'paint' | 'any'
   game        text    not null default 'any',
+  -- jogos somados em missões de playtime; vazio mantém compatibilidade com `game`
+  games       text[]  not null default '{}',
   -- parâmetro extra da métrica (metric='rank_mes' → posição: 1, 2 ou 3)
   param       integer not null default 0,
   -- meta (playtime = MINUTOS; o resto = quantidade)
@@ -69,6 +71,13 @@ create table if not exists public.mercado_missions (
   sort        integer not null default 0,     -- ordem na aba Missões
   updated_at  timestamptz not null default now()
 );
+
+alter table public.mercado_missions
+  add column if not exists games text[] not null default '{}';
+
+update public.mercado_missions
+set games = case when game = 'any' then array['any']::text[] else array[game]::text[] end
+where cardinality(games) = 0;
 
 create index if not exists mercado_missions_sort_idx on public.mercado_missions (sort);
 

@@ -1479,6 +1479,7 @@ const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker, zoomOut }) => {
    ═══════════════════════════════════════════════════════════════════════════ */
 const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker, zoomOut }) => {
   const [state, setState] = useState(null);
+  useGamePlaytime('paint', state?.phase === 'drawing' || state?.phase === 'reveal');
   const [chat, setChat]   = useState([]);
   const [guess, setGuess] = useState('');
   const [now, setNow]     = useState(() => Date.now());
@@ -3084,10 +3085,6 @@ const TabUnikoPaint = ({ zoomOut }) => {
     if (!jaMontou.current) { jaMontou.current = true; return; }
     setEntrouEm(Date.now());
   }, [room]);
-
-  /* Tempo jogado (missões da Prisma Store): conta só DENTRO de uma sala — ficar
-     olhando o lobby não é jogar. Ver hooks/useGamePlaytime.js. */
-  useGamePlaytime('paint', room !== null);
 
   // Migração rodada?
   useEffect(() => {

@@ -10,8 +10,9 @@ Em 22/07/2026 preparei o terreno pra missões baseadas em minutos jogados nos jo
 é o admin pela tela.
 
 **PRECISA rodar `supabase_uniko_missoes.sql`** antes de subir. Sem ele, o registro de
-tempo jogado para (inclusive o do Uniko Wave, que já funcionava) — a gravação passou a
-mandar a coluna `game` e o upsert falha em silêncio na tabela antiga.
+tempo jogado pode falhar (inclusive o do Uniko Wave, que já funcionava) — a gravação
+passou a mandar a coluna `game`, que não existe na tabela antiga. Agora a falha fica no
+console e a Prisma Store avisa quando não consegue calcular o progresso.
 
 O que mudou:
 - `uniko_playtime` ganhou a coluna `game` (PK vira player+day+game). As linhas antigas
@@ -30,6 +31,13 @@ O que mudou:
   descarrega a cada 60s). Paint/Stop contam dentro da SALA; Speed conta só correndo
   (solo `tela==='correndo'`, multi `phase==='racing'`); Wave continua mandando o tempo
   exato de cada partida por postMessage.
+- Missões de minutos aceitam selecionar vários jogos; os tempos são somados e gravados
+  em `mercado_missions.games` (array). Missões antigas continuam usando `game`, que é
+  preservado para compatibilidade. Se o SQL atual ainda não foi executado, rode-o
+  novamente para adicionar a coluna sem apagar as definições existentes.
+- Paint só conta nas fases `drawing` e `reveal`; Stop conta nas fases de rodada ativa,
+  nunca no lobby nem depois do fim. Falhas ao gravar/consultar playtime são registradas
+  no console; a Prisma Store avisa quando não consegue calcular o progresso.
 
 Relacionado: [[mercado-estelar]], [[uniko-paint]], [[unikowave-speed-multiplayer]],
 [[uniko-assistant]] (a mensagem proativa de maratona agora é montada a partir da missão,

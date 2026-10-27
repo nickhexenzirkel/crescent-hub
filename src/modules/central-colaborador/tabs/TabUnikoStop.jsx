@@ -769,6 +769,7 @@ const ChatSala = ({ mensagens, texto, setTexto, onEnviar, name, cardBg }) => {
 
 const Sala = ({ roomId, name, players, onLeave }) => {
   const [state, setState] = useState(null);
+  useGamePlaytime('stop', ['sorteando', 'jogando', 'parando', 'validando', 'resultado'].includes(state?.phase));
   const [now, setNow] = useState(() => Date.now());
   const [laps, setLaps] = useState(DEFAULT_LAPS);
   const [minhas, setMinhas] = useState({});      // o que EU escrevi nesta rodada
@@ -1733,10 +1734,6 @@ const TabUnikoStop = () => {
     if (!jaMontou.current) { jaMontou.current = true; return; }
     setEntrouEm(Date.now());
   }, [room]);
-
-  /* Tempo jogado (missões da Prisma Store): conta só DENTRO de uma sala — ficar
-     olhando o lobby não é jogar. Ver hooks/useGamePlaytime.js. */
-  useGamePlaytime('stop', room !== null);
 
   useEffect(() => {
     supabase.from('uniko_stop_state').select('id').limit(1).then(({ error }) => {

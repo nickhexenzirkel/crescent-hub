@@ -598,9 +598,17 @@ const MercadoEstelar = ({ onBack, authUser, userPhoto, initialTab, onlyTabs, aco
     if (!loaded) return;
     let alive = true;
     (async () => {
-      const purchases = (state.history || []).filter(h => h.kind === 'compra' || h.kind === 'compra_uniko').length;
-      const prog = await loadMissionProgress({ userName, cpf: authUser?.cpf, purchases, baseline: state.missionBaseline, missions: missionDefs });
-      if (alive) setLiveProg(prog);
+      try {
+        const purchases = (state.history || []).filter(h => h.kind === 'compra' || h.kind === 'compra_uniko').length;
+        const prog = await loadMissionProgress({ userName, cpf: authUser?.cpf, purchases, baseline: state.missionBaseline, missions: missionDefs });
+        if (alive) setLiveProg(prog);
+      } catch (e) {
+        console.error('[prisma-store] não consegui atualizar o progresso das missões:', e);
+        if (alive) {
+          setToast('Não foi possível atualizar o progresso das missões. Verifique a conexão e o SQL do Supabase.');
+          setTimeout(() => setToast(''), 4000);
+        }
+      }
     })();
     return () => { alive = false; };
   }, [loaded, state.history, userName, state.missionBaseline, missionDefs]); // eslint-disable-line
@@ -2472,7 +2480,11 @@ const MISSION_GAME_OPTIONS = [{ id: 'any', label: 'Qualquer jogo' }, ...PLAYTIME
 const missionRule = (m) => {
   const per = m.period === 'dia' ? 'por dia' : m.period === 'mes' ? 'no mês' : 'no total';
   switch (m.metric) {
-    case 'playtime': return `${m.goal} min em ${m.game === 'any' ? 'qualquer jogo' : (GAME_LABEL[m.game] || m.game)} ${per}`;
+    case 'playtime': {
+      const games = Array.isArray(m.games) && m.games.length ? m.games : [m.game || 'any'];
+      const labels = games.includes('any') ? 'qualquer jogo' : games.map(game => GAME_LABEL[game] || game).join(' + ');
+      return `${m.goal} min em ${labels} ${per}`;
+    }
     case 'compras':  return `${m.goal} compra${m.goal === 1 ? '' : 's'} na loja`;
     case 'colecao':  return `${m.goal} Uniko${m.goal === 1 ? '' : 's'} na Coleção`;
     case 'feedback': return `${m.goal} feedback${m.goal === 1 ? '' : 's'} ${per}`;
@@ -2498,6 +2510,7 @@ const MissionEditor = ({ mission, onSave, onCancel, flash, cardBg }) => {
   const [d, setD] = useState(() => ({
     title: mission.title || '', desc: mission.desc || '', period: mission.period || 'dia',
     metric: mission.metric || 'manual', game: mission.game || 'any', param: String(mission.param ?? 1),
+    games: Array.isArray(mission.games) && mission.games.length ? mission.games : [mission.game || 'any'],
     goal: String(mission.goal ?? 1), comum: String(mission.comum ?? 0), premium: String(mission.premium ?? 0),
     maintenance: !!mission.maintenance, active: mission.active !== false,
   }));
@@ -2511,11 +2524,24 @@ const MissionEditor = ({ mission, onSave, onCancel, flash, cardBg }) => {
     if (!d.title.trim()) { flash('Informe o título da missão'); return; }
     if (!goal || goal <= 0) { flash('A meta precisa ser maior que zero'); return; }
     if (comum <= 0 && premium <= 0) { flash('A missão precisa dar pelo menos um prisma'); return; }
+    if (meta.game && !d.games.length) { flash('Selecione pelo menos um jogo'); return; }
+    const games = d.games.includes('any') ? ['any'] : d.games;
     onSave({
       title: d.title.trim(), desc: d.desc.trim(), period: d.period, metric: d.metric,
-      game: meta.game ? d.game : 'any', param: meta.param ? (parseInt(d.param, 10) || 1) : 0,
+      game: !meta.game || games.length !== 1 ? 'any' : games[0], games: meta.game ? games : ['any'],
+      param: meta.param ? (parseInt(d.param, 10) || 1) : 0,
       goal, comum, premium, maintenance: d.maintenance, active: d.active,
     });
+  };
+
+  const toggleGame = (id) => {
+    const selected = d.games;
+    const next = id === 'any'
+      ? selected.includes('any') ? [] : ['any']
+      : selected.includes(id)
+        ? selected.filter(game => game !== id)
+        : [...selected.filter(game => game !== 'any'), id];
+    set('games', next);
   };
 
   return (
@@ -2558,10 +2584,19 @@ const MissionEditor = ({ mission, onSave, onCancel, flash, cardBg }) => {
       <div style={{ display: 'flex', gap: 10 }}>
         {meta.game && (
           <div style={{ flex: 1 }}>
-            <label style={lbl}>Jogo</label>
-            <select value={d.game} onChange={e => set('game', e.target.value)} style={{ ...fieldStyle, cursor: 'pointer' }}>
-              {MISSION_GAME_OPTIONS.map(g => <option key={g.id} value={g.id}>{g.label}</option>)}
-            </select>
+            <label style={lbl}>Jogos que contam (os minutos serão somados)</label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {MISSION_GAME_OPTIONS.map(g => {
+                const on = d.games.includes(g.id);
+                return (
+                  <button key={g.id} type="button" aria-pressed={on} onClick={() => toggleGame(g.id)} style={{
+                    padding: '7px 10px', borderRadius: 9, cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: 12,
+                    border: `1.5px solid ${on ? T.gold : T.border}`, background: on ? `${T.gold}18` : 'transparent',
+                    color: on ? T.gold : T.textS, fontWeight: on ? 700 : 500,
+                  }}>{on ? '✓ ' : ''}{g.label}</button>
+                );
+              })}
+            </div>
           </div>
         )}
         {meta.param && (
@@ -2606,7 +2641,7 @@ const MissionEditor = ({ mission, onSave, onCancel, flash, cardBg }) => {
   );
 };
 
-const NEW_MISSION = { id: '', title: '', desc: '', period: 'dia', metric: 'playtime', game: 'wave', param: 1, goal: 15, comum: 100, premium: 0, maintenance: false, active: true };
+const NEW_MISSION = { id: '', title: '', desc: '', period: 'dia', metric: 'playtime', game: 'wave', games: ['wave'], param: 1, goal: 15, comum: 100, premium: 0, maintenance: false, active: true };
 
 const AdminMissoes = ({ missions, setMissions, flash, isMobile, cardBg }) => {
   const [editId, setEditId] = useState(null);
@@ -2622,26 +2657,33 @@ const AdminMissoes = ({ missions, setMissions, flash, isMobile, cardBg }) => {
   const commit = async (next, removed = []) => {
     setMissions(next);
     setSaving(true);
-    try { await saveMissionDefs(next, removed); }
+    try {
+      await saveMissionDefs(next, removed);
+      return true;
+    }
     catch (e) {
       console.error('[prisma-store] falha ao salvar missões:', e);
-      flash('Não consegui salvar no servidor — a lista voltou ao que está gravado');
-      try { const atual = await loadMissionDefs({ seed: false }); if (atual?.length) setMissions(atual); } catch {}
+      flash('Não consegui salvar no servidor — confira a conexão e se o SQL está atualizado.');
+      const atual = await loadMissionDefs({ seed: false });
+      setMissions(atual);
+      return false;
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   };
 
-  const addMission = (data) => {
+  const addMission = async (data) => {
     const id = 'm' + Date.now().toString(36);
-    commit([...missions, { ...data, id, progress: 0, claimed: false }]);
-    setCreating(false);
-    flash(`Missão "${data.title}" criada`);
+    const saved = await commit([...missions, { ...data, id, progress: 0, claimed: false }]);
+    if (saved) {
+      setCreating(false);
+      flash(`Missão "${data.title}" criada`);
+    }
   };
   const patchMission = (id, patch) => commit(missions.map(m => m.id === id ? { ...m, ...patch } : m));
-  const removeMission = (m) => {
+  const removeMission = async (m) => {
     if (!window.confirm(`Apagar a missão "${m.title}"? Ela some da aba Missões de todos os colaboradores.`)) return;
-    commit(missions.filter(x => x.id !== m.id), [m.id]);
-    flash('Missão apagada');
+    if (await commit(missions.filter(x => x.id !== m.id), [m.id])) flash('Missão apagada');
   };
   const moveMission = (id, dir) => {
     const idx = missions.findIndex(m => m.id === id);
@@ -2729,7 +2771,12 @@ const AdminMissoes = ({ missions, setMissions, flash, isMobile, cardBg }) => {
                   {open && (
                     <MissionEditor mission={m} flash={flash} cardBg={cardBg}
                       onCancel={() => setEditId(null)}
-                      onSave={(patch) => { patchMission(m.id, patch); setEditId(null); flash(`"${patch.title}" atualizada`); }} />
+                      onSave={async (patch) => {
+                        if (await patchMission(m.id, patch)) {
+                          setEditId(null);
+                          flash(`"${patch.title}" atualizada`);
+                        }
+                      }} />
                   )}
                 </div>
               );
@@ -2893,8 +2940,14 @@ const AdminTransacoes = ({ flash, isMobile, cardBg, adminName, ownSetState, miss
     // Snapshot do baseline (valor BRUTO atual de feedbacks do mês / minutos de hoje) por jogador,
     // incluindo o admin → o progresso ao vivo passa a contar só o que vier DEPOIS do reset.
     const players = [...wallets.map(w => w.player), adminName];
-    let baselines = {};
-    try { baselines = await snapshotMissionBaseline({ players, missions: missionDefs }); } catch {}
+    let baselines;
+    try {
+      baselines = await snapshotMissionBaseline({ players, missions: missionDefs });
+    } catch (e) {
+      console.error('[prisma-store] não consegui preparar o reset das missões:', e);
+      flash('Não foi possível calcular o progresso atual; nenhuma missão foi resetada.');
+      return;
+    }
     await bulkApply(
       (base, w) => ({
         missions: [],   // apaga os resgates → todas voltam a poder ser resgatadas
