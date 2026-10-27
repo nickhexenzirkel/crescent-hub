@@ -58,8 +58,8 @@ const TB = {
   lilac:      {bg:'linear-gradient(135deg,#0B0B22,#15163A,#1C1E48,#10112C)', b1:'#9BA0FA55',b2:'#C8CBFF24',b3:'#4A4EB840', p1:'#D4D6FF',p2:'#9BA0FA',p3:'#4E52B8', rings:true,  spot:false, shooting:true },
   sakura:     {bg:'linear-gradient(135deg,#1C0A16,#2C1224,#381830,#200C1A)', b1:'#F4C8E255',b2:'#FFE4F228',b3:'#B8527F40', p1:'#FDEEF6',p2:'#F4C8E2',p3:'#B8527F', rings:false, spot:true,  shooting:true },
   sakuraDark: {bg:'linear-gradient(135deg,#12060F,#1E0C18,#281020,#160812)', b1:'#F4C8E258',b2:'#F9DCEC25',b3:'#9A406A40', p1:'#FDEEF6',p2:'#E7A3C6',p3:'#9A406A', rings:false, spot:true,  shooting:true },
-  ocean:      {bg:'linear-gradient(135deg,#D9F5FF,#BDEEFF,#E5F8FF,#D6F2F8)', b1:'#55B9D955',b2:'#F5BFD638',b3:'#83D7E848', p1:'#F2FCFF',p2:'#A9E7F5',p3:'#4D9DB8', rings:true,  spot:true,  shooting:true },
-  oceanDark:  {bg:'linear-gradient(135deg,#071A2A,#0B2B40,#10435A,#0A263B)', b1:'#54B7D958',b2:'#EF9FBE30',b3:'#65D2E050', p1:'#EAFBFF',p2:'#7BD2E6',p3:'#287B9A', rings:true,  spot:true,  shooting:true },
+  ocean:      {bg:'linear-gradient(120deg,#B9DFF0 0%,#C8D9EE 34%,#DDCFEA 66%,#F2C9DD 100%)', b1:'#63B5D1A0',b2:'#E988B2A0',b3:'#9A86C9A0', p1:'#F5E9F7',p2:'#A6CBE2',p3:'#918FC5', rings:true,  spot:true,  shooting:true, text:'#21485C', textMuted:'#476D80', star:'#918FC5', shadow:'0 10px 40px rgba(48,103,130,.20)', pillBg:'rgba(255,255,255,.42)', pillBorder:'rgba(71,109,128,.22)', pillText:'#315A70' },
+  oceanDark:  {bg:'linear-gradient(120deg,#0B263B 0%,#17374D 30%,#393451 66%,#462B49 100%)', b1:'#54B7D990',b2:'#E77CB890',b3:'#9A83D0A0', p1:'#F2D9EF',p2:'#BD9AD9',p3:'#75558F', rings:true,  spot:true,  shooting:true },
   beige:      {bg:'linear-gradient(135deg,#1A140D,#281F15,#33281C,#1E1710)', b1:'#E6D5BE48',b2:'#F4EBDD20',b3:'#8A674040', p1:'#F4EBDD',p2:'#E6D5BE',p3:'#8A6740', rings:true,  spot:false, shooting:true },
   beigeDark:  {bg:'linear-gradient(135deg,#100C08,#1A140E,#221A12,#140F0A)', b1:'#E6D5BE44',b2:'#F4EBDD1C',b3:'#6E513240', p1:'#F4EBDD',p2:'#CDB692',p3:'#6E5132', rings:true,  spot:false, shooting:true },
   black:      {bg:'linear-gradient(135deg,#0A0A0C,#151518,#1C1C20,#0E0E10)', b1:'#8E8E9650',b2:'#FFFFFF18',b3:'#3A3A4040', p1:'#EDEDF2',p2:'#8E8E96',p3:'#2C2C30', rings:true,  spot:false, shooting:true },
@@ -174,6 +174,27 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
   const imgAspect   = useRef(1);      // naturalHeight/naturalWidth of current photo
 
   const P    = getBanner(activeTheme);
+  const portalOceanoClaro = activeTheme === 'ocean';
+  const portalOceano = portalOceanoClaro || activeTheme === 'oceanDark';
+  const coresPortalOceano = portalOceanoClaro
+    ? ['#458FB2', '#918FC5', '#D477A2', '#7584C9', '#5BAFBC']
+    : ['#78C7E4', '#C4A5E8', '#F09ABF', '#9FAFF0', '#74D5D0'];
+  const fundosCardOceano = portalOceanoClaro
+    ? [
+      'linear-gradient(135deg,#F0F9FC,#EAF3FA)',
+      'linear-gradient(135deg,#F5F0FA,#EAEAF7)',
+      'linear-gradient(135deg,#FCEFF5,#F6EAF3)',
+      'linear-gradient(135deg,#ECF7FA,#F2EFF8)',
+    ]
+    : [
+      'linear-gradient(135deg,rgba(42,105,135,.38),rgba(78,67,125,.34))',
+      'linear-gradient(135deg,rgba(77,69,126,.36),rgba(42,103,132,.34))',
+      'linear-gradient(135deg,rgba(119,61,103,.34),rgba(82,68,135,.34))',
+      'linear-gradient(135deg,rgba(43,105,128,.36),rgba(107,67,122,.32))',
+    ];
+  const fundoCardOceano = (indice) => portalOceano
+    ? fundosCardOceano[indice % fundosCardOceano.length]
+    : undefined;
   const now  = new Date();
   const hour = now.getHours();
   const today = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
@@ -452,7 +473,7 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
       `}</style>
 
       {/* ══ HERO ═══════════════════════════════════════════════════ */}
-      <div style={{borderRadius:22,overflow:'hidden',marginBottom:14,height:isMobile?168:196,position:'relative',background:P.bg,boxShadow:'0 10px 48px rgba(4,8,20,.55)',transition:'background .5s ease'}}>
+      <div style={{borderRadius:22,overflow:'hidden',marginBottom:14,height:isMobile?168:196,position:'relative',background:P.bg,boxShadow:P.shadow||'0 10px 48px rgba(4,8,20,.55)',transition:'background .5s ease'}}>
 
         {/* blobs */}
         <div style={{position:'absolute',inset:0,overflow:'hidden',pointerEvents:'none'}}>
@@ -464,7 +485,7 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
 
         {/* estrelas */}
         {STARS_POS.map((s,i)=>(
-          <div key={i} style={{position:'absolute',left:s.x,top:s.y,width:s.r*2,height:s.r*2,borderRadius:'50%',background:'rgba(255,255,255,.88)',pointerEvents:'none',animation:`twinkle ${2.2+i*.32}s ease-in-out infinite`,animationDelay:s.d}}/>
+          <div key={i} style={{position:'absolute',left:s.x,top:s.y,width:s.r*2,height:s.r*2,borderRadius:'50%',background:P.star||'rgba(255,255,255,.88)',pointerEvents:'none',animation:`twinkle ${2.2+i*.32}s ease-in-out infinite`,animationDelay:s.d}}/>
         ))}
 
         {/* estrelas cadentes — wrapper translaciona, filho roda estático. No
@@ -513,21 +534,21 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
               }
             </div>
             <div style={{minWidth:0}}>
-              <div style={{fontSize:isMobile?10:11,color:'rgba(255,255,255,.40)',letterSpacing:'.10em',textTransform:'uppercase',marginBottom:4}}>{greeting}</div>
-              <div style={{fontSize:isMobile?21:27,fontWeight:700,color:'#fff',lineHeight:1,marginBottom:5,letterSpacing:'-.01em',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{nomeChamado(USER.name)}!</div>
-              <div style={{fontSize:isMobile?11:12,color:'rgba(255,255,255,.38)',textTransform:'capitalize'}}>{todayFmt}</div>
+              <div style={{fontSize:isMobile?10:11,color:P.textMuted||'rgba(255,255,255,.40)',letterSpacing:'.10em',textTransform:'uppercase',marginBottom:4}}>{greeting}</div>
+              <div style={{fontSize:isMobile?21:27,fontWeight:700,color:P.text||'#fff',lineHeight:1,marginBottom:5,letterSpacing:'-.01em',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{nomeChamado(USER.name)}!</div>
+              <div style={{fontSize:isMobile?11:12,color:P.textMuted||'rgba(255,255,255,.38)',textTransform:'capitalize'}}>{todayFmt}</div>
               {/* Contagem de férias — só pra quem está na lista seleta. Cabia num
                   card inteiro antes; virou uma pílula discreta aqui embaixo da
                   data, no mesmo canto que já concentra a info "quando" do dia. */}
               {myVacation && vacationCountdown && (
                 <div title={`Data-limite: ${new Date(myVacation.date+'T12:00:00').toLocaleDateString('pt-BR')}`}
                   style={{display:'inline-flex',alignItems:'center',gap:6,marginTop:8,padding:'4px 10px 4px 8px',
-                    borderRadius:999,background:'rgba(255,255,255,.12)',border:'1px solid rgba(255,255,255,.18)',width:'fit-content'}}>
+                    borderRadius:999,background:P.pillBg||'rgba(255,255,255,.12)',border:`1px solid ${P.pillBorder||'rgba(255,255,255,.18)'}`,width:'fit-content'}}>
                   <span style={{fontSize:12.5,lineHeight:1}}>🏖️</span>
-                  <span style={{fontSize:11.5,color:'rgba(255,255,255,.85)',fontWeight:600,whiteSpace:'nowrap'}}>
+                  <span style={{fontSize:11.5,color:P.pillText||'rgba(255,255,255,.85)',fontWeight:600,whiteSpace:'nowrap'}}>
                     {vacationCountdown.expired
                       ? 'Férias: data-limite alcançada'
-                      : <>Férias em <b style={{color:'#FFD98A'}}>{vacationCountdown.months}{vacationCountdown.months===1?' mês':' meses'} e {vacationCountdown.days}{vacationCountdown.days===1?' dia':' dias'}</b></>}
+                      : <>Férias em <b style={{color:portalOceanoClaro?'#918FC5':'#FFD98A'}}>{vacationCountdown.months}{vacationCountdown.months===1?' mês':' meses'} e {vacationCountdown.days}{vacationCountdown.days===1?' dia':' dias'}</b></>}
                   </span>
                 </div>
               )}
@@ -539,7 +560,7 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
 
       {/* ══ EVENTOS DE HOJE — só aparece quando há evento no dia ══ */}
       {todayEvts.length > 0 && (
-        <Card className="home-card" style={{padding:'14px 16px',marginBottom:14,border:`1px solid ${T.gold}44`,background:T.goldGl}}>
+        <Card className="home-card" style={{padding:'14px 16px',marginBottom:14,border:`1px solid ${T.gold}44`,background:fundoCardOceano(2)||T.goldGl}}>
           <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:10}}>
             <Ico size={14} stroke={T.gold} d={<><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></>}/>
             <span style={{fontSize:11,fontWeight:700,color:T.gold,letterSpacing:'.08em',textTransform:'uppercase',flex:1}}>
@@ -563,19 +584,19 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
 
       {/* ══ ACESSOS RECENTES — últimas abas visitadas (Uniko Paint, Banco de Horas...) ══ */}
       {recentItems.length > 0 && (
-        <Card className="home-card" style={{padding:'14px 16px',marginBottom:14}}>
+        <Card className="home-card" style={{padding:'14px 16px',marginBottom:14,background:fundoCardOceano(0)}}>
           <div style={{fontSize:11,fontWeight:700,color:T.textT,letterSpacing:'.08em',textTransform:'uppercase',marginBottom:10}}>
             Acessos recentes
           </div>
           <div style={{display:'flex',gap:9,overflowX:'auto',paddingBottom:2}}>
-            {recentItems.map(item => (
+            {recentItems.map((item,itemIndex) => (
               <button key={item.id} onClick={()=>setTab(item.id)}
                 style={{display:'flex',alignItems:'center',gap:8,flexShrink:0,padding:'8px 14px 8px 10px',borderRadius:12,
-                  border:`1px solid ${T.border}`,background:T.page,cursor:'pointer',fontFamily:'var(--font-body)',
+                  border:`1px solid ${T.border}`,background:fundoCardOceano(itemIndex)||T.page,cursor:'pointer',fontFamily:'var(--font-body)',
                   transition:'border-color .14s,background .14s'}}
                 onMouseEnter={e=>{e.currentTarget.style.borderColor=T.goldLine||T.gold; e.currentTarget.style.background=T.goldGl;}}
-                onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border; e.currentTarget.style.background=T.page;}}>
-                <span style={{color:T.textS,display:'flex'}}>{item.icon}</span>
+                onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border; e.currentTarget.style.background=fundoCardOceano(itemIndex)||T.page;}}>
+                <span style={{color:portalOceano?coresPortalOceano[itemIndex%coresPortalOceano.length]:T.textS,display:'flex'}}>{item.icon}</span>
                 <span style={{fontSize:12.5,fontWeight:600,color:T.text,whiteSpace:'nowrap'}}>{item.label}</span>
               </button>
             ))}
@@ -586,7 +607,7 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
       {/* ══ TIRA: UNIKO WAVE · MISSÕES · PRISMA STORE · NOW PLAYING ══ */}
       <div style={{display:'grid',gridTemplateColumns:isMobile?'1fr':((isPlay&&nowPlay)?'1fr 1fr 1fr 1.4fr':'1fr 1fr 1fr'),gap:isMobile?10:12,marginBottom:14}}>
         {/* Uniko Wave */}
-        <Card className="home-card" style={{padding:'14px 16px',cursor:'pointer'}} onClick={()=>setTab('unikowave')}>
+        <Card className="home-card" style={{padding:'14px 16px',cursor:'pointer',background:fundoCardOceano(1)}} onClick={()=>setTab('unikowave')}>
           <div style={{display:'flex',alignItems:'center',gap:12}}>
             <div style={{width:42,height:42,borderRadius:11,overflow:'hidden',flexShrink:0,boxShadow:'0 4px 14px rgba(155,107,255,.35)'}}>
               <img src={unikoWave} alt="Uniko Wave" style={{width:'100%',height:'100%',objectFit:'cover'}}/>
@@ -601,7 +622,7 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
         </Card>
 
         {/* Missões em andamento (Prisma Store) — tempo real, mais próximas de concluir */}
-        <Card className="home-card" style={{padding:'14px 16px'}}>
+        <Card className="home-card" style={{padding:'14px 16px',background:fundoCardOceano(2)}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
             <span style={{fontSize:13,fontWeight:600,color:T.text}}>Missões em andamento</span>
             <span style={{fontSize:10,color:'#9B6BFF',fontWeight:700,letterSpacing:'.04em'}}>PRISMA</span>
@@ -628,7 +649,7 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
         </Card>
 
         {/* Prisma Store (carteira) */}
-        <Card className="home-card" style={{padding:'14px 16px'}}>
+        <Card className="home-card" style={{padding:'14px 16px',background:fundoCardOceano(3)}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
             <span style={{fontSize:13,fontWeight:600,color:T.text}}>Prisma Store</span>
             <span style={{fontSize:10.5,color:T.textT}}>Sua carteira</span>
@@ -636,7 +657,7 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
           <div style={{display:'flex',gap:9}}>
             {[{k:'comum',src:'/PrismaComum.png',label:'Comum',col:'#27C6DE',v:prismas.comum},
               {k:'premium',src:'/PrismaPremium.png',label:'Premium',col:'#9B6BFF',v:prismas.premium}].map(p=>(
-              <div key={p.k} style={{flex:1,display:'flex',alignItems:'center',gap:8,padding:'8px 10px',borderRadius:10,background:T.surface,border:`1px solid ${T.border}`}}>
+              <div key={p.k} style={{flex:1,display:'flex',alignItems:'center',gap:8,padding:'8px 10px',borderRadius:10,background:fundoCardOceano(p.k==='premium'?2:0)||T.surface,border:`1px solid ${T.border}`}}>
                 <img src={p.src} alt={p.label} onError={e=>{e.target.style.display='none';}} style={{width:26,height:26,objectFit:'contain',flexShrink:0}}/>
                 <div style={{minWidth:0}}>
                   <div style={{fontSize:15,fontWeight:800,color:p.col,lineHeight:1}}>{(p.v||0).toLocaleString('pt-BR')}</div>
@@ -648,7 +669,7 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
         </Card>
 
         {isPlay&&nowPlay&&(
-          <Card className="home-card" style={{padding:'14px 18px',animation:'nowP 2.5s ease-in-out infinite'}}>
+          <Card className="home-card" style={{padding:'14px 18px',animation:'nowP 2.5s ease-in-out infinite',background:fundoCardOceano(0)}}>
             <div style={{display:'flex',alignItems:'center',gap:12}}>
               {nowPlay.album_art
                 ?<img src={nowPlay.album_art} alt="" style={{width:38,height:38,borderRadius:8,objectFit:'cover',flexShrink:0}}/>
@@ -666,7 +687,7 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
 
       {/* ══ CAPTURE O UNIKO — o encontro renderiza DENTRO deste widget (config do RH) ═════ */}
       <div id="capture-uniko-card" className="home-card" style={{position:'relative',minHeight:capBusy?0:118,borderRadius:16,overflow:'hidden',marginBottom:14,
-        background:capBusy?'transparent':'linear-gradient(160deg,rgba(20,12,40,.06),rgba(40,30,70,.10))',
+        background:capBusy?'transparent':fundoCardOceano(1)||'linear-gradient(160deg,rgba(20,12,40,.06),rgba(40,30,70,.10))',
         border:capBusy?'none':`1px solid ${T.border}`,boxShadow:capBusy?'none':T.sh,
         display:'flex',alignItems:'center',justifyContent:'center',padding:0}}>
         <style>{`@keyframes capStarTwinkle{0%,100%{opacity:.15;transform:scale(.8)}50%{opacity:.9;transform:scale(1.15)}}`}</style>
@@ -689,7 +710,7 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
 
       {/* ══ CAPTURE O NÚMERO — sistema paralelo ao Capture o Uniko acima, mesma ideia (config do RH) ═════ */}
       <div id="capture-numero-card" className="home-card" style={{position:'relative',minHeight:capNumeroBusy?0:118,borderRadius:16,overflow:'hidden',marginBottom:14,
-        background:capNumeroBusy?'transparent':'linear-gradient(160deg,rgba(20,12,40,.06),rgba(40,30,70,.10))',
+        background:capNumeroBusy?'transparent':fundoCardOceano(3)||'linear-gradient(160deg,rgba(20,12,40,.06),rgba(40,30,70,.10))',
         border:capNumeroBusy?'none':`1px solid ${T.border}`,boxShadow:capNumeroBusy?'none':T.sh,
         display:'flex',alignItems:'center',justifyContent:'center',padding:0}}>
         {/* placeholder (só quando não há número no slot) — reaproveita o @keyframes capStarTwinkle já definido acima */}
@@ -711,7 +732,7 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
 
       {/* ══ ACESSO ALEXA (quando não está tocando) ═════════════════ */}
       {(!isPlay||!nowPlay)&&onGoAlexa&&(
-        <div onClick={onGoAlexa} style={{display:'flex',alignItems:'center',gap:14,padding:'13px 18px',marginBottom:14,background:T.goldGl,border:`1px solid ${T.gold}33`,borderRadius:14,cursor:'pointer',transition:'opacity .15s'}}
+        <div onClick={onGoAlexa} style={{display:'flex',alignItems:'center',gap:14,padding:'13px 18px',marginBottom:14,background:fundoCardOceano(2)||T.goldGl,border:`1px solid ${T.gold}33`,borderRadius:14,cursor:'pointer',transition:'opacity .15s'}}
           onMouseEnter={e=>e.currentTarget.style.opacity='.8'} onMouseLeave={e=>e.currentTarget.style.opacity='1'}>
           <div style={{width:36,height:36,borderRadius:10,background:`${T.gold}22`,border:`1px solid ${T.gold}33`,display:'flex',alignItems:'center',justifyContent:'center',color:T.gold,flexShrink:0}}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
@@ -728,7 +749,7 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
       <div style={{display:'grid',gridTemplateColumns:isMobile?'repeat(2,minmax(0,1fr))':'repeat(4,minmax(0,1fr))',gap:10,marginBottom:8,alignItems:'stretch'}}>
 
         {/* Coleção de Unikos */}
-        <Card className="home-card" style={{padding:'12px',display:'flex',flexDirection:'column'}}>
+        <Card className="home-card" style={{padding:'12px',display:'flex',flexDirection:'column',background:fundoCardOceano(0)}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:9}}>
             <span style={{fontSize:12.5,fontWeight:600,color:T.text}}>Coleção</span>
             <BtnVer tab="uniko"/>
@@ -766,7 +787,7 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
         </Card>
 
         {/* Próximos Eventos (do dia de hoje até o fim do mês) */}
-        <Card className="home-card" style={{padding:'12px',display:'flex',flexDirection:'column'}}>
+        <Card className="home-card" style={{padding:'12px',display:'flex',flexDirection:'column',background:fundoCardOceano(1)}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:9}}>
             <span style={{fontSize:12.5,fontWeight:600,color:T.text}}>
               Próximos Eventos
@@ -799,7 +820,7 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
         </Card>
 
         {/* Próximos Lembretes */}
-        <Card className="home-card" style={{padding:'12px',display:'flex',flexDirection:'column'}}>
+        <Card className="home-card" style={{padding:'12px',display:'flex',flexDirection:'column',background:fundoCardOceano(2)}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:9}}>
             <span style={{fontSize:12.5,fontWeight:600,color:T.text}}>Lembretes</span>
             <BtnVer tab="lembretes"/>
@@ -826,7 +847,7 @@ const TabInicio = ({ setTab, onGoAlexa, activeTheme = 'blue', userPhoto: userPho
         </Card>
 
         {/* Avisos RH */}
-        <Card className="home-card" style={{padding:'12px',display:'flex',flexDirection:'column'}}>
+        <Card className="home-card" style={{padding:'12px',display:'flex',flexDirection:'column',background:fundoCardOceano(3)}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:9}}>
             <span style={{fontSize:12.5,fontWeight:600,color:T.text}}>Avisos do RH</span>
             <BtnVer tab="comunicados"/>
