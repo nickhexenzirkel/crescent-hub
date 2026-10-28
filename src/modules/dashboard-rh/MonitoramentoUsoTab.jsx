@@ -179,7 +179,7 @@ export default function MonitoramentoUsoTab() {
     const total = ranking.reduce((soma, pessoa) => soma + pessoa.segundos, 0);
     const agora = atualizadoEm?.getTime() || 0;
     const online = dados.presencas.filter((presenca) =>
-      presenca.is_active && (agora - new Date(presenca.last_seen_at).getTime()) <= 90000)
+      (agora - new Date(presenca.last_seen_at).getTime()) <= 180000)
       .map((presenca) => ({ ...presenca, pessoa: funcionarioPorId.get(presenca.employee_id) }))
       .filter((presenca) => presenca.pessoa);
     const temas = new Map();
@@ -277,7 +277,7 @@ export default function MonitoramentoUsoTab() {
         <Cartao titulo="Uso geral" subtitulo={`Tempo ativo por dia nos últimos ${periodo} dias`}>
           <GraficoBarras itens={resumo.labelsDias} cor={T.gold} />
         </Cartao>
-        <Cartao titulo="Pessoas online" subtitulo="Aba visível e em foco nos últimos 90 segundos">
+        <Cartao titulo="Pessoas online" subtitulo="Uniko aberto no navegador com conexão recente (até 3 minutos)">
           {resumo.online.length ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {resumo.online.map((presenca) => (
@@ -389,7 +389,7 @@ export default function MonitoramentoUsoTab() {
       </Cartao>
 
       <div style={{ color: T.textT, fontSize: 11, lineHeight: 1.5 }}>
-        O tempo é contado somente com o sistema aberto em uma aba visível e em foco. A presença pode levar até 90 segundos para deixar de aparecer após fechar o navegador. O histórico não é retroativo.
+        O tempo é contado somente com o sistema aberto em uma aba visível e em foco. A presença online continua enquanto o Uniko estiver aberto no navegador e pode levar até 3 minutos para desaparecer após fechar a aba ou perder a conexão. O histórico não é retroativo.
       </div>
     </div>
   );
