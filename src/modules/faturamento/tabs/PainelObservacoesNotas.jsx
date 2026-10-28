@@ -164,7 +164,7 @@ export const PainelObservacoesNotas = () => {
       numeros: faltantes,
       contas,
       onLog: (t) => setEmail((e) => e && { ...e, log: [...e.log.slice(-4), t] }),
-      onProgresso: (p) => setEmail((e) => e && { ...e, feitos: p.feitos, total: p.total, conta: p.conta }),
+      onProgresso: (p) => setEmail((e) => e && { ...e, progressoContas: p.contas || [] }),
       onArquivo: async (a) => {
         const texto = await textoDoPdf(pdfjsLib, a.bytes);
         recebidos++;
@@ -302,8 +302,8 @@ export const PainelObservacoesNotas = () => {
                 Procurar as {faltam} que faltam nos e-mails
               </div>
               <div style={{ fontSize: 12, color: T.textT, marginBottom: 12, lineHeight: 1.5 }}>
-                Usa a extensão <strong>Uniko — Notas por e-mail</strong>: ela abre o Gmail das contas abaixo (que precisam estar logadas neste Chrome),
-                acha o PDF de cada nota, e o Uniko lê o corpo, conferindo número e CNPJ. Deixe a janela do Gmail que abrir visível até terminar.
+                Usa a extensão <strong>Uniko — Notas por e-mail</strong>: ela abre uma janela do Gmail para cada conta abaixo (que precisa estar logada neste Chrome)
+                e pesquisa as contas ao mesmo tempo. O Uniko lê o corpo dos PDFs, conferindo número e CNPJ. Deixe as janelas abertas e visíveis até terminar.
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                 <label style={{ fontSize: 13, color: T.textS }}>
@@ -329,7 +329,9 @@ export const PainelObservacoesNotas = () => {
               </div>
               {email?.rodando && (
                 <div style={{ marginTop: 12, fontSize: 12, color: T.textS, lineHeight: 1.6 }}>
-                  {email.total > 0 && <div><strong>{email.feitos} de {email.total}</strong> nota(s) verificadas na conta /u/{email.conta}/</div>}
+                  {email.progressoContas?.map((p) => (
+                    <div key={p.conta}>Conta /u/{p.conta}/: <strong>{p.feitos} de {p.total}</strong> notas verificadas</div>
+                  ))}
                   {email.log.map((t, i) => <div key={i} style={{ color: T.textT }}>{t}</div>)}
                 </div>
               )}

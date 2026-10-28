@@ -7,6 +7,8 @@ metadata:
 
 O modulo exibido como **"Oficina Estelar"** tem id interno `faturamento` (`src/modules/faturamento/`, rota `screen==='faturamento'`). Foi renomeado de "Faturamento" e liberado para todos (`adminOnly:false` no ModuleSelector).
 
+**Busca de notas fiscais no Gmail** (`extension-notas-email/` + `PainelObservacoesNotas.jsx`): a extensão abre uma janela do Gmail para cada conta configurada e pesquisa as contas em paralelo. O painel exibe o progresso separado por conta. Ao alterar os arquivos da extensão, recarregue-a em `chrome://extensions` e atualize o Uniko (F5).
+
 Visibilidade das abas (atualizado jul/2026 — a memoria antiga dizia que comuns viam xml+assinatura por padrao, mas o codigo tinha isso 100% admin-only; corrigido pra liberacao por CPF, ver abaixo):
 - **Todos** veem "Ferramenta de Edicao" (id `oficina`, editor de PDF geral) e Inicio.
 - **Admin** ve tudo: Controle de Notas, Assinatura Automatica, Carta de Correcao, Historico de Assinatura, Relatorio de Consumo, Ordens, Compilador, Laboratorio, Oficio.

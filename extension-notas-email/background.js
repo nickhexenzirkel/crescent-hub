@@ -1,6 +1,6 @@
 // Serviço da extensão "Uniko — Notas por e-mail".
-// Recebe do Uniko a lista de notas que faltam, abre o Gmail de cada conta em uma
-// aba de segundo plano, manda buscar e repassa ao Uniko cada PDF achado.
+// Recebe do Uniko a lista de notas que faltam, abre o Gmail de cada conta,
+// manda buscar em paralelo e repassa ao Uniko cada PDF achado.
 // Reaproveita a sessão que você já tem aberta — a extensão nunca vê senha.
 
 import { iniciarOrdens, cancelarOrdens } from './ordens.js';
@@ -22,7 +22,7 @@ const log = (job, jobId, texto) => paraUniko(job, { type: 'NOTASMAIL_LOG', jobId
 // O Gmail abre numa JANELA própria e visível (não numa aba escondida): o Chrome
 // desacelera muito as abas em segundo plano e a busca levava ~40 s por nota
 // (medido); numa janela visível ela roda em velocidade normal.
-async function abrirGmail(conta) {
+async function abrirGmail(conta, cancelado = () => false) {
   const janela = await chrome.windows.create({
     url: `https://mail.google.com/mail/u/${conta}/`,
     type: 'popup', width: 1100, height: 800, focused: true,
@@ -30,6 +30,10 @@ async function abrirGmail(conta) {
   const tab = janela.tabs[0];
   const fim = Date.now() + 45000;
   while (Date.now() < fim) {
+    if (cancelado()) {
+      await chrome.windows.remove(janela.id).catch(() => {});
+      return null;
+    }
     await esperar(1500);
     try {
       const r = await chrome.tabs.sendMessage(tab.id, { type: 'NOTASMAIL_G_PING' });
@@ -43,36 +47,39 @@ async function abrirGmail(conta) {
 }
 
 async function executar(jobId, job, numeros, contas) {
-  const totalBuscas = numeros.length * contas.length;
-  let feitasAntes = 0;
   const encontrados = new Set();
   let arquivos = 0;
+  job.progressoContas = new Map(contas.map((conta) => [conta, 0]));
 
-  for (const conta of contas) {
-    if (job.cancelado) break;
-    await log(job, jobId, `Abrindo o Gmail da conta /u/${conta}/ …`);
-    const aberta = await abrirGmail(conta);
-    if (!aberta) {
-      await log(job, jobId, `Conta /u/${conta}/ não respondeu (não está logada?) — pulei.`);
-      feitasAntes += numeros.length;
-      continue;
-    }
-    job.abas.add(aberta.tab.id);
-    await log(job, jobId, `Procurando ${numeros.length} nota(s) em ${aberta.email || 'conta ' + conta} — deixe a janela do Gmail aberta e visível até terminar.`);
+  const buscarConta = async (conta) => {
+    if (job.cancelado) return null;
+    let aberta;
     try {
+      await log(job, jobId, `Abrindo o Gmail da conta /u/${conta}/ …`);
+      aberta = await abrirGmail(conta, () => job.cancelado);
+      if (job.cancelado) return null;
+      if (!aberta) {
+        await log(job, jobId, `Conta /u/${conta}/ não respondeu (não está logada?) — pulei.`);
+        return null;
+      }
+      job.abas.add(aberta.tab.id);
+      await log(job, jobId, `Procurando ${numeros.length} nota(s) em ${aberta.email || 'conta ' + conta} — deixe a janela do Gmail aberta e visível até terminar.`);
       const r = await chrome.tabs.sendMessage(aberta.tab.id, {
-        type: 'NOTASMAIL_G_BUSCAR', jobId, conta, numeros, base: feitasAntes, totalGeral: totalBuscas,
+        type: 'NOTASMAIL_G_BUSCAR', jobId, conta, numeros,
       });
       if (r?.erro) await log(job, jobId, `Conta /u/${conta}/: ${r.erro}`);
       (r?.encontrados || []).forEach((n) => encontrados.add(n));
       arquivos += r?.arquivos || 0;
     } catch (e) {
-      await log(job, jobId, `Conta /u/${conta}/: ${e?.message || 'falha na busca'}`);
+      await log(job, jobId, `Conta /u/${conta}/: ${e?.message || 'falha ao buscar ou comunicar com o Gmail'}`);
+    } finally {
+      if (aberta) {
+        await chrome.windows.remove(aberta.janelaId).catch(() => {});
+        job.abas.delete(aberta.tab.id);
+      }
     }
-    feitasAntes += numeros.length;
-    await chrome.windows.remove(aberta.janelaId).catch(() => {});
-    job.abas.delete(aberta.tab.id);
-  }
+  };
+  await Promise.all(contas.map(buscarConta));
 
   await paraUniko(job, {
     type: 'NOTASMAIL_DONE', jobId, cancelado: job.cancelado,
@@ -110,9 +117,14 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
         type: 'NOTASMAIL_ARQUIVO', jobId: msg.jobId, conta: msg.conta, email: msg.email,
         numeros: msg.numeros, nome: msg.nome, assunto: msg.assunto, dataEmail: msg.dataEmail, base64: msg.base64,
       });
-    else if (msg.type === 'NOTASMAIL_G_PROGRESSO')
-      paraUniko(job, { type: 'NOTASMAIL_PROGRESSO', jobId: msg.jobId, conta: msg.conta, feitos: msg.feitos, total: msg.total });
-    else if (msg.type === 'NOTASMAIL_G_LOG') log(job, msg.jobId, msg.texto);
+    else if (msg.type === 'NOTASMAIL_G_PROGRESSO') {
+      job.progressoContas?.set(msg.conta, msg.feitos);
+      paraUniko(job, {
+        type: 'NOTASMAIL_PROGRESSO',
+        jobId: msg.jobId,
+        contas: [...(job.progressoContas || new Map())].map(([conta, feitos]) => ({ conta, feitos, total: msg.total })),
+      });
+    } else if (msg.type === 'NOTASMAIL_G_LOG') log(job, msg.jobId, msg.texto);
     return;
   }
 

@@ -7,6 +7,7 @@ e-mails (Gmail) e devolve o arquivo para o Uniko ler.
 ## Como instalar (uma vez)
 1. Abra `chrome://extensions` e ligue o **Modo do desenvolvedor** (canto superior direito).
 2. Clique em **Carregar sem compactação** e escolha esta pasta (`extension-notas-email`).
+   Se a extensão já estiver instalada, clique em **Recarregar** no cartão dela para aplicar a versão 1.5.0.
 3. Recarregue o Uniko (F5). Se aparecer erro de "Extensão não encontrada", confira se o
    endereço do Uniko é um dos de `manifest.json → content_scripts[0].matches`.
 
@@ -15,8 +16,10 @@ e-mails (Gmail) e devolve o arquivo para o Uniko ler.
 2. Fique logado no Gmail das contas que serão pesquisadas (as duas que guardam as notas: adm7serv e faturamento).
 3. Em **Procurar as N que faltam nos e-mails**, informe o número de cada conta como aparece na URL
    (`mail.google.com/mail/u/`**2**`/` → `2`). Ex.: `1,2`. Clique em **Procurar nos e-mails**.
-4. Abre-se uma janela do Gmail por conta. **Deixe-a visível** até terminar (o Chrome desacelera muito
-   janelas escondidas). A extensão fecha a janela sozinha.
+4. Abre-se uma janela do Gmail para cada conta selecionada, e as contas são pesquisadas ao mesmo tempo.
+   **Deixe as janelas abertas e visíveis** até terminar (o Chrome desacelera muito janelas escondidas).
+   O andamento mostra separadamente quantas notas foram verificadas em cada conta; a extensão fecha
+   as janelas sozinha.
 5. Os PDFs achados aparecem na tabela do Uniko; depois é só **Baixar Excel**.
 
 ## Como funciona
