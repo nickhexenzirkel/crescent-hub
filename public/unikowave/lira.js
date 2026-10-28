@@ -89,6 +89,9 @@
   const KEY_MUDO = 'dw_lira_mudo_erro';
   let mudoErro = true;
   try{ mudoErro = localStorage.getItem(KEY_MUDO) !== '0'; }catch(_){}
+  const KEY_INSTRUMENTO = 'dw_lira_instrumento';
+  let instrumento = 'lira';
+  try{ instrumento = localStorage.getItem(KEY_INSTRUMENTO)==='piano' ? 'piano' : 'lira'; }catch(_){}
 
   // Modos: 'maestro' (guiado, espera você) e 'frenesi' (notas caem do céu no tempo certo)
   // Celular/iPhone: toque (sem teclado) e tela estreita (retrato) mudam alguns padrões.
@@ -113,19 +116,23 @@
     b[id] = stars; try{ localStorage.setItem(KEY_BEST, JSON.stringify(b)); }catch(_){}
   }
 
-  /* ---------- Som (lira sintetizada) ---------- */
-  let ac = null, master = null;
+  /* ---------- Som (corda dedilhada por síntese Karplus-Strong) ---------- */
+  let ac = null, master = null, pluckTone = null;
+  const pluckBuffers = new Map();
   function audio(){
     if(!ac){
       try{
         ac = new (window.AudioContext||window.webkitAudioContext)();
         master = ac.createGain(); master.gain.value = 0.8;
-        // eco leve, dá o "ar" de harpa
-        const delay = ac.createDelay(1); delay.delayTime.value = 0.21;
-        const fb = ac.createGain(); fb.gain.value = 0.3;
-        const wet = ac.createGain(); wet.gain.value = 0.28;
-        master.connect(ac.destination);
-        master.connect(delay); delay.connect(fb); fb.connect(delay); delay.connect(wet); wet.connect(ac.destination);
+        pluckTone = ac.createBiquadFilter(); pluckTone.type = 'highshelf';
+        pluckTone.frequency.value = 1800; pluckTone.gain.value = instrumento==='piano' ? 0 : 3;
+        // Eco discreto e mais claro, para preservar o ataque da corda.
+        const delay = ac.createDelay(1); delay.delayTime.value = 0.22;
+        const fb = ac.createGain(); fb.gain.value = 0.2;
+        const ecoTone = ac.createBiquadFilter(); ecoTone.type = 'lowpass'; ecoTone.frequency.value = 6500;
+        const wet = ac.createGain(); wet.gain.value = 0.18;
+        pluckTone.connect(master); master.connect(ac.destination);
+        master.connect(delay); delay.connect(ecoTone); ecoTone.connect(fb); fb.connect(delay); delay.connect(wet); wet.connect(ac.destination);
       }catch(_){ ac = null; }
     }
     if(ac && ac.state==='suspended') ac.resume();
@@ -139,17 +146,51 @@
   function pluck(cell){
     const a = audio(); if(!a) return;
     const f = freqOf(cell), t = a.currentTime;
-    const dur = f < 200 ? 2.2 : f < 450 ? 1.7 : 1.3;
-    const partes = [[1,'triangle',0.55,dur],[2,'sine',0.22,dur*0.6],[3,'sine',0.08,dur*0.35],[4,'sine',0.04,dur*0.2]];
-    partes.forEach(([mul,tipo,vol,d])=>{
-      const o = a.createOscillator(), g = a.createGain();
-      o.type = tipo; o.frequency.value = f*mul;
-      g.gain.setValueAtTime(0.0001,t);
-      g.gain.linearRampToValueAtTime(vol,t+0.006);
-      g.gain.exponentialRampToValueAtTime(0.0008,t+d);
-      o.connect(g); g.connect(master);
-      o.start(t); o.stop(t+d+0.05);
-    });
+    const cacheKey = instrumento+':'+cell;
+    let buffer = pluckBuffers.get(cacheKey);
+    if(!buffer){
+      const sampleRate = a.sampleRate;
+      const dur = instrumento==='piano' ? (f < 200 ? 2.4 : 1.9) : (f < 200 ? 2.8 : f < 450 ? 2.2 : 1.7);
+      const length = Math.ceil(sampleRate*dur);
+      const samples = new Float32Array(length);
+      if(instrumento==='piano'){
+        const partials = [1,0.56,0.32,0.2,0.13,0.085,0.055];
+        const inharmonicity = 0.00012;
+        for(let i=0;i<length;i++){
+          const time = i/sampleRate;
+          let sample = 0;
+          for(let h=0;h<partials.length;h++){
+            const harmonic = h+1;
+            const decayTime = (f < 200 ? 2.1 : 1.65)/Math.pow(harmonic,0.72);
+            const frequency = f*harmonic*Math.sqrt(1+inharmonicity*harmonic*harmonic);
+            sample += partials[h]*Math.exp(-time/decayTime)*Math.sin(2*Math.PI*frequency*time);
+          }
+          if(i < sampleRate*0.008) sample += (Math.random()*2-1)*(1-i/(sampleRate*0.008))*0.035;
+          samples[i] = sample*0.34;
+        }
+      } else {
+        const period = Math.max(2, Math.round(sampleRate/f));
+        const string = new Float32Array(period);
+        const decay = Math.pow(0.001, period/length);
+        for(let i=0;i<period;i++) string[i] = Math.random()*2-1;
+        let pos = 0;
+        for(let i=0;i<length;i++){
+          const next = (pos+1)%period;
+          const sample = (string[pos]+string[next])*0.5;
+          string[pos] = sample*decay;
+          samples[i] = sample;
+          pos = next;
+        }
+      }
+      buffer = a.createBuffer(1,length,sampleRate);
+      buffer.copyToChannel(samples,0);
+      pluckBuffers.set(cacheKey,buffer);
+    }
+    const source = a.createBufferSource(), gain = a.createGain();
+    source.buffer = buffer;
+    gain.gain.value = 0.72;
+    source.connect(gain); gain.connect(pluckTone);
+    source.start(t);
   }
   function sfxErro(){
     const a = audio(); if(!a) return;
@@ -265,6 +306,8 @@
 #liraScr .lb-song .nv{font-style:normal;padding:1px 7px;border-radius:999px;background:rgba(255,255,255,.14);margin-right:4px}
 #liraScr .lb-song .nv-Fácil{background:rgba(80,220,140,.3)}#liraScr .lb-song .nv-Médio{background:rgba(255,200,60,.3)}#liraScr .lb-song .nv-Difícil{background:rgba(255,95,130,.35)}
 #liraScr .lb-modes{display:grid;grid-template-columns:1fr 1fr;gap:12px;flex:0 0 auto}
+#liraScr .lb-instruments{display:grid;grid-template-columns:1fr 1fr;gap:10px;flex:0 0 auto}
+#liraScr .lb-instrument{padding:1.2vh 8px;font-weight:700;font-size:clamp(11px,1.8vh,15px)}
 #liraScr .lb-card,#liraScr .lb-opt{background:rgba(255,255,255,.07);border:2px solid rgba(255,255,255,.15);color:#fff;border-radius:14px;cursor:pointer;transition:border-color .15s,background .15s}
 #liraScr .lb-card{display:flex;flex-direction:column;gap:.6vh;padding:1.8vh 12px;text-align:center;align-items:center}
 #liraScr .lb-card b{font-size:clamp(11px,2.1vh,17px)}
@@ -362,6 +405,11 @@
               <button class="lb-card" data-a="modo-maestro" id="lrMM"><b>🎼 MODO MAESTRO</b><small>A lira te guia nota por nota</small></button>
               <button class="lb-card" data-a="modo-frenesi" id="lrMF"><b>🌠 FRENESI ESTELAR</b><small>Estrelas caem no ritmo</small></button>
             </div>
+            <div class="lb-h">SOM DA PARTIDA</div>
+            <div class="lb-instruments">
+              <button class="lb-opt lb-instrument" data-a="instrumento-lira" id="lrSomLira">🎵 Som de Lira</button>
+              <button class="lb-opt lb-instrument" data-a="instrumento-piano" id="lrSomPiano">🎹 Som de Piano</button>
+            </div>
             <div id="lrOpts">
               <div class="lb-h">3 · DIFICULDADE (VELOCIDADE)</div>
               <div class="lb-row3">
@@ -411,6 +459,8 @@
       else if(a==='again'){ escolher(song); if(modo==='frenesi' && song) frenesiIniciar(); }
       else if(a==='modo-maestro') trocarModo('maestro');
       else if(a==='modo-frenesi') trocarModo('frenesi');
+      else if(a==='instrumento-lira') trocarInstrumento('lira');
+      else if(a==='instrumento-piano') trocarInstrumento('piano');
       else if(a.startsWith('dif-')) trocarDif(a.slice(4));
       else if(a==='nt-todas') trocarFacil(false);
       else if(a==='nt-facil') trocarFacil(true);
@@ -418,7 +468,7 @@
       else if(a==='fstop'){ frenesiParar(); atualizar(); }
       else if(a==='next'){ const i = SONGS.indexOf(song); escolher(SONGS[(i+1)%SONGS.length]); }
     });
-    renderSongs(); rotuloMudo(); rotuloModo();
+    renderSongs(); rotuloMudo(); rotuloModo(); rotuloInstrumento();
     window.addEventListener('resize',()=>{ if(fv) fzGeom(); });
     root.querySelector('#lrFall').addEventListener('pointerdown',e=>{
       if(!fv || !openFlag) return; e.preventDefault();
@@ -433,6 +483,18 @@
     const b = root.querySelector('#lrMudo');
     b.textContent = mudoErro ? '🔇 ERRO SEM SOM: SIM' : '🔊 ERRO SEM SOM: NÃO';
     b.style.borderColor = mudoErro ? '#7ff0ff' : '';
+  }
+
+  function trocarInstrumento(novo){
+    if(novo!=='lira' && novo!=='piano') return;
+    instrumento = novo;
+    try{ localStorage.setItem(KEY_INSTRUMENTO, instrumento); }catch(_){}
+    if(pluckTone) pluckTone.gain.value = instrumento==='piano' ? 0 : 3;
+    rotuloInstrumento();
+  }
+  function rotuloInstrumento(){
+    root.querySelector('#lrSomLira').classList.toggle('sel', instrumento==='lira');
+    root.querySelector('#lrSomPiano').classList.toggle('sel', instrumento==='piano');
   }
 
   function renderSongs(){
@@ -621,14 +683,32 @@
     frenesiParar();
     const notes = []; let t = 0;
     const info = facil ? facilInfo() : null;
-    song.steps.forEach(p=>{
+    const autoSteps = new Set();
+    if(info){
+      const maxIntervalo = 0.55, minSequencia = 9;
+      let inicioSequencia = 0;
+      const marcarSequencia = fim => {
+        if(fim-inicioSequencia >= minSequencia){
+          for(let i=inicioSequencia+2;i<fim;i+=3) autoSteps.add(i);
+        }
+      };
+      for(let i=1;i<song.steps.length;i++){
+        if(stepMs(song,song.steps[i-1])/1000 > maxIntervalo){
+          marcarSequencia(i);
+          inicioSequencia = i;
+        }
+      }
+      marcarSequencia(song.steps.length);
+    }
+    song.steps.forEach((p,stepIndex)=>{
+      const automatico = autoSteps.has(stepIndex);
       if(info){
         const por = {}; p.c.forEach(c=>{ (por[info.laneOf[c]] = por[info.laneOf[c]] || []).push(c); });
-        Object.keys(por).forEach(l=>notes.push({ c:+l, cells:por[l], t, st:'pending' }));
-      } else p.c.forEach(c=>notes.push({ c, cells:[c], t, st:'pending' }));
+        Object.keys(por).forEach(l=>notes.push({ c:+l, cells:por[l], t, st:'pending', auto:automatico }));
+      } else p.c.forEach(c=>notes.push({ c, cells:[c], t, st:'pending', auto:false }));
       t += stepMs(song,p)/1000;
     });
-    fz = { info, notes, lo:0, last:t, t0:performance.now()+FZ_LEAD*1000, perfect:0, good:0, miss:0, stray:0, score:0, combo:0, max:0, end:0 };
+    fz = { info, notes, lo:0, last:t, t0:performance.now()+FZ_LEAD*1000, perfect:0, good:0, miss:0, stray:0, auto:0, score:0, combo:0, max:0, end:0 };
     root.querySelector('#lrEnd').classList.remove('on');
     atualizar();
   }
@@ -652,6 +732,7 @@
     const now = fzNow(); let best = null;
     for(let i=fz.lo;i<fz.notes.length;i++){
       const n = fz.notes[i]; if(n.t-now > FZ_BOM) break;
+      if(n.auto) continue;
       if(n.st==='pending' && n.c===cell){ const d = Math.abs(n.t-now); if(d<=FZ_BOM && (!best || d<best.d)) best = { n, d }; }
     }
     if(best){
@@ -683,8 +764,14 @@
     const f = fz, N = f ? f.notes : [], now = f ? fzNow() : 0;
     // jogo: notas que passaram da janela = Miss
     if(f){
-      for(let i=f.lo;i<N.length && N[i].t+FZ_BOM < now;i++){
-        if(N[i].st==='pending'){ N[i].st='miss'; f.miss++; f.combo = 0; fzJulga('Miss','#ff8aa8'); fzBurst(N[i].c,'miss'); fzStats(); }
+      for(let i=f.lo;i<N.length;i++){
+        const n = N[i];
+        if(n.t > now+FZ_BOM) break;
+        if(n.auto && n.st==='pending' && n.t<=now){
+          n.st='auto'; f.auto++; n.cells.forEach(pluck);
+        } else if(n.t+FZ_BOM < now && n.st==='pending'){
+          n.st='miss'; f.miss++; f.combo = 0; fzJulga('Miss','#ff8aa8'); fzBurst(n.c,'miss'); fzStats();
+        }
       }
       while(f.lo<N.length && N[f.lo].st!=='pending') f.lo++;
       root.querySelector('#lrProg').style.width = Math.max(0,Math.min(1,now/f.last))*100+'%';
@@ -710,7 +797,7 @@
 
     // notas que estão chegando (brilho no círculo)
     const alvo = new Set();
-    for(let i=f?f.lo:0;i<N.length && N[i].t-now < 0.4;i++) if(N[i].st==='pending') alvo.add(N[i].c);
+    for(let i=f?f.lo:0;i<N.length && N[i].t-now < 0.4;i++) if(N[i].st==='pending' && !N[i].auto) alvo.add(N[i].c);
 
     // círculos de acerto + teclas
     const rc = Math.min(g.w,90)*0.44;
@@ -731,7 +818,7 @@
     const ahead = g.hitY/g.speed + 0.05;
     for(let i=f?f.lo:0;i<N.length;i++){
       const n = N[i]; if(n.t-now > ahead) break;
-      if(n.st!=='pending') continue;
+      if(n.st!=='pending' || n.auto) continue;
       const x = g.x[n.c], y = g.hitY-(n.t-now)*g.speed, cor = corDe(n.c);
       // estrela de 4 pontas com rastro e brilho (cor por trilha)
       const r = Math.min(g.w*0.5, facil?46:26);
@@ -809,7 +896,7 @@
 
   function frenesiFim(){
     const f = fz; if(!f) return;
-    const total = f.notes.length, prec = (f.perfect+f.good*0.6)/total;
+    const total = f.notes.filter(n=>!n.auto).length, prec = (f.perfect+f.good*0.6)/Math.max(1,total);
     const est = prec>=0.9?3:prec>=0.7?2:1;
     saveBest(bestKey(song.id), est); renderSongs(); sfxFim();
     const gw = (f.perfect+f.good >= total/2) ? premiarGW(song.id+'|f|'+dif, GW_FRENESI[dif]+est) : 0;
@@ -817,7 +904,7 @@
     root.querySelector('#lrCard').innerHTML = `
       <h2>FRENESI COMPLETO!</h2><p>${song.nome}</p>
       <div class="lr-stars-row">${star}</div>
-      <p>Pontos: <b>${f.score}</b> · Perfeitos: <b>${f.perfect}</b> · Bons: <b>${f.good}</b></p>
+      <p>Pontos: <b>${f.score}</b> · Perfeitos: <b>${f.perfect}</b> · Bons: <b>${f.good}</b>${f.auto ? ` · Notas automáticas: <b>${f.auto}</b>` : ''}</p>
       <p>Errou: <b>${f.miss}</b> · Toques fora: <b>${f.stray}</b> · Maior combo: <b>${f.max}</b></p>
       ${gwLinha(gw)}
       <div class="lr-btns"><button class="lr-btn pri" data-a="again">Jogar de novo</button><button class="lr-btn" data-a="next">Próxima música</button><button class="lr-btn" data-a="lobby">Menu de músicas</button></div>`;
