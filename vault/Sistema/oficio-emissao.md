@@ -9,6 +9,8 @@ Criada em 07/out/2026: aba `oficio-emissao` (Oficina Estelar, id interno faturam
 
 Dois modelos: **Eusébio** (o ofício atual do Uniko Detetive: contrato nº + objeto) e **Juazeiro do Piauí** (Requerimento de Pagamento, do .docx `MODELO DE REQUERIMENTO DE PAGAMENTO- PIAUI.docx`: secretaria, tipo de faturamento, período, vencimento; campos variáveis em vermelho como no modelo, com toggle). Piauí reproduz coordenadas/cores do PDF que o Word gera (extraídas com pymupdf).
 
+**IR retido no modelo Juazeiro do Piauí:** os valores de 1,20% (peças), 4,80% (serviços) e 0,24% (abastecimento) são extraídos separadamente da discriminação da NFS-e e impressos após o parágrafo do pagamento. Sem linhas de IR nem indicação explícita de dispensa, as linhas não são adicionadas.
+
 **Why:** o time fazia esses ofícios à mão/no app Electron; agora roda no navegador.
 
 **How to apply:** liberada pra TODOS (07/out/2026, junto com a Carta de Correção); gate removido de Sidebar/index/TabInicio. Assinante dos dois modelos = Cleanderson Pereira Batista (rúbrica `assets/assinatura-cleanderson.png`, CPF 605.487.433-04 no Piauí; constante `SIGNATARIO`). Armadilha: pdf-lib MEDE com kerning mas DESENHA sem — medir letra por letra (`larg()`), senão espaços colam. Corrigi typos do docx (CNPJ 13.858.769, "Torrre"→"Torre"). Veja [[oficina-estelar-modulo]].

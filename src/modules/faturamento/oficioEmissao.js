@@ -140,14 +140,14 @@ const extractTipo = (text, filename = '') => {
   return null;
 };
 
-/* IR retido: só serve de confirmação pra dizer que "sem linha de desconto" é zero. */
+/* IR retido por alíquota: também alimenta as linhas de impostos do modelo Piauí. */
 const ALIQUOTAS = { peca: [1.2, 5.85], servico: [4.8, 9.45], abast: [0.24, 1.24] };
 const ORDEM = ['peca', 'servico', 'abast'];
 const extrairIr = (norm) => {
   const linhas = [...norm.matchAll(/NAO OPT(?:ANTE)?\.?\s+DO SIMPLES NACIONAL\s+([\d,]+)\s*%\s*=\s*R\$\s*([\d.,]+)/g)]
     .map((m) => ({ aliquota: parseMoedaBr(m[1]), valor: parseMoedaBr(m[2]) }));
   const dispensado = /DISPENSADOS DA RETENCAO DO IMPOSTO/.test(norm);
-  if (!linhas.length) return dispensado ? 0 : null;
+  if (!linhas.length) return dispensado ? { peca: 0, servico: 0, abast: 0 } : null;
   const out = { peca: null, servico: null, abast: null };
   const sem = [];
   linhas.forEach((l, i) => {
@@ -156,7 +156,7 @@ const extrairIr = (norm) => {
   });
   if (linhas.length === ORDEM.length) for (const { i, valor } of sem) { const nat = ORDEM[i]; if (nat && out[nat] === null) out[nat] = valor; }
   for (const k of ORDEM) if (out[k] === null) out[k] = 0;
-  return out.peca + out.servico + out.abast;
+  return out;
 };
 
 const TOTAL = /REEMBOLSO\s+DE\s+SERVICOS\s+DE|TOTAL\s+DA\s+FATURA\s+DE\s+CONSUMO/;
@@ -241,7 +241,9 @@ export const lerNota = async (arquivo) => {
     const reembolso = mReemb ? parseMoedaBr(mReemb[1]) : null;
     const mLiq = /VALOR\s+LIQUIDO\s+A\s+RECEBER\s+DO\s+CLIENTE\s*:?\s*R\$\s*([\d.,]+)/.exec(norm);
     const liquido = mLiq ? parseMoedaBr(mLiq[1]) : null;
-    const desconto = extrairDesconto(norm, reembolso, extrairIr(norm), liquido);
+    const irRetido = extrairIr(norm);
+    const somaIr = irRetido ? irRetido.peca + irRetido.servico + irRetido.abast : null;
+    const desconto = extrairDesconto(norm, reembolso, somaIr, liquido);
     const valorBruto = reembolso === null ? null : Math.round((reembolso + (desconto ?? 0)) * 100) / 100;
 
     const ini = parseDataBr(periodo?.[0]);
@@ -253,7 +255,7 @@ export const lerNota = async (arquivo) => {
 
     return {
       status: problemas.length ? 'incompleto' : 'ok', problemas,
-      numero, periodo, mesReferencia, valorBruto, valorLiquido: liquido,
+      numero, periodo, mesReferencia, valorBruto, valorLiquido: liquido, irRetido,
       tipo: extractTipo(texto, nome),
       secretaria: limparSecretaria(secretaria),
     };
@@ -427,7 +429,7 @@ export const tipoPadraoPiaui = (tipo) => (tipo === 'MANUTENÇÃO' ? 'Manutençã
 /** "2026-09-30" (campo de data) → "30/09/2026". */
 export const dataBr = (iso) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || ''); return m ? `${m[3]}/${m[2]}/${m[1]}` : ''; };
 
-export const gerarPiaui = async ({ numeroNota, secretaria, valorBruto, valorLiquido, tipo, periodo, vencimento, comRubrica = false }) => {
+export const gerarPiaui = async ({ numeroNota, secretaria, valorBruto, valorLiquido, irRetido, tipo, periodo, vencimento, comRubrica = false }) => {
   const { doc, f, logo } = await abrirDoc(`Requerimento de Pagamento - NF ${numeroNota}`);
   const p = doc.addPage(PAG_PIAUI);
   const VAR = PRETO; // tudo em preto (no arquivo de modelo os campos variáveis vêm em vermelho; aqui não)
@@ -472,10 +474,32 @@ export const gerarPiaui = async ({ numeroNota, secretaria, valorBruto, valorLiqu
     R(' do período de '), B(periodoCurto(periodo), VAR), R('.'),
   ], 450.7 + extra, { indente: 37.3 });
 
-  // O texto ficou maior: se passar do espaço que o modelo reserva, empurra o vencimento e a assinatura
-  // pra baixo (2 linhas de respiro abaixo do último parágrafo, como no modelo).
+  const aliquotasIr = irRetido && [
+    { aliquota: '1,20%', valor: irRetido.peca },
+    { aliquota: '4,80%', valor: irRetido.servico },
+    { aliquota: '0,24%', valor: irRetido.abast },
+  ];
+  let fimImpostos = fimTexto;
+  if (aliquotasIr) {
+    let yImposto = fimTexto - 27.6;
+    aliquotasIr.forEach(({ aliquota, valor }) => {
+      fimImpostos = paragrafo(p, [
+        R(`VALOR DO IR RETIDO DA REDE CREDENCIADA, NÃO OPTANTE DO SIMPLES NACIONAL ${aliquota} = R$ ${formatarReais(valor)}.`),
+      ], {
+        x: X,
+        y: yImposto,
+        largura: LARGURA,
+        entrelinha: 11,
+        size: 9.5,
+        justificar: false,
+      });
+      yImposto = fimImpostos - 13.8;
+    });
+  }
+
+  // Reserva espaço para os impostos, vencimento e assinatura sem sobrepor o texto.
   const venc0 = topo(519.7 + extra);
-  const extra2 = Math.max(0, venc0 - (fimTexto - 27.6));
+  const extra2 = Math.max(0, venc0 - (fimImpostos - 27.6));
   const E = extra + extra2;
 
   linha([R('Vencimento em: '), B(`${vencimento}.`, VAR)], 519.7 + E, { indente: 37.3 });

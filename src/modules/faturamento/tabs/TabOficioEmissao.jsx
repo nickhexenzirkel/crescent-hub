@@ -128,7 +128,7 @@ export const TabOficioEmissao = () => {
           const bytes = modelo === 'piaui'
             ? await gerarPiaui({
               numeroNota: r.numero, secretaria: r.secretariaSel.trim(), valorBruto: r.valorBruto, valorLiquido: r.valorLiquido, tipo: r.tipoSel,
-              periodo: r.periodo, vencimento: dataBr(r.venc || vencGlobal), comRubrica,
+              irRetido: r.irRetido, periodo: r.periodo, vencimento: dataBr(r.venc || vencGlobal), comRubrica,
             })
             : await gerarEusebio({
               mesReferencia: r.mesReferencia, numeroNota: r.numero, valorBruto: r.valorBruto,
