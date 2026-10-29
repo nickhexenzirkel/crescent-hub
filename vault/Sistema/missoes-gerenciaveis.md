@@ -40,6 +40,8 @@ O que mudou:
   Cada vitória de Palavras, Stop, Paint ou Speed cria um prêmio pendente na Prisma Store;
   o saldo só muda quando a pessoa clica em **Resgatar vitória**. O administrador configura
   o valor em Prismas na definição da missão. O Uniko Wave fica fora por não ter vencedor.
+  Só partidas com administrador presente geram bônus; o jogo exibe um aviso fixo no topo
+  enquanto houver um administrador na sala. O modo solo do Speed não registra vitórias.
   Se o primeiro colocado for exatamente `admin`, a recompensa passa ao próximo colocado
   que não seja admin; moderadores continuam elegíveis. O SQL usa registro idempotente e
   RPC transacional para impedir crédito duplicado em clique/retry concorrente.

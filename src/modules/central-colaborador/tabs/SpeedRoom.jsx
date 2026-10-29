@@ -26,6 +26,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { supabase, getAuthUser, USER } from '../../../contexts/user';
 import { useGamePlaytime } from '../../../hooks/useGamePlaytime';
 import { recordUnikoGamesWin } from '../../../shared/prismaMissions';
+import GameAdminBanner from './GameAdminBanner';
 import { Corrida, TRACADOS, MAPAS, MAPA_PADRAO, TRACADO_PADRAO, TRILHAS, hashSeed, PreviaPista,
   CARROS, getCarroEscolhido } from './TabUnikoFaster';
 
@@ -438,6 +439,18 @@ function Sala({ roomId, onSairDaSala, onSairApp, telaCheia, toggleTelaCheia }) {
   }, [players, state?.criador]);
   const isHost = host === nome;
 
+  useEffect(() => {
+    if (!isHost || state?.phase !== 'racing' || state?.adminManaged || !players.some(player => player.isAdmin)) return;
+    const current = stateRef.current;
+    if (!current || current.adminManaged) return;
+    const adminNames = new Set(players.filter(player => player.isAdmin).map(player => player.name));
+    const jogadores = (current.jogadores || []).map(player => ({
+      ...player,
+      isAdmin: player.isAdmin || adminNames.has(player.name),
+    }));
+    pushState({ ...current, adminManaged: true, jogadores });
+  }, [isHost, players, state?.phase, state?.adminManaged, pushState]);
+
   /* ── Canal de broadcast da sala: posição de cada carro (efêmero). Só marca
      `chanRef.current` DEPOIS de 'SUBSCRIBED' — mandar (`send`) num canal que
      ainda não terminou de inscrever pode ser descartado em silêncio pelo
@@ -467,6 +480,7 @@ function Sala({ roomId, onSairDaSala, onSairApp, telaCheia, toggleTelaCheia }) {
     setMeuFimHouve(true);
     if (rank !== 1) return;
     const current = stateRef.current;
+    if (current?.adminManaged !== true) return;
     const roles = Object.fromEntries((current?.jogadores || []).map(p => [p.name, !!p.isAdmin]));
     const finalPlacements = (placements || []).map(p => ({
       ...p,
@@ -475,6 +489,7 @@ function Sala({ roomId, onSairDaSala, onSairApp, telaCheia, toggleTelaCheia }) {
     recordUnikoGamesWin({
       game: 'speed',
       matchId: matchId || current?.winMatchId,
+      adminManaged: current.adminManaged === true,
       placements: finalPlacements,
     }).then((registrada) => {
       if (!registrada) console.warn('[uniko-speed] vitória não registrada: missão inativa ou sem recompensa configurada.');
@@ -509,7 +524,8 @@ function Sala({ roomId, onSairDaSala, onSairApp, telaCheia, toggleTelaCheia }) {
     await pushState({
       phase: 'racing', raceCounter, seed, tracado, mapa, trilha, laps,
       countdownEndsAt: Date.now() + COUNTDOWN_MS,
-      jogadores, winMatchId: crypto.randomUUID(),
+      jogadores, adminManaged: players.some(player => player.isAdmin),
+      winMatchId: crypto.randomUUID(),
     });
     setMeuFimHouve(false);
     setIniciando(false);
@@ -535,6 +551,7 @@ function Sala({ roomId, onSairDaSala, onSairApp, telaCheia, toggleTelaCheia }) {
     const humanPlayers = (state.jogadores || []).filter(p => p.name !== nome);
     return (
       <div style={{ position: 'absolute', inset: 0 }}>
+        <GameAdminBanner visible={players.some(player => player.isAdmin)} />
         <Corrida
           multiplayer roomId={roomId} seed={state.seed} laps={state.laps}
           countdownEndsAt={state.countdownEndsAt} humanPlayers={humanPlayers}
@@ -559,6 +576,7 @@ function Sala({ roomId, onSairDaSala, onSairApp, telaCheia, toggleTelaCheia }) {
   // ── Esperando na sala (phase 'waiting') ──
   return (
     <div style={{ position: 'relative', flex: 1, overflowY: 'auto', padding: '26px 22px 40px' }}>
+      <GameAdminBanner visible={players.some(player => player.isAdmin)} />
       <div style={{ maxWidth: 640, margin: '0 auto' }}>
         {/* flexWrap + minWidth:0 no título: nome de sala comprido ou tela
             estreita quebra pra 2ª linha em vez de empurrar os botões pra fora

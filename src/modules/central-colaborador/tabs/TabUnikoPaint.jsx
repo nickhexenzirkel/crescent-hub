@@ -41,6 +41,7 @@ import { useGamePlaytime } from '../../../hooks/useGamePlaytime';
 import { ConvidarButton } from '../../../shared/FriendsInvite';
 import { readPendingJoin, clearPendingJoin, GAME_JOIN_EVENT } from '../../../shared/gameInvites';
 import { recordUnikoGamesWin } from '../../../shared/prismaMissions';
+import GameAdminBanner from './GameAdminBanner';
 
 const ROUND_MS  = 80_000;   // tempo pra desenhar
 const REVEAL_MS = 5_000;    // tela de "a palavra era..."
@@ -1985,7 +1986,17 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker, zoomOut })
   };
 
   useEffect(() => {
-    if (!isHost || state?.phase !== 'over' || state.winRecorded) return;
+    if (!isHost || !['drawing', 'reveal'].includes(state?.phase) || state?.adminManaged) return;
+    const adminsPresentes = players.filter(player => player.isAdmin);
+    if (!adminsPresentes.length) return;
+    const current = stateRef.current;
+    if (!current || current.adminManaged) return;
+    const admins = Object.fromEntries(adminsPresentes.map(player => [player.name, true]));
+    pushState({ ...current, adminManaged: true, admins: { ...current.admins, ...admins } });
+  }, [isHost, players, state?.phase, state?.adminManaged, pushState]);
+
+  useEffect(() => {
+    if (!isHost || state?.phase !== 'over' || !state.adminManaged || state.winRecorded) return;
     let alive = true;
     let saving = false;
     const recordWin = async () => {
@@ -2004,7 +2015,8 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker, zoomOut })
             name: playersRef.current.find((player) => player.name === name)?.conta || name,
             isAdmin: !!current.admins?.[name],
           }));
-        const registrada = await recordUnikoGamesWin({ game: 'paint', matchId: current.winMatchId, placements });
+        const registrada = await recordUnikoGamesWin({ game: 'paint', matchId: current.winMatchId,
+          adminManaged: current.adminManaged === true, placements });
         if (!registrada) return;
         if (!alive) return;
         const latest = stateRef.current;
@@ -2020,7 +2032,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker, zoomOut })
     recordWin();
     const retry = setInterval(recordWin, 15_000);
     return () => { alive = false; clearInterval(retry); };
-  }, [isHost, state?.phase, state?.winMatchId, state?.winRecorded, roomId, pushState]);
+  }, [isHost, state?.phase, state?.winMatchId, state?.winRecorded, state?.adminManaged, roomId, pushState]);
 
   const startGame = () => {
     if (!state) return;                 // sem o state da sala não há tema — ver startRound
@@ -2028,7 +2040,8 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker, zoomOut })
     const queue = Array.from({ length: laps }, () => ordem).flat();
     const winMatchId = crypto.randomUUID();
     const admins = Object.fromEntries(players.map(p => [p.name, !!p.isAdmin]));
-    pushState({ ...state, admins, winMatchId, winRecorded: false });
+    pushState({ ...state, admins, adminManaged: players.some(player => player.isAdmin),
+      winMatchId, winRecorded: false });
     // Semeia o baralho da partida com as palavras RECENTES da sala (as das últimas
     // partidas) já marcadas como usadas → elas ficam pro fim e as palavras novas/menos
     // vistas saem primeiro. Assim "tema Geral de novo" não repete as mesmas de sempre.
@@ -3032,6 +3045,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker, zoomOut })
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12, height: '100%', minHeight: 0, overflow: 'hidden' }}>
       <style>{PAINT_CSS}</style>
+      <GameAdminBanner visible={players.some(player => player.isAdmin)} />
       {/* Cabeçalho */}
       <div className="up-hd" style={{ borderRadius: 16, padding: '13px 18px', display: 'flex', alignItems: 'center', gap: 13,
         // brilho embutido no próprio background (evita uma camada só pra isso)

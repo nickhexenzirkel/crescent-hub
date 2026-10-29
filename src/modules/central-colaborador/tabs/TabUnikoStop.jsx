@@ -31,6 +31,7 @@ import { ConvidarButton } from '../../../shared/FriendsInvite';
 import { readPendingJoin, clearPendingJoin, GAME_JOIN_EVENT } from '../../../shared/gameInvites';
 import { getActiveAssistantSkinId, getAssistantSkin } from '../../../shared/assistantSkin';
 import { recordUnikoGamesWin } from '../../../shared/prismaMissions';
+import GameAdminBanner from './GameAdminBanner';
 
 // Arte do Uniko assistente ATIVO do usuário (a carinha de olhos abertos) — pra
 // mostrar no STOP. Sem borda: só a imagem.
@@ -1006,7 +1007,8 @@ const Sala = ({ roomId, name, players, onLeave }) => {
     const seed = recentUnion.slice(-cap);
     const admins = Object.fromEntries(players.map(p => [p.name, !!p.isAdmin]));
     pushState({ ...state, totalRounds: laps, scores: {}, usadas: seed, round: 0,
-      admins, winMatchId: crypto.randomUUID(), winRecorded: false });
+      admins, adminManaged: players.some(player => player.isAdmin),
+      winMatchId: crypto.randomUUID(), winRecorded: false });
     setTimeout(() => novaRodada(1, {}, seed), 60);
   };
 
@@ -1024,7 +1026,18 @@ const Sala = ({ roomId, name, players, onLeave }) => {
   };
 
   useEffect(() => {
-    if (!isHost || state?.phase !== 'over' || state.winRecorded) return;
+    if (!isHost || !['sorteando', 'jogando', 'parando', 'validando', 'resultado'].includes(state?.phase)
+      || state?.adminManaged) return;
+    const adminsPresentes = players.filter(player => player.isAdmin);
+    if (!adminsPresentes.length) return;
+    const current = stateRef.current;
+    if (!current || current.adminManaged) return;
+    const admins = Object.fromEntries(adminsPresentes.map(player => [player.name, true]));
+    pushState({ ...current, adminManaged: true, admins: { ...current.admins, ...admins } });
+  }, [isHost, players, state?.phase, state?.adminManaged, pushState]);
+
+  useEffect(() => {
+    if (!isHost || state?.phase !== 'over' || !state.adminManaged || state.winRecorded) return;
     let alive = true;
     let saving = false;
     const recordWin = async () => {
@@ -1040,7 +1053,8 @@ const Sala = ({ roomId, name, players, onLeave }) => {
           .map(([name, score], order) => ({ name, score: Number(score) || 0, order }))
           .sort((a, b) => b.score - a.score || a.order - b.order)
           .map(({ name }) => ({ name, isAdmin: !!current.admins?.[name] }));
-        const registrada = await recordUnikoGamesWin({ game: 'stop', matchId: current.winMatchId, placements });
+        const registrada = await recordUnikoGamesWin({ game: 'stop', matchId: current.winMatchId,
+          adminManaged: current.adminManaged === true, placements });
         if (!registrada) return;
         if (!alive) return;
         const latest = stateRef.current;
@@ -1056,7 +1070,7 @@ const Sala = ({ roomId, name, players, onLeave }) => {
     recordWin();
     const retry = setInterval(recordWin, 15_000);
     return () => { alive = false; clearInterval(retry); };
-  }, [isHost, state?.phase, state?.winMatchId, state?.winRecorded, roomId, pushState]);
+  }, [isHost, state?.phase, state?.winMatchId, state?.winRecorded, state?.adminManaged, roomId, pushState]);
 
   /* Pontuação clássica: 10 se ninguém repetiu, 5 se repetiu, 0 se não vale ou a
      maioria contestou. */
@@ -1265,6 +1279,7 @@ const Sala = ({ roomId, name, players, onLeave }) => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12, height: '100%', minHeight: 0, overflow: 'hidden' }}>
       <style>{STOP_CSS}</style>
+      <GameAdminBanner visible={players.some(player => player.isAdmin)} />
 
       {/* ── Flash de tela + sweep na troca de fase (efeito chamativo) ── */}
       {flash && <div key={flash.key} className="us-flash" style={{ background: `radial-gradient(circle at 50% 42%, ${flash.color}66, transparent 62%)` }} />}

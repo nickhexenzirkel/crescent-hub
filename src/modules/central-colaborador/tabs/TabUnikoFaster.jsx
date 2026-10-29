@@ -19,7 +19,6 @@ import { T } from '../../../contexts/theme';
 import { getAuthUser } from '../../../contexts/user';
 import { SpeedFrame } from './SpeedFrame';
 import { useGamePlaytime } from '../../../hooks/useGamePlaytime';
-import { recordUnikoGamesWin } from '../../../shared/prismaMissions';
 // Import circular de propósito: SpeedRoom reaproveita Corrida/TRACADOS/etc.
 // exportados lá embaixo neste arquivo. Seguro aqui porque nenhum dos dois
 // lados usa o que importa do outro NO TOPO do módulo — só dentro do corpo de
@@ -739,14 +738,6 @@ const TabUnikoFaster = () => {
       <Corrida key={corridaKey} trilha={trilha} mapa={mapa} tracado={tracado} bestRef={bestRef} setBest={setBest} hud={hud} setHud={setHud}
         pausado={pausado} setPausado={setPausado} carro={meuCarro} telaCheia={telaCheia} toggleTelaCheia={toggleTelaCheia}
         playerName={getAuthUser()?.name || 'Colaborador'} playerIsAdmin={getAuthUser()?.role === 'admin'}
-        onRaceEnd={({ rank, matchId, placements }) => {
-          if (rank !== 1) return;
-          recordUnikoGamesWin({ game: 'speed', matchId, placements })
-            .then((registrada) => {
-              if (!registrada) console.warn('[uniko-speed] vitória não registrada: missão inativa ou sem recompensa configurada.');
-            })
-            .catch(e => console.error('[uniko-speed] falha ao registrar vitória na Prisma Store:', e));
-        }}
         onReiniciar={() => { setPausado(false); setCorridaKey(k => k + 1); }}
         onSair={() => { setTela('menu'); setPausado(false); setEtapa(0); }} />
     );

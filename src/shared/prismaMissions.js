@@ -142,9 +142,10 @@ const dateStartIso = (date) => {
 
 const UNIKO_WIN_GAMES = new Set(['palavras', 'stop', 'paint', 'speed']);
 
-export async function recordUnikoGamesWin({ game, matchId, placements } = {}) {
+export async function recordUnikoGamesWin({ game, matchId, placements, adminManaged } = {}) {
   if (!UNIKO_WIN_GAMES.has(game)) throw new Error('Jogo inválido ao registrar a vitória Uniko Games.');
   if (!matchId || !Array.isArray(placements)) throw new Error('Partida ou classificação inválida ao registrar a vitória.');
+  if (adminManaged !== true) return false;
 
   const ranking = placements.filter(p => p?.name?.trim()).map(p => ({
     name: p.name.trim(),

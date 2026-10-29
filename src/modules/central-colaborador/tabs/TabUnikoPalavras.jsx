@@ -28,6 +28,7 @@ import { nowMs, ensureServerClock } from '../../../shared/captureUniko';
 import { getActiveAssistantSkinId, getAssistantSkin } from '../../../shared/assistantSkin';
 import { useGamePlaytime } from '../../../hooks/useGamePlaytime';
 import { recordUnikoGamesWin } from '../../../shared/prismaMissions';
+import GameAdminBanner from './GameAdminBanner';
 
 const MASCOTE = '/uniko-palavras.png';
 const CENARIO = "url('/uniko-palavras-cenario.jpg') center / cover no-repeat";
@@ -430,7 +431,17 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
   }, [roomId, aplicaEstado]);
 
   useEffect(() => {
-    if (!isHost || state?.phase !== 'fim' || !state?.vencedor || state.winRecorded) return;
+    if (!isHost || !['jogando', 'duvida', 'pausa'].includes(state?.phase) || state?.adminManaged) return;
+    const adminsPresentes = players.filter(player => player.isAdmin);
+    if (!adminsPresentes.length) return;
+    const current = stateRef.current;
+    if (!current || current.adminManaged) return;
+    const admins = Object.fromEntries(adminsPresentes.map(player => [player.name, true]));
+    pushState({ ...current, adminManaged: true, admins: { ...current.admins, ...admins } });
+  }, [isHost, players, state?.phase, state?.adminManaged, pushState]);
+
+  useEffect(() => {
+    if (!isHost || state?.phase !== 'fim' || !state?.vencedor || !state.adminManaged || state.winRecorded) return;
     let alive = true;
     let saving = false;
     const recordWin = async () => {
@@ -447,6 +458,7 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
         const registrada = await recordUnikoGamesWin({
           game: 'palavras',
           matchId: current.winMatchId,
+          adminManaged: current.adminManaged === true,
           placements: names.map(name => ({ name, isAdmin: !!current.admins?.[name] })),
         });
         if (!registrada) return;
@@ -464,7 +476,7 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
     recordWin();
     const retry = setInterval(recordWin, 15_000);
     return () => { alive = false; clearInterval(retry); };
-  }, [isHost, state?.phase, state?.vencedor, state?.winMatchId, state?.winRecorded, roomId, pushState]);
+  }, [isHost, state?.phase, state?.vencedor, state?.winMatchId, state?.winRecorded, state?.adminManaged, roomId, pushState]);
 
   useEffect(() => {
     let vivo = true;
@@ -686,7 +698,8 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
     const ini = Math.min(MAX_VIDAS, Math.max(1, s.vidasIni || VIDAS));
     const vidas = {}; ordem.forEach(n => { vidas[n] = ini; });
     const admins = Object.fromEntries(players.map(p => [p.name, !!p.isAdmin]));
-    pushState({ ...s, phase: 'jogando', ordem, vidas, admins, eliminationOrder: [], letras: [], vez: ordem[0], iniciador: ordem[0], round: 1, evento: null,
+    pushState({ ...s, phase: 'jogando', ordem, vidas, admins, adminManaged: players.some(player => player.isAdmin),
+      eliminationOrder: [], letras: [], vez: ordem[0], iniciador: ordem[0], round: 1, evento: null,
       duvida: null, aviso: null, olhadas: {}, vencedor: null, missionWinner: null, winRecorded: false,
       winMatchId: crypto.randomUUID(), endsAt: nowMs() + TURN_MS });
   };
@@ -1035,6 +1048,7 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
       background: `linear-gradient(rgba(2,6,24,.22), rgba(2,6,24,.22)), ${CENARIO}` }} className="up-fxhost">
       <style>{CSS}</style>
       <FundoFX />
+      <GameAdminBanner visible={players.some(player => player.isAdmin)} />
       {/* Cabeçalho */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0, borderRadius: 14, padding: '10px 14px',
         background: `linear-gradient(120deg, ${P.azul}, ${P.roxo})`, boxShadow: '0 6px 20px rgba(47,123,255,.25)' }}>
