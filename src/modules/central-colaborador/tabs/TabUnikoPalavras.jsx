@@ -444,11 +444,12 @@ const Sala = ({ roomId, name, photo, players, onLeave }) => {
         }
         const names = [current.vencedor, ...(current.eliminationOrder || []).slice().reverse()]
           .filter((player, index, list) => player && list.indexOf(player) === index);
-        await recordUnikoGamesWin({
+        const registrada = await recordUnikoGamesWin({
           game: 'palavras',
           matchId: current.winMatchId,
           placements: names.map(name => ({ name, isAdmin: !!current.admins?.[name] })),
         });
+        if (!registrada) return;
         if (!alive) return;
         const latest = stateRef.current;
         if (latest?.phase === 'fim' && latest.winMatchId === current.winMatchId && !latest.winRecorded) {

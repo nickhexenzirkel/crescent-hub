@@ -95,6 +95,194 @@ function BarraProgresso({ rotulo, valor, maximo, cor, detalhe }) {
   );
 }
 
+const JOGOS_VITORIA = {
+  palavras: 'Uniko Palavras',
+  stop: 'Uniko Stop',
+  paint: 'Uniko Paint',
+  speed: 'Uniko Speed',
+};
+
+function VitoriasUnikoGames({ funcionarios }) {
+  const [vitorias, setVitorias] = useState([]);
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState('');
+  const [mensagem, setMensagem] = useState('');
+  const [mensagemErro, setMensagemErro] = useState(false);
+  const [busy, setBusy] = useState('');
+  const [colaborador, setColaborador] = useState('');
+  const [jogo, setJogo] = useState('palavras');
+
+  const carregar = useCallback(async () => {
+    try {
+      const [wins, claims] = await Promise.all([
+        buscarTodasPaginas(() => supabase.from('mercado_history')
+          .select('id,player,descr,comum,premium,created_at')
+          .eq('kind', 'uniko_game_win').order('created_at', { ascending: false })),
+        buscarTodasPaginas(() => supabase.from('mercado_history')
+          .select('player,descr,created_at')
+          .eq('kind', 'uniko_game_win_claim').order('created_at', { ascending: false })),
+      ]);
+      const resgates = new Set(claims.map((claim) => `${claim.player}|${claim.descr}`));
+      setVitorias(wins.map((win) => ({
+        ...win,
+        resgatada: resgates.has(`${win.player}|Vitória: ${win.id}`),
+      })));
+      setErro('');
+    } catch (e) {
+      console.error('[monitoramento-uso] Falha ao carregar o histórico de vitórias:', e);
+      setErro(e?.message || 'Não foi possível carregar o histórico de vitórias.');
+    } finally {
+      setCarregando(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const primeiraCarga = setTimeout(() => { void carregar(); }, 0);
+    const intervalo = setInterval(carregar, 30000);
+    return () => {
+      clearTimeout(primeiraCarga);
+      clearInterval(intervalo);
+    };
+  }, [carregar]);
+
+  const creditarVitoria = async (win) => {
+    if (busy) return;
+    setBusy(win.id);
+    setMensagem('');
+    setMensagemErro(false);
+    try {
+      const { data, error: rpcError } = await supabase.rpc('mercado_claim_uniko_game_win', {
+        p_player: win.player,
+        p_win_id: win.id,
+      });
+      if (rpcError) throw rpcError;
+      const premio = Array.isArray(data) ? data[0] : data;
+      setMensagem(`Prêmio creditado para ${win.player}: ${fmtNumero(premio?.comum)} Prisma Comum e ${fmtNumero(premio?.premium)} Prisma Premium.`);
+      await carregar();
+    } catch (e) {
+      console.error('[monitoramento-uso] Falha ao creditar vitória:', e);
+      setMensagemErro(true);
+      setMensagem(`Não foi possível creditar a vitória de ${win.player}: ${e?.message || 'falha ao processar o resgate.'}`);
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const registrarVitoriaManual = async () => {
+    if (!colaborador || busy) return;
+    if (!window.confirm(`Registrar e creditar uma vitória de ${colaborador} em ${JOGOS_VITORIA[jogo]} usando a recompensa configurada na missão?`)) return;
+    const matchId = globalThis.crypto?.randomUUID?.();
+    if (!matchId) {
+      setMensagem('Este navegador não permite criar um identificador seguro para o registro manual.');
+      return;
+    }
+    setBusy('manual');
+    setMensagem('');
+    setMensagemErro(false);
+    try {
+      const { data: registrada, error: recordError } = await supabase.rpc('mercado_record_uniko_game_win', {
+        p_match_id: matchId,
+        p_player: colaborador,
+        p_game: jogo,
+      });
+      if (recordError) throw recordError;
+      if (registrada !== true) {
+        throw new Error('A missão de vitórias está inativa ou sem recompensa configurada; nenhuma vitória foi registrada.');
+      }
+      const { data, error: claimError } = await supabase.rpc('mercado_claim_uniko_game_win', {
+        p_player: colaborador,
+        p_win_id: matchId,
+      });
+      if (claimError) throw claimError;
+      const premio = Array.isArray(data) ? data[0] : data;
+      setMensagem(`Vitória registrada e prêmio creditado para ${colaborador}: ${fmtNumero(premio?.comum)} Prisma Comum e ${fmtNumero(premio?.premium)} Prisma Premium.`);
+      setColaborador('');
+      await carregar();
+    } catch (e) {
+      console.error('[monitoramento-uso] Falha ao registrar vitória manual:', e);
+      setMensagemErro(true);
+      setMensagem(`Não foi possível concluir o registro manual: ${e?.message || 'falha ao processar.'}`);
+      await carregar();
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const cell = { padding: '9px 10px', borderTop: `1px solid ${T.border}`, color: T.textS, fontSize: 12, textAlign: 'left', whiteSpace: 'nowrap' };
+
+  return (
+    <Cartao titulo="Vitórias recentes dos Uniko Games" subtitulo="Histórico de partidas, resgates e recuperação de recompensas"
+      extra={<button onClick={() => { setCarregando(true); void carregar(); }} style={{ border: `1px solid ${T.border}`, borderRadius: 8, padding: '7px 10px', background: T.surface, color: T.textS, fontWeight: 600, cursor: 'pointer' }}>Atualizar</button>}>
+      <div style={{ display: 'flex', alignItems: 'end', gap: 10, flexWrap: 'wrap', padding: '0 0 14px' }}>
+        <label style={{ minWidth: 210, flex: 1, color: T.textT, fontSize: 11, fontWeight: 700 }}>
+          REGISTRAR VITÓRIA NÃO LISTADA
+          <select value={colaborador} onChange={(e) => setColaborador(e.target.value)}
+            style={{ display: 'block', width: '100%', marginTop: 5, padding: '8px 10px', borderRadius: 8, border: `1px solid ${T.border}`, color: T.text, background: T.surface, font: 'inherit' }}>
+            <option value="">Selecione o colaborador</option>
+            {funcionarios.filter((pessoa) => pessoa.role !== 'admin').map((pessoa) => (
+              <option key={pessoa.id} value={pessoa.name}>{pessoa.name}</option>
+            ))}
+          </select>
+        </label>
+        <label style={{ minWidth: 150, color: T.textT, fontSize: 11, fontWeight: 700 }}>
+          JOGO
+          <select value={jogo} onChange={(e) => setJogo(e.target.value)}
+            style={{ display: 'block', width: '100%', marginTop: 5, padding: '8px 10px', borderRadius: 8, border: `1px solid ${T.border}`, color: T.text, background: T.surface, font: 'inherit' }}>
+            {Object.entries(JOGOS_VITORIA).map(([id, nome]) => <option key={id} value={id}>{nome}</option>)}
+          </select>
+        </label>
+        <button disabled={!colaborador || !!busy} onClick={registrarVitoriaManual}
+          style={{ border: 0, borderRadius: 8, padding: '9px 12px', background: T.gold, color: '#fff', fontWeight: 700, cursor: !colaborador || busy ? 'not-allowed' : 'pointer', opacity: !colaborador || busy ? 0.6 : 1 }}>
+          {busy === 'manual' ? 'Registrando…' : 'Registrar e creditar'}
+        </button>
+      </div>
+      <div style={{ color: T.textT, fontSize: 11, marginBottom: 12 }}>
+        A recuperação usa a recompensa atual configurada para a missão e registra a operação no histórico. Para vitórias já listadas, use a ação da linha pendente; o resgate é atômico e não duplica o crédito.
+      </div>
+      {mensagem && <div role={mensagemErro ? 'alert' : 'status'} style={{ color: mensagemErro ? T.danger : T.textS, fontSize: 12, marginBottom: 10 }}>{mensagem}</div>}
+      {erro && <div role="alert" style={{ color: T.danger, fontSize: 12, marginBottom: 10 }}>Erro ao carregar vitórias: {erro}</div>}
+      {carregando ? <div style={{ color: T.textT, fontSize: 13 }}>Carregando histórico…</div>
+        : vitorias.length ? (
+          <div style={{ maxHeight: 420, overflow: 'auto', border: `1px solid ${T.border}`, borderRadius: 10 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 650 }}>
+              <thead style={{ position: 'sticky', top: 0, background: T.surface }}>
+                <tr>
+                  {['Data', 'Colaborador', 'Jogo', 'Recompensa', 'Situação', ''].map((titulo) => <th key={titulo} style={{ ...cell, borderTop: 0, fontWeight: 700 }}>{titulo}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {vitorias.map((win) => {
+                  const jogoId = Object.keys(JOGOS_VITORIA).find((id) => win.descr?.toLowerCase().includes(id)) || '';
+                  const nomeCadastrado = funcionarios.some((pessoa) => pessoa.name === win.player);
+                  return (
+                    <tr key={win.id}>
+                      <td style={cell}>{win.created_at ? new Date(win.created_at).toLocaleString('pt-BR') : '—'}</td>
+                      <td style={{ ...cell, color: T.text, fontWeight: 600 }}>{win.player}</td>
+                      <td style={cell}>{JOGOS_VITORIA[jogoId] || win.descr}</td>
+                      <td style={cell}>{fmtNumero(win.comum)} comum · {fmtNumero(win.premium)} premium</td>
+                      <td style={{ ...cell, color: win.resgatada ? '#2BA879' : nomeCadastrado ? T.gold : T.danger, fontWeight: 700 }}>
+                        {win.resgatada ? 'Resgatada' : nomeCadastrado ? 'Pendente' : 'Nome não vinculado'}
+                      </td>
+                      <td style={cell}>
+                        {!win.resgatada && nomeCadastrado && (
+                          <button disabled={!!busy} onClick={() => creditarVitoria(win)}
+                            style={{ border: `1px solid ${T.border}`, borderRadius: 7, padding: '6px 9px', color: T.text, background: T.surface, cursor: busy ? 'wait' : 'pointer' }}>
+                            {busy === win.id ? 'Creditando…' : 'Creditar prêmio'}
+                          </button>
+                        )}
+                        {!win.resgatada && !nomeCadastrado && <span title="Use o formulário acima para registrar pelo nome oficial do colaborador.">Confira o nome</span>}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : <div style={{ color: T.textT, fontSize: 13 }}>Nenhuma vitória registrada ainda.</div>}
+    </Cartao>
+  );
+}
+
 export default function MonitoramentoUsoTab() {
   const [periodo, setPeriodo] = useState(30);
   const [dados, setDados] = useState({ funcionarios: [], dias: [], presencas: [], capturas: [], roster: [] });
@@ -295,6 +483,8 @@ export default function MonitoramentoUsoTab() {
           ) : <div style={{ color: T.textT, fontSize: 13, padding: '18px 0' }}>Nenhum colaborador online no momento.</div>}
         </Cartao>
       </div>
+
+      <VitoriasUnikoGames funcionarios={dados.funcionarios} />
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(min(100%,360px),1fr))', gap: 16 }}>
         <Cartao titulo="Uso por módulo" subtitulo={`Tempo acumulado no período selecionado${pessoaSelecionada ? ` · ${pessoaSelecionada.name}` : ' · todos os colaboradores'}`}>

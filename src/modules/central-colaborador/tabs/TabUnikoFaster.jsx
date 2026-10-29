@@ -742,6 +742,9 @@ const TabUnikoFaster = () => {
         onRaceEnd={({ rank, matchId, placements }) => {
           if (rank !== 1) return;
           recordUnikoGamesWin({ game: 'speed', matchId, placements })
+            .then((registrada) => {
+              if (!registrada) console.warn('[uniko-speed] vitória não registrada: missão inativa ou sem recompensa configurada.');
+            })
             .catch(e => console.error('[uniko-speed] falha ao registrar vitória na Prisma Store:', e));
         }}
         onReiniciar={() => { setPausado(false); setCorridaKey(k => k + 1); }}

@@ -466,40 +466,21 @@ export const gerarPiaui = async ({ numeroNota, secretaria, valorBruto, valorLiqu
 
   const extExt = (v) => reaisPorExtenso(v).replace(/,\s*/g, ' ').toUpperCase();
   const fimTexto = linha([
-    R('Vimos pelo presente solicitar a V. Sas., o pagamento do valor bruto de '),
+    R(`Vimos pelo presente solicitar a V. Sas., o pagamento da nota fiscal nº ${numeroNota}, do valor bruto de `),
     B('R$ '), B(`${formatarReais(valorBruto)} `, VAR), B(`(${extExt(valorBruto)})`, VAR),
+    ...(irRetido ? [
+      R(', com as retenções de IR de '),
+      R(`1,20% (R$ ${formatarReais(irRetido.peca)}), 4,80% (R$ ${formatarReais(irRetido.servico)}) e 0,24% (R$ ${formatarReais(irRetido.abast)})`),
+    ] : []),
     R(', com valor líquido de '),
     B('R$ '), B(`${formatarReais(valorLiquido)} `, VAR), B(`(${extExt(valorLiquido)})`, VAR),
     R(', CNPJ 13.858.769/0001-97, referente ao faturamento de '), R(tipo, VAR),
     R(' do período de '), B(periodoCurto(periodo), VAR), R('.'),
   ], 450.7 + extra, { indente: 37.3 });
 
-  const aliquotasIr = irRetido && [
-    { aliquota: '1,20%', valor: irRetido.peca },
-    { aliquota: '4,80%', valor: irRetido.servico },
-    { aliquota: '0,24%', valor: irRetido.abast },
-  ];
-  let fimImpostos = fimTexto;
-  if (aliquotasIr) {
-    let yImposto = fimTexto - 27.6;
-    aliquotasIr.forEach(({ aliquota, valor }) => {
-      fimImpostos = paragrafo(p, [
-        R(`VALOR DO IR RETIDO DA REDE CREDENCIADA, NÃO OPTANTE DO SIMPLES NACIONAL ${aliquota} = R$ ${formatarReais(valor)}.`),
-      ], {
-        x: X,
-        y: yImposto,
-        largura: LARGURA,
-        entrelinha: 11,
-        size: 9.5,
-        justificar: false,
-      });
-      yImposto = fimImpostos - 13.8;
-    });
-  }
-
-  // Reserva espaço para os impostos, vencimento e assinatura sem sobrepor o texto.
+  // Reserva espaço para o parágrafo, vencimento e assinatura sem sobrepor o texto.
   const venc0 = topo(519.7 + extra);
-  const extra2 = Math.max(0, venc0 - (fimImpostos - 27.6));
+  const extra2 = Math.max(0, venc0 - (fimTexto - 27.6));
   const E = extra + extra2;
 
   linha([R('Vencimento em: '), B(`${vencimento}.`, VAR)], 519.7 + E, { indente: 37.3 });

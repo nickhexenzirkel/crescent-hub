@@ -11,6 +11,7 @@ A aba **Monitoramento de Uso**, exclusiva de administradores no Dashboard RH, re
 - médias e maior tempo individual no período;
 - último tema registrado por colaborador e distribuição desses temas;
 - coleção de Unikos capturados e os itens ainda não registrados na coleção.
+- histórico de vitórias em Uniko Games, situação do resgate e recuperação de prêmios pendentes ou vitórias que não foram registradas.
 
 ## Coleta e banco
 

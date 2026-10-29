@@ -2000,8 +2000,12 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker, zoomOut })
         const placements = Object.entries(current.scores || {})
           .map(([name, score], order) => ({ name, score: Number(score) || 0, order }))
           .sort((a, b) => b.score - a.score || a.order - b.order)
-          .map(({ name }) => ({ name, isAdmin: !!current.admins?.[name] }));
-        await recordUnikoGamesWin({ game: 'paint', matchId: current.winMatchId, placements });
+          .map(({ name }) => ({
+            name: playersRef.current.find((player) => player.name === name)?.conta || name,
+            isAdmin: !!current.admins?.[name],
+          }));
+        const registrada = await recordUnikoGamesWin({ game: 'paint', matchId: current.winMatchId, placements });
+        if (!registrada) return;
         if (!alive) return;
         const latest = stateRef.current;
         if (latest?.phase === 'over' && latest.winMatchId === current.winMatchId && !latest.winRecorded) {

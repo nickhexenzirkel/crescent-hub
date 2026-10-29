@@ -9,7 +9,7 @@ Criada em 07/out/2026: aba `oficio-emissao` (Oficina Estelar, id interno faturam
 
 Dois modelos: **Eusébio** (o ofício atual do Uniko Detetive: contrato nº + objeto) e **Juazeiro do Piauí** (Requerimento de Pagamento, do .docx `MODELO DE REQUERIMENTO DE PAGAMENTO- PIAUI.docx`: secretaria, tipo de faturamento, período, vencimento; campos variáveis em vermelho como no modelo, com toggle). Piauí reproduz coordenadas/cores do PDF que o Word gera (extraídas com pymupdf).
 
-**IR retido no modelo Juazeiro do Piauí:** os valores de 1,20% (peças), 4,80% (serviços) e 0,24% (abastecimento) são extraídos separadamente da discriminação da NFS-e e impressos após o parágrafo do pagamento. Sem linhas de IR nem indicação explícita de dispensa, as linhas não são adicionadas.
+**IR retido no modelo Juazeiro do Piauí:** o parágrafo do pagamento informa o número da nota fiscal, o valor bruto, as retenções de IR (1,20%, 4,80% e 0,24%, cada uma com seu valor), o valor líquido e o período. Os impostos são extraídos separadamente da discriminação da NFS-e; sem linhas de IR nem indicação explícita de dispensa, a frase das retenções é omitida.
 
 **Why:** o time fazia esses ofícios à mão/no app Electron; agora roda no navegador.
 

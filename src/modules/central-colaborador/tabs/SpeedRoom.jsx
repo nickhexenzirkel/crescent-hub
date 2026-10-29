@@ -476,6 +476,8 @@ function Sala({ roomId, onSairDaSala, onSairApp, telaCheia, toggleTelaCheia }) {
       game: 'speed',
       matchId: matchId || current?.winMatchId,
       placements: finalPlacements,
+    }).then((registrada) => {
+      if (!registrada) console.warn('[uniko-speed] vitória não registrada: missão inativa ou sem recompensa configurada.');
     }).catch(e => console.error('[uniko-speed] falha ao registrar vitória na Prisma Store:', e));
   }, []);
 

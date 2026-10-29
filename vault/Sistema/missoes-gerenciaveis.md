@@ -43,6 +43,14 @@ O que mudou:
   Se o primeiro colocado for exatamente `admin`, a recompensa passa ao próximo colocado
   que não seja admin; moderadores continuam elegíveis. O SQL usa registro idempotente e
   RPC transacional para impedir crédito duplicado em clique/retry concorrente.
+- Os jogos em sala só marcam a vitória como registrada depois que a RPC confirma o
+  lançamento; se ainda não estiver configurada, tentam novamente enquanto o resultado
+  permanecer aberto. No Dashboard RH → Monitoramento de Uso há o histórico de vitórias,
+  resgate atômico de prêmios pendentes e recuperação manual de vitórias não listadas,
+  usando a recompensa vigente da missão e mantendo trilha em `mercado_history`.
+  No Uniko Paint, a partida pode usar apelido local; o registro de vitória deve converter
+  o nome do placar para o nome da conta antes de salvar, pois a Prisma Store identifica
+  a carteira pelo nome oficial do colaborador.
 - A migração converte a antiga missão de vitória automática do Palavras para a missão
   genérica, preservando o valor configurado. Se não existir, cria a missão desativada e
   sem recompensa; o admin configura o valor e a ativa em Prisma Store → Administrador →
