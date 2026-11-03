@@ -87,6 +87,11 @@ const NAV = [
     icon: <I><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></I>,
   },
   {
+    id: 'gerar-recibos',
+    label: 'Gerar Recibos',
+    icon: <I><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h8"/></I>,
+  },
+  {
     id: 'controle-clientes',
     label: 'Controle de Clientes',
     icon: <I><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></I>,
@@ -187,7 +192,7 @@ const Sidebar = ({ tab, setTab, onBack, isAdmin, authUser, only, hidden = [] }) 
 // 'inicio' — vira a 1ª aba liberada. Default mantém o comportamento de sempre.
 const TopBar = ({ tab, onBack, homeTab = 'inicio' }) => {
   const isMobile = useIsMobile();
-  const nm = { inicio:'Início', xml:'Controle de Notas', assinatura:'Assinatura Automática', 'historico-assinatura':'Histórico de Assinatura', 'pdf-editor':'Editor de PDF', 'pdf-organizar':'Organizar PDF', 'pdf-mesclar':'Mesclar PDF', carta:'Carta de Correção', 'oficio-emissao':'Ofício de Emissão', empenho:'Leitura de Empenho', 'baixar-os':'Baixar Ordens de Serviço', 'controle-clientes':'Controle de Clientes' };
+  const nm = { inicio:'Início', xml:'Controle de Notas', assinatura:'Assinatura Automática', 'historico-assinatura':'Histórico de Assinatura', 'pdf-editor':'Editor de PDF', 'pdf-organizar':'Organizar PDF', 'pdf-mesclar':'Mesclar PDF', carta:'Carta de Correção', 'oficio-emissao':'Ofício de Emissão', 'gerar-recibos':'Gerar Recibos', empenho:'Leitura de Empenho', 'baixar-os':'Baixar Ordens de Serviço', 'controle-clientes':'Controle de Clientes' };
   if (tab === homeTab) return null;
   return (
     <div style={{

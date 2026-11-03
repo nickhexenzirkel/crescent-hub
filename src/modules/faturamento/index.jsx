@@ -7,6 +7,7 @@ import { TabLeitorXML } from './tabs/TabLeitorXML';
 import { TabPdfEditor, TabPdfOrganizar, TabPdfMesclar, TabCartaCorrecao } from './tabs/TabOficinaEstelar';
 import { TabAssinatura } from './tabs/TabAssinatura';
 import { TabOficioEmissao } from './tabs/TabOficioEmissao';
+import { TabGerarRecibos } from './tabs/TabGerarRecibos';
 import { TabEmpenho } from './tabs/TabEmpenho';
 import { TabBaixarOS } from './tabs/TabBaixarOS';
 import { TabControleClientes } from './tabs/TabControleClientes';
@@ -91,6 +92,7 @@ const FaturamentoPortal = ({ onBack, authUser, initialTab, restrictedTabs, cargo
       case 'pdf-mesclar':   return <TabPdfMesclar/>;
       case 'carta':       return <TabCartaCorrecao/>;
       case 'oficio-emissao': return <TabOficioEmissao/>;
+      case 'gerar-recibos': return <TabGerarRecibos/>;
       case 'empenho':        return <TabEmpenho/>;
       case 'baixar-os':      return <TabBaixarOS/>;
       case 'controle-clientes': return <TabControleClientes/>;
