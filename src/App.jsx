@@ -24,6 +24,7 @@ import UnikoSecurity from './modules/uniko-security';
 import UnikoCall from './modules/uniko-call';
 import Beneficios7 from './modules/beneficios-7';
 import PrestacaoContas from './modules/prestacao-contas';
+import AmigoSecreto from './modules/amigo-secreto';
 import { notifyDesktop, ensureNotifyPermission } from './utils/desktopNotify';
 import { useIsMobile } from './hooks/useIsMobile';
 import UnikoAssistant from './shared/UnikoAssistant';
@@ -806,6 +807,7 @@ export default function CrescentHub() {
           {screen==='uniko-fit' && <UnikoFit onBack={handleGoBack} authUser={authUser} userPhoto={userPhoto} onlyTabs={isVisitante(authUser) ? abasVisitante(visitanteCfg,'uniko-fit') : undefined}/>}
           {screen==='uniko-call' && (authUser?.role==='admin'||cargoModules.has('uniko-call')) && <UnikoCall onBack={handleGoBack}/>}
           {screen==='prestacao-contas' && (authUser?.role==='admin'||cargoModules.has('prestacao-contas')) && <PrestacaoContas onBack={handleGoBack} authUser={authUser}/>}
+          {screen==='amigo-secreto' && <AmigoSecreto onBack={handleGoBack} authUser={authUser}/>}
         </div>
 
         {/* ── Aviso Urgente — tela cheia ── */}

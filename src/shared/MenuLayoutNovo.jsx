@@ -342,7 +342,7 @@ const TileModulo = ({ m, i, tam, cor, modo, onTam, onAbrir }) => {
       </div>
 
       <div style={{ minWidth:0, flex: largo ? 1 : undefined }}>
-        {largo && m.tag && (
+        {(m.tagTemporario || (largo && m.tag)) && (
           <div style={{ fontSize:11, fontWeight:700, color:cor, letterSpacing:'.06em', textTransform:'uppercase', marginBottom:4 }}>{m.tag}</div>
         )}
         <div style={{ fontSize: largo ? 21 : 15, fontWeight:700, color:T.text, letterSpacing:'-.015em', lineHeight:1.2,

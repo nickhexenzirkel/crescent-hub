@@ -522,11 +522,18 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto, cargoModules, 
       <path d="M6 2h9l3 3v17a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z"/><path d="M9 12h6M9 16h6"/><circle cx="9.5" cy="8" r="1.2"/>
     </svg>
   );
+  const IcoAmigoSecreto = (
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20 12v9H4v-9M2 7h20v5H2zM12 21V7" />
+      <path d="M12 7H7.5a2.5 2.5 0 1 1 2.4-3.2L12 7Zm0 0h4.5a2.5 2.5 0 1 0-2.4-3.2L12 7Z" />
+    </svg>
+  );
   const allMods = [
     // `fixo`: o Portal é o módulo principal — sempre o primeiro, e nasce grande.
     {id:'colaborador',      label:'Portal do Colaborador', sub:'Portal RH completo',               icon:IcoColab,       color:T.gold, bg:T.goldGl, tag:'Principal',  adminOnly:false, fixo:true},
     {id:'alexa',            label:'Central Alexa',         sub:'Festival · Música · Biblioteca',   icon:IcoAlexa,       color:T.gold, bg:T.goldGl, tag:'Música',     adminOnly:false},
     {id:'faturamento',      label:'Oficina Estelar',       sub:'Controle de Notas · Assinatura',   icon:IcoFaturamento, color:T.gold, bg:T.goldGl, tag:'Documentos', adminOnly:false},
+    {id:'amigo-secreto',    label:'Amigo Secreto',         sub:'Sugestões · Edição 2026',          icon:IcoAmigoSecreto,color:T.blue, bg:T.blueGl||T.goldGl, tag:'Temporário', tagTemporario:true, adminOnly:false},
     // Uniko FIT acompanha o tema como os outros (era laranja fixo até set/2026).
     {id:'uniko-fit',        label:'Uniko FIT',             sub:'Check-in de treino · Ranking',     icon:IcoFit,         color:T.gold, bg:T.goldGl, tag:'Fitness',    adminOnly:false},
     {id:'dashboard',        label:'Dashboard RH',          sub:'Gestão · Funcionários',            icon:IcoDash,        color:T.gold, bg:T.goldGl, tag:'Admin',      adminOnly:true},
@@ -575,7 +582,8 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto, cargoModules, 
       // Atalho aponta pra um módulo de verdade via `m.modulo` (ex: atalho
       // "Seus Dados" → módulo 'colaborador') — no modo restrito, checa esse
       // alvo real, senão um atalho furava a restrição do card principal.
-      if (cargoRestricted && !isAdmin && !isModerador) return temCargoPara(m.modulo || m.id);
+      // Amigo Secreto é uma lista compartilhada e fica disponível a todos os cargos.
+      if (cargoRestricted && !isAdmin && !isModerador && m.id !== 'amigo-secreto') return temCargoPara(m.modulo || m.id);
       return !m.adminOnly || (m.strictAdmin ? isAdmin : podeAdminOnly) || temCargoPara(m.id);
     }), authUser?.name);
   /* O Portal do Colaborador fica SEMPRE em primeiro — em qualquer ordem salva,
@@ -588,7 +596,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto, cargoModules, 
   // Computador: 1ª vez (sem ordem salva) usa esta sequência. Depois que a
   // pessoa reorganiza, lista do celular e grade do computador seguem a MESMA
   // ordem escolhida por ela.
-  const ORDEM_PADRAO = ['colaborador','mercado-estelar','alexa','faturamento','dashboard','conexao-setorial','ponto','uniko-fit','info-adicional','uniko-safer','uniko-security','7-beneficios','uniko-call','prestacao-contas'];
+  const ORDEM_PADRAO = ['colaborador','mercado-estelar','alexa','faturamento','amigo-secreto','dashboard','conexao-setorial','ponto','uniko-fit','info-adicional','uniko-safer','uniko-security','7-beneficios','uniko-call','prestacao-contas'];
   const modsTela = order.length ? mods : fixarPrincipal(applyOrder(filteredMods, ORDEM_PADRAO));
   /* Reordenar no celular é por SETAS, não arrastando. Não é preguiça: o
      drag-and-drop HTML5 (o mesmo que a grade usa no computador) simplesmente não
@@ -780,6 +788,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto, cargoModules, 
                   {React.cloneElement(m.icon, {width:26, height:26})}
                 </div>
                 <div style={{flex:1, minWidth:0}}>
+                  {m.tagTemporario && <div style={{fontSize:10, fontWeight:800, color:mColor, letterSpacing:'.07em', textTransform:'uppercase', marginBottom:3}}>{m.tag}</div>}
                   <div style={{fontSize:17, fontWeight:700, color:T.text}}>{m.label}</div>
                   <div style={{fontSize:13, color:T.textT, marginTop:2,
                     overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{m.sub}</div>

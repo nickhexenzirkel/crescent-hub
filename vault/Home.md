@@ -15,6 +15,7 @@ Abra a pasta `vault/` como um cofre (vault) no Obsidian.
 - [[acoes-administrativas]] — pedidos que escondem/renomeiam módulos e abas ou tiram um Uniko de alguém (sem código)
 - [[imagens-do-site]] — troca imagens do Uniko pela tela (Dashboard RH), valendo pra todos sem deploy
 - [[agente-ia]] — agente independente que resolve Pedidos de Ajuste (branch + build + pull request)
+- [[amigo-secreto]] — módulo temporário de consulta das sugestões e importação XLSX exclusiva para administrador; precisa rodar SQL no Supabase principal
 - [[arquivo-anual]] — Arquivo anual (.ukarq) do WhatsApp e Call: baixar o ano, excluir e importar
 - [[armazenamento-supabase]] — aba do Dashboard RH com o uso do Supabase
 - [[monitoramento-uso]] — Dashboard RH: presença, tempo ativo, módulos, temas e coleção de Unikos
