@@ -3,16 +3,17 @@ import { T } from '../../../contexts/theme';
 import { StarDivider } from '../../../shared/components';
 import { StellarHero } from '../StellarHero';
 import {
-  lerNota, gerarEusebio, gerarPiaui, formatarReais, periodoCurto, dataBr,
+  lerNota, gerarEusebio, gerarPiaui, gerarAquiraz, formatarReais, periodoCurto, dataBr,
   TIPOS_PIAUI, tipoPadraoPiaui, faltaNoModelo,
 } from '../oficioEmissao';
 
 /* ═══════════════════════════════════════════════════════════════
    OFÍCIO DE EMISSÃO — a "Solicitação de Pagamento" do Uniko Detetive,
    agora no navegador. Arraste as notas fiscais (NFS-e em PDF) e cada uma
-   vira um ofício pronto pra assinar, em um de dois modelos:
+   vira um documento pronto pra assinar, em um de três modelos:
      • Eusébio            — o ofício atual (papel timbrado, contrato + objeto)
      • Juazeiro do Piauí  — Requerimento de Pagamento (secretaria, tipo, vencimento)
+     • Câmara de Aquiraz  — Relatório de Execução dos Serviços (inclui transações)
    A lógica de leitura/geração fica em ../oficioEmissao.js.
 ═══════════════════════════════════════════════════════════════ */
 
@@ -27,6 +28,7 @@ const OBJETO_PADRAO =
 const MODELOS = [
   { id: 'eusebio', titulo: 'Modelo Eusébio', sub: 'O ofício de sempre: papel timbrado 7SERV, rúbrica, contrato e objeto do contrato.' },
   { id: 'piaui', titulo: 'Modelo Juazeiro do Piauí', sub: 'Requerimento de Pagamento: secretaria, tipo de faturamento, período e vencimento.' },
+  { id: 'aquiraz', titulo: 'Modelo Câmara de Aquiraz', sub: 'Relatório de Execução dos Serviços com papel timbrado 7SERV, período, valor das operações e quantidade de transações.' },
 ];
 
 const I = (p) => (
@@ -96,6 +98,7 @@ export const TabOficioEmissao = () => {
         const d = await lerNota(r.file);
         setRows((rs) => rs.map((x) => (x.id === r.id ? {
           ...x, ...d, estado: d.status, tipoSel: tipoPadraoPiaui(d.tipo), secretariaSel: d.secretaria || '', venc: '',
+          dataEmissaoSel: d.dataEmissao || '', quantidadeTransacoesSel: d.quantidadeTransacoes == null ? '' : String(d.quantidadeTransacoes),
         } : x)));
       } catch (e) {
         patch(r.id, { estado: 'erro', problemas: [`Não consegui ler o PDF (${e?.message || 'arquivo inválido'}).`] });
@@ -106,7 +109,12 @@ export const TabOficioEmissao = () => {
   /* O que falta pra gerar cada nota, no modelo escolhido. */
   const pendencia = (r) => {
     if (r.estado !== 'ok') return null;
-    const falta = faltaNoModelo(r, modelo);
+    const quantidadeTransacoes = /^\d+$/.test(r.quantidadeTransacoesSel || '') ? Number(r.quantidadeTransacoesSel) : null;
+    const falta = faltaNoModelo({
+      ...r,
+      dataEmissao: r.dataEmissaoSel,
+      quantidadeTransacoes,
+    }, modelo);
     if (falta.length) return falta.join(' ');
     if (modelo === 'piaui') {
       if (!(r.secretariaSel || '').trim()) return 'Informe a secretaria/setor.';
@@ -115,10 +123,12 @@ export const TabOficioEmissao = () => {
     return null;
   };
   const prontas = rows.filter((r) => r.estado === 'ok' && !pendencia(r));
-  const textoOk = modelo === 'piaui' || (contrato.trim() && objeto.trim());
+  const textoOk = modelo !== 'eusebio' || (contrato.trim() && objeto.trim());
   const podeGerar = !busy && prontas.length > 0 && textoOk;
 
-  const nomeArquivo = (r) => (modelo === 'piaui' ? `REQUERIMENTO DE PAGAMENTO - NF ${r.numero}.pdf` : `OFÍCIO - NF ${r.numero}.pdf`);
+  const nomeArquivo = (r) => (modelo === 'piaui'
+    ? `REQUERIMENTO DE PAGAMENTO - NF ${r.numero}.pdf`
+    : modelo === 'aquiraz' ? `RELATORIO DE EXECUCAO DOS SERVICOS - NF ${r.numero}.pdf` : `OFÍCIO - NF ${r.numero}.pdf`);
 
   const gerar = async () => {
     setBusy(true); setErro('');
@@ -130,7 +140,12 @@ export const TabOficioEmissao = () => {
               numeroNota: r.numero, secretaria: r.secretariaSel.trim(), valorBruto: r.valorBruto, valorLiquido: r.valorLiquido, tipo: r.tipoSel,
               irRetido: r.irRetido, periodo: r.periodo, vencimento: dataBr(r.venc || vencGlobal), comRubrica,
             })
-            : await gerarEusebio({
+            : modelo === 'aquiraz'
+              ? await gerarAquiraz({
+                numeroNota: r.numero, dataEmissao: r.dataEmissaoSel, mesReferencia: r.competencia || r.mesReferencia,
+                periodo: r.periodo, valorOperacoes: r.valorBruto, quantidadeTransacoes: Number(r.quantidadeTransacoesSel),
+              })
+              : await gerarEusebio({
               mesReferencia: r.mesReferencia, numeroNota: r.numero, valorBruto: r.valorBruto,
               contrato: contrato.trim(), objeto: objeto.trim().replace(/\s+/g, ' ').replace(/[.,;]+$/, ''),
             });
@@ -160,7 +175,7 @@ export const TabOficioEmissao = () => {
       while (usados.has(nome)) nome = r.gerado.nome.replace(/\.pdf$/, ` (${n++}).pdf`);
       usados.add(nome); zip.file(nome, r.gerado.blob);
     }
-    salvar(await zip.generateAsync({ type: 'blob' }), modelo === 'piaui' ? 'Requerimentos de pagamento.zip' : 'Ofícios.zip');
+    salvar(await zip.generateAsync({ type: 'blob' }), modelo === 'piaui' ? 'Requerimentos de pagamento.zip' : modelo === 'aquiraz' ? 'Relatórios de execução.zip' : 'Ofícios.zip');
   };
 
   const resumo = useMemo(() => {
@@ -245,11 +260,13 @@ export const TabOficioEmissao = () => {
 
         {rows.length > 0 && (
           <div style={{ marginTop: 16, border: `1px solid ${T.border}`, borderRadius: 14, background: T.surface, overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: modelo === 'piaui' ? 960 : 640 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: modelo === 'piaui' ? 960 : modelo === 'aquiraz' ? 850 : 640 }}>
               <thead>
                 <tr style={{ textAlign: 'left' }}>
-                  {['Nota', modelo === 'piaui' ? 'Período' : 'Mês', modelo === 'piaui' ? 'Valor bruto' : 'Valor bruto',
-                    ...(modelo === 'piaui' ? ['Valor líquido', 'Secretaria', 'Tipo', 'Vencimento'] : []), 'Situação', ''].map((h) => (
+                  {(modelo === 'aquiraz'
+                    ? ['Nota', 'Período', 'Valor das operações', 'Emissão', 'Transações', 'Situação', '']
+                    : ['Nota', modelo === 'piaui' ? 'Período' : 'Mês', 'Valor bruto',
+                      ...(modelo === 'piaui' ? ['Valor líquido', 'Secretaria', 'Tipo', 'Vencimento'] : []), 'Situação', '']).map((h) => (
                     <th key={h} style={{ padding: '10px 12px', fontSize: 11.5, fontWeight: 700, color: T.textT, letterSpacing: '.06em', textTransform: 'uppercase' }}>{h}</th>
                   ))}
                 </tr>
@@ -261,8 +278,18 @@ export const TabOficioEmissao = () => {
                     <tr key={r.id}>
                       <td style={cell} title={r.nome}><b>{r.numero || '—'}</b>
                         <div style={{ fontSize: 11, color: T.textT, maxWidth: 150, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.nome}</div></td>
-                      <td style={{ ...cell, fontSize: 12.5 }}>{lida ? (modelo === 'piaui' ? periodoCurto(r.periodo) : r.mesReferencia) || '—' : '—'}</td>
+                      <td style={{ ...cell, fontSize: 12.5 }}>{lida ? (modelo === 'piaui' || modelo === 'aquiraz' ? periodoCurto(r.periodo) : r.mesReferencia) || '—' : '—'}</td>
                       <td style={{ ...cell, fontSize: 12.5, whiteSpace: 'nowrap' }}>{(() => { const v = r.valorBruto; return lida && v != null ? `R$ ${formatarReais(v)}` : '—'; })()}</td>
+                      {modelo === 'aquiraz' && (
+                        <>
+                          <td style={{ ...cell, minWidth: 140 }}>
+                            {r.estado === 'ok' ? <input type="date" style={small} value={r.dataEmissaoSel} onChange={(e) => patch(r.id, { dataEmissaoSel: e.target.value, gerado: null })} /> : r.dataEmissaoSel ? dataBr(r.dataEmissaoSel) : '—'}
+                          </td>
+                          <td style={{ ...cell, minWidth: 120 }}>
+                            {r.estado === 'ok' ? <input type="number" min="0" step="1" style={small} value={r.quantidadeTransacoesSel} onChange={(e) => patch(r.id, { quantidadeTransacoesSel: e.target.value, gerado: null })} /> : r.quantidadeTransacoesSel || '—'}
+                          </td>
+                        </>
+                      )}
                       {modelo === 'piaui' && (
                         <>
                           <td style={{ ...cell, fontSize: 12.5, whiteSpace: 'nowrap' }}>{lida && r.valorLiquido != null ? `R$ ${formatarReais(r.valorLiquido)}` : '—'}</td>
@@ -323,7 +350,7 @@ export const TabOficioEmissao = () => {
               </div>
             </div>
           </div>
-        ) : (
+        ) : modelo === 'piaui' ? (
           <div style={{ display: 'grid', gap: 6 }}>
             <div style={{ maxWidth: 260 }}>
               <label style={labelStyle}>Vencimento (para todas as notas)</label>
@@ -332,6 +359,10 @@ export const TabOficioEmissao = () => {
             </div>
             <Toggle on={comRubrica} onChange={setComRubrica} label="Incluir a rúbrica do Cleanderson"
               sub="O modelo não traz assinatura. Ligue pra já sair com a rúbrica acima do nome; desligado, dá pra assinar depois na Assinatura Automática." />
+          </div>
+        ) : (
+          <div style={{ fontSize: 13, color: T.textT, lineHeight: 1.55 }}>
+            O modelo de Aquiraz usa o papel timbrado da 7SERV. O período, a competência, a data da nota e o valor são lidos do PDF; a quantidade de transações é buscada no relatório de consumo, inclusive nas páginas seguintes. Confira e ajuste a data ou a quantidade na tabela se necessário.
           </div>
         )}
 
@@ -348,7 +379,7 @@ export const TabOficioEmissao = () => {
             boxShadow: podeGerar ? btnPrimary.boxShadow : 'none', border: podeGerar ? 'none' : `1px solid ${T.border}`,
             cursor: podeGerar ? 'pointer' : 'not-allowed',
           }}>
-            {busy ? 'Gerando…' : <><I><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" /></I> {modelo === 'piaui' ? 'Gerar requerimentos' : 'Gerar ofícios'}</>}
+            {busy ? 'Gerando…' : <><I><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" /></I> {modelo === 'piaui' ? 'Gerar requerimentos' : modelo === 'aquiraz' ? 'Gerar relatórios' : 'Gerar ofícios'}</>}
           </button>
           {geradas.length > 0 && (
             <button onClick={baixarTodos} style={btnGhost}>

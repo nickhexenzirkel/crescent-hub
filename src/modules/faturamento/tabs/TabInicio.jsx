@@ -135,7 +135,7 @@ const FEATURES = [
     color: '#C0307A',
     bg: 'rgba(192,48,122,0.10)',
     title: 'Ofício de Emissão',
-    desc: 'Arraste as notas fiscais e gere o ofício de solicitação de pagamento de cada uma, no modelo Eusébio ou Juazeiro do Piauí.',
+    desc: 'Arraste as notas fiscais e gere o ofício ou relatório de execução no modelo Eusébio, Juazeiro do Piauí ou Câmara de Aquiraz. No modelo de Aquiraz, a quantidade de transações também é lida do relatório de consumo.',
     steps: ['Solte as notas fiscais', 'Escolha o modelo', 'Baixe os ofícios'],
     icon: (c) => (
       <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
@@ -148,8 +148,8 @@ const FEATURES = [
     color: '#A46A20',
     bg: 'rgba(164,106,32,0.10)',
     title: 'Gerar Recibos',
-    desc: 'Cruza a planilha de faturamento com os PDFs das notas e gera documentos internos de conferência. Não são recibos oficiais e não comprovam pagamento.',
-    steps: ['Envie a planilha', 'Opcionalmente anexe os PDFs das notas', 'Confira os dados e baixe o pacote interno'],
+    desc: 'Prepare minutas de recibos da 7SERV a partir da planilha de faturamento e das notas fiscais, para conferência e assinatura.',
+    steps: ['Envie a planilha', 'Opcionalmente anexe os PDFs das notas', 'Confira os dados e baixe as minutas'],
     icon: (c) => (
       <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>

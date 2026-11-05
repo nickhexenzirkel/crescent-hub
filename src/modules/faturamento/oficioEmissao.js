@@ -1,13 +1,15 @@
 /* ══════════════════════════════════════════════════════════════════════════
    OFÍCIO DE EMISSÃO — lógica (leitura da NFS-e + geração dos PDFs)
    Porte, pro navegador, da "Solicitação de Pagamento" do app Uniko Detetive
-   (Electron). Da nota saem só três coisas: o NÚMERO da NFS-e, o VALOR BRUTO
-   (reembolso ± desconto do cliente) e o PERÍODO faturado. Dois modelos:
+   (Electron). Da nota saem o NÚMERO da NFS-e, o VALOR BRUTO
+   (reembolso ± desconto do cliente), o PERÍODO faturado e os dados adicionais
+   necessários aos modelos selecionados:
 
      • eusebio — o ofício atual do Uniko Detetive (papel timbrado 7SERV,
                  rúbrica, texto com contrato e objeto);
-     • piaui   — "Requerimento de Pagamento" (Juazeiro do Piauí), reproduzido do
-                 .docx de modelo: mesmas coordenadas, cores e corpos de fonte.
+     • piaui   — "Requerimento de Pagamento" (Juazeiro do Piauí);
+     • aquiraz — "Relatório de Execução dos Serviços" (Câmara de Aquiraz),
+                 com papel timbrado da 7SERV.
 
    Medidas em pontos, origem no canto inferior esquerdo (convenção do pdf-lib).
    Fontes: o app Electron usava as do Windows (Times, Calibri, Arial); no
@@ -125,6 +127,27 @@ const extractPeriodFallback = (text) => {
   return [`01/${mm}/${ano}`, `${String(ultimo).padStart(2, '0')}/${mm}/${ano}`];
 };
 
+const extractCompetencia = (text) => {
+  const m = /COMPETENCIA\s*:?\s*(\d{2})\/(\d{4})/.exec(normalize(text));
+  const mes = Number(m?.[1]);
+  return m && mes >= 1 && mes <= 12 ? `${MESES[mes - 1]} de ${m[2]}` : null;
+};
+
+const extractDataEmissao = (text) => {
+  const norm = normalize(text).replace(/\s+/g, ' ');
+  const m = /DATA(?:\s+E\s+HORA)?(?:\s+D[EA])?\s+EMISSAO[\s\S]{0,50}?(\d{2}\/\d{2}\/\d{4})/.exec(norm)
+    ?? /NUMERO\s+DA\s+NFS-E[\s\S]{0,220}?\d{3,9}\s+(\d{2}\/\d{2}\/\d{4})/.exec(norm);
+  const data = m?.[1];
+  if (!data || !parseDataBr(data)) return null;
+  const [dia, mes, ano] = data.split('/');
+  return `${ano}-${mes}-${dia}`;
+};
+
+const extractQuantidadeTransacoes = (text) => {
+  const m = /TRANSACAO\s*EXTERNA\s*QUANTIDADE\s*:?\s*(\d+)\b/.exec(normalize(text));
+  return m ? Number(m[1]) : null;
+};
+
 /** MANUTENÇÃO / ABASTECIMENTO — mesmo critério do Uniko Detetive. */
 const extractTipo = (text, filename = '') => {
   const norm = normalize(text);
@@ -193,6 +216,12 @@ export const faltaNoModelo = (nota, modelo) => {
     if (nota.valorBruto == null) f.push('Não achei o valor bruto na discriminação.');
     if (nota.valorLiquido == null) f.push('Não achei o VALOR LÍQUIDO A RECEBER DO CLIENTE na nota.');
     if (!nota.periodo) f.push('Não achei o período faturado.');
+  } else if (modelo === 'aquiraz') {
+    if (nota.valorBruto == null) f.push('Não achei o valor das operações na nota.');
+    if (!nota.periodo) f.push('Não achei o período faturado.');
+    if (!nota.competencia && !nota.mesReferencia) f.push('Não achei a competência da nota.');
+    if (!nota.dataEmissao) f.push('Não achei a data de emissão da nota.');
+    if (nota.quantidadeTransacoes == null) f.push('Não achei a quantidade de transações no relatório de consumo.');
   } else {
     if (nota.valorBruto == null) f.push('Não achei o valor bruto na discriminação.');
     if (!nota.mesReferencia) f.push('Não achei o período faturado, então não sei o mês.');
@@ -216,14 +245,22 @@ export const lerNota = async (arquivo) => {
   const bytes = arquivo instanceof ArrayBuffer ? arquivo : await arquivo.arrayBuffer();
   const doc = await pdfjsLib.getDocument({ data: new Uint8Array(bytes), isEvalSupported: false }).promise;
   try {
-    const page = await doc.getPage(1);
-    const texto = itemsParaTexto((await page.getTextContent()).items);
+    const textos = [];
+    for (let n = 1; n <= doc.numPages; n++) {
+      const page = await doc.getPage(n);
+      textos.push(itemsParaTexto((await page.getTextContent()).items));
+    }
+    const texto = textos[0] || '';
+    const textoCompleto = textos.join('\n');
     const nome = arquivo.name || '';
     if (!isNotaFiscalPdf(texto)) return { status: 'nao_e_nota', problemas: ['O PDF não é uma NFS-e.'] };
 
     const norm = normalize(texto);
     const periodo = extractPeriod(texto) ?? periodoAbreviado(norm) ?? extractPeriodFallback(texto);
     const numero = extractNfNumber(texto);
+    const dataEmissao = extractDataEmissao(texto);
+    const quantidadeTransacoes = extractQuantidadeTransacoes(textoCompleto);
+    const competencia = extractCompetencia(texto);
 
     // Secretaria/setor: achada no texto sem acento (regex estável), mas devolvida do texto ORIGINAL, com acento.
     let secretaria = null;
@@ -241,6 +278,8 @@ export const lerNota = async (arquivo) => {
     const reembolso = mReemb ? parseMoedaBr(mReemb[1]) : null;
     const mLiq = /VALOR\s+LIQUIDO\s+A\s+RECEBER\s+DO\s+CLIENTE\s*:?\s*R\$\s*([\d.,]+)/.exec(norm);
     const liquido = mLiq ? parseMoedaBr(mLiq[1]) : null;
+    const mLiqNfse = /VALOR\s+LIQUIDO\s+DA\s+NF\s*-?\s*S\s*-?\s*E\s*:?\s*R\$\s*([\d.,]+)/.exec(norm);
+    const valorLiquidoNfse = mLiqNfse ? parseMoedaBr(mLiqNfse[1]) : null;
     const irRetido = extrairIr(norm);
     const somaIr = irRetido ? irRetido.peca + irRetido.servico + irRetido.abast : null;
     const desconto = extrairDesconto(norm, reembolso, somaIr, liquido);
@@ -249,13 +288,13 @@ export const lerNota = async (arquivo) => {
     const ini = parseDataBr(periodo?.[0]);
     const mesReferencia = ini ? `${MESES[ini.getMonth()]} de ${ini.getFullYear()}` : null;
 
-    // O que falta além do número depende do modelo (ver `faltaNoModelo`): o Eusébio usa o VALOR BRUTO e
-    // o mês; o Juazeiro do Piauí usa o VALOR LÍQUIDO A RECEBER DO CLIENTE e o período.
+    // O que falta além do número depende do modelo (ver `faltaNoModelo`).
     const problemas = numero ? [] : ['Não achei o número da NFS-e no PDF.'];
 
     return {
       status: problemas.length ? 'incompleto' : 'ok', problemas,
-      numero, periodo, mesReferencia, valorBruto, valorLiquido: liquido, irRetido,
+      numero, periodo, mesReferencia, competencia: competencia || mesReferencia, dataEmissao, quantidadeTransacoes,
+      valorBruto, valorLiquido: liquido, valorLiquidoNfse, irRetido,
       tipo: extractTipo(texto, nome),
       secretaria: limparSecretaria(secretaria),
     };
@@ -493,5 +532,81 @@ export const gerarPiaui = async ({ numeroNota, secretaria, valorBruto, valorLiqu
   linha([B('7SERV GESTÃO DE BENEFÍCIOS LTDA')], 602.5 + E);
   linha([B(SIGNATARIO.nome.toUpperCase())], 616.3 + E);
   linha([B(`CPF Nº ${SIGNATARIO.cpf}`)], 630.2 + E);
+  return doc.save();
+};
+
+/* ─── Modelo CÂMARA DE AQUIRAZ (Relatório de Execução dos Serviços) ─── */
+const periodoExtenso = (periodo) => {
+  const a = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(periodo?.[0] || '');
+  const b = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(periodo?.[1] || '');
+  if (!a || !b) return periodoCurto(periodo);
+  const mesA = MESES[Number(a[2]) - 1].toLowerCase();
+  const mesB = MESES[Number(b[2]) - 1].toLowerCase();
+  if (a[3] === b[3] && a[2] === b[2]) return `${a[1]} a ${b[1]} de ${mesB} de ${b[3]}`;
+  if (a[3] === b[3]) return `${a[1]} de ${mesA} a ${b[1]} de ${mesB} de ${b[3]}`;
+  return `${a[1]} de ${mesA} de ${a[3]} a ${b[1]} de ${mesB} de ${b[3]}`;
+};
+
+const dataRelatorioHoje = () => {
+  const partes = new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Fortaleza', day: '2-digit', month: 'long', year: 'numeric',
+  }).formatToParts(new Date());
+  const valor = (tipo) => partes.find((parte) => parte.type === tipo)?.value || '';
+  return `Fortaleza, ${valor('day')} de ${valor('month')} de ${valor('year')}.`;
+};
+
+export const gerarAquiraz = async ({ numeroNota, dataEmissao, mesReferencia, periodo, valorOperacoes, quantidadeTransacoes }) => {
+  const { doc, f, logo } = await abrirDoc(`Relatório de Execução dos Serviços - NF ${numeroNota}`);
+  const p = doc.addPage(PAG_PIAUI);
+  const X = 77.8, LARGURA = 461, SIZE = 10.5;
+
+  // Mesmo papel timbrado do modelo de Juazeiro do Piauí.
+  p.drawRectangle({ x: -3, y: topo(90.2), width: 598.5, height: 74.4, color: VERDE });
+  p.drawRectangle({ x: 17.9, y: topo(126.7), width: 96.5, height: 115.8, color: AZUL });
+  p.drawImage(logo, { x: -12.6, y: topo(101.6), width: 139.8, height: 100.2 });
+  p.drawText('BENEFÍCIOS', { x: 270.9 + f.openSans.widthOfTextAtSize('     ', 36), y: topo(62.8), size: 36, font: f.openSans, color: BRANCO });
+  p.drawRectangle({ x: 1.5, y: topo(806), width: 593.4, height: 49.2, color: VERDE });
+  linhaAjustada(p, 'Rua/Street: Av. Washington Soares, Nº 3663 – Edson Queiroz – Sala/Living Room: 1416 - Torre II – CEP/ZIP Code: 60.811 - 341 –', 9.8, topo(776.6), 582, f.helv, 10, BRANCO);
+  linhaAjustada(p, 'Cidade/City: Fortaleza – Estado/State: Ceará - Brazil – Fone/Phone: +55 (85) 9.9132.8518 – contato@7servbeneficios.com.br', 23.6, topo(789), 556, f.helv, 10, BRANCO);
+
+  const B = (t) => ({ t, f: f.helvB, c: PRETO });
+  const R = (t) => ({ t, f: f.helv, c: PRETO });
+  const centro = (texto, yTopo, size, font = f.helvB) => {
+    const largura = larg(font, texto, size);
+    p.drawText(seguro(font, texto), { x: (PAG_PIAUI[0] - largura) / 2, y: topo(yTopo), size, font, color: PRETO });
+  };
+  centro('CÂMARA MUNICIPAL DE AQUIRAZ', 190, 12);
+  centro('PODER LEGISLATIVO', 207, 10.5);
+  centro('RELATÓRIO DE EXECUÇÃO DOS SERVIÇOS', 231, 12);
+  centro('Gerenciamento de abastecimentos da frota', 250, 10.5, f.helv);
+  centro(periodoExtenso(periodo), 267, 10.5, f.helv);
+
+  let yTopo = 296;
+  const texto = (segs, { gap = 7, ...opts } = {}) => {
+    const y = topo(yTopo);
+    const fim = paragrafo(p, segs, { x: X, y, largura: LARGURA, entrelinha: 13.2, size: SIZE, ...opts });
+    yTopo += (y - fim) + gap;
+  };
+  texto([B('Contratada: '), R('7SERV GESTÃO DE BENEFÍCIOS LTDA')]);
+  texto([B('CNPJ: '), R('13.858.769/0001-97')]);
+  texto([B('Contrato: '), R('20239037 — 3º Termo Aditivo')]);
+  texto([B('Vigência do aditivo: '), R('12/10/2026 a 11/10/2027')]);
+  texto([B('Nota fiscal: '), R(`${numeroNota} — emitida em ${dataBr(dataEmissao)}`)]);
+  texto([B('Competência: '), R(mesReferencia)]);
+  texto([B('Valor das operações de abastecimento: '), R(`R$ ${formatarReais(valorOperacoes)}`)]);
+
+  yTopo += 5;
+  texto([B('Objeto e execução no período')], { gap: 3 });
+  texto([R(`Controle informatizado da frota e intermediação de pagamentos para aquisição de combustíveis em rede credenciada, no âmbito do Contrato nº 20239037. O demonstrativo do período registra ${quantidadeTransacoes} ${quantidadeTransacoes === 1 ? 'transação' : 'transações'} de abastecimento, no total de R$ ${formatarReais(valorOperacoes)}.`)], { justificar: true, gap: 8 });
+  texto([B('Documentos e evidências anexas')], { gap: 3 });
+  texto([R(`Relatório analítico das transações de ${periodoExtenso(periodo)}, com identificação dos veículos, datas, credenciados, responsáveis e valores; demonstrativo financeiro e de retenções da rede credenciada; NFS-e nº ${numeroNota}.`)], { justificar: true, gap: 8 });
+  texto([B('Ocorrências e responsável pela execução')], { gap: 3 });
+  texto([R('Ocorrências relevantes: Não tiveram ocorrências.')], { gap: 8 });
+  texto([R('Declaro que as informações deste relatório e de seus anexos correspondem aos serviços efetivamente executados no período indicado.')], { justificar: true, gap: 12 });
+
+  texto([R(dataRelatorioHoje())], { gap: 21 });
+  texto([R('Responsável pela empresa: ______________________________________________')], { gap: 5 });
+  texto([R('Cargo/função: _________________________________________________________')], { gap: 5 });
+  texto([R('Assinatura: ___________________________________________________________')], { gap: 0 });
   return doc.save();
 };
