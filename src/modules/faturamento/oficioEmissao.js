@@ -555,58 +555,93 @@ const dataRelatorioHoje = () => {
   return `Fortaleza, ${valor('day')} de ${valor('month')} de ${valor('year')}.`;
 };
 
-export const gerarAquiraz = async ({ numeroNota, dataEmissao, mesReferencia, periodo, valorOperacoes, quantidadeTransacoes }) => {
+export const gerarAquiraz = async ({
+  numeroNota, dataEmissao, mesReferencia, periodo, valorOperacoes, quantidadeTransacoes, incluirAssinatura = false,
+}) => {
   const { doc, f, logo } = await abrirDoc(`Relatório de Execução dos Serviços - NF ${numeroNota}`);
   const p = doc.addPage(PAG_PIAUI);
-  const X = 77.8, LARGURA = 461, SIZE = 10.5;
+  const X = 77.8, LARGURA = 461, SIZE = 12, ENTRELINHA = 16;
+  const [LARGURA_PAGINA, ALTURA_PAGINA] = PAG_PIAUI;
+  const ALTURA_CABECALHO = 115.8, ALTURA_FAIXA_RODAPE = 40;
 
-  // Mesmo papel timbrado do modelo de Juazeiro do Piauí.
-  p.drawRectangle({ x: -3, y: topo(90.2), width: 598.5, height: 74.4, color: VERDE });
-  p.drawRectangle({ x: 17.9, y: topo(126.7), width: 96.5, height: 115.8, color: AZUL });
-  p.drawImage(logo, { x: -12.6, y: topo(101.6), width: 139.8, height: 100.2 });
-  p.drawText('BENEFÍCIOS', { x: 270.9 + f.openSans.widthOfTextAtSize('     ', 36), y: topo(62.8), size: 36, font: f.openSans, color: BRANCO });
-  p.drawRectangle({ x: 1.5, y: topo(806), width: 593.4, height: 49.2, color: VERDE });
-  linhaAjustada(p, 'Rua/Street: Av. Washington Soares, Nº 3663 – Edson Queiroz – Sala/Living Room: 1416 - Torre II – CEP/ZIP Code: 60.811 - 341 –', 9.8, topo(776.6), 582, f.helv, 10, BRANCO);
-  linhaAjustada(p, 'Cidade/City: Fortaleza – Estado/State: Ceará - Brazil – Fone/Phone: +55 (85) 9.9132.8518 – contato@7servbeneficios.com.br', 23.6, topo(789), 556, f.helv, 10, BRANCO);
+  // Papel timbrado ancorado nas bordas físicas da página.
+  p.drawRectangle({ x: 0, y: ALTURA_PAGINA - 74.4, width: LARGURA_PAGINA, height: 74.4, color: VERDE });
+  p.drawRectangle({ x: 0, y: ALTURA_PAGINA - ALTURA_CABECALHO, width: 115.8, height: ALTURA_CABECALHO, color: AZUL });
+  p.drawImage(logo, { x: 0, y: ALTURA_PAGINA - 100.2, width: 139.8, height: 100.2 });
+  p.drawText('BENEFÍCIOS', {
+    x: 270.9 + f.openSans.widthOfTextAtSize('     ', 36),
+    y: ALTURA_PAGINA - 51, size: 36, font: f.openSans, color: BRANCO,
+  });
+  p.drawRectangle({ x: 0, y: 0, width: LARGURA_PAGINA, height: ALTURA_FAIXA_RODAPE, color: VERDE });
+  linhaAjustada(p, 'Rua/Street: Av. Washington Soares, Nº 3663 – Edson Queiroz – Sala/Living Room: 1416 - Torre II – CEP/ZIP Code: 60.811 - 341 –', 5, 25, LARGURA_PAGINA - 10, f.helv, 9.5, BRANCO);
+  linhaAjustada(p, 'Cidade/City: Fortaleza – Estado/State: Ceará - Brazil – Fone/Phone: +55 (85) 9.9132.8518 – contato@7servbeneficios.com.br', 10, 11, LARGURA_PAGINA - 20, f.helv, 9.5, BRANCO);
 
   const B = (t) => ({ t, f: f.helvB, c: PRETO });
   const R = (t) => ({ t, f: f.helv, c: PRETO });
   const centro = (texto, yTopo, size, font = f.helvB) => {
     const largura = larg(font, texto, size);
-    p.drawText(seguro(font, texto), { x: (PAG_PIAUI[0] - largura) / 2, y: topo(yTopo), size, font, color: PRETO });
+    p.drawText(seguro(font, texto), { x: (LARGURA_PAGINA - largura) / 2, y: topo(yTopo), size, font, color: PRETO });
   };
-  centro('CÂMARA MUNICIPAL DE AQUIRAZ', 190, 12);
-  centro('PODER LEGISLATIVO', 207, 10.5);
-  centro('RELATÓRIO DE EXECUÇÃO DOS SERVIÇOS', 231, 12);
-  centro('Gerenciamento de abastecimentos da frota', 250, 10.5, f.helv);
-  centro(periodoExtenso(periodo), 267, 10.5, f.helv);
+  centro('CÂMARA MUNICIPAL DE AQUIRAZ', 187, 14);
+  centro('PODER LEGISLATIVO', 208, 12);
+  centro('RELATÓRIO DE EXECUÇÃO DOS SERVIÇOS', 235, 14);
+  centro('Gerenciamento de abastecimentos da frota', 256, 12, f.helv);
+  centro(periodoExtenso(periodo), 276, 12, f.helv);
 
-  let yTopo = 296;
-  const texto = (segs, { gap = 7, ...opts } = {}) => {
+  let yTopo = 305;
+  const texto = (segs, { gap = 4, ...opts } = {}) => {
     const y = topo(yTopo);
-    const fim = paragrafo(p, segs, { x: X, y, largura: LARGURA, entrelinha: 13.2, size: SIZE, ...opts });
-    yTopo += (y - fim) + gap;
+    const fim = paragrafo(p, segs, { x: X, y, largura: LARGURA, entrelinha: ENTRELINHA, size: SIZE, ...opts });
+    const linhas = Math.round((y - fim) / ENTRELINHA) + 1;
+    yTopo += linhas * ENTRELINHA + gap;
   };
-  texto([B('Contratada: '), R('7SERV GESTÃO DE BENEFÍCIOS LTDA')]);
-  texto([B('CNPJ: '), R('13.858.769/0001-97')]);
-  texto([B('Contrato: '), R('20239037 — 3º Termo Aditivo')]);
-  texto([B('Vigência do aditivo: '), R('12/10/2026 a 11/10/2027')]);
-  texto([B('Nota fiscal: '), R(`${numeroNota} — emitida em ${dataBr(dataEmissao)}`)]);
-  texto([B('Competência: '), R(mesReferencia)]);
-  texto([B('Valor das operações de abastecimento: '), R(`R$ ${formatarReais(valorOperacoes)}`)]);
+  const campoDuplo = (esquerda, direita) => {
+    const y = topo(yTopo);
+    const larguraCampo = (LARGURA - 18) / 2;
+    const fimEsquerda = paragrafo(p, esquerda, { x: X, y, largura: larguraCampo, entrelinha: ENTRELINHA, size: SIZE });
+    const fimDireita = paragrafo(p, direita, { x: X + larguraCampo + 18, y, largura: larguraCampo, entrelinha: ENTRELINHA, size: SIZE });
+    const linhas = Math.max(
+      Math.round((y - fimEsquerda) / ENTRELINHA) + 1,
+      Math.round((y - fimDireita) / ENTRELINHA) + 1,
+    );
+    yTopo += linhas * ENTRELINHA + 3;
+  };
+  campoDuplo([B('Contratada: '), R('7SERV GESTÃO DE BENEFÍCIOS LTDA')], [B('CNPJ: '), R('13.858.769/0001-97')]);
+  campoDuplo([B('Contrato: '), R('20239037 — 3º Termo Aditivo')], [B('Vigência: '), R('12/10/2026 a 11/10/2027')]);
+  campoDuplo([B('Nota fiscal: '), R(`${numeroNota} — emitida em ${dataBr(dataEmissao)}`)], [B('Competência: '), R(mesReferencia)]);
+  texto([B('Valor das operações de abastecimento: '), R(`R$ ${formatarReais(valorOperacoes)}`)], { gap: 2 });
 
-  yTopo += 5;
-  texto([B('Objeto e execução no período')], { gap: 3 });
+  yTopo += 7;
+  texto([B('OBJETO E EXECUÇÃO NO PERÍODO')], { size: 12.5, gap: 3 });
   texto([R(`Controle informatizado da frota e intermediação de pagamentos para aquisição de combustíveis em rede credenciada, no âmbito do Contrato nº 20239037. O demonstrativo do período registra ${quantidadeTransacoes} ${quantidadeTransacoes === 1 ? 'transação' : 'transações'} de abastecimento, no total de R$ ${formatarReais(valorOperacoes)}.`)], { justificar: true, gap: 8 });
-  texto([B('Documentos e evidências anexas')], { gap: 3 });
+  texto([B('DOCUMENTOS E EVIDÊNCIAS ANEXAS')], { size: 12.5, gap: 3 });
   texto([R(`Relatório analítico das transações de ${periodoExtenso(periodo)}, com identificação dos veículos, datas, credenciados, responsáveis e valores; demonstrativo financeiro e de retenções da rede credenciada; NFS-e nº ${numeroNota}.`)], { justificar: true, gap: 8 });
-  texto([B('Ocorrências e responsável pela execução')], { gap: 3 });
-  texto([R('Ocorrências relevantes: Não tiveram ocorrências.')], { gap: 8 });
-  texto([R('Declaro que as informações deste relatório e de seus anexos correspondem aos serviços efetivamente executados no período indicado.')], { justificar: true, gap: 12 });
+  texto([B('OCORRÊNCIAS E RESPONSÁVEL PELA EXECUÇÃO')], { size: 12.5, gap: 3 });
+  texto([R('Ocorrências relevantes: Não foram registradas ocorrências no período.')], { gap: 8 });
+  texto([R('Declaro que as informações deste relatório e de seus anexos correspondem aos serviços efetivamente executados no período indicado.')], { justificar: true, gap: 8 });
 
-  texto([R(dataRelatorioHoje())], { gap: 21 });
-  texto([R('Responsável pela empresa: ______________________________________________')], { gap: 5 });
-  texto([R('Cargo/função: _________________________________________________________')], { gap: 5 });
-  texto([R('Assinatura: ___________________________________________________________')], { gap: 0 });
+  texto([R(dataRelatorioHoje())], { gap: 0 });
+  const rubrica = await doc.embedPng(await baixar(rubricaUrl));
+  const larguraRubrica = 170;
+  const alturaRubrica = larguraRubrica * (rubrica.height / rubrica.width);
+  const linhaAssinaturaTopo = Math.min(Math.max(yTopo + alturaRubrica + 24, 680), 736);
+  const margemAssinatura = 140;
+  p.drawLine({
+    start: { x: margemAssinatura, y: topo(linhaAssinaturaTopo) },
+    end: { x: LARGURA_PAGINA - margemAssinatura, y: topo(linhaAssinaturaTopo) },
+    thickness: 0.8, color: PRETO,
+  });
+
+  if (incluirAssinatura) {
+    p.drawImage(rubrica, {
+      x: (LARGURA_PAGINA - larguraRubrica) / 2,
+      y: topo(linhaAssinaturaTopo) + 8,
+      width: larguraRubrica,
+      height: alturaRubrica,
+    });
+  }
+
+  centro(SIGNATARIO.nome.toUpperCase(), linhaAssinaturaTopo + 18, 11.5);
+  centro('ADMINISTRADOR', linhaAssinaturaTopo + 34, 11, f.helv);
   return doc.save();
 };

@@ -129,26 +129,47 @@ export const TabOficioEmissao = () => {
   const nomeArquivo = (r) => (modelo === 'piaui'
     ? `REQUERIMENTO DE PAGAMENTO - NF ${r.numero}.pdf`
     : modelo === 'aquiraz' ? `RELATORIO DE EXECUCAO DOS SERVICOS - NF ${r.numero}.pdf` : `OFÍCIO - NF ${r.numero}.pdf`);
+  const dadosAquiraz = (r, incluirAssinatura = false) => ({
+    numeroNota: r.numero,
+    dataEmissao: r.dataEmissaoSel,
+    mesReferencia: r.competencia || r.mesReferencia,
+    periodo: r.periodo,
+    valorOperacoes: r.valorBruto,
+    quantidadeTransacoes: Number(r.quantidadeTransacoesSel),
+    incluirAssinatura,
+  });
+  const gerarDocumento = (r, assinar = false) => {
+    if (modelo === 'piaui') {
+      return gerarPiaui({
+        numeroNota: r.numero,
+        secretaria: r.secretariaSel.trim(),
+        valorBruto: r.valorBruto,
+        valorLiquido: r.valorLiquido,
+        tipo: r.tipoSel,
+        irRetido: r.irRetido,
+        periodo: r.periodo,
+        vencimento: dataBr(r.venc || vencGlobal),
+        comRubrica: assinar || comRubrica,
+      });
+    }
+    if (modelo === 'aquiraz') return gerarAquiraz(dadosAquiraz(r, assinar));
+    return gerarEusebio({
+      mesReferencia: r.mesReferencia,
+      numeroNota: r.numero,
+      valorBruto: r.valorBruto,
+      contrato: contrato.trim(),
+      objeto: objeto.trim().replace(/\s+/g, ' ').replace(/[.,;]+$/, ''),
+    });
+  };
+  const podeAssinarTodas = !busy && textoOk && rows.length > 0
+    && rows.every((r) => r.estado === 'ok' && !pendencia(r));
 
   const gerar = async () => {
     setBusy(true); setErro('');
     try {
       for (const r of prontas) {
         try {
-          const bytes = modelo === 'piaui'
-            ? await gerarPiaui({
-              numeroNota: r.numero, secretaria: r.secretariaSel.trim(), valorBruto: r.valorBruto, valorLiquido: r.valorLiquido, tipo: r.tipoSel,
-              irRetido: r.irRetido, periodo: r.periodo, vencimento: dataBr(r.venc || vencGlobal), comRubrica,
-            })
-            : modelo === 'aquiraz'
-              ? await gerarAquiraz({
-                numeroNota: r.numero, dataEmissao: r.dataEmissaoSel, mesReferencia: r.competencia || r.mesReferencia,
-                periodo: r.periodo, valorOperacoes: r.valorBruto, quantidadeTransacoes: Number(r.quantidadeTransacoesSel),
-              })
-              : await gerarEusebio({
-              mesReferencia: r.mesReferencia, numeroNota: r.numero, valorBruto: r.valorBruto,
-              contrato: contrato.trim(), objeto: objeto.trim().replace(/\s+/g, ' ').replace(/[.,;]+$/, ''),
-            });
+          const bytes = await gerarDocumento(r);
           patch(r.id, { gerado: { blob: new Blob([bytes], { type: 'application/pdf' }), nome: nomeArquivo(r), modelo } });
         } catch (e) {
           patch(r.id, { gerado: null, erroGerar: e?.message || 'falha ao gerar' });
@@ -156,6 +177,43 @@ export const TabOficioEmissao = () => {
       }
     } catch (e) { setErro(e?.message || 'Não foi possível gerar os ofícios.'); }
     setBusy(false);
+  };
+
+  const assinarTodas = async () => {
+    if (!podeAssinarTodas) return;
+    setBusy(true); setErro('');
+    try {
+      const documentos = [];
+      for (const r of rows) {
+        try {
+          const bytes = await gerarDocumento(r, true);
+          documentos.push({ nome: nomeArquivo(r).replace(/\.pdf$/i, ' - ASSINADO.pdf'), blob: new Blob([bytes], { type: 'application/pdf' }) });
+        } catch (e) {
+          throw new Error(`Falha ao assinar a NFS-e ${r.numero}: ${e?.message || 'erro inesperado'}`, { cause: e });
+        }
+      }
+
+      if (documentos.length === 1) {
+        salvar(documentos[0].blob, documentos[0].nome);
+      } else {
+        const { default: JSZip } = await import('jszip');
+        const zip = new JSZip();
+        const usados = new Set();
+        documentos.forEach(({ nome: nomeOriginal, blob }) => {
+          let nome = nomeOriginal, n = 2;
+          while (usados.has(nome)) nome = nomeOriginal.replace(/\.pdf$/i, ` (${n++}).pdf`);
+          usados.add(nome);
+          zip.file(nome, blob);
+        });
+        const nomeZip = modelo === 'aquiraz' ? 'Relatórios de Aquiraz assinados.zip'
+          : modelo === 'piaui' ? 'Requerimentos assinados.zip' : 'Ofícios assinados.zip';
+        salvar(await zip.generateAsync({ type: 'blob' }), nomeZip);
+      }
+    } catch (e) {
+      setErro(e?.message || 'Não foi possível assinar todas as notas da lista.');
+    } finally {
+      setBusy(false);
+    }
   };
 
   const salvar = (blob, nome) => {
@@ -311,9 +369,11 @@ export const TabOficioEmissao = () => {
                       <td style={{ ...cell, fontSize: 12.5 }}>{statusCell(r)}</td>
                       <td style={{ ...cell, whiteSpace: 'nowrap', textAlign: 'right' }}>
                         {r.gerado?.modelo === modelo && (
-                          <button style={{ ...btnGhost, padding: '6px 11px' }} onClick={() => salvar(r.gerado.blob, r.gerado.nome)} title={r.gerado.nome}>
-                            <I><path d="M12 3v12" /><polyline points="7 11 12 16 17 11" /><path d="M5 21h14" /></I> Baixar
-                          </button>
+                          <>
+                            <button style={{ ...btnGhost, padding: '6px 11px' }} onClick={() => salvar(r.gerado.blob, r.gerado.nome)} title={r.gerado.nome}>
+                              <I><path d="M12 3v12" /><polyline points="7 11 12 16 17 11" /><path d="M5 21h14" /></I> Baixar
+                            </button>
+                          </>
                         )}
                         <button style={{ ...btnGhost, padding: '6px 9px', marginLeft: 6, border: 'none' }} title="Tirar da lista" onClick={() => setRows((rs) => rs.filter((x) => x.id !== r.id))}>✕</button>
                       </td>
@@ -362,7 +422,7 @@ export const TabOficioEmissao = () => {
           </div>
         ) : (
           <div style={{ fontSize: 13, color: T.textT, lineHeight: 1.55 }}>
-            O modelo de Aquiraz usa o papel timbrado da 7SERV. O período, a competência, a data da nota e o valor são lidos do PDF; a quantidade de transações é buscada no relatório de consumo, inclusive nas páginas seguintes. Confira e ajuste a data ou a quantidade na tabela se necessário.
+            O modelo de Aquiraz usa o papel timbrado da 7SERV. O período, a competência, a data da nota e o valor são lidos do PDF; a quantidade de transações é buscada no relatório de consumo, inclusive nas páginas seguintes. Confira e ajuste a data ou a quantidade na tabela se necessário. O botão único no fim da página gera e assina automaticamente todas as notas válidas da lista.
           </div>
         )}
 
@@ -393,6 +453,25 @@ export const TabOficioEmissao = () => {
                 : !textoOk ? (!contrato.trim() ? 'Informe o número do contrato com o cliente.' : 'Informe o objeto do contrato.')
                   : prontas.length === 0 ? 'Nenhuma nota pronta — veja a coluna Situação.' : ''}
             </span>
+          )}
+          {rows.length > 0 && (
+            <button
+              onClick={assinarTodas}
+              disabled={!podeAssinarTodas}
+              style={{
+                ...btnGhost,
+                padding: '12px 18px',
+                color: podeAssinarTodas ? T.gold : T.textD,
+                borderColor: podeAssinarTodas ? T.gold : T.border,
+                cursor: podeAssinarTodas ? 'pointer' : 'not-allowed',
+              }}
+              title={podeAssinarTodas
+                ? `Assinar automaticamente as ${rows.length} notas da lista`
+                : 'Para assinar todas, aguarde a leitura e corrija os campos pendentes de cada nota.'}
+            >
+              <I><path d="M3 17.25V21h3.75L18.8 8.95l-3.75-3.75L3 17.25z" /><path d="M14 6l3.75 3.75" /></I>
+              {busy ? 'Assinando…' : `Assinar automaticamente todas (${rows.length})`}
+            </button>
           )}
         </div>
       </div>
