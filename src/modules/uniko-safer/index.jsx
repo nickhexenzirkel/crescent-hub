@@ -12,6 +12,7 @@ import { T } from '../../contexts/theme';
 import { getAuthUser, SERVER_URL } from '../../contexts/user';
 import { supabase } from './saferSupabase';
 import { useIsMobile } from '../../hooks/useIsMobile';
+import SchatPanel from './SchatPanel';
 import {
   parseWhatsappTxt, parseWhatsappMessages, hashMessage,
   sniffFileType, readChatText, deriveContactNameFromFilename, sanitizeStorageName,
@@ -151,6 +152,7 @@ const UnikoSafer = ({ onBack }) => {
   const [contacts, setContacts] = useState([]);
   const [loadingContacts, setLoadingContacts] = useState(true);
   const [activeCategory, setActiveCategory] = useState('faturamento');
+  const [activeSource, setActiveSource] = useState('whatsapp');
   const [search, setSearch] = useState('');
   const [sortMode, setSortMode] = useState('recent'); // 'recent' (msg. mais nova primeiro) | 'asc' (A→Z) | 'desc' (Z→A)
   const [tags, setTags] = useState([]);
@@ -387,6 +389,7 @@ const UnikoSafer = ({ onBack }) => {
   const selectedContact = contacts.find(c => c.id === selectedContactId) || null;
 
   const switchCategory = (cat) => {
+    setActiveSource('whatsapp');
     setActiveCategory(cat);
     // Sai da conversa aberta se ela não for da categoria pra onde acabou de
     // trocar — senão a tela de chat ficava mostrando alguém que sumiu da
@@ -948,8 +951,34 @@ const UnikoSafer = ({ onBack }) => {
         <div style={{ fontFamily: 'var(--font-brand)', fontSize: 15, fontWeight: 700, color: T.text }}>Uniko Safer</div>
       </div>
 
+      <nav aria-label="Fontes de mensagens" style={{
+        flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8, overflowX: 'auto',
+        padding: isMobile ? '8px 12px' : '9px 24px',
+        background: T.surface, borderBottom: `1px solid ${T.border}`,
+      }}>
+        {CATEGORIES.map((categoria) => {
+          const selecionada = activeSource === 'whatsapp' && activeCategory === categoria.id;
+          return (
+            <button key={categoria.id} onClick={() => switchCategory(categoria.id)} style={{
+              padding: '8px 13px', borderRadius: 10, whiteSpace: 'nowrap',
+              border: `1px solid ${selecionada ? T.gold : T.border}`,
+              background: selecionada ? T.goldGl : 'transparent',
+              color: selecionada ? T.gold : T.textS,
+              cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: 12.5, fontWeight: 750,
+            }}>{categoria.label}</button>
+          );
+        })}
+        <button onClick={() => { setActiveSource('schat'); setSelectedContactId(null); }} style={{
+          padding: '8px 13px', borderRadius: 10, whiteSpace: 'nowrap',
+          border: `1px solid ${activeSource === 'schat' ? T.gold : T.border}`,
+          background: activeSource === 'schat' ? T.goldGl : 'transparent',
+          color: activeSource === 'schat' ? T.gold : T.textS,
+          cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: 12.5, fontWeight: 750,
+        }}>Entrar no SCHAT</button>
+      </nav>
+
       {/* Corpo: sidebar + conversa */}
-      <div style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden' }}>
+      <div style={{ flex: 1, minHeight: 0, display: activeSource === 'whatsapp' ? 'flex' : 'none', overflow: 'hidden' }}>
         {/* Sidebar */}
         {mobileShowList && (
           <div style={{ width: isMobile ? '100%' : 320, flexShrink: 0, background: T.surface, borderRight: isMobile ? 'none' : `1px solid ${T.border}`,
@@ -960,19 +989,6 @@ const UnikoSafer = ({ onBack }) => {
                 <button title="Mais opções" onClick={() => setMoreMenuOpen(true)} style={{ ...btnStyle('secondary'), padding: '7px 9px' }}><IcoDots /></button>
                 <button title="Novo contato" onClick={() => openContactModal('create')} style={{ ...btnStyle('primary'), padding: '7px 9px' }}><IcoPlus /></button>
               </div>
-            </div>
-
-            <div style={{ padding: '0 16px 10px', display: 'flex', gap: 6 }}>
-              {CATEGORIES.map(cat => {
-                const sel = activeCategory === cat.id;
-                return (
-                  <button key={cat.id} onClick={() => switchCategory(cat.id)}
-                    style={{ flex: 1, padding: '8px 10px', borderRadius: 10, cursor: 'pointer', fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-body)',
-                      border: `1.5px solid ${sel ? T.gold : T.border}`, background: sel ? T.goldGl : 'transparent', color: sel ? T.gold : T.textS }}>
-                    {cat.label}
-                  </button>
-                );
-              })}
             </div>
 
             <div style={{ padding: '0 16px 10px' }}>
@@ -1133,6 +1149,8 @@ const UnikoSafer = ({ onBack }) => {
           </div>
         )}
       </div>
+
+      {activeSource === 'schat' && <SchatPanel isAdmin={isAdmin} logSaferAction={logSaferAction} />}
 
       {/* Modal: criar/editar contato */}
       {contactModal && (

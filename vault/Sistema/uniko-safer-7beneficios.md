@@ -23,6 +23,16 @@ Exportação do WhatsApp é sempre cumulativa (histórico inteiro de novo a cada
 
 **Não resolvido ainda:** os arquivos originais (.zip/.txt) continuam sendo guardados no Storage a cada importação, sem limite/retenção — isso ainda duplica espaço de Storage ao longo dos anos (diferente do problema do banco, que já foi resolvido). Se a exportação automática semanal for pra frente, vale revisitar (ex: manter só a última X exportações por contato, ou não guardar o arquivo bruto depois de parseado).
 
+## SCHAT — backups em Excel
+
+O Uniko Safer tem a opção **Entrar no SCHAT**, separada do histórico do WhatsApp. O SCHAT é uma caixa de entrada única, sem setores: o número da coluna `contato` identifica cada pessoa e todas as mensagens desse número aparecem juntas, independentemente do valor de `canal`. Números são normalizados sem formatação e com o DDI brasileiro `55` removido quando presente. O administrador importa um `.xlsx` com as colunas `protocolo`, `remetente`, `mensagem`, `contato`, `canal` e `criado_em`. A importação mescla os dados, ignora linhas sem mensagem e deduplica pelo conteúdo; reenvio após interrupção é seguro e não apaga registros existentes.
+
+Os registros são armazenados em `uniko_safer_schat_threads` e `uniko_safer_schat_messages`. Rodar `supabase_uniko_safer_schat.sql` no projeto Supabase dedicado do Uniko Safer, depois do `supabase_seguranca_auth_helper.sql`. Leitura permanece restrita a admin/moderador e escrita no SCHAT é restrita a administrador também no RLS.
+
+O nome do contato pode ser inferido na importação quando uma mensagem do bot começa com saudação e tem uma construção de boas-vindas reconhecida (por exemplo, "Olá, Nome - Cidade, Boa noite! Seja bem-vindo"). O nome só substitui o já salvo se a saudação encontrada for mais recente; na ausência de uma correspondência segura, a interface continua usando o telefone. A tabela guarda `contact_name` e `contact_name_at`.
+
+A pesquisa geral aceita nome, telefone e texto das mensagens e pode limitar resultados por data inicial/final. A pesquisa por texto consulta mensagens do SCHAT no banco e lista as conversas com correspondências mais recentes; ao selecionar uma delas, o filtro de texto e o período são aplicados também dentro da conversa. Cada conversa também tem seus próprios campos de busca de texto e data inicial/final. A busca geral retorna até mil mensagens correspondentes por consulta; períodos ou termos mais específicos podem reduzir resultados muito amplos.
+
 ## Atualização (22/set/2026): Supabase dedicado já existe e está em uso
 O projeto dedicado (`npfgggoavzzyzcjjachi`, plano Micro) já foi aprovado e `saferSupabase.js` já aponta pra ele — a seção acima ("fallback pro principal", "pendente aprovação") ficou obsoleta.
 
