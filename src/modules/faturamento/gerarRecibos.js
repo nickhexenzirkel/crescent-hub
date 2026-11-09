@@ -214,7 +214,7 @@ function desenharCampo(page, font, x, y, largura, rotulo, valor) {
     x, y: y - altura, width: largura, height: altura,
     borderColor: rgb(0.75, 0.78, 0.76), borderWidth: 0.6,
   });
-  page.drawText(rotulo, { x: x + 5, y: y - 10, size: 7, font: font.bold, color: rgb(0.25, 0.29, 0.26) });
+  if (rotulo) page.drawText(rotulo, { x: x + 5, y: y - 10, size: 7, font: font.bold, color: rgb(0.25, 0.29, 0.26) });
   desenharTexto(page, font.normal, valor || '—', x + 5, y - 21, 9, largura - 10, rgb(0.12, 0.14, 0.12), 10);
 }
 
@@ -301,9 +301,6 @@ async function gerarPdfRecibo(linha, data) {
   page.drawImage(logo, { x: 24.6, y: 736.2, width: 139.8, height: 100.2 });
   [
     ['7 SERV GESTAO DE BENEFICIOS LTDA', 818, 12, font.bold],
-    ['https://7serv.me/', 802, 8, font.normal],
-    ['CNPJ: 13.858.769/0001-97', 788, 8, font.normal],
-    ['Inscrição Municipal: 951862', 774, 8, font.normal],
   ].forEach(([texto, y, tamanho, fonte]) => {
     page.drawText(texto, { x: 175, y, size: tamanho, font: fonte, color: white });
   });
@@ -311,6 +308,8 @@ async function gerarPdfRecibo(linha, data) {
     'AV WASHINGTON SOARES, 3663 - SALA 1416 - TORRE 2 - EDSON QUEIROZ',
     'Fortaleza - CE - CEP: 60811-341',
     'Telefone: (85) 992988851',
+    'CNPJ: 13.858.769/0001-97',
+    'Inscrição Municipal: 951862',
   ].forEach((texto, indice) => {
     page.drawText(texto, { x: 175, y: 750 - indice * 13, size: 8, font: font.normal, color: ink });
   });
@@ -329,25 +328,25 @@ async function gerarPdfRecibo(linha, data) {
     });
   });
 
-  center('Recibo de Pagamento', 688, 16, font.bold);
+  center('Recibo de Pagamento', 674, 16, font.bold);
 
   const declaracao = `Declaro ter recebido de ${pagador}${linha.cnpjPagador ? ` CNPJ ${linha.cnpjPagador}` : ''} o valor de R$ ${valor} (${porExtenso}) referente a:`;
-  desenharTexto(page, font.normal, declaracao, left, 650, 10, contentWidth, ink, 13);
+  desenharTexto(page, font.normal, declaracao, left, 640, 10, contentWidth, ink, 13);
 
-  desenharCampo(page, font, left, 615, 125, 'Nota Fiscal', linha.numero);
+  desenharCampo(page, font, left, 603, 125, 'Nota Fiscal', linha.numero);
 
-  page.drawText('Categoria', { x: left, y: 572, size: 9, font: font.bold, color: muted });
-  desenharTexto(page, font.normal, 'Receita de Intermediação Financeira', left, 555, 10, contentWidth, ink, 12);
-  page.drawText('Observação', { x: left, y: 530, size: 9, font: font.bold, color: muted });
-  desenharTexto(page, font.normal, observacao, left, 513, 10, contentWidth, ink, 12);
+  page.drawText('Categoria', { x: left, y: 560, size: 9, font: font.bold, color: muted });
+  desenharCampo(page, font, left, 545, contentWidth, '', 'Receita de Intermediação Financeira');
+  page.drawText('Observação', { x: left, y: 507, size: 9, font: font.bold, color: muted });
+  desenharCampo(page, font, left, 492, contentWidth, '', observacao);
 
   const tableX = left;
   const widths = [57, 82, 72, 60, 60, 202];
   const labels = ['Data', 'Valor Pago R$', 'Desconto R$', 'Juros R$', 'Multa R$', 'Observação'];
-  const rowY = 452;
+  const rowY = 417;
   let x = tableX;
   page.drawText('Relação de Pagamentos Reconhecidos', {
-    x: tableX, y: 478, size: 12, font: font.bold, color: green,
+    x: tableX, y: 440, size: 12, font: font.bold, color: green,
   });
   const headerHeight = 19;
   page.drawRectangle({ x: tableX, y: rowY, width: contentWidth, height: headerHeight, color: green });
@@ -374,12 +373,12 @@ async function gerarPdfRecibo(linha, data) {
     x += widths[index];
   });
 
-  page.drawText('Por ser verdade, firmo o presente.', { x: left, y: 375, size: 10, font: font.normal, color: ink });
-  page.drawText(`Fortaleza (CE), ${dataPorExtenso(data)}.`, { x: left, y: 346, size: 10, font: font.normal, color: ink });
-  page.drawText('______________________________', { x: left, y: 304, size: 10, font: font.normal, color: ink });
-  page.drawText('______________________________', { x: 286, y: 304, size: 10, font: font.normal, color: ink });
-  page.drawText('Nome Legível', { x: left, y: 290, size: 8, font: font.normal, color: muted });
-  page.drawText('Assinatura', { x: 286, y: 290, size: 8, font: font.normal, color: muted });
+  page.drawText('Por ser verdade, firmo o presente.', { x: left, y: 343, size: 10, font: font.normal, color: ink });
+  page.drawText(`Fortaleza (CE), ${dataPorExtenso(data)}.`, { x: left, y: 314, size: 10, font: font.normal, color: ink });
+  page.drawText('______________________________', { x: left, y: 274, size: 10, font: font.normal, color: ink });
+  page.drawText('______________________________', { x: 286, y: 274, size: 10, font: font.normal, color: ink });
+  page.drawText('Nome Legível', { x: left, y: 260, size: 8, font: font.normal, color: muted });
+  page.drawText('Assinatura', { x: 286, y: 260, size: 8, font: font.normal, color: muted });
   return doc.save();
 }
 
