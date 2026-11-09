@@ -109,6 +109,15 @@ const extractNfNumber = (text) => {
   return m ? m[1] : null;
 };
 
+const extractCnpjTomador = (text) => {
+  const matches = [...normalize(text).matchAll(
+    /(?:CNPJ(?:\s*\/\s*CPF)?|CPF\s*\/\s*CNPJ)\s*:?\s*(\d{2}\s*\.?\s*\d{3}\s*\.?\s*\d{3}\s*\/?\s*\d{4}\s*-?\s*\d{2})/g,
+  )];
+  const digits = matches.at(-1)?.[1].replace(/\D/g, '');
+  if (digits?.length !== 14) return null;
+  return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5, 8)}/${digits.slice(8, 12)}-${digits.slice(12)}`;
+};
+
 const extractPeriod = (text) => {
   const m = /PERIODO\s*:?\s*(\d{2}\/\d{2}\/\d{4})\s*A\s*(\d{2}\/\d{2}\/\d{4})/.exec(normalize(text));
   return m ? [m[1], m[2]] : null;
@@ -295,6 +304,7 @@ export const lerNota = async (arquivo) => {
       status: problemas.length ? 'incompleto' : 'ok', problemas,
       numero, periodo, mesReferencia, competencia: competencia || mesReferencia, dataEmissao, quantidadeTransacoes,
       valorBruto, valorLiquido: liquido, valorLiquidoNfse, irRetido,
+      cnpjTomador: extractCnpjTomador(textoCompleto),
       tipo: extractTipo(texto, nome),
       secretaria: limparSecretaria(secretaria),
     };

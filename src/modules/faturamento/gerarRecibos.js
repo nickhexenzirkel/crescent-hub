@@ -3,6 +3,7 @@ import JSZip from 'jszip';
 import { lerNota, normalize, formatarReais, reaisPorExtenso } from './oficioEmissao';
 import { formatarObservacao } from './observacoesNotas';
 import logoUrl from '../../assets/oficio-logo.png';
+import assinaturaUrl from '../../assets/assinatura-cleanderson.png';
 
 const CABECALHOS = {
   nota: ['NOTA', 'NF', 'NOTA FISCAL', 'NUMERO DA NOTA', 'NUMERO DA NOTA FISCAL', 'NUMERO DA NF'],
@@ -34,6 +35,12 @@ function textoCelula(valor) {
     if (Array.isArray(valor.richText)) return valor.richText.map((parte) => parte.text || '').join('');
   }
   return String(valor).trim();
+}
+
+function formatarCnpj(valor) {
+  const digitos = textoCelula(valor).replace(/\D/g, '');
+  if (digitos.length !== 14) return '';
+  return `${digitos.slice(0, 2)}.${digitos.slice(2, 5)}.${digitos.slice(5, 8)}/${digitos.slice(8, 12)}-${digitos.slice(12)}`;
 }
 
 function valorNumerico(valor) {
@@ -97,7 +104,7 @@ async function lerPlanilha(file) {
         ordemServico: textoCelula(valor('ordemServico')),
         documento: textoCelula(valor('documento')),
         parcela: textoCelula(valor('parcela')),
-        cnpjPagador: textoCelula(valor('cnpjPagador')),
+        cnpjPagador: formatarCnpj(valor('cnpjPagador')),
         linhaPlanilha: numeroLinha,
       });
     }
@@ -128,6 +135,7 @@ export async function analisarLoteRecibos(planilha, arquivosPdf, aoProgredir = (
         status: dados.status,
         valorBruto: dados.valorBruto,
         valorLiquidoNfse: dados.valorLiquidoNfse,
+        cnpjPagador: dados.cnpjTomador || '',
         tipo: dados.tipo,
         periodo: dados.periodo,
         problemas: dados.problemas || [],
@@ -139,6 +147,7 @@ export async function analisarLoteRecibos(planilha, arquivosPdf, aoProgredir = (
         status: 'erro',
         valorBruto: null,
         valorLiquidoNfse: null,
+        cnpjPagador: '',
         tipo: null,
         periodo: null,
         problemas: [erro instanceof Error ? erro.message : String(erro)],
@@ -166,9 +175,12 @@ export async function analisarLoteRecibos(planilha, arquivosPdf, aoProgredir = (
     if (pdf?.status === 'erro' || pdf?.status === 'nao_e_nota') problemas.push(...pdf.problemas);
     const valorBrutoRecibo = linha.valorBruto ?? pdf?.valorBruto ?? null;
     if (valorBrutoRecibo == null) problemas.push('Valor bruto não encontrado na planilha nem na NFS-e correspondente.');
+    const cnpjPagador = linha.cnpjPagador || pdf?.cnpjPagador || '';
+    if (!cnpjPagador) problemas.push('CNPJ do município não encontrado na planilha nem na NFS-e correspondente.');
     return {
       ...linha,
       pdf: pdf?.arquivo || null,
+      cnpjPagador,
       tipo: pdf?.tipo || '',
       periodoPdf: pdf?.periodo
         ? { ini: partesDataPeriodo(pdf.periodo[0]), fim: partesDataPeriodo(pdf.periodo[1]) }
@@ -262,9 +274,10 @@ function obterObservacaoRecibo(linha, periodoPdf) {
     : '';
 }
 
-async function gerarPdfRecibo(linha, data) {
+async function gerarPdfRecibo(linha, data, assinaturaBytes) {
   if (!linha.municipio) throw new Error(`Informe o município da nota ${linha.numero} na planilha.`);
   if (!Number.isFinite(linha.valorBrutoRecibo)) throw new Error(`Informe o valor bruto da nota ${linha.numero} na planilha ou anexe a NFS-e com o valor bruto legível.`);
+  if (!linha.cnpjPagador) throw new Error(`Informe o CNPJ do município da nota ${linha.numero} na planilha ou anexe a NFS-e com o CNPJ do tomador legível.`);
   const observacao = obterObservacaoRecibo(linha, linha.periodoPdf);
   if (!observacao) {
     throw new Error(`Não consegui montar a observação no padrão "CATEGORIA, FAT. DD/MM A DD/MM/AAAA" para a nota ${linha.numero}. Confira a categoria e o período na planilha ou anexe o PDF da NFS-e.`);
@@ -310,20 +323,7 @@ async function gerarPdfRecibo(linha, data) {
     width: logoWidth,
     height: logoHeight,
   });
-  [
-    ['7 SERV GESTAO DE BENEFICIOS LTDA', 818, 12, font.bold],
-  ].forEach(([texto, y, tamanho, fonte]) => {
-    page.drawText(texto, { x: 175, y, size: tamanho, font: fonte, color: white });
-  });
-  [
-    'AV WASHINGTON SOARES, 3663 - SALA 1416 - TORRE 2 - EDSON QUEIROZ',
-    'Fortaleza - CE - CEP: 60811-341',
-    'Telefone: (85) 992988851',
-    'CNPJ: 13.858.769/0001-97',
-    'Inscrição Municipal: 951862',
-  ].forEach((texto, indice) => {
-    page.drawText(texto, { x: 175, y: 750 - indice * 13, size: 8, font: font.normal, color: ink });
-  });
+  center('BENEFÍCIOS', 786, 32, font.bold, white);
   page.drawRectangle({ x: 0.6, y: -0.62, width: 593.4, height: 49.2, color: azul });
   [
     'Rua/Street: Av. Washington Soares, Nº 3663 – Edson Queiroz – Sala/Living Room: 1416 – Torre II – CEP/ZIP Code: 60.811 - 341 –',
@@ -341,7 +341,7 @@ async function gerarPdfRecibo(linha, data) {
 
   center('Recibo de Pagamento', 654, 16, font.bold);
 
-  const declaracao = `Declaro ter recebido de ${pagador}${linha.cnpjPagador ? ` CNPJ ${linha.cnpjPagador}` : ''} o valor de R$ ${valor} (${porExtenso}) referente a:`;
+  const declaracao = `Declaro ter recebido de ${pagador} CNPJ ${linha.cnpjPagador} o valor de R$ ${valor} (${porExtenso}) referente a:`;
   desenharTexto(page, font.normal, declaracao, left, 625, 10, contentWidth, ink, 13);
 
   desenharCampo(page, font, left, 591, 125, 'Nota Fiscal', linha.numero);
@@ -390,19 +390,37 @@ async function gerarPdfRecibo(linha, data) {
   page.drawText('______________________________', { x: 286, y: 274, size: 10, font: font.normal, color: ink });
   page.drawText('Nome Legível', { x: left, y: 260, size: 8, font: font.normal, color: muted });
   page.drawText('Assinatura', { x: 286, y: 260, size: 8, font: font.normal, color: muted });
+  if (assinaturaBytes) {
+    const assinatura = await doc.embedPng(assinaturaBytes);
+    const larguraAssinatura = 132;
+    const alturaAssinatura = larguraAssinatura * (assinatura.height / assinatura.width);
+    page.drawImage(assinatura, {
+      x: 296,
+      y: 272,
+      width: larguraAssinatura,
+      height: alturaAssinatura,
+    });
+  }
   return doc.save();
 }
 
-export async function gerarPacoteRecibos(linhas) {
+export async function gerarPacoteRecibos(linhas, { assinarAutomaticamente = false } = {}) {
   if (!linhas.length) throw new Error('Não há notas para gerar recibos.');
   const zip = new JSZip();
   const agora = new Date();
   const nomesUsados = new Set();
+  const assinaturaBytes = assinarAutomaticamente
+    ? await fetch(assinaturaUrl).then((resposta) => {
+      if (!resposta.ok) throw new Error('Não foi possível carregar a assinatura automática.');
+      return resposta.arrayBuffer();
+    })
+    : null;
   for (const linha of linhas) {
-    const pdf = await gerarPdfRecibo(linha, agora);
+    const pdf = await gerarPdfRecibo(linha, agora, assinaturaBytes);
     const base = `Recibo_7SERV_NF_${String(linha.numero).replace(/[\\/:*?"<>|]+/g, '-')}`;
-    let nome = `${base}.pdf`;
-    if (nomesUsados.has(nome)) nome = `${base}_linha_${linha.linhaPlanilha}.pdf`;
+    const sufixo = assinarAutomaticamente ? '_assinado' : '';
+    let nome = `${base}${sufixo}.pdf`;
+    if (nomesUsados.has(nome)) nome = `${base}${sufixo}_linha_${linha.linhaPlanilha}.pdf`;
     nomesUsados.add(nome);
     zip.file(nome, pdf);
   }

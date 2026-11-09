@@ -71,7 +71,7 @@ export const TabGerarRecibos = () => {
     }
   };
 
-  const baixar = async () => {
+  const baixar = async (assinarAutomaticamente = false) => {
     if (!confirmado) {
       setErro('Confirme que os recebimentos desta remessa foram efetuados antes de gerar os recibos.');
       return;
@@ -79,11 +79,12 @@ export const TabGerarRecibos = () => {
     setBusy(true);
     setErro('');
     try {
-      const blob = await gerarPacoteRecibos(linhas);
+      const blob = await gerarPacoteRecibos(linhas, { assinarAutomaticamente });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `Recibos_7SERV_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.zip`;
+      const sufixo = assinarAutomaticamente ? '_assinados' : '';
+      link.download = `Recibos_7SERV${sufixo}_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.zip`;
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -203,9 +204,14 @@ export const TabGerarRecibos = () => {
             {busy ? 'Processando...' : 'Ler planilha e notas'}
           </button>
           {linhas.length > 0 && (
-            <button type="button" disabled={busy || !confirmado} onClick={baixar} style={{ ...botao, background: T.surface, color: T.text, border: `1px solid ${T.border}` }}>
-              Gerar recibos (.zip)
-            </button>
+            <>
+              <button type="button" disabled={busy || !confirmado} onClick={() => baixar()} style={{ ...botao, background: T.surface, color: T.text, border: `1px solid ${T.border}` }}>
+                Gerar recibos (.zip)
+              </button>
+              <button type="button" disabled={busy || !confirmado} onClick={() => baixar(true)} style={{ ...botao, background: T.gold, color: '#fff', opacity: busy || !confirmado ? 0.6 : 1 }}>
+                {busy ? 'Processando...' : 'Assinar automaticamente (.zip)'}
+              </button>
+            </>
           )}
           {progresso && <span style={{ color: T.textT, fontSize: 12 }}>{progresso}</span>}
         </div>
@@ -219,6 +225,9 @@ export const TabGerarRecibos = () => {
               <input type="checkbox" checked={confirmado} onChange={(e) => setConfirmado(e.target.checked)} style={{ marginTop: 3, accentColor: T.gold }} />
               Confirmo que os recebimentos ocorreram e que os valores e destinatários foram conferidos para assinatura.
             </label>
+            <div style={{ color: T.textT, fontSize: 11.5 }}>
+              A opção assinada aplica a imagem da rúbrica na linha “Assinatura”; ela não é uma assinatura digital certificada.
+            </div>
             {semCorrespondencia.length > 0 && (
               <div role="status" style={{ color: T.textT, fontSize: 12 }}>PDFs sem nota correspondente: {semCorrespondencia.join(' · ')}</div>
             )}
