@@ -164,6 +164,8 @@ export async function analisarLoteRecibos(planilha, arquivosPdf, aoProgredir = (
     if (ocorrencias.get(linha.numero) > 1) problemas.push('Número de nota repetido na planilha.');
     if (correspondencias.length > 1) problemas.push('Mais de um PDF corresponde a esta nota.');
     if (pdf?.status === 'erro' || pdf?.status === 'nao_e_nota') problemas.push(...pdf.problemas);
+    const valorBrutoRecibo = linha.valorBruto ?? pdf?.valorBruto ?? null;
+    if (valorBrutoRecibo == null) problemas.push('Valor bruto não encontrado na planilha nem na NFS-e correspondente.');
     return {
       ...linha,
       pdf: pdf?.arquivo || null,
@@ -171,8 +173,8 @@ export async function analisarLoteRecibos(planilha, arquivosPdf, aoProgredir = (
       periodoPdf: pdf?.periodo
         ? { ini: partesDataPeriodo(pdf.periodo[0]), fim: partesDataPeriodo(pdf.periodo[1]) }
         : null,
-      valorLiquidoRecibo: pdf?.valorLiquidoNfse ?? linha.valorLiquido,
-      origemValorRecibo: pdf?.valorLiquidoNfse != null ? 'NFS-e' : 'Planilha',
+      valorBrutoRecibo,
+      origemValorBrutoRecibo: linha.valorBruto != null ? 'Planilha' : pdf?.valorBruto != null ? 'NFS-e' : 'Sem valor bruto',
       statusPdf: !pdf ? 'sem_pdf' : correspondencias.length > 1 ? 'ambiguo' : pdf.status,
       divergencias,
       problemas,
@@ -215,7 +217,8 @@ function desenharCampo(page, font, x, y, largura, rotulo, valor) {
     borderColor: rgb(0.75, 0.78, 0.76), borderWidth: 0.6,
   });
   if (rotulo) page.drawText(rotulo, { x: x + 5, y: y - 10, size: 7, font: font.bold, color: rgb(0.25, 0.29, 0.26) });
-  desenharTexto(page, font.normal, valor || '—', x + 5, y - 21, 9, largura - 10, rgb(0.12, 0.14, 0.12), 10);
+  const valorY = rotulo ? y - 20 : y - 16;
+  desenharTexto(page, font.normal, valor || '—', x + 5, valorY, 9, largura - 10, rgb(0.12, 0.14, 0.12), 10);
 }
 
 function dataPorExtenso(data) {
@@ -261,7 +264,7 @@ function obterObservacaoRecibo(linha, periodoPdf) {
 
 async function gerarPdfRecibo(linha, data) {
   if (!linha.municipio) throw new Error(`Informe o município da nota ${linha.numero} na planilha.`);
-  if (!Number.isFinite(linha.valorLiquidoRecibo)) throw new Error(`Informe o valor líquido da nota ${linha.numero} na planilha ou anexe a NFS-e.`);
+  if (!Number.isFinite(linha.valorBrutoRecibo)) throw new Error(`Informe o valor bruto da nota ${linha.numero} na planilha ou anexe a NFS-e com o valor bruto legível.`);
   const observacao = obterObservacaoRecibo(linha, linha.periodoPdf);
   if (!observacao) {
     throw new Error(`Não consegui montar a observação no padrão "CATEGORIA, FAT. DD/MM A DD/MM/AAAA" para a nota ${linha.numero}. Confira a categoria e o período na planilha ou anexe o PDF da NFS-e.`);
@@ -289,8 +292,8 @@ async function gerarPdfRecibo(linha, data) {
       y, size, font: selectedFont, color,
     });
   };
-  const valor = formatarReais(linha.valorLiquidoRecibo);
-  const porExtenso = reaisPorExtenso(linha.valorLiquidoRecibo).toLocaleLowerCase('pt-BR');
+  const valor = formatarReais(linha.valorBrutoRecibo);
+  const porExtenso = reaisPorExtenso(linha.valorBrutoRecibo).toLocaleLowerCase('pt-BR');
   const pagador = `MUNICÍPIO DE ${linha.municipio}`.toLocaleUpperCase('pt-BR');
 
   const logo = await doc.embedPng(await (await fetch(logoUrl)).arrayBuffer());
@@ -298,7 +301,15 @@ async function gerarPdfRecibo(linha, data) {
   const verde = rgb(0x07 / 255, 0x85 / 255, 0x6a / 255);
   page.drawRectangle({ x: 0.6, y: 766.8, width: 593.4, height: 74.4, color: azul });
   page.drawRectangle({ x: 46.8, y: 725.4, width: 96.6, height: 115.8, color: verde });
-  page.drawImage(logo, { x: 24.6, y: 736.2, width: 139.8, height: 100.2 });
+  const logoScale = Math.min(139.8 / logo.width, 100.2 / logo.height);
+  const logoWidth = logo.width * logoScale;
+  const logoHeight = logo.height * logoScale;
+  page.drawImage(logo, {
+    x: 24.6 + (139.8 - logoWidth) / 2,
+    y: 736.2 + (100.2 - logoHeight) / 2,
+    width: logoWidth,
+    height: logoHeight,
+  });
   [
     ['7 SERV GESTAO DE BENEFICIOS LTDA', 818, 12, font.bold],
   ].forEach(([texto, y, tamanho, fonte]) => {
@@ -328,17 +339,17 @@ async function gerarPdfRecibo(linha, data) {
     });
   });
 
-  center('Recibo de Pagamento', 674, 16, font.bold);
+  center('Recibo de Pagamento', 654, 16, font.bold);
 
   const declaracao = `Declaro ter recebido de ${pagador}${linha.cnpjPagador ? ` CNPJ ${linha.cnpjPagador}` : ''} o valor de R$ ${valor} (${porExtenso}) referente a:`;
-  desenharTexto(page, font.normal, declaracao, left, 640, 10, contentWidth, ink, 13);
+  desenharTexto(page, font.normal, declaracao, left, 625, 10, contentWidth, ink, 13);
 
-  desenharCampo(page, font, left, 603, 125, 'Nota Fiscal', linha.numero);
+  desenharCampo(page, font, left, 591, 125, 'Nota Fiscal', linha.numero);
 
-  page.drawText('Categoria', { x: left, y: 560, size: 9, font: font.bold, color: muted });
-  desenharCampo(page, font, left, 545, contentWidth, '', 'Receita de Intermediação Financeira');
-  page.drawText('Observação', { x: left, y: 507, size: 9, font: font.bold, color: muted });
-  desenharCampo(page, font, left, 492, contentWidth, '', observacao);
+  page.drawText('Categoria', { x: left, y: 548, size: 9, font: font.bold, color: muted });
+  desenharCampo(page, font, left, 533, contentWidth, '', 'Receita de Intermediação Financeira');
+  page.drawText('Observação', { x: left, y: 495, size: 9, font: font.bold, color: muted });
+  desenharCampo(page, font, left, 485, contentWidth, '', observacao);
 
   const tableX = left;
   const widths = [57, 82, 72, 60, 60, 202];

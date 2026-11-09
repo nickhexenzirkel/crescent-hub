@@ -226,7 +226,7 @@ export const TabGerarRecibos = () => {
               <table style={{ width: '100%', minWidth: 720, borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ textAlign: 'left' }}>
-                    {['Nota', 'Município', 'Secretaria / setor', 'Valor do recibo', 'Comparação'].map((titulo) => (
+                    {['Nota', 'Município', 'Secretaria / setor', 'Valor bruto', 'Comparação'].map((titulo) => (
                       <th key={titulo} style={{ padding: '10px 12px', color: T.textT, fontSize: 10.5, textTransform: 'uppercase' }}>{titulo}</th>
                     ))}
                   </tr>
@@ -238,8 +238,8 @@ export const TabGerarRecibos = () => {
                       <td style={celula}>{linha.municipio || '—'}</td>
                       <td style={celula}>{linha.secretaria || '—'}</td>
                       <td style={{ ...celula, whiteSpace: 'nowrap' }}>
-                        {linha.valorLiquidoRecibo == null ? '—' : `R$ ${formatarReais(linha.valorLiquidoRecibo)}`}
-                        <div style={{ color: T.textT, fontSize: 10.5 }}>{linha.origemValorRecibo}</div>
+                        {linha.valorBrutoRecibo == null ? '—' : `R$ ${formatarReais(linha.valorBrutoRecibo)}`}
+                        <div style={{ color: T.textT, fontSize: 10.5 }}>{linha.origemValorBrutoRecibo}</div>
                       </td>
                       <td style={celula}>
                         {linha.pdf ? `PDF: ${linha.pdf}` : 'Sem PDF correspondente'}
