@@ -2,6 +2,7 @@ import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import JSZip from 'jszip';
 import { lerNota, normalize, formatarReais, reaisPorExtenso } from './oficioEmissao';
 import { formatarObservacao } from './observacoesNotas';
+import logoUrl from '../../assets/oficio-logo.png';
 
 const CABECALHOS = {
   nota: ['NOTA', 'NF', 'NOTA FISCAL', 'NUMERO DA NOTA', 'NUMERO DA NOTA FISCAL', 'NUMERO DA NF'],
@@ -208,12 +209,13 @@ function desenharTexto(page, font, texto, x, y, tamanho, largura, color, entreli
 }
 
 function desenharCampo(page, font, x, y, largura, rotulo, valor) {
+  const altura = 26;
   page.drawRectangle({
-    x, y: y - 34, width: largura, height: 34,
+    x, y: y - altura, width: largura, height: altura,
     borderColor: rgb(0.75, 0.78, 0.76), borderWidth: 0.6,
   });
-  page.drawText(rotulo, { x: x + 5, y: y - 12, size: 7, font: font.bold, color: rgb(0.25, 0.29, 0.26) });
-  desenharTexto(page, font.normal, valor || '—', x + 5, y - 25, 8, largura - 10, rgb(0.12, 0.14, 0.12), 9);
+  page.drawText(rotulo, { x: x + 5, y: y - 10, size: 7, font: font.bold, color: rgb(0.25, 0.29, 0.26) });
+  desenharTexto(page, font.normal, valor || '—', x + 5, y - 21, 9, largura - 10, rgb(0.12, 0.14, 0.12), 10);
 }
 
 function dataPorExtenso(data) {
@@ -233,7 +235,7 @@ function partesDataPeriodo(valor) {
 }
 
 function obterObservacaoRecibo(linha, periodoPdf) {
-  const categoriaTexto = normalize(linha.categoria || linha.tipo || '');
+  const categoriaTexto = normalize(linha.tipo || linha.categoria || '');
   const categoria = categoriaTexto.startsWith('MANUT')
     ? 'MANUTENCAO'
     : categoriaTexto.startsWith('ABAST')
@@ -257,7 +259,7 @@ function obterObservacaoRecibo(linha, periodoPdf) {
     : '';
 }
 
-async function gerarPdfRecibo(linha, data, horario) {
+async function gerarPdfRecibo(linha, data) {
   if (!linha.municipio) throw new Error(`Informe o município da nota ${linha.numero} na planilha.`);
   if (!Number.isFinite(linha.valorLiquidoRecibo)) throw new Error(`Informe o valor líquido da nota ${linha.numero} na planilha ou anexe a NFS-e.`);
   const observacao = obterObservacaoRecibo(linha, linha.periodoPdf);
@@ -268,6 +270,7 @@ async function gerarPdfRecibo(linha, data, horario) {
   doc.setTitle(`Recibo de Pagamento - NFS-e ${linha.numero}`);
   doc.setAuthor('7 SERV Gestão de Benefícios Ltda.');
   doc.setSubject('Recibo de pagamento para conferência e assinatura.');
+  doc.setCreator('Uniko — Oficina Estelar');
   const font = {
     normal: await doc.embedFont(StandardFonts.Helvetica),
     bold: await doc.embedFont(StandardFonts.HelveticaBold),
@@ -287,77 +290,96 @@ async function gerarPdfRecibo(linha, data, horario) {
     });
   };
   const valor = formatarReais(linha.valorLiquidoRecibo);
-  const porExtenso = reaisPorExtenso(linha.valorLiquidoRecibo);
+  const porExtenso = reaisPorExtenso(linha.valorLiquidoRecibo).toLocaleLowerCase('pt-BR');
   const pagador = `MUNICÍPIO DE ${linha.municipio}`.toLocaleUpperCase('pt-BR');
 
-  center('7 SERV GESTAO DE BENEFICIOS LTDA', 801, 12, font.bold);
-  center('https://7serv.me/', 788, 8);
-  center('CNPJ: 13.858.769/0001-97', 769, 8);
-  center('Inscrição Municipal: 951862', 757, 8);
-  center('AV WASHINGTON SOARES, 3663 - SALA 1416 - TORRE 2 - EDSON QUEIROZ', 740, 7);
-  center('Fortaleza - CE - CEP: 60811-341', 729, 7);
-  center('Telefone: (85) 992988851', 718, 7);
-  center('Recibo de Pagamento', 682, 16, font.bold);
+  const logo = await doc.embedPng(await (await fetch(logoUrl)).arrayBuffer());
+  const azul = rgb(0x13 / 255, 0x47 / 255, 0x5b / 255);
+  const verde = rgb(0x07 / 255, 0x85 / 255, 0x6a / 255);
+  page.drawRectangle({ x: 0.6, y: 766.8, width: 593.4, height: 74.4, color: azul });
+  page.drawRectangle({ x: 46.8, y: 725.4, width: 96.6, height: 115.8, color: verde });
+  page.drawImage(logo, { x: 24.6, y: 736.2, width: 139.8, height: 100.2 });
+  [
+    ['7 SERV GESTAO DE BENEFICIOS LTDA', 818, 12, font.bold],
+    ['https://7serv.me/', 802, 8, font.normal],
+    ['CNPJ: 13.858.769/0001-97', 788, 8, font.normal],
+    ['Inscrição Municipal: 951862', 774, 8, font.normal],
+  ].forEach(([texto, y, tamanho, fonte]) => {
+    page.drawText(texto, { x: 175, y, size: tamanho, font: fonte, color: white });
+  });
+  [
+    'AV WASHINGTON SOARES, 3663 - SALA 1416 - TORRE 2 - EDSON QUEIROZ',
+    'Fortaleza - CE - CEP: 60811-341',
+    'Telefone: (85) 992988851',
+  ].forEach((texto, indice) => {
+    page.drawText(texto, { x: 175, y: 750 - indice * 13, size: 8, font: font.normal, color: ink });
+  });
+  page.drawRectangle({ x: 0.6, y: -0.62, width: 593.4, height: 49.2, color: azul });
+  [
+    'Rua/Street: Av. Washington Soares, Nº 3663 – Edson Queiroz – Sala/Living Room: 1416 – Torre II – CEP/ZIP Code: 60.811 - 341 –',
+    'Cidade/City: Fortaleza – Estado/State: Ceará - Brazil – Fone/Phone: +55 (85) 99298-8851 – contato@7servbeneficios.com.br',
+  ].forEach((texto, indice) => {
+    const tamanho = 7;
+    page.drawText(texto, {
+      x: (595.28 - font.normal.widthOfTextAtSize(texto, tamanho)) / 2,
+      y: indice === 0 ? 28.425 : 15.225,
+      size: tamanho,
+      font: font.normal,
+      color: white,
+    });
+  });
+
+  center('Recibo de Pagamento', 688, 16, font.bold);
 
   const declaracao = `Declaro ter recebido de ${pagador}${linha.cnpjPagador ? ` CNPJ ${linha.cnpjPagador}` : ''} o valor de R$ ${valor} (${porExtenso}) referente a:`;
-  desenharTexto(page, font.normal, declaracao, left, 650, 9, contentWidth, ink, 12);
+  desenharTexto(page, font.normal, declaracao, left, 650, 10, contentWidth, ink, 13);
 
-  const colWidths = [150, 150, 150, 83];
-  const colXs = [left, left + 150, left + 300, left + 450];
-  const fields = [
-    ['Nota Fiscal', linha.numero],
-    ['Ordem de Serviço', linha.ordemServico],
-    ['Documento', linha.documento],
-    ['Parcela', linha.parcela],
-  ];
-  fields.forEach(([title, value], i) => desenharCampo(page, font, colXs[i], 626, colWidths[i], title, value));
+  desenharCampo(page, font, left, 615, 125, 'Nota Fiscal', linha.numero);
 
-  page.drawText('Categoria', { x: left, y: 574, size: 8, font: font.bold, color: muted });
-  desenharTexto(page, font.normal, linha.categoria || 'Receita de Intermediação Financeira', left, 558, 9, contentWidth, ink, 11);
-  page.drawText('Observação', { x: left, y: 534, size: 8, font: font.bold, color: muted });
-  desenharTexto(page, font.normal, observacao, left, 518, 9, contentWidth, ink, 11);
+  page.drawText('Categoria', { x: left, y: 572, size: 9, font: font.bold, color: muted });
+  desenharTexto(page, font.normal, 'Receita de Intermediação Financeira', left, 555, 10, contentWidth, ink, 12);
+  page.drawText('Observação', { x: left, y: 530, size: 9, font: font.bold, color: muted });
+  desenharTexto(page, font.normal, observacao, left, 513, 10, contentWidth, ink, 12);
 
   const tableX = left;
   const widths = [57, 82, 72, 60, 60, 202];
   const labels = ['Data', 'Valor Pago R$', 'Desconto R$', 'Juros R$', 'Multa R$', 'Observação'];
   const rowY = 452;
-  const headerH = 17;
   let x = tableX;
   page.drawText('Relação de Pagamentos Reconhecidos', {
-    x: tableX, y: 475, size: 11, font: font.bold, color: green,
+    x: tableX, y: 478, size: 12, font: font.bold, color: green,
   });
-  page.drawRectangle({ x: tableX, y: rowY, width: contentWidth, height: headerH, color: green });
+  const headerHeight = 19;
+  page.drawRectangle({ x: tableX, y: rowY, width: contentWidth, height: headerHeight, color: green });
   labels.forEach((label, index) => {
-    page.drawText(label, { x: x + 4, y: rowY + 5, size: 6.7, font: font.bold, color: white });
+    page.drawText(label, { x: x + 4, y: rowY + 5, size: 7.5, font: font.bold, color: white });
     x += widths[index];
   });
-  const rowBottom = rowY - 12;
-  page.drawRectangle({ x: tableX, y: rowBottom, width: contentWidth, height: 12, borderColor: rgb(0.78, 0.8, 0.78), borderWidth: 0.6 });
+  const rowHeight = 16;
+  const rowBottom = rowY - rowHeight;
+  page.drawRectangle({ x: tableX, y: rowBottom, width: contentWidth, height: rowHeight, borderColor: rgb(0.78, 0.8, 0.78), borderWidth: 0.6 });
   const values = [data.toLocaleDateString('pt-BR'), valor, '0,00', '0,00', '0,00', `NFS-e nº ${linha.numero}`];
   x = tableX;
   values.forEach((value, index) => {
-    desenharTexto(page, font.normal, value, x + 4, rowBottom + 6, 7, widths[index] - 8, ink, 8);
+    desenharTexto(page, font.normal, value, x + 4, rowBottom + 5, 8, widths[index] - 8, ink, 9);
     x += widths[index];
   });
-  const totalY = rowBottom - 13;
-  page.drawRectangle({ x: tableX, y: totalY, width: contentWidth, height: 13, color: lightGreen, borderColor: rgb(0.78, 0.8, 0.78), borderWidth: 0.6 });
+  const totalHeight = 17;
+  const totalY = rowBottom - totalHeight;
+  page.drawRectangle({ x: tableX, y: totalY, width: contentWidth, height: totalHeight, color: lightGreen, borderColor: rgb(0.78, 0.8, 0.78), borderWidth: 0.6 });
   const totals = ['Totais (1)', valor, '0,00', '0,00', '0,00', ''];
   x = tableX;
   totals.forEach((value, index) => {
-    if (value) desenharTexto(page, font.bold, value, x + 4, totalY + 6, 7, widths[index] - 8, ink, 8);
+    if (value) desenharTexto(page, font.bold, value, x + 4, totalY + 5, 8, widths[index] - 8, ink, 9);
     x += widths[index];
   });
 
-  page.drawText('Por ser verdade, firmo o presente.', { x: left, y: 375, size: 9, font: font.normal, color: ink });
-  page.drawText(`Fortaleza (CE), ${dataPorExtenso(data)}.`, { x: left, y: 346, size: 9, font: font.normal, color: ink });
+  page.drawText('Por ser verdade, firmo o presente.', { x: left, y: 375, size: 10, font: font.normal, color: ink });
+  page.drawText(`Fortaleza (CE), ${dataPorExtenso(data)}.`, { x: left, y: 346, size: 10, font: font.normal, color: ink });
   page.drawText('______________________________', { x: left, y: 304, size: 10, font: font.normal, color: ink });
   page.drawText('______________________________', { x: 286, y: 304, size: 10, font: font.normal, color: ink });
   page.drawText('Nome Legível', { x: left, y: 290, size: 8, font: font.normal, color: muted });
   page.drawText('Assinatura', { x: 286, y: 290, size: 8, font: font.normal, color: muted });
-  page.drawText(`Gerado em ${data.toLocaleDateString('pt-BR')} às ${horario} por 7SERV`, {
-    x: left, y: 43, size: 7, font: font.normal, color: muted,
-  });
-  page.drawText('Página 1 de 1', { x: 260, y: 31, size: 7, font: font.normal, color: muted });
   return doc.save();
 }
 
@@ -367,7 +389,7 @@ export async function gerarPacoteRecibos(linhas) {
   const agora = new Date();
   const nomesUsados = new Set();
   for (const linha of linhas) {
-    const pdf = await gerarPdfRecibo(linha, agora, agora.toLocaleTimeString('pt-BR'));
+    const pdf = await gerarPdfRecibo(linha, agora);
     const base = `Recibo_7SERV_NF_${String(linha.numero).replace(/[\\/:*?"<>|]+/g, '-')}`;
     let nome = `${base}.pdf`;
     if (nomesUsados.has(nome)) nome = `${base}_linha_${linha.linhaPlanilha}.pdf`;
