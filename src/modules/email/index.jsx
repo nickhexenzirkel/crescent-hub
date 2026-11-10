@@ -107,27 +107,24 @@ export default function Email({ onBack, authUser }) {
     }
     setConnecting(true);
     setError('');
+    let redirected = false;
     try {
       const { url } = await startOAuth();
       popup.location.href = url;
+      redirected = true;
       for (let attempt = 0; attempt < 90; attempt++) {
         await new Promise(resolve => setTimeout(resolve, 2000));
         const current = await refreshStatus();
         if (current.connected) {
-          if (!popup.closed) popup.close();
           setQuery('');
           setQueryInput('');
           await loadMessages('');
           return;
         }
-        if (popup.closed) {
-          throw new Error('A conexão foi fechada antes de ser concluída. Tente novamente e confirme a conta Google.');
-        }
       }
-      if (!popup.closed) popup.close();
       throw new Error('A conexão não foi concluída. Tente novamente e confirme a conta Google.');
     } catch (e) {
-      if (!popup.closed) popup.close();
+      if (!redirected) popup.close();
       setError(e.message);
     } finally {
       setConnecting(false);
