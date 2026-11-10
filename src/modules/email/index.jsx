@@ -131,6 +131,17 @@ function montarConsultaPesquisa(termo, filtros) {
   return partes.join(' ');
 }
 
+function consultaComPasta(termos, pasta) {
+  const consultaPasta = {
+    recebidos: 'in:inbox',
+    enviados: 'in:sent',
+    ambos: '{in:inbox in:sent}',
+  }[pasta] || '';
+  const termosPesquisa = termos.trim();
+  if (pasta === 'recebidos' && !termosPesquisa) return '';
+  return [termosPesquisa, consultaPasta].filter(Boolean).join(' ');
+}
+
 function tamanhoArquivo(bytes) {
   if (!bytes) return 'Tamanho indisponível';
   if (bytes < 1024) return `${bytes} B`;
@@ -189,6 +200,7 @@ export default function Email({ onBack, authUser }) {
   const [message, setMessage] = useState(null);
   const [queryInput, setQueryInput] = useState('');
   const [query, setQuery] = useState('');
+  const [pasta, setPasta] = useState('recebidos');
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [filters, setFilters] = useState({ cliente: '', destinatario: '', dataInicio: '', dataFim: '', notaFiscal: false });
   const [expandedAttachmentsFor, setExpandedAttachmentsFor] = useState('');
@@ -201,7 +213,7 @@ export default function Email({ onBack, authUser }) {
   const [error, setError] = useState('');
   const [downloading, setDownloading] = useState('');
   const [preview, setPreview] = useState(null);
-  const search = montarConsultaPesquisa(queryInput, filters);
+  const search = consultaComPasta(montarConsultaPesquisa(queryInput, filters), pasta);
   const intervaloInvalido = Boolean(filters.dataInicio && filters.dataFim && filters.dataInicio > filters.dataFim);
 
   const refreshStatus = useCallback(async () => {
@@ -509,12 +521,40 @@ export default function Email({ onBack, authUser }) {
 
             <div className="email-grid" style={{ flex: '1 1 0', minHeight: 0, display: 'grid', gridTemplateColumns: 'minmax(260px, 34%) minmax(0, 1fr)', gridTemplateRows: 'minmax(0, 1fr)', border: `1px solid ${T.border}`, borderRadius: 18, overflow: 'hidden', background: `linear-gradient(145deg, ${T.surface}, ${T.page})`, boxShadow: '0 18px 48px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.12)', backdropFilter: 'blur(24px) saturate(150%)' }}>
               <section aria-label="Lista de mensagens" style={{ minHeight: 0, overflowY: 'auto', borderRight: `1px solid ${T.border}`, background: T.sidebarBg || T.surface, backdropFilter: 'blur(22px) saturate(150%)' }}>
-                <div style={{ position: 'sticky', top: 0, zIndex: 2, display: 'flex', alignItems: 'center', gap: 12, padding: '15px 16px', borderBottom: `1px solid ${T.border}`, background: `${T.surface}ee`, backdropFilter: 'blur(18px)' }}>
-                  <svg aria-hidden="true" width="23" height="23" viewBox="0 0 24 24" fill="none" stroke={T.gold} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="3" y="5" width="18" height="14" rx="2" />
-                    <path d="m3 7 9 6 9-6" />
-                  </svg>
-                  <h2 style={{ margin: 0, color: T.text, fontFamily: 'var(--font-brand)', fontSize: 16, fontWeight: 800 }}>Caixa de Entrada</h2>
+                <div style={{ position: 'sticky', top: 0, zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, padding: '12px 14px', borderBottom: `1px solid ${T.border}`, background: `${T.surface}ee`, backdropFilter: 'blur(18px)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <svg aria-hidden="true" width="23" height="23" viewBox="0 0 24 24" fill="none" stroke={T.gold} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="5" width="18" height="14" rx="2" />
+                      <path d="m3 7 9 6 9-6" />
+                    </svg>
+                    <h2 style={{ margin: 0, color: T.text, fontFamily: 'var(--font-brand)', fontSize: 16, fontWeight: 800 }}>Caixa de Entrada</h2>
+                  </div>
+                  <div role="group" aria-label="Filtrar por pasta" style={{ display: 'flex', gap: 3, padding: 3, border: `1px solid ${T.border}`, borderRadius: 10, background: T.page }}>
+                    {[
+                      ['recebidos', 'Recebidos'],
+                      ['enviados', 'Enviados'],
+                      ['ambos', 'Ambos'],
+                    ].map(([value, label]) => (
+                      <button
+                        key={value}
+                        type="button"
+                        aria-pressed={pasta === value}
+                        onClick={() => setPasta(value)}
+                        style={{
+                          border: 'none',
+                          borderRadius: 7,
+                          padding: '6px 8px',
+                          background: pasta === value ? (T.goldGl || `${T.gold}28`) : 'transparent',
+                          color: pasta === value ? T.gold : T.textS,
+                          cursor: 'pointer',
+                          font: '700 11px var(--font-body)',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
                 {loading && !messages.length ? <div style={{ padding: 18, ...muted }}>Carregando mensagens…</div>
                   : !messages.length ? <div style={{ padding: 18, ...muted }}>Nenhuma mensagem encontrada.</div>
