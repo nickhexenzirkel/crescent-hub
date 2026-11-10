@@ -93,10 +93,7 @@ function dataRelativaEmail(valor) {
   const diferenca = Math.round((hojeDia - dataDia) / 86_400_000);
   if (diferenca === 0) return data.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
   if (diferenca === 1) return 'Ontem';
-  if (diferenca > 1 && diferenca < 7) {
-    return data.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '');
-  }
-  return data.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+  return data.toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' }).replace(/\.$/, '') + '.';
 }
 
 function tamanhoArquivo(bytes) {
@@ -328,7 +325,7 @@ export default function Email({ onBack, authUser }) {
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column', background: T.page, color: T.text, fontFamily: 'var(--font-body)' }}>
+    <div style={{ position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: T.page, color: T.text, fontFamily: 'var(--font-body)' }}>
       <header style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', padding: '12px 18px', borderBottom: `1px solid ${T.border}`, background: T.topbarBg || T.surface }}>
         <button onClick={onBack} style={{ ...buttonStyle, border: 'none', background: 'transparent' }}>‹ Módulos</button>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontFamily: 'var(--font-brand)', fontWeight: 800, fontSize: 19 }}>
@@ -342,7 +339,7 @@ export default function Email({ onBack, authUser }) {
         )}
       </header>
 
-      <main style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', padding: 16, gap: 12 }}>
+      <main style={{ flex: '1 1 0', minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', padding: 16, gap: 12 }}>
         {!status && loading ? <div style={muted}>Verificando conexão…</div> : null}
         {error && <div role="alert" style={{ padding: '10px 12px', borderRadius: 9, background: T.dangerGl || '#FDECEC', color: T.danger || '#B42318', fontSize: 13 }}>{error}</div>}
 
@@ -380,7 +377,7 @@ export default function Email({ onBack, authUser }) {
               Respostas e notificações do Mailsuite/Mailtrack são ocultadas automaticamente.
             </div>
 
-            <div className="email-grid" style={{ flex: 1, minHeight: 0, display: 'grid', gridTemplateColumns: 'minmax(260px, 34%) minmax(0, 1fr)', border: `1px solid ${T.border}`, borderRadius: 18, overflow: 'hidden', background: `linear-gradient(145deg, ${T.surface}, ${T.page})`, boxShadow: '0 18px 48px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.12)', backdropFilter: 'blur(24px) saturate(150%)' }}>
+            <div className="email-grid" style={{ flex: '1 1 0', minHeight: 0, display: 'grid', gridTemplateColumns: 'minmax(260px, 34%) minmax(0, 1fr)', gridTemplateRows: 'minmax(0, 1fr)', border: `1px solid ${T.border}`, borderRadius: 18, overflow: 'hidden', background: `linear-gradient(145deg, ${T.surface}, ${T.page})`, boxShadow: '0 18px 48px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.12)', backdropFilter: 'blur(24px) saturate(150%)' }}>
               <section aria-label="Lista de mensagens" style={{ minHeight: 0, overflowY: 'auto', borderRight: `1px solid ${T.border}`, background: T.sidebarBg || T.surface, backdropFilter: 'blur(22px) saturate(150%)' }}>
                 {loading && !messages.length ? <div style={{ padding: 18, ...muted }}>Carregando mensagens…</div>
                   : !messages.length ? <div style={{ padding: 18, ...muted }}>Nenhuma mensagem encontrada.</div>
@@ -404,7 +401,7 @@ export default function Email({ onBack, authUser }) {
                             </time>
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, marginTop: 8 }}>
-                            <span aria-hidden="true" style={{ flex: '0 0 28px', width: 28, height: 28, display: 'grid', placeItems: 'center', borderRadius: '50%', background: `linear-gradient(145deg, ${T.goldGl || `${T.gold}30`}, ${T.surface}99)`, color: T.gold, fontSize: 10, fontWeight: 800, boxShadow: `0 3px 10px ${T.goldGl || `${T.gold}22`}, inset 0 1px 0 rgba(255,255,255,.2)` }}>
+                            <span aria-hidden="true" style={{ flex: '0 0 36px', width: 36, height: 36, display: 'grid', placeItems: 'center', borderRadius: '50%', background: `linear-gradient(145deg, ${T.goldGl || `${T.gold}30`}, ${T.surface}99)`, color: T.gold, fontSize: 13, fontWeight: 800, boxShadow: `0 4px 14px ${T.goldGl || `${T.gold}30`}, inset 0 1px 0 rgba(255,255,255,.26)` }}>
                               {remetente.iniciais}
                             </span>
                             <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: T.textS, fontSize: 11, fontWeight: 600 }}>
@@ -500,9 +497,9 @@ export default function Email({ onBack, authUser }) {
                             </div>
                           </section>
                         )}
-                        <div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: 18, background: `radial-gradient(ellipse at 12% 0%, ${T.goldGl || `${T.gold}12`}, transparent 55%), ${T.page}55` }}>
+                        <div style={{ flex: '1 1 0', minHeight: 0, overflow: 'auto', padding: 18, background: `radial-gradient(ellipse at 12% 0%, ${T.goldGl || `${T.gold}12`}, transparent 55%), ${T.page}55` }}>
                           {message.bodyHtml
-                            ? <iframe title="Conteúdo da mensagem" sandbox="" srcDoc={iframeEmail(message.bodyHtml, T.surface, T.text)} style={{ display: 'block', width: '100%', minHeight: 480, height: '100%', border: `1px solid ${T.border}`, borderRadius: 16, background: T.surface, boxShadow: '0 16px 38px rgba(0,0,0,.16), inset 0 1px 0 rgba(255,255,255,.18)' }} />
+                            ? <iframe title="Conteúdo da mensagem" sandbox="" srcDoc={iframeEmail(message.bodyHtml, T.surface, T.text)} style={{ display: 'block', width: '100%', minHeight: '100%', height: '100%', border: `1px solid ${T.border}`, borderRadius: 16, background: T.surface, boxShadow: '0 16px 38px rgba(0,0,0,.16), inset 0 1px 0 rgba(255,255,255,.18)' }} />
                             : <pre style={{ minHeight: 240, margin: 0, padding: 24, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', border: `1px solid ${T.border}`, borderRadius: 16, background: `linear-gradient(145deg, ${T.surface}, ${T.page})`, boxShadow: '0 16px 38px rgba(0,0,0,.16), inset 0 1px 0 rgba(255,255,255,.18)', font: '15px/1.8 var(--font-body)' }}>{message.bodyText || message.snippet || 'Esta mensagem não possui conteúdo textual.'}</pre>}
                         </div>
                       </>
