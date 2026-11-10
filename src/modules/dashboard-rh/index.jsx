@@ -7,6 +7,7 @@ import UnikoQATab from './UnikoQATab';
 import ArmazenamentoTab from './ArmazenamentoTab';
 import MonitoramentoUsoTab from './MonitoramentoUsoTab';
 import PedidosAjusteTab from './PedidosAjusteTab';
+import GerenciarComercialTab from './GerenciarComercialTab';
 import ImagensSiteTab from './ImagensSiteTab';
 import { aplicarVisibilidade, useVisibilidade } from '../../shared/visibilidade';
 import VisibilidadeTab from './VisibilidadeTab';
@@ -2181,6 +2182,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin', initialTa
     {id:'pedidos_ajuste', label:'Ajuste Inteligente', icon:<><path d="M14.7 6.3a4 4 0 00-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 005.4-5.4L15 12l-3-3z"/></>},
     {id:'funcionarios',   label:'Funcionários',      icon:<><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="23" y1="11" x2="17" y2="11"/><line x1="20" y1="8" x2="20" y2="14"/></>},
     {id:'gerenciar',      label:'Gerenciar Usuários', icon:<><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></>},
+    {id:'gerenciar-comercial', label:'Gerenciar Regionais', icon:<><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/><path d="M9 9v.01"/><path d="M9 12v.01"/><path d="M9 15v.01"/><path d="M16 14v.01"/><path d="M16 17v.01"/></>},
     {id:'permissoes',     label:'Gerenciar Permissões', icon:<><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></>},
     {id:'paineis',        label:'Painéis',            icon:<><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></>},
     {id:'visitante',      label:'Configurar Visitante', icon:<><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/><circle cx="12" cy="8" r="4" strokeDasharray="2 2"/></>},
@@ -3596,6 +3598,7 @@ const DashboardRH = ({onBack, adminName='Administrador', role='admin', initialTa
 
           {/* ── TAB: GERENCIAR PERMISSÕES (cargos → módulos liberados) ── */}
           {tab==='permissoes'&&<GerenciarPermissoesTab cardBg={cardBg}/>}
+          {tab==='gerenciar-comercial'&&role==='admin'&&<GerenciarComercialTab/>}
           {tab==='paineis'&&<PaineisTab cardBg={cardBg}/>}
           {tab==='visitante'&&<VisitanteConfigTab cardBg={cardBg}/>}
           {tab==='correios'&&<CorreiosTab cardBg={cardBg} empList={empList} adminName={adminName}/>}

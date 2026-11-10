@@ -11,7 +11,11 @@ async function request(path, options = {}) {
     },
   });
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || 'Não foi possível consultar o Gmail.');
+  if (!response.ok) {
+    const error = new Error(data.error || 'Não foi possível consultar o Gmail.');
+    error.retryAfter = Number(data.retryAfter) || Number(response.headers.get('Retry-After')) || 0;
+    throw error;
+  }
   return data;
 }
 
@@ -32,6 +36,15 @@ export function listMessages(query, pageToken) {
   if (query.trim()) params.set('q', query.trim());
   if (pageToken) params.set('pageToken', pageToken);
   return request(`/messages?${params.toString()}`);
+}
+
+export function getFaturamento(filtro, pageToken = '', { force = false } = {}) {
+  const params = new URLSearchParams(
+    typeof filtro === 'string' ? { month: filtro } : filtro,
+  );
+  if (pageToken) params.set('pageToken', pageToken);
+  if (force) params.set('refresh', '1');
+  return request(`/faturamento?${params.toString()}`);
 }
 
 export function getMessage(id) {

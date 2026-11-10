@@ -12,7 +12,7 @@ const buttonStyle = {
   font: '600 13px var(--font-body)',
 };
 const muted = { color: T.textS, fontSize: 13 };
-const MUNICIPIOS = [
+export const MUNICIPIOS = [
   'Acaraú', 'Acopiara', 'Alcântaras', 'Alexânia', 'Amontada', 'Angical do Piauí', 'Apuiarés', 'Aquiraz',
   'Aracati', 'Aracoiaba', 'Aratuba', 'Assaré', 'Aurora', 'Barreira', 'Baturité', 'Beberibe', 'Boa Viagem',
   'Campos Sales', 'Canindé', 'Capistrano', 'Caridade', 'Cariré', 'Carnaubal', 'Cascavel', 'Caucaia',
@@ -206,7 +206,8 @@ function isIgnoredMessage(message) {
   return /mailsuite|mail[\s._-]*track/i.test(`${message.from || ''} ${message.subject || ''}`);
 }
 
-export default function Email({ onBack, authUser }) {
+export default function Email({ onBack, authUser, initialMessageId, onInitialMessageHandled }) {
+  const initialMessageIdRef = useRef(initialMessageId);
   const [status, setStatus] = useState(null);
   const [messages, setMessages] = useState([]);
   const [selectedId, setSelectedId] = useState('');
@@ -235,7 +236,7 @@ export default function Email({ onBack, authUser }) {
     return current;
   }, []);
 
-  const loadMessages = useCallback(async (search = '', pageToken = '', append = false, detectFolder = false) => {
+  const loadMessages = useCallback(async (search = '', pageToken = '', append = false, detectFolder = false, preserveSelection = false) => {
     const requestId = ++messageListRequest.current;
     setLoading(true);
     setError('');
@@ -249,7 +250,7 @@ export default function Email({ onBack, authUser }) {
         const pastaEncontrada = pastaDasMensagens(visibleMessages);
         if (pastaEncontrada) setPasta(pastaEncontrada);
       }
-      if (!append) {
+      if (!append && !preserveSelection) {
         setSelectedId('');
         setMessage(null);
         setLoadingMessage(false);
@@ -267,10 +268,24 @@ export default function Email({ onBack, authUser }) {
   useEffect(() => {
     let active = true;
     getStatus()
-      .then(current => {
+      .then(async current => {
         if (!active) return;
         setStatus(current);
-        if (current.connected) return loadMessages('');
+        if (current.connected) {
+          const initialMessageId = initialMessageIdRef.current;
+          if (initialMessageId) {
+            setPasta('enviados');
+            setQuery('in:sent');
+          }
+          await loadMessages(initialMessageId ? 'in:sent' : '', '', false, false, Boolean(initialMessageId));
+          if (active && initialMessageId) {
+            setSelectedId(initialMessageId);
+            setMessage(null);
+            setLoadingMessage(true);
+            onInitialMessageHandled?.(null);
+          }
+          return;
+        }
         setLoading(false);
       })
       .catch(e => {
@@ -280,7 +295,7 @@ export default function Email({ onBack, authUser }) {
         }
       });
     return () => { active = false; };
-  }, [loadMessages]);
+  }, [loadMessages, onInitialMessageHandled]);
 
   useEffect(() => {
     if (!selectedId) {

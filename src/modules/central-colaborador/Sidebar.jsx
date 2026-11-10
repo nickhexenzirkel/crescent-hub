@@ -40,6 +40,7 @@ const NAV=[
   {id:'eventos',    label:'Eventos',        icon:<I><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></I>},
   {id:'colegas',    label:'Colegas',        icon:<I><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></I>},
   {id:'feedback',   label:'Feedback',       icon:<I><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></I>},
+  {id:'faturamento',label:'Acompanhar Faturamento', adminOnly:true, icon:<I><path d="M5 3h14v18l-3.5-2-3.5 2-3.5-2L5 21z"/><path d="M9 8h6M9 12h6M9 16h3"/></I>},
   /* Grupo 3 — Entretenimento (divider antes) */
   {id:'uniko',      label:'Coleção',        icon:<I><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></I>},
   {id:'roleta',     label:'Roleta da Sorte', icon:<I><circle cx="12" cy="12" r="9"/><path d="M12 3v9l6.5 3.8"/></I>},
@@ -53,9 +54,7 @@ const NAV=[
   {id:'unikofaster',label:'Uniko Speed',   icon:<I><path d="M5 11l1.5-4.5A2 2 0 018.4 5h7.2a2 2 0 011.9 1.5L19 11"/><path d="M3 11h18v5a1 1 0 01-1 1h-1a2 2 0 01-4 0H9a2 2 0 01-4 0H4a1 1 0 01-1-1z"/><circle cx="7.5" cy="14.5" r="1"/><circle cx="16.5" cy="14.5" r="1"/></I>},
 ];
 
-/* Esconde os itens marcados adminOnly de quem não é admin. Hoje nenhum item usa
-   (o Uniko Paint foi liberado pra todo mundo), mas o filtro fica pronto pra
-   próxima feature que nascer restrita — basta pôr `adminOnly:true` no item.
+/* Esconde os itens marcados adminOnly de quem não é admin.
    `desligado` (RH → Gerenciar Usuários → Desligamento) tira as abas de ponto:
    quem saiu não acumula mais banco de horas nem falta, então não faz sentido
    continuar vendo — nem justificando — dia nenhum. */
@@ -141,7 +140,7 @@ const Sidebar = ({tab,setTab,onBack,activeTheme,onTheme,onOpenSettings,userPhoto
         {nav.map((n,idx)=>{
           const a=tab===n.id;
           const locked = n.id==='uniko' && !profileComplete;
-          const showDivider = !restricted && (idx===6 || idx===10); /* dividers between logical groups — não fazem sentido numa lista já recortada */
+          const showDivider = !restricted && (idx===6 || idx===11); /* dividers between logical groups — não fazem sentido numa lista já recortada */
           return(
             <div key={n.id}>
               {showDivider && <StarDivider my={3} dim/>}
@@ -230,6 +229,7 @@ const TopBar = ({tab,onBack}) => {
   const nm={inicio:'Início',financeiro:'Financeiro',dados:'Seus Dados',horas:'Banco de Horas',
     ponto:'Ponto Eletrônico',
     lembretes:'Minhas Tarefas',feedback:'Feedback',eventos:'Eventos',
+    faturamento:'Acompanhar Faturamento',
     conquistas:'Conquistas',comunicados:'Comunicados',simulador:'Simulação',
     uniko:'Coleção de Unikos',roleta:'Roleta da Sorte',colegas:'Colegas',unikowave:'Uniko Wave',unikopaint:'Uniko Paint',
     unikocamera:'Uniko Camera',
