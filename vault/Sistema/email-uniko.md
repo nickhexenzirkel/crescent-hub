@@ -32,6 +32,7 @@ O servidor precisa ser atualizado e reiniciado para carregar as rotas e variavei
 ## Escopo atual
 
 - Conectar e desconectar uma conta Gmail por administrador.
-- Pesquisar mensagens usando a consulta do Gmail, abrir mensagens e baixar anexos.
+- Pesquisar mensagens usando a consulta do Gmail, abrir mensagens, visualizar anexos PDF/imagem e baixar qualquer anexo diretamente pela Gmail API.
+- Ocultar respostas (cabeçalhos de resposta ou assunto começando com "Re:") e mensagens do Mailsuite/Mailtrack, com filtro no servidor e no cliente.
 - Sem envio de e-mails, armazenamento de mensagens/anexos ou notificacoes. Notificacoes ficam para uma etapa futura.
 - A tela precisa ser testada com uma conta Google autorizada depois de configurar OAuth e publicar o servidor.

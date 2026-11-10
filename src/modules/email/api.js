@@ -38,11 +38,15 @@ export function getMessage(id) {
   return request(`/messages/${encodeURIComponent(id)}`);
 }
 
-export async function downloadAttachment(messageId, attachmentId) {
+export async function getAttachment(messageId, attachment) {
   const token = localStorage.getItem('ch_token');
   if (!token) throw new Error('Sua sessão expirou. Entre novamente no Uniko.');
+  const params = new URLSearchParams({
+    filename: attachment.filename || 'anexo',
+    mimeType: attachment.mimeType || 'application/octet-stream',
+  });
   const response = await fetch(
-    `${SERVER_URL}/api/email/messages/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(attachmentId)}`,
+    `${SERVER_URL}/api/email/messages/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(attachment.id)}?${params}`,
     { headers: { Authorization: `Bearer ${token}` } },
   );
   if (!response.ok) {
@@ -53,7 +57,15 @@ export async function downloadAttachment(messageId, attachmentId) {
   const disposition = response.headers.get('Content-Disposition') || '';
   const encoded = disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
   const quoted = disposition.match(/filename="?([^";]+)"?/i)?.[1];
-  const filename = encoded ? decodeURIComponent(encoded) : quoted || 'anexo';
+  let filename = quoted || 'anexo';
+  if (encoded) {
+    try { filename = decodeURIComponent(encoded); } catch { filename = quoted || 'anexo'; }
+  }
+  return { blob, filename };
+}
+
+export async function downloadAttachment(messageId, attachment) {
+  const { blob, filename } = await getAttachment(messageId, attachment);
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;

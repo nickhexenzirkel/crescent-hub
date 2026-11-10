@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { T } from '../../contexts/theme';
-import { disconnect, downloadAttachment, getMessage, getStatus, listMessages, startOAuth } from './api';
+import { disconnect, downloadAttachment, getAttachment, getMessage, getStatus, listMessages, startOAuth } from './api';
 
 const buttonStyle = {
   border: `1px solid ${T.border}`,
@@ -25,6 +25,10 @@ function iframeEmail(html) {
   return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; font-src data:; base-uri 'none'; form-action 'none'"></head><body>${html}</body></html>`;
 }
 
+function isIgnoredMessage(message) {
+  return /mailsuite|mail[\s._-]*track/i.test(`${message.from || ''} ${message.subject || ''}`);
+}
+
 export default function Email({ onBack, authUser }) {
   const [status, setStatus] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -39,6 +43,7 @@ export default function Email({ onBack, authUser }) {
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState('');
   const [downloading, setDownloading] = useState('');
+  const [preview, setPreview] = useState(null);
 
   const refreshStatus = useCallback(async () => {
     const current = await getStatus();
@@ -51,12 +56,13 @@ export default function Email({ onBack, authUser }) {
     setError('');
     try {
       const result = await listMessages(search, pageToken);
-      setMessages(previous => append ? [...previous, ...result.messages] : result.messages);
+      const visibleMessages = result.messages.filter(message => !isIgnoredMessage(message));
+      setMessages(previous => append ? [...previous, ...visibleMessages] : visibleMessages);
       setNextPageToken(result.nextPageToken || '');
       if (!append) {
-        setSelectedId(result.messages[0]?.id || '');
+        setSelectedId(visibleMessages[0]?.id || '');
         setMessage(null);
-        setLoadingMessage(Boolean(result.messages[0]));
+        setLoadingMessage(Boolean(visibleMessages[0]));
         setDetailVersion(version => version + 1);
       }
     } catch (e) {
@@ -98,6 +104,10 @@ export default function Email({ onBack, authUser }) {
   }, [selectedId, detailVersion]);
 
   const bodySrc = useMemo(() => message?.bodyHtml ? iframeEmail(message.bodyHtml) : '', [message]);
+
+  useEffect(() => () => {
+    if (preview?.url) URL.revokeObjectURL(preview.url);
+  }, [preview]);
 
   const connect = async () => {
     const popup = window.open('about:blank', 'uniko-gmail-oauth', 'popup,width=620,height=760');
@@ -150,7 +160,28 @@ export default function Email({ onBack, authUser }) {
     setDownloading(attachment.id);
     setError('');
     try {
-      await downloadAttachment(selectedId, attachment.id);
+      await downloadAttachment(selectedId, attachment);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setDownloading('');
+    }
+  };
+
+  const handlePreview = async attachment => {
+    setDownloading(attachment.id);
+    setError('');
+    try {
+      const { blob, filename } = await getAttachment(selectedId, attachment);
+      const ext = filename.split('.').pop()?.toLowerCase();
+      const isPdf = blob.type === 'application/pdf' || ext === 'pdf';
+      const isImage = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp'].includes(blob.type)
+        || ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].includes(ext);
+      if (!isPdf && !isImage) throw new Error('Este tipo de anexo não pode ser visualizado aqui. Use Baixar anexo.');
+      const previewBlob = isPdf && blob.type !== 'application/pdf'
+        ? new Blob([blob], { type: 'application/pdf' })
+        : blob;
+      setPreview({ url: URL.createObjectURL(previewBlob), filename, isPdf });
     } catch (e) {
       setError(e.message);
     } finally {
@@ -224,6 +255,9 @@ export default function Email({ onBack, authUser }) {
               <button type="submit" disabled={loading} style={{ ...buttonStyle, background: T.gold, color: '#fff', border: 'none' }}>Pesquisar</button>
               <button type="button" onClick={() => loadMessages(query)} disabled={loading} style={buttonStyle}>Atualizar</button>
             </form>
+            <div style={{ ...muted, fontSize: 12 }}>
+              Respostas e notificações do Mailsuite/Mailtrack são ocultadas automaticamente.
+            </div>
 
             <div className="email-grid" style={{ flex: 1, minHeight: 0, display: 'grid', gridTemplateColumns: 'minmax(260px, 34%) minmax(0, 1fr)', border: `1px solid ${T.border}`, borderRadius: 14, overflow: 'hidden', background: T.surface }}>
               <section aria-label="Lista de mensagens" style={{ minHeight: 0, overflowY: 'auto', borderRight: `1px solid ${T.border}` }}>
@@ -261,11 +295,27 @@ export default function Email({ onBack, authUser }) {
                           </div>
                           {message.attachments?.length > 0 && (
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 14 }}>
-                              {message.attachments.map(attachment => (
-                                <button key={attachment.id} onClick={() => handleDownload(attachment)} disabled={downloading === attachment.id} style={{ ...buttonStyle, color: T.gold, maxWidth: '100%', overflowWrap: 'anywhere' }}>
-                                  {downloading === attachment.id ? 'Baixando…' : `↓ ${attachment.filename} (${Math.ceil((attachment.size || 0) / 1024)} KB)`}
-                                </button>
-                              ))}
+                              {message.attachments.map(attachment => {
+                                const extension = attachment.filename.split('.').pop()?.toLowerCase();
+                                const previewable = attachment.mimeType === 'application/pdf'
+                                  || ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp'].includes(attachment.mimeType)
+                                  || ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].includes(extension);
+                                return (
+                                  <div key={attachment.id} style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', padding: 6, border: `1px solid ${T.border}`, borderRadius: 10 }}>
+                                    <span style={{ ...muted, fontSize: 12, maxWidth: 240, overflowWrap: 'anywhere' }}>
+                                      {attachment.filename} · {Math.ceil((attachment.size || 0) / 1024)} KB
+                                    </span>
+                                    {previewable && (
+                                      <button onClick={() => handlePreview(attachment)} disabled={downloading === attachment.id} style={{ ...buttonStyle, color: T.gold }}>
+                                        {downloading === attachment.id ? 'Carregando…' : 'Visualizar'}
+                                      </button>
+                                    )}
+                                    <button onClick={() => handleDownload(attachment)} disabled={downloading === attachment.id} style={buttonStyle}>
+                                      Baixar
+                                    </button>
+                                  </div>
+                                );
+                              })}
                             </div>
                           )}
                         </div>
@@ -281,6 +331,21 @@ export default function Email({ onBack, authUser }) {
           </>
         )}
       </main>
+      {preview && (
+        <div role="presentation" onClick={() => setPreview(null)} style={{ position: 'fixed', inset: 0, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 18, background: 'rgba(0,0,0,.72)' }}>
+          <section role="dialog" aria-modal="true" aria-label={`Anexo ${preview.filename}`} onClick={event => event.stopPropagation()} style={{ display: 'flex', flexDirection: 'column', width: 'min(1100px, 96vw)', height: 'min(900px, 92vh)', background: T.surface, color: T.text, borderRadius: 14, overflow: 'hidden', boxShadow: '0 20px 70px rgba(0,0,0,.4)' }}>
+            <header style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderBottom: `1px solid ${T.border}` }}>
+              <strong style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{preview.filename}</strong>
+              <button onClick={() => setPreview(null)} aria-label="Fechar visualização" style={buttonStyle}>Fechar</button>
+            </header>
+            <div style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'auto', padding: 12 }}>
+              {preview.isPdf
+                ? <iframe title={`Visualização de ${preview.filename}`} src={preview.url} style={{ width: '100%', height: '100%', minHeight: 400, border: 0, background: '#fff' }} />
+                : <img src={preview.url} alt={preview.filename} style={{ display: 'block', maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />}
+            </div>
+          </section>
+        </div>
+      )}
       <style>{`@media(max-width:720px){.email-grid{grid-template-columns:minmax(0,1fr)!important;grid-template-rows:minmax(150px,34%) minmax(0,1fr)}.email-grid>section:first-child{border-right:none!important;border-bottom:1px solid ${T.border}}}`}</style>
     </div>
   );
