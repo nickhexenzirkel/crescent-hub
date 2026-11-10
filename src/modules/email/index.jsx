@@ -435,8 +435,8 @@ export default function Email({ onBack, authUser }) {
                 {loadingMessage ? <div style={{ padding: 20, ...muted }}>Abrindo mensagem…</div>
                   : !message ? <div style={{ margin: 'auto', padding: 20, ...muted }}>Selecione uma mensagem para ler.</div>
                     : (
-                      <>
-                        <div style={{ position: 'relative', padding: '22px 24px 18px', borderBottom: `1px solid ${T.border}`, background: `linear-gradient(125deg, ${T.goldGl || `${T.gold}12`}, transparent 68%), ${T.surface}55`, boxShadow: '0 8px 24px rgba(0,0,0,.08)', backdropFilter: 'blur(18px)' }}>
+                    <div style={{ flex: '1 1 0', minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain', display: 'flex', flexDirection: 'column' }}>
+                      <div style={{ position: 'relative', flex: '0 0 auto', padding: '22px 24px 18px', borderBottom: `1px solid ${T.border}`, background: `linear-gradient(125deg, ${T.goldGl || `${T.gold}12`}, transparent 68%), ${T.surface}55`, boxShadow: '0 8px 24px rgba(0,0,0,.08)', backdropFilter: 'blur(18px)' }}>
                           <div style={{ position: 'absolute', inset: '0 auto 0 0', width: 4, background: `linear-gradient(180deg, ${T.goldL || T.gold}, ${T.gold}40)` }} />
                           <h2 style={{ fontFamily: 'var(--font-brand)', fontSize: 21, lineHeight: 1.35, fontWeight: 800, margin: '0 0 17px', overflowWrap: 'anywhere' }}>{message.subject || '(sem assunto)'}</h2>
                           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 210px), 1fr))', gap: 9 }}>
@@ -469,7 +469,7 @@ export default function Email({ onBack, authUser }) {
                           </div>
                         </div>
                         {message.attachments?.length > 0 && (
-                          <section aria-label="Anexos da mensagem" style={{ padding: '15px 20px 17px', borderBottom: `1px solid ${T.border}`, background: `${T.surface}50`, backdropFilter: 'blur(14px)' }}>
+                          <section aria-label="Anexos da mensagem" style={{ flex: '0 0 auto', padding: '15px 20px 17px', borderBottom: `1px solid ${T.border}`, background: `${T.surface}50`, backdropFilter: 'blur(14px)' }}>
                             <h3 style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '0 0 12px', fontSize: 13, fontWeight: 800 }}>
                               <span aria-hidden="true" style={{ color: T.gold, fontSize: 16 }}>▤</span>
                               Anexos <span style={{ ...muted, fontWeight: 500 }}>({message.attachments.length})</span>
@@ -509,12 +509,12 @@ export default function Email({ onBack, authUser }) {
                             </div>
                           </section>
                         )}
-                        <div style={{ flex: '1 1 0', minHeight: 0, overflow: 'auto', padding: 18, background: `radial-gradient(ellipse at 12% 0%, ${T.goldGl || `${T.gold}12`}, transparent 55%), ${T.page}55` }}>
+                        <div style={{ flex: '1 0 320px', minHeight: 320, overflow: 'auto', padding: 18, background: `radial-gradient(ellipse at 12% 0%, ${T.goldGl || `${T.gold}12`}, transparent 55%), ${T.page}55` }}>
                           {message.bodyHtml
                             ? <iframe title="Conteúdo da mensagem" sandbox="" srcDoc={iframeEmail(message.bodyHtml, T.surface, T.text)} style={{ display: 'block', width: '100%', minHeight: '100%', height: '100%', border: `1px solid ${T.border}`, borderRadius: 16, background: T.surface, boxShadow: '0 16px 38px rgba(0,0,0,.16), inset 0 1px 0 rgba(255,255,255,.18)' }} />
                             : <pre style={{ minHeight: 240, margin: 0, padding: 24, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', border: `1px solid ${T.border}`, borderRadius: 16, background: `linear-gradient(145deg, ${T.surface}, ${T.page})`, boxShadow: '0 16px 38px rgba(0,0,0,.16), inset 0 1px 0 rgba(255,255,255,.18)', font: '15px/1.8 var(--font-body)' }}>{message.bodyText || message.snippet || 'Esta mensagem não possui conteúdo textual.'}</pre>}
                         </div>
-                      </>
+                      </div>
                     )}
               </section>
             </div>
