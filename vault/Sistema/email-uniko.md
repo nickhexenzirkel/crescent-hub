@@ -39,5 +39,6 @@ O servidor precisa ser atualizado e reiniciado para carregar as rotas e variavei
 - A caixa segue o tema visual do Uniko com camadas translúcidas, realce colorido na mensagem selecionada, data da sidebar em formato relativo/curto (hoje, ontem ou `9 de nov.`), avatar maior e cartões destacados para cabeçalho, destinatários, data e anexos. A lista rola independentemente; a mensagem aberta tem uma área de rolagem própria que inclui cabeçalho, todos os anexos e o conteúdo, sem ultrapassar o painel.
 - A pesquisa agrupa a leitura dos metadados em uma chamada batch à Gmail API para reduzir esperas de rede.
 - A barra de pesquisa executa a consulta automaticamente após 500 ms sem digitação; resultados de consultas antigas são descartados se uma busca mais nova já estiver em andamento.
+- O botão “Adicionar filtros” abre filtros combináveis por cliente (com sugestões do catálogo), destinatário, intervalo inclusivo de datas e documentos fiscais. Os filtros são convertidos em operadores da pesquisa Gmail e aplicados automaticamente; não alteram a mensagem original.
 - Sem envio de e-mails, armazenamento de mensagens/anexos ou notificacoes. Notificacoes ficam para uma etapa futura.
 - A tela precisa ser testada com uma conta Google autorizada depois de configurar OAuth e publicar o servidor.

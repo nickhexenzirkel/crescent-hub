@@ -108,6 +108,29 @@ function formatarAssunto(valor) {
   });
 }
 
+function termoPesquisaExato(valor) {
+  return `"${String(valor).trim().replace(/["\\]/g, '\\$&')}"`;
+}
+
+function dataPesquisaGmail(valor) {
+  const [ano, mes, dia] = valor.split('-').map(Number);
+  return `${ano}/${String(mes).padStart(2, '0')}/${String(dia).padStart(2, '0')}`;
+}
+
+function montarConsultaPesquisa(termo, filtros) {
+  const partes = [String(termo || '').trim()].filter(Boolean);
+  if (filtros.cliente.trim()) partes.push(termoPesquisaExato(filtros.cliente));
+  if (filtros.destinatario.trim()) partes.push(`to:${termoPesquisaExato(filtros.destinatario)}`);
+  if (filtros.dataInicio) partes.push(`after:${dataPesquisaGmail(filtros.dataInicio)}`);
+  if (filtros.dataFim) {
+    const dataLimite = new Date(`${filtros.dataFim}T00:00:00Z`);
+    dataLimite.setUTCDate(dataLimite.getUTCDate() + 1);
+    partes.push(`before:${dataLimite.toISOString().slice(0, 10).replace(/-/g, '/')}`);
+  }
+  if (filtros.notaFiscal) partes.push('{ "nota fiscal" "nota fiscal eletrônica" "NF-e" DANFE }');
+  return partes.join(' ');
+}
+
 function tamanhoArquivo(bytes) {
   if (!bytes) return 'Tamanho indisponível';
   if (bytes < 1024) return `${bytes} B`;
@@ -166,6 +189,8 @@ export default function Email({ onBack, authUser }) {
   const [message, setMessage] = useState(null);
   const [queryInput, setQueryInput] = useState('');
   const [query, setQuery] = useState('');
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [filters, setFilters] = useState({ cliente: '', destinatario: '', dataInicio: '', dataFim: '', notaFiscal: false });
   const messageListRequest = useRef(0);
   const [nextPageToken, setNextPageToken] = useState('');
   const [loading, setLoading] = useState(true);
@@ -175,6 +200,8 @@ export default function Email({ onBack, authUser }) {
   const [error, setError] = useState('');
   const [downloading, setDownloading] = useState('');
   const [preview, setPreview] = useState(null);
+  const search = montarConsultaPesquisa(queryInput, filters);
+  const intervaloInvalido = Boolean(filters.dataInicio && filters.dataFim && filters.dataInicio > filters.dataFim);
 
   const refreshStatus = useCallback(async () => {
     const current = await getStatus();
@@ -240,14 +267,14 @@ export default function Email({ onBack, authUser }) {
 
   useEffect(() => {
     if (!status?.connected) return undefined;
-    const search = queryInput.trim();
+    if (intervaloInvalido) return undefined;
     if (search === query) return undefined;
     const timeout = window.setTimeout(() => {
       setQuery(search);
       loadMessages(search);
     }, 500);
     return () => window.clearTimeout(timeout);
-  }, [loadMessages, query, queryInput, status?.connected]);
+  }, [intervaloInvalido, loadMessages, query, search, status?.connected]);
 
   useEffect(() => () => {
     if (preview?.url) URL.revokeObjectURL(preview.url);
@@ -287,7 +314,7 @@ export default function Email({ onBack, authUser }) {
 
   const runSearch = async (event) => {
     event?.preventDefault();
-    const search = queryInput.trim();
+    if (intervaloInvalido) return;
     setQuery(search);
     await loadMessages(search);
   };
@@ -388,21 +415,95 @@ export default function Email({ onBack, authUser }) {
 
         {status?.connected && (
           <>
-            <form onSubmit={runSearch} style={{ display: 'flex', gap: 8 }}>
-              <input
-                value={queryInput}
-                onChange={event => setQueryInput(event.target.value)}
-                placeholder="Pesquisar no Gmail: nota fiscal, from:, has:attachment…"
-                aria-label="Pesquisar mensagens no Gmail"
-                style={{ flex: 1, minWidth: 0, padding: '10px 13px', borderRadius: 10, border: `1px solid ${T.border}`, background: T.surface, color: T.text, font: '14px var(--font-body)', outline: 'none' }}
-              />
-              <button type="submit" disabled={loading} style={{ ...buttonStyle, background: T.gold, color: '#fff', border: 'none' }}>
-                {loading ? 'Pesquisando…' : 'Pesquisar'}
-              </button>
-              <button type="button" onClick={() => loadMessages(query)} disabled={loading} style={buttonStyle}>Atualizar</button>
-            </form>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <form onSubmit={runSearch} style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <input
+                  value={queryInput}
+                  onChange={event => setQueryInput(event.target.value)}
+                  placeholder="Pesquisar no Gmail: nota fiscal, from:, has:attachment…"
+                  aria-label="Pesquisar mensagens no Gmail"
+                  style={{ flex: '1 1 260px', minWidth: 0, padding: '10px 13px', borderRadius: 10, border: `1px solid ${T.border}`, background: T.surface, color: T.text, font: '14px var(--font-body)', outline: 'none' }}
+                />
+                <button type="submit" disabled={loading || intervaloInvalido} style={{ ...buttonStyle, background: T.gold, color: '#fff', border: 'none', opacity: intervaloInvalido ? .6 : 1 }}>
+                  {loading ? 'Pesquisando…' : 'Pesquisar'}
+                </button>
+                <button type="button" onClick={() => setFiltersOpen(open => !open)} aria-expanded={filtersOpen} style={buttonStyle}>
+                  {filtersOpen ? 'Ocultar filtros' : 'Adicionar filtros'}
+                  {Object.values(filters).filter(Boolean).length > 0 && (
+                    <span style={{ marginLeft: 7, padding: '2px 6px', borderRadius: 999, background: T.goldGl || `${T.gold}25`, color: T.gold, fontSize: 11 }}>
+                      {Object.values(filters).filter(Boolean).length}
+                    </span>
+                  )}
+                </button>
+                <button type="button" onClick={() => loadMessages(query)} disabled={loading} style={buttonStyle}>Atualizar</button>
+              </form>
+              {filtersOpen && (
+                <section aria-label="Filtros de pesquisa" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 190px), 1fr))', gap: 12, padding: 14, border: `1px solid ${T.border}`, borderRadius: 14, background: `linear-gradient(145deg, ${T.surface}, ${T.page})`, boxShadow: '0 8px 22px rgba(0,0,0,.1)' }}>
+                  <label style={{ display: 'grid', gap: 5, color: T.text, fontSize: 12, fontWeight: 700 }}>
+                    Cliente
+                    <input
+                      list="email-client-filter-options"
+                      value={filters.cliente}
+                      onChange={event => setFilters(current => ({ ...current, cliente: event.target.value }))}
+                      placeholder="Nome do cliente"
+                      style={{ width: '100%', boxSizing: 'border-box', padding: '9px 10px', borderRadius: 9, border: `1px solid ${T.border}`, background: T.surface, color: T.text, font: '13px var(--font-body)' }}
+                    />
+                    <datalist id="email-client-filter-options">
+                      {CLIENTES.map(cliente => <option key={cliente} value={cliente} />)}
+                    </datalist>
+                  </label>
+                  <label style={{ display: 'grid', gap: 5, color: T.text, fontSize: 12, fontWeight: 700 }}>
+                    Destinatário
+                    <input
+                      type="text"
+                      value={filters.destinatario}
+                      onChange={event => setFilters(current => ({ ...current, destinatario: event.target.value }))}
+                      placeholder="E-mail ou nome"
+                      style={{ width: '100%', boxSizing: 'border-box', padding: '9px 10px', borderRadius: 9, border: `1px solid ${T.border}`, background: T.surface, color: T.text, font: '13px var(--font-body)' }}
+                    />
+                  </label>
+                  <label style={{ display: 'grid', gap: 5, color: T.text, fontSize: 12, fontWeight: 700 }}>
+                    Data inicial
+                    <input
+                      type="date"
+                      value={filters.dataInicio}
+                      max={filters.dataFim || undefined}
+                      onChange={event => setFilters(current => ({ ...current, dataInicio: event.target.value }))}
+                      style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', borderRadius: 9, border: `1px solid ${T.border}`, background: T.surface, color: T.text, font: '13px var(--font-body)' }}
+                    />
+                  </label>
+                  <label style={{ display: 'grid', gap: 5, color: T.text, fontSize: 12, fontWeight: 700 }}>
+                    Data final
+                    <input
+                      type="date"
+                      value={filters.dataFim}
+                      min={filters.dataInicio || undefined}
+                      onChange={event => setFilters(current => ({ ...current, dataFim: event.target.value }))}
+                      style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', borderRadius: 9, border: `1px solid ${T.border}`, background: T.surface, color: T.text, font: '13px var(--font-body)' }}
+                    />
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 9, color: T.text, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={filters.notaFiscal}
+                      onChange={event => setFilters(current => ({ ...current, notaFiscal: event.target.checked }))}
+                      style={{ accentColor: T.gold, width: 16, height: 16 }}
+                    />
+                    Somente notas fiscais / NF-e
+                  </label>
+                  <button type="button" onClick={() => setFilters({ cliente: '', destinatario: '', dataInicio: '', dataFim: '', notaFiscal: false })} style={{ ...buttonStyle, justifySelf: 'start' }}>
+                    Limpar filtros
+                  </button>
+                  {intervaloInvalido && (
+                    <div role="alert" style={{ gridColumn: '1 / -1', color: T.danger || '#B42318', fontSize: 12 }}>
+                      A data inicial não pode ser posterior à data final.
+                    </div>
+                  )}
+                </section>
+              )}
+            </div>
             <div style={{ ...muted, fontSize: 12 }}>
-              A pesquisa é feita automaticamente após você parar de digitar. Respostas e notificações do Mailsuite/Mailtrack são ocultadas.
+              A pesquisa é feita automaticamente após você parar de digitar ou ajustar os filtros. Respostas e notificações do Mailsuite/Mailtrack são ocultadas.
             </div>
 
             <div className="email-grid" style={{ flex: '1 1 0', minHeight: 0, display: 'grid', gridTemplateColumns: 'minmax(260px, 34%) minmax(0, 1fr)', gridTemplateRows: 'minmax(0, 1fr)', border: `1px solid ${T.border}`, borderRadius: 18, overflow: 'hidden', background: `linear-gradient(145deg, ${T.surface}, ${T.page})`, boxShadow: '0 18px 48px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.12)', backdropFilter: 'blur(24px) saturate(150%)' }}>
