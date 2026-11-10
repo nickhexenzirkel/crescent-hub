@@ -19,6 +19,7 @@ const MODULOS = {
   'uniko-fit': 'Uniko FIT',
   'uniko-call': 'Uniko Call',
   'prestacao-contas': 'Prestações de Contas',
+  email: 'E-mail',
 };
 
 const CORES = ['#4F8FE8', '#A66BE8', '#E46DA9', '#29A985', '#E7A63D', '#35AFC1'];

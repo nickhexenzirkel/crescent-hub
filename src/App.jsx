@@ -25,6 +25,7 @@ import UnikoCall from './modules/uniko-call';
 import Beneficios7 from './modules/beneficios-7';
 import PrestacaoContas from './modules/prestacao-contas';
 import AmigoSecreto from './modules/amigo-secreto';
+import Email from './modules/email';
 import { notifyDesktop, ensureNotifyPermission } from './utils/desktopNotify';
 import { useIsMobile } from './hooks/useIsMobile';
 import UnikoAssistant from './shared/UnikoAssistant';
@@ -474,7 +475,8 @@ export default function CrescentHub() {
     if (adminOnly.includes(id) && !podeAdminOnly && !cargoModules.has(id)) return;
     // Só admin de verdade, nem moderador (cargo ainda libera) — vitrines "em
     // breve" e Portal dos Credenciados (7 Benefícios, dado de terceiro).
-    const strictAdminOnly = ['uniko-call','prestacao-contas','7-beneficios','uniko-security'];
+    const strictAdminOnly = ['uniko-call','prestacao-contas','7-beneficios','uniko-security','email'];
+    if (id === 'email' && authUser?.role !== 'admin') return;
     if (strictAdminOnly.includes(id) && authUser?.role !== 'admin' && !cargoModules.has(id)) return;
     // Visitante: módulos admin-only já ficaram de fora acima (role nunca bate,
     // cargoModules sempre vazio pra quem não tem id real). Os demais seguem a
@@ -807,6 +809,7 @@ export default function CrescentHub() {
           {screen==='uniko-fit' && <UnikoFit onBack={handleGoBack} authUser={authUser} userPhoto={userPhoto} onlyTabs={isVisitante(authUser) ? abasVisitante(visitanteCfg,'uniko-fit') : undefined}/>}
           {screen==='uniko-call' && (authUser?.role==='admin'||cargoModules.has('uniko-call')) && <UnikoCall onBack={handleGoBack}/>}
           {screen==='prestacao-contas' && (authUser?.role==='admin'||cargoModules.has('prestacao-contas')) && <PrestacaoContas onBack={handleGoBack} authUser={authUser}/>}
+          {screen==='email' && authUser?.role==='admin' && <Email onBack={handleGoBack} authUser={authUser}/>}
           {screen==='amigo-secreto' && <AmigoSecreto onBack={handleGoBack} authUser={authUser}/>}
         </div>
 

@@ -74,7 +74,7 @@ begin
     'modules', 'colaborador', 'ponto', 'dashboard', 'alexa', 'faturamento',
     'conexao-setorial', 'info-adicional', 'uniko-safer', 'uniko-security',
     '7-beneficios', 'mercado-estelar', 'uniko-fit', 'uniko-call',
-    'prestacao-contas'
+    'prestacao-contas', 'email'
   ) then
     raise exception 'Módulo inválido para monitoramento.' using errcode = '22023';
   end if;

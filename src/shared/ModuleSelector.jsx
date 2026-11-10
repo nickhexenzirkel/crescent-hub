@@ -260,9 +260,10 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto, cargoModules, 
   // 'account' (senha/dados). Cada uma tem o seu botão no card.
   const [painelConfig, setPainelConfig] = useState('theme');
   const [activeTheme, setActiveTheme] = useState(() => {
-    const s = localStorage.getItem('ch_theme') || 'blue'; applyTheme(s); return s;
+    return localStorage.getItem('ch_theme') || 'blue';
   });
-  const handleTheme = (key) => { applyTheme(key); setActiveTheme(key); localStorage.setItem('ch_theme', key); };
+  useEffect(() => { applyTheme(activeTheme); }, [activeTheme]);
+  const handleTheme = (key) => { setActiveTheme(key); localStorage.setItem('ch_theme', key); };
   const [reorderMode, setReorderMode] = useState(false);
   const [order, setOrder]   = useState(() => loadModuleOrder(authUser));
   const [dragModId, setDragModId] = useState(null);
@@ -528,6 +529,12 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto, cargoModules, 
       <path d="M12 7H7.5a2.5 2.5 0 1 1 2.4-3.2L12 7Zm0 0h4.5a2.5 2.5 0 1 0-2.4-3.2L12 7Z" />
     </svg>
   );
+  const IcoEmail = (
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <path d="m3 7 9 6 9-6" />
+    </svg>
+  );
   const allMods = [
     // `fixo`: o Portal é o módulo principal — sempre o primeiro, e nasce grande.
     {id:'colaborador',      label:'Portal do Colaborador', sub:'Portal RH completo',               icon:IcoColab,       color:T.gold, bg:T.goldGl, tag:'Principal',  adminOnly:false, fixo:true},
@@ -549,6 +556,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto, cargoModules, 
     // Só admin vê (não moderador) — chamadas gravadas do WhatsApp Web, dado sensível.
     {id:'uniko-call',       label:'Uniko Call',            sub:'Chamadas gravadas e transcritas',  icon:IcoCall,        color:T.gold, bg:T.goldGl, tag:'Admin',    adminOnly:true, strictAdmin:true},
     {id:'prestacao-contas', label:'Prestações de Contas',  sub:'Gastos e comprovantes',                          icon:IcoPrestacaoContas, color:T.gold, bg:T.goldGl, tag:'Ferramenta', adminOnly:true, strictAdmin:true},
+    {id:'email',            label:'E-mail',                 sub:'Gmail · mensagens e anexos',                     icon:IcoEmail, color:T.gold, bg:T.goldGl, tag:'Admin', adminOnly:true, strictAdmin:true},
   ];
   /* Os atalhos viram "módulos" de mentira: daí em diante tudo que a tela já
      sabe fazer (ordenar, redimensionar, colorir) vale pra eles de graça. O que
@@ -579,6 +587,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto, cargoModules, 
       // (os admin-only de verdade já ficam de fora pela checagem comum abaixo,
       // já que `temCargoPara` nunca bate pra quem não tem cargo real).
       if (visitante && !moduloLiberadoVisitante(visitanteCfg, m.id)) return false;
+      if (m.id === 'email') return isAdmin;
       // Atalho aponta pra um módulo de verdade via `m.modulo` (ex: atalho
       // "Seus Dados" → módulo 'colaborador') — no modo restrito, checa esse
       // alvo real, senão um atalho furava a restrição do card principal.
@@ -596,7 +605,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto, cargoModules, 
   // Computador: 1ª vez (sem ordem salva) usa esta sequência. Depois que a
   // pessoa reorganiza, lista do celular e grade do computador seguem a MESMA
   // ordem escolhida por ela.
-  const ORDEM_PADRAO = ['colaborador','mercado-estelar','alexa','faturamento','amigo-secreto','dashboard','conexao-setorial','ponto','uniko-fit','info-adicional','uniko-safer','uniko-security','7-beneficios','uniko-call','prestacao-contas'];
+  const ORDEM_PADRAO = ['colaborador','mercado-estelar','alexa','faturamento','amigo-secreto','dashboard','conexao-setorial','ponto','uniko-fit','info-adicional','uniko-safer','uniko-security','7-beneficios','uniko-call','prestacao-contas','email'];
   const modsTela = order.length ? mods : fixarPrincipal(applyOrder(filteredMods, ORDEM_PADRAO));
   /* Reordenar no celular é por SETAS, não arrastando. Não é preguiça: o
      drag-and-drop HTML5 (o mesmo que a grade usa no computador) simplesmente não
