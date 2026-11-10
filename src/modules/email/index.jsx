@@ -191,6 +191,7 @@ export default function Email({ onBack, authUser }) {
   const [query, setQuery] = useState('');
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [filters, setFilters] = useState({ cliente: '', destinatario: '', dataInicio: '', dataFim: '', notaFiscal: false });
+  const [expandedAttachmentsFor, setExpandedAttachmentsFor] = useState('');
   const messageListRequest = useRef(0);
   const [nextPageToken, setNextPageToken] = useState('');
   const [loading, setLoading] = useState(true);
@@ -420,7 +421,7 @@ export default function Email({ onBack, authUser }) {
                 <input
                   value={queryInput}
                   onChange={event => setQueryInput(event.target.value)}
-                  placeholder="Pesquisar no Gmail: nota fiscal, from:, has:attachment…"
+                  placeholder="Pesquisar nota fiscal, cliente, prefeitura, refaturamento, ofício..."
                   aria-label="Pesquisar mensagens no Gmail"
                   style={{ flex: '1 1 260px', minWidth: 0, padding: '10px 13px', borderRadius: 10, border: `1px solid ${T.border}`, background: T.surface, color: T.text, font: '14px var(--font-body)', outline: 'none' }}
                 />
@@ -587,12 +588,27 @@ export default function Email({ onBack, authUser }) {
                         </div>
                         {message.attachments?.length > 0 && (
                           <section aria-label="Anexos da mensagem" style={{ flex: '0 0 auto', padding: '15px 20px 17px', borderBottom: `1px solid ${T.border}`, background: `${T.surface}50`, backdropFilter: 'blur(14px)' }}>
-                            <h3 style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '0 0 12px', fontSize: 13, fontWeight: 800 }}>
-                              <span aria-hidden="true" style={{ color: T.gold, fontSize: 16 }}>▤</span>
-                              Anexos <span style={{ ...muted, fontWeight: 500 }}>({message.attachments.length})</span>
-                            </h3>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12 }}>
+                              <h3 style={{ display: 'flex', alignItems: 'center', gap: 8, margin: 0, fontSize: 13, fontWeight: 800 }}>
+                                <span aria-hidden="true" style={{ color: T.gold, fontSize: 16 }}>▤</span>
+                                Anexos <span style={{ ...muted, fontWeight: 500 }}>({message.attachments.length})</span>
+                              </h3>
+                              {message.attachments.length > 3 && (
+                                <button
+                                  type="button"
+                                  aria-expanded={expandedAttachmentsFor === selectedId}
+                                  onClick={() => setExpandedAttachmentsFor(current => current === selectedId ? '' : selectedId)}
+                                  style={{ ...buttonStyle, flex: '0 0 auto', padding: '6px 10px', color: T.gold, fontSize: 12 }}
+                                >
+                                  {expandedAttachmentsFor === selectedId
+                                    ? 'Recolher anexos'
+                                    : `+${message.attachments.length - 3} visualizar ${message.attachments.length - 3 === 1 ? 'anexo' : 'anexos'}`}
+                                </button>
+                              )}
+                            </div>
                             <div className="email-attachments-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 240px), 1fr))', gap: 10 }}>
-                              {message.attachments.map(attachment => {
+                              {(expandedAttachmentsFor === selectedId ? message.attachments : message.attachments.slice(0, 3))
+                                .map(attachment => {
                                 const extension = attachment.filename.split('.').pop()?.toLowerCase();
                                 const previewable = attachment.mimeType === 'application/pdf'
                                   || ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp'].includes(attachment.mimeType)
