@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { T } from '../../contexts/theme';
 import { disconnect, downloadAttachment, getAttachment, getMessage, getStatus, listMessages, startOAuth } from './api';
 
@@ -12,6 +12,7 @@ const buttonStyle = {
   font: '600 13px var(--font-body)',
 };
 const muted = { color: T.textS, fontSize: 13 };
+const estadosBrasileiros = new Set(['ac', 'al', 'ap', 'am', 'ba', 'ce', 'df', 'es', 'go', 'ma', 'mt', 'ms', 'mg', 'pa', 'pb', 'pr', 'pe', 'pi', 'rj', 'rn', 'rs', 'ro', 'rr', 'sc', 'sp', 'se', 'to']);
 
 function dataEmail(valor) {
   if (!valor) return '';
@@ -42,8 +43,22 @@ function dadosRemetente(from) {
   return { nome, iniciais };
 }
 
-function iframeEmail(html) {
-  return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; font-src data:; base-uri 'none'; form-action 'none"><style>body{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif!important}</style></head><body>${html}</body></html>`;
+function clienteRemetente(from, nomeRemetente) {
+  const email = String(from || '').match(/[\w.+-]+@([\w.-]+\.[a-z]{2,})/i)?.[1]?.toLowerCase();
+  const partesDominio = email?.split('.') || [];
+  const dominioGovernamental = partesDominio.slice(-2).join('.') === 'gov.br';
+  const indiceEstado = dominioGovernamental ? partesDominio.findIndex(parte => estadosBrasileiros.has(parte)) : -1;
+  const cidadeDominio = indiceEstado > 0 ? partesDominio[indiceEstado - 1] : '';
+  const cidadeNome = String(nomeRemetente || '').match(/(?:munic[ií]pio|prefeitura|financeiro|finan[cç]eiro|secretaria|c[aâ]mara)\s+(?:de\s+)?([A-ZÀ-Ú][\p{L}-]+)/iu)?.[1];
+  const cidade = cidadeDominio || cidadeNome;
+  if (!cidade || (indiceEstado === -1 && !cidadeNome)) return '';
+  const nomesComAcento = { parnaiba: 'Parnaíba', eusebio: 'Eusébio', aracati: 'Aracati', maracanau: 'Maracanaú', itapipoca: 'Itapipoca' };
+  const chave = cidade.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  return nomesComAcento[chave] || cidade.charAt(0).toLocaleUpperCase('pt-BR') + cidade.slice(1);
+}
+
+function iframeEmail(html, background, color) {
+  return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; font-src data:; base-uri 'none'; form-action 'none"><style>html,body{min-height:100%;background:${background}!important;color:${color}!important}body{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif!important}body *{background-color:transparent!important;color:inherit!important}</style></head><body>${html}</body></html>`;
 }
 
 function isIgnoredMessage(message) {
@@ -124,7 +139,7 @@ export default function Email({ onBack, authUser }) {
     return () => { active = false; };
   }, [selectedId, detailVersion]);
 
-  const bodySrc = useMemo(() => message?.bodyHtml ? iframeEmail(message.bodyHtml) : '', [message]);
+  const bodySrc = message?.bodyHtml ? iframeEmail(message.bodyHtml, T.surface, T.text) : '';
 
   useEffect(() => () => {
     if (preview?.url) URL.revokeObjectURL(preview.url);
@@ -288,6 +303,7 @@ export default function Email({ onBack, authUser }) {
                   : !messages.length ? <div style={{ padding: 18, ...muted }}>Nenhuma mensagem encontrada.</div>
                     : messages.map(item => {
                       const remetente = dadosRemetente(item.from);
+                      const cliente = clienteRemetente(item.from, remetente.nome);
                       return (
                         <button key={item.id} onClick={() => selectMessage(item.id)} style={{
                           display: 'block', width: '100%', minHeight: 76, padding: '11px 14px', border: 'none', borderBottom: `1px solid ${T.border}`,
@@ -304,6 +320,11 @@ export default function Email({ onBack, authUser }) {
                             <span style={{ ...muted, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12 }}>
                               {remetente.nome}
                             </span>
+                            {cliente && (
+                              <span style={{ flex: '0 0 auto', maxWidth: '45%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: '3px 7px', borderRadius: 999, background: T.goldGl || `${T.gold}18`, color: T.gold, fontSize: 10, fontWeight: 700 }}>
+                                {cliente}
+                              </span>
+                            )}
                           </div>
                         </button>
                       );
@@ -367,7 +388,7 @@ export default function Email({ onBack, authUser }) {
                         )}
                         <div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: 16 }}>
                           {message.bodyHtml
-                            ? <iframe title="Conteúdo da mensagem" sandbox="" srcDoc={bodySrc} style={{ width: '100%', minHeight: 480, height: '100%', border: `1px solid ${T.border}`, borderRadius: 8, background: '#fff' }} />
+                            ? <iframe title="Conteúdo da mensagem" sandbox="" srcDoc={bodySrc} style={{ width: '100%', minHeight: 480, height: '100%', border: `1px solid ${T.border}`, borderRadius: 8, background: T.surface }} />
                             : <pre style={{ margin: 0, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', font: '14px/1.65 var(--font-body)' }}>{message.bodyText || message.snippet || 'Esta mensagem não possui conteúdo textual.'}</pre>}
                         </div>
                       </>
