@@ -127,7 +127,11 @@ function montarConsultaPesquisa(termo, filtros) {
     dataLimite.setUTCDate(dataLimite.getUTCDate() + 1);
     partes.push(`before:${dataLimite.toISOString().slice(0, 10).replace(/-/g, '/')}`);
   }
-  if (filtros.notaFiscal) partes.push('{ "nota fiscal" "nota fiscal eletrônica" "NF-e" DANFE }');
+  if (filtros.notaFiscal) {
+    partes.push('{ "nota fiscal" "nota fiscal eletrônica" "NF-e" DANFE }');
+    const termosNota = filtros.notaFiscalTermo.trim().split(/\s+/).filter(Boolean);
+    if (termosNota.length) partes.push(termosNota.map(termoPesquisaExato).join(' '));
+  }
   return partes.join(' ');
 }
 
@@ -202,7 +206,7 @@ export default function Email({ onBack, authUser }) {
   const [query, setQuery] = useState('');
   const [pasta, setPasta] = useState('recebidos');
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [filters, setFilters] = useState({ cliente: '', destinatario: '', dataInicio: '', dataFim: '', notaFiscal: false });
+  const [filters, setFilters] = useState({ cliente: '', destinatario: '', dataInicio: '', dataFim: '', notaFiscal: false, notaFiscalTermo: '' });
   const [expandedAttachmentsFor, setExpandedAttachmentsFor] = useState('');
   const messageListRequest = useRef(0);
   const [nextPageToken, setNextPageToken] = useState('');
@@ -497,12 +501,27 @@ export default function Email({ onBack, authUser }) {
                     <input
                       type="checkbox"
                       checked={filters.notaFiscal}
-                      onChange={event => setFilters(current => ({ ...current, notaFiscal: event.target.checked }))}
+                      onChange={event => setFilters(current => ({
+                        ...current,
+                        notaFiscal: event.target.checked,
+                        notaFiscalTermo: event.target.checked ? current.notaFiscalTermo : '',
+                      }))}
                       style={{ accentColor: T.gold, width: 16, height: 16 }}
                     />
                     Somente notas fiscais / NF-e
                   </label>
-                  <button type="button" onClick={() => setFilters({ cliente: '', destinatario: '', dataInicio: '', dataFim: '', notaFiscal: false })} style={{ ...buttonStyle, justifySelf: 'start' }}>
+                  <label style={{ display: 'grid', gap: 5, color: T.text, fontSize: 12, fontWeight: 700 }}>
+                    Número da nota ou município
+                    <input
+                      type="text"
+                      value={filters.notaFiscalTermo}
+                      disabled={!filters.notaFiscal}
+                      onChange={event => setFilters(current => ({ ...current, notaFiscalTermo: event.target.value }))}
+                      placeholder="Ex.: 58989 Ipu"
+                      style={{ width: '100%', boxSizing: 'border-box', padding: '9px 10px', borderRadius: 9, border: `1px solid ${T.border}`, background: filters.notaFiscal ? T.surface : `${T.page}88`, color: T.text, font: '13px var(--font-body)', opacity: filters.notaFiscal ? 1 : .6 }}
+                    />
+                  </label>
+                  <button type="button" onClick={() => setFilters({ cliente: '', destinatario: '', dataInicio: '', dataFim: '', notaFiscal: false, notaFiscalTermo: '' })} style={{ ...buttonStyle, justifySelf: 'start' }}>
                     Limpar filtros
                   </button>
                   {intervaloInvalido && (
