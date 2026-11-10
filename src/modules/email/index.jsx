@@ -128,9 +128,9 @@ function montarConsultaPesquisa(termo, filtros) {
     partes.push(`before:${dataLimite.toISOString().slice(0, 10).replace(/-/g, '/')}`);
   }
   const termosNota = filtros.notaFiscalTermo.trim().split(/\s+/).filter(Boolean);
-  if (filtros.notaFiscal || termosNota.length) {
+  if (termosNota.length) {
     partes.push('{ "nota fiscal" "nota fiscal eletrônica" "NF-e" DANFE }');
-    if (termosNota.length) partes.push(termosNota.map(termoPesquisaExato).join(' '));
+    partes.push(termosNota.map(termoPesquisaExato).join(' '));
   }
   return partes.join(' ');
 }
@@ -214,9 +214,8 @@ export default function Email({ onBack, authUser }) {
   const [queryInput, setQueryInput] = useState('');
   const [query, setQuery] = useState('');
   const [pasta, setPasta] = useState('recebidos');
-  const [detectarPastaDaNota, setDetectarPastaDaNota] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [filters, setFilters] = useState({ cliente: '', destinatario: '', dataInicio: '', dataFim: '', notaFiscal: false, notaFiscalTermo: '' });
+  const [filters, setFilters] = useState({ cliente: '', destinatario: '', dataInicio: '', dataFim: '', notaFiscalTermo: '' });
   const [expandedAttachmentsFor, setExpandedAttachmentsFor] = useState('');
   const messageListRequest = useRef(0);
   const [nextPageToken, setNextPageToken] = useState('');
@@ -226,7 +225,7 @@ export default function Email({ onBack, authUser }) {
   const [error, setError] = useState('');
   const [downloading, setDownloading] = useState('');
   const [preview, setPreview] = useState(null);
-  const buscaAutomaticaDaNota = detectarPastaDaNota && Boolean(filters.notaFiscalTermo.trim());
+  const buscaAutomaticaDaNota = Boolean(filters.notaFiscalTermo.trim());
   const search = consultaComPasta(montarConsultaPesquisa(queryInput, filters), buscaAutomaticaDaNota ? 'ambos' : pasta);
   const intervaloInvalido = Boolean(filters.dataInicio && filters.dataFim && filters.dataInicio > filters.dataFim);
 
@@ -512,15 +511,6 @@ export default function Email({ onBack, authUser }) {
                       style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', borderRadius: 9, border: `1px solid ${T.border}`, background: T.surface, color: T.text, font: '13px var(--font-body)' }}
                     />
                   </label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 9, color: T.text, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-                    <input
-                      type="checkbox"
-                      checked={filters.notaFiscal}
-                      onChange={event => setFilters(current => ({ ...current, notaFiscal: event.target.checked }))}
-                      style={{ accentColor: T.gold, width: 16, height: 16 }}
-                    />
-                    Somente notas fiscais / NF-e
-                  </label>
                   <label style={{ display: 'grid', gap: 5, color: T.text, fontSize: 12, fontWeight: 700 }}>
                     Número da nota ou município
                     <input
@@ -529,15 +519,13 @@ export default function Email({ onBack, authUser }) {
                       onChange={event => {
                         const notaFiscalTermo = event.target.value;
                         setFilters(current => ({ ...current, notaFiscalTermo }));
-                        setDetectarPastaDaNota(Boolean(notaFiscalTermo.trim()));
                       }}
                       placeholder="Ex.: 58989 Ipu"
                       style={{ width: '100%', boxSizing: 'border-box', padding: '9px 10px', borderRadius: 9, border: `1px solid ${T.border}`, background: T.surface, color: T.text, font: '13px var(--font-body)' }}
                     />
                   </label>
                   <button type="button" onClick={() => {
-                    setFilters({ cliente: '', destinatario: '', dataInicio: '', dataFim: '', notaFiscal: false, notaFiscalTermo: '' });
-                    setDetectarPastaDaNota(false);
+                    setFilters({ cliente: '', destinatario: '', dataInicio: '', dataFim: '', notaFiscalTermo: '' });
                   }} style={{ ...buttonStyle, justifySelf: 'start' }}>
                     Limpar filtros
                   </button>
@@ -573,10 +561,7 @@ export default function Email({ onBack, authUser }) {
                         key={value}
                         type="button"
                         aria-pressed={pasta === value}
-                        onClick={() => {
-                          setDetectarPastaDaNota(false);
-                          setPasta(value);
-                        }}
+                        onClick={() => setPasta(value)}
                         style={{
                           border: 'none',
                           borderRadius: 7,
