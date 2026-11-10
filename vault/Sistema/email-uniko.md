@@ -36,6 +36,7 @@ O servidor precisa ser atualizado e reiniciado para carregar as rotas e variavei
 - Ocultar respostas (cabeçalhos de resposta ou assunto começando com "Re:") e mensagens do Mailsuite/Mailtrack, com filtro no servidor e no cliente.
 - A lista mostra assunto, remetente com avatar de iniciais e identifica municípios, órgãos/instituições e empresas do catálogo de clientes pelo endereço ou nome do remetente. Também reconhece nomes concatenados como `obrascapistrano` e `institutosaovicente`. Detalhes completos aparecem ao abrir a mensagem. Os anexos ficam em cartões alinhados com tipo, tamanho e ações.
 - O corpo do e-mail preserva parágrafos, ênfases e conteúdo, usa a fonte Inter e adapta fundo e cor-base ao tema ativo do Uniko, neutralizando cores de fundo/texto embutidas para manter contraste.
+- A caixa segue o tema visual do Uniko com camadas translúcidas, realce colorido na mensagem selecionada, horários relativos na lista e cartões destacados para cabeçalho, destinatários, data e anexos.
 - A pesquisa agrupa a leitura dos metadados em uma chamada batch à Gmail API para reduzir esperas de rede.
 - Sem envio de e-mails, armazenamento de mensagens/anexos ou notificacoes. Notificacoes ficam para uma etapa futura.
 - A tela precisa ser testada com uma conta Google autorizada depois de configurar OAuth e publicar o servidor.

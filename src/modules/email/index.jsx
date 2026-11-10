@@ -83,6 +83,22 @@ function dataEmail(valor) {
     : data.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
 }
 
+function dataRelativaEmail(valor) {
+  if (!valor) return '';
+  const data = new Date(valor);
+  if (Number.isNaN(data.getTime())) return valor;
+  const hoje = new Date();
+  const dataDia = new Date(data.getFullYear(), data.getMonth(), data.getDate());
+  const hojeDia = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
+  const diferenca = Math.round((hojeDia - dataDia) / 86_400_000);
+  if (diferenca === 0) return data.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  if (diferenca === 1) return 'Ontem';
+  if (diferenca > 1 && diferenca < 7) {
+    return data.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '');
+  }
+  return data.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+}
+
 function tamanhoArquivo(bytes) {
   if (!bytes) return 'Tamanho indisponível';
   if (bytes < 1024) return `${bytes} B`;
@@ -127,7 +143,7 @@ function clienteRemetente(from, nomeRemetente) {
 }
 
 function iframeEmail(html, background, color) {
-  return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; font-src data:; base-uri 'none'; form-action 'none"><style>html,body{min-height:100%;background:${background}!important;color:${color}!important}body{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif!important}body *{background-color:transparent!important;color:inherit!important}</style></head><body>${html}</body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; font-src data:; base-uri 'none'; form-action 'none"><style>html,body{min-height:100%;background:${background}!important;color:${color}!important}body{margin:0;padding:24px;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif!important;font-size:15px;line-height:1.75}body *{background-color:transparent!important;color:inherit!important;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif!important}p{margin:0 0 1em}a{color:${T.gold}!important;text-decoration:underline}img{max-width:100%;height:auto}blockquote{margin:1em 0;padding:.5em 1em;border-left:3px solid ${T.gold};background:${T.goldGl}!important;border-radius:0 10px 10px 0}</style></head><body>${html}</body></html>`;
 }
 
 function isIgnoredMessage(message) {
@@ -207,8 +223,6 @@ export default function Email({ onBack, authUser }) {
       .finally(() => { if (active) setLoadingMessage(false); });
     return () => { active = false; };
   }, [selectedId, detailVersion]);
-
-  const bodySrc = message?.bodyHtml ? iframeEmail(message.bodyHtml, T.surface, T.text) : '';
 
   useEffect(() => () => {
     if (preview?.url) URL.revokeObjectURL(preview.url);
@@ -366,31 +380,38 @@ export default function Email({ onBack, authUser }) {
               Respostas e notificações do Mailsuite/Mailtrack são ocultadas automaticamente.
             </div>
 
-            <div className="email-grid" style={{ flex: 1, minHeight: 0, display: 'grid', gridTemplateColumns: 'minmax(260px, 34%) minmax(0, 1fr)', border: `1px solid ${T.border}`, borderRadius: 14, overflow: 'hidden', background: T.surface }}>
-              <section aria-label="Lista de mensagens" style={{ minHeight: 0, overflowY: 'auto', borderRight: `1px solid ${T.border}` }}>
+            <div className="email-grid" style={{ flex: 1, minHeight: 0, display: 'grid', gridTemplateColumns: 'minmax(260px, 34%) minmax(0, 1fr)', border: `1px solid ${T.border}`, borderRadius: 18, overflow: 'hidden', background: `linear-gradient(145deg, ${T.surface}, ${T.page})`, boxShadow: '0 18px 48px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.12)', backdropFilter: 'blur(24px) saturate(150%)' }}>
+              <section aria-label="Lista de mensagens" style={{ minHeight: 0, overflowY: 'auto', borderRight: `1px solid ${T.border}`, background: T.sidebarBg || T.surface, backdropFilter: 'blur(22px) saturate(150%)' }}>
                 {loading && !messages.length ? <div style={{ padding: 18, ...muted }}>Carregando mensagens…</div>
                   : !messages.length ? <div style={{ padding: 18, ...muted }}>Nenhuma mensagem encontrada.</div>
                     : messages.map(item => {
                       const remetente = dadosRemetente(item.from);
                       const cliente = clienteRemetente(item.from, remetente.nome);
+                      const selecionado = selectedId === item.id;
                       return (
-                        <button key={item.id} onClick={() => selectMessage(item.id)} style={{
-                          display: 'block', width: '100%', minHeight: 76, padding: '11px 14px', border: 'none', borderBottom: `1px solid ${T.border}`,
-                          borderLeft: selectedId === item.id ? `3px solid ${T.gold}` : '3px solid transparent',
-                          background: selectedId === item.id ? (T.goldGl || `${T.gold}18`) : 'transparent', color: T.text, textAlign: 'left', cursor: 'pointer',
+                        <button className="email-message-row" key={item.id} onClick={() => selectMessage(item.id)} style={{
+                          position: 'relative', display: 'block', width: '100%', minHeight: 83, padding: '13px 15px 11px 18px', border: 'none', borderBottom: `1px solid ${T.border}`,
+                          borderLeft: selecionado ? `4px solid ${T.gold}` : '4px solid transparent',
+                          background: selecionado ? `linear-gradient(100deg, ${T.goldGl || `${T.gold}28`}, transparent 88%), ${T.surface}` : 'transparent', color: T.text, textAlign: 'left', cursor: 'pointer', transition: 'background .18s ease, box-shadow .18s ease',
+                          boxShadow: selecionado ? 'inset 0 1px 0 rgba(255,255,255,.12), 0 6px 20px rgba(0,0,0,.10)' : 'none',
                         }} title={item.subject || '(sem assunto)'}>
-                          <div style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', overflowWrap: 'anywhere' }}>
-                            {item.subject || '(sem assunto)'}
+                          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
+                            <div style={{ minWidth: 0, flex: 1, fontSize: 13, fontWeight: 750, lineHeight: 1.45, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', overflowWrap: 'anywhere' }}>
+                              {item.subject || '(sem assunto)'}
+                            </div>
+                            <time title={dataEmail(item.date)} style={{ flex: '0 0 auto', padding: '3px 7px', borderRadius: 999, background: selecionado ? (T.goldGl || `${T.gold}22`) : `${T.surface}55`, color: selecionado ? T.gold : T.textS, fontSize: 10, fontWeight: 700, whiteSpace: 'nowrap' }}>
+                              {dataRelativaEmail(item.date)}
+                            </time>
                           </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, marginTop: 7 }}>
-                            <span aria-hidden="true" style={{ flex: '0 0 25px', width: 25, height: 25, display: 'grid', placeItems: 'center', borderRadius: '50%', background: T.goldGl || `${T.gold}22`, color: T.gold, fontSize: 10, fontWeight: 800 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, marginTop: 8 }}>
+                            <span aria-hidden="true" style={{ flex: '0 0 28px', width: 28, height: 28, display: 'grid', placeItems: 'center', borderRadius: '50%', background: `linear-gradient(145deg, ${T.goldGl || `${T.gold}30`}, ${T.surface}99)`, color: T.gold, fontSize: 10, fontWeight: 800, boxShadow: `0 3px 10px ${T.goldGl || `${T.gold}22`}, inset 0 1px 0 rgba(255,255,255,.2)` }}>
                               {remetente.iniciais}
                             </span>
-                            <span style={{ ...muted, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12 }}>
+                            <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: T.textS, fontSize: 11, fontWeight: 600 }}>
                               {remetente.nome}
                             </span>
                             {cliente && (
-                              <span style={{ flex: '0 0 auto', maxWidth: '45%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: '3px 7px', borderRadius: 999, background: T.goldGl || `${T.gold}18`, color: T.gold, fontSize: 10, fontWeight: 700 }}>
+                              <span style={{ flex: '0 0 auto', maxWidth: '42%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: '4px 8px', borderRadius: 999, background: T.goldGl || `${T.gold}18`, color: T.gold, fontSize: 10, fontWeight: 750, boxShadow: 'inset 0 1px 0 rgba(255,255,255,.16)' }}>
                                 {cliente}
                               </span>
                             )}
@@ -401,23 +422,47 @@ export default function Email({ onBack, authUser }) {
                 {nextPageToken && <button onClick={() => loadMessages(query, nextPageToken, true)} disabled={loading} style={{ ...buttonStyle, display: 'block', margin: 12 }}>Carregar mais</button>}
               </section>
 
-              <section aria-label="Mensagem selecionada" style={{ minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+              <section aria-label="Mensagem selecionada" style={{ minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', background: `linear-gradient(155deg, ${T.page}80, ${T.surface}55)` }}>
                 {loadingMessage ? <div style={{ padding: 20, ...muted }}>Abrindo mensagem…</div>
                   : !message ? <div style={{ margin: 'auto', padding: 20, ...muted }}>Selecione uma mensagem para ler.</div>
                     : (
                       <>
-                        <div style={{ padding: '18px 20px', borderBottom: `1px solid ${T.border}` }}>
-                          <h2 style={{ fontSize: 20, margin: '0 0 12px', overflowWrap: 'anywhere' }}>{message.subject || '(sem assunto)'}</h2>
-                          <div style={{ ...muted, lineHeight: 1.7, overflowWrap: 'anywhere' }}>
-                            <div><strong>De:</strong> {message.from || '—'}</div>
-                            <div><strong>Para:</strong> {message.to || '—'}</div>
-                            {message.cc && <div><strong>Cc:</strong> {message.cc}</div>}
-                            <div><strong>Data:</strong> {dataEmail(message.date)}</div>
+                        <div style={{ position: 'relative', padding: '22px 24px 18px', borderBottom: `1px solid ${T.border}`, background: `linear-gradient(125deg, ${T.goldGl || `${T.gold}12`}, transparent 68%), ${T.surface}55`, boxShadow: '0 8px 24px rgba(0,0,0,.08)', backdropFilter: 'blur(18px)' }}>
+                          <div style={{ position: 'absolute', inset: '0 auto 0 0', width: 4, background: `linear-gradient(180deg, ${T.goldL || T.gold}, ${T.gold}40)` }} />
+                          <h2 style={{ fontFamily: 'var(--font-brand)', fontSize: 21, lineHeight: 1.35, fontWeight: 800, margin: '0 0 17px', overflowWrap: 'anywhere' }}>{message.subject || '(sem assunto)'}</h2>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 210px), 1fr))', gap: 9 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, padding: '10px 12px', border: `1px solid ${T.border}`, borderRadius: 12, background: `${T.surface}88`, boxShadow: 'inset 0 1px 0 rgba(255,255,255,.12)' }}>
+                              <span aria-hidden="true" style={{ flex: '0 0 34px', width: 34, height: 34, display: 'grid', placeItems: 'center', borderRadius: '50%', background: T.goldGl || `${T.gold}22`, color: T.gold, fontSize: 11, fontWeight: 800 }}>
+                                {dadosRemetente(message.from).iniciais}
+                              </span>
+                              <div style={{ minWidth: 0 }}>
+                                <div style={{ color: T.textT, fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.08em' }}>De</div>
+                                <div title={message.from} style={{ color: T.text, fontSize: 12, fontWeight: 650, overflowWrap: 'anywhere' }}>{message.from || 'Remetente não informado'}</div>
+                              </div>
+                            </div>
+                            <div style={{ minWidth: 0, padding: '10px 12px', border: `1px solid ${T.border}`, borderRadius: 12, background: `${T.surface}88`, boxShadow: 'inset 0 1px 0 rgba(255,255,255,.12)' }}>
+                              <div style={{ color: T.textT, fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.08em' }}>Para</div>
+                              <div title={message.to} style={{ marginTop: 4, color: T.text, fontSize: 12, lineHeight: 1.5, fontWeight: 600, overflowWrap: 'anywhere' }}>{message.to || 'Destinatário não informado'}</div>
+                            </div>
+                            {message.cc && (
+                              <div style={{ minWidth: 0, padding: '10px 12px', border: `1px solid ${T.border}`, borderRadius: 12, background: `${T.surface}88`, boxShadow: 'inset 0 1px 0 rgba(255,255,255,.12)' }}>
+                                <div style={{ color: T.textT, fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.08em' }}>Cc</div>
+                                <div title={message.cc} style={{ marginTop: 4, color: T.text, fontSize: 12, lineHeight: 1.5, fontWeight: 600, overflowWrap: 'anywhere' }}>{message.cc}</div>
+                              </div>
+                            )}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '10px 12px', border: `1px solid ${T.border}`, borderRadius: 12, background: `${T.surface}88`, boxShadow: 'inset 0 1px 0 rgba(255,255,255,.12)' }}>
+                              <span aria-hidden="true" style={{ fontSize: 18 }}>◷</span>
+                              <div>
+                                <div style={{ color: T.textT, fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.08em' }}>Recebido</div>
+                                <time title={dataEmail(message.date)} style={{ color: T.text, fontSize: 12, fontWeight: 650 }}>{dataEmail(message.date)}</time>
+                              </div>
+                            </div>
                           </div>
                         </div>
                         {message.attachments?.length > 0 && (
-                          <section aria-label="Anexos da mensagem" style={{ padding: '14px 18px 16px', borderBottom: `1px solid ${T.border}`, background: T.page }}>
-                            <h3 style={{ margin: '0 0 10px', fontSize: 13, fontWeight: 700 }}>
+                          <section aria-label="Anexos da mensagem" style={{ padding: '15px 20px 17px', borderBottom: `1px solid ${T.border}`, background: `${T.surface}50`, backdropFilter: 'blur(14px)' }}>
+                            <h3 style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '0 0 12px', fontSize: 13, fontWeight: 800 }}>
+                              <span aria-hidden="true" style={{ color: T.gold, fontSize: 16 }}>▤</span>
                               Anexos <span style={{ ...muted, fontWeight: 500 }}>({message.attachments.length})</span>
                             </h3>
                             <div className="email-attachments-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 240px), 1fr))', gap: 10 }}>
@@ -427,7 +472,7 @@ export default function Email({ onBack, authUser }) {
                                   || ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp'].includes(attachment.mimeType)
                                   || ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].includes(extension);
                                 return (
-                                  <article key={attachment.id} style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 12, padding: 12, border: `1px solid ${T.border}`, borderRadius: 12, background: T.surface, boxShadow: '0 2px 8px rgba(0,0,0,.08)' }}>
+                                  <article key={attachment.id} style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 12, padding: 12, border: `1px solid ${T.border}`, borderRadius: 14, background: `linear-gradient(145deg, ${T.surface}, ${T.page}90)`, boxShadow: '0 8px 22px rgba(0,0,0,.12), inset 0 1px 0 rgba(255,255,255,.14)', backdropFilter: 'blur(14px)' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
                                       <span aria-hidden="true" style={{ flex: '0 0 38px', width: 38, height: 42, display: 'grid', placeItems: 'center', borderRadius: 9, background: T.goldGl || `${T.gold}18`, color: T.gold, fontSize: 10, fontWeight: 800, textTransform: 'uppercase' }}>
                                         {extension || 'file'}
@@ -455,10 +500,10 @@ export default function Email({ onBack, authUser }) {
                             </div>
                           </section>
                         )}
-                        <div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: 16 }}>
+                        <div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: 18, background: `radial-gradient(ellipse at 12% 0%, ${T.goldGl || `${T.gold}12`}, transparent 55%), ${T.page}55` }}>
                           {message.bodyHtml
-                            ? <iframe title="Conteúdo da mensagem" sandbox="" srcDoc={bodySrc} style={{ width: '100%', minHeight: 480, height: '100%', border: `1px solid ${T.border}`, borderRadius: 8, background: T.surface }} />
-                            : <pre style={{ margin: 0, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', font: '14px/1.65 var(--font-body)' }}>{message.bodyText || message.snippet || 'Esta mensagem não possui conteúdo textual.'}</pre>}
+                            ? <iframe title="Conteúdo da mensagem" sandbox="" srcDoc={iframeEmail(message.bodyHtml, T.surface, T.text)} style={{ display: 'block', width: '100%', minHeight: 480, height: '100%', border: `1px solid ${T.border}`, borderRadius: 16, background: T.surface, boxShadow: '0 16px 38px rgba(0,0,0,.16), inset 0 1px 0 rgba(255,255,255,.18)' }} />
+                            : <pre style={{ minHeight: 240, margin: 0, padding: 24, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', border: `1px solid ${T.border}`, borderRadius: 16, background: `linear-gradient(145deg, ${T.surface}, ${T.page})`, boxShadow: '0 16px 38px rgba(0,0,0,.16), inset 0 1px 0 rgba(255,255,255,.18)', font: '15px/1.8 var(--font-body)' }}>{message.bodyText || message.snippet || 'Esta mensagem não possui conteúdo textual.'}</pre>}
                         </div>
                       </>
                     )}
@@ -482,7 +527,7 @@ export default function Email({ onBack, authUser }) {
           </section>
         </div>
       )}
-      <style>{`@media(max-width:720px){.email-grid{grid-template-columns:minmax(0,1fr)!important;grid-template-rows:minmax(150px,34%) minmax(0,1fr)}.email-grid>section:first-child{border-right:none!important;border-bottom:1px solid ${T.border}}}`}</style>
+      <style>{`.email-message-row:hover{background:${T.goldGl || `${T.gold}18`} !important;box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 6px 18px rgba(0,0,0,.08)}@media(max-width:720px){.email-grid{grid-template-columns:minmax(0,1fr)!important;grid-template-rows:minmax(170px,36%) minmax(0,1fr)}.email-grid>section:first-child{border-right:none!important;border-bottom:1px solid ${T.border}}}`}</style>
     </div>
   );
 }
