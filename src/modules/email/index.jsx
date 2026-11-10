@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { T } from '../../contexts/theme';
 import { disconnect, downloadAttachment, getAttachment, getMessage, getStatus, listMessages, startOAuth } from './api';
 
@@ -166,6 +166,7 @@ export default function Email({ onBack, authUser }) {
   const [message, setMessage] = useState(null);
   const [queryInput, setQueryInput] = useState('');
   const [query, setQuery] = useState('');
+  const messageListRequest = useRef(0);
   const [nextPageToken, setNextPageToken] = useState('');
   const [loading, setLoading] = useState(true);
   const [loadingMessage, setLoadingMessage] = useState(false);
@@ -182,10 +183,12 @@ export default function Email({ onBack, authUser }) {
   }, []);
 
   const loadMessages = useCallback(async (search = '', pageToken = '', append = false) => {
+    const requestId = ++messageListRequest.current;
     setLoading(true);
     setError('');
     try {
       const result = await listMessages(search, pageToken);
+      if (requestId !== messageListRequest.current) return;
       const visibleMessages = result.messages.filter(message => !isIgnoredMessage(message));
       setMessages(previous => append ? [...previous, ...visibleMessages] : visibleMessages);
       setNextPageToken(result.nextPageToken || '');
@@ -196,10 +199,12 @@ export default function Email({ onBack, authUser }) {
         setDetailVersion(version => version + 1);
       }
     } catch (e) {
-      setError(e.message);
-      if (!append) setLoadingMessage(false);
+      if (requestId === messageListRequest.current) {
+        setError(e.message);
+        if (!append) setLoadingMessage(false);
+      }
     } finally {
-      setLoading(false);
+      if (requestId === messageListRequest.current) setLoading(false);
     }
   }, []);
 
@@ -232,6 +237,17 @@ export default function Email({ onBack, authUser }) {
       .finally(() => { if (active) setLoadingMessage(false); });
     return () => { active = false; };
   }, [selectedId, detailVersion]);
+
+  useEffect(() => {
+    if (!status?.connected) return undefined;
+    const search = queryInput.trim();
+    if (search === query) return undefined;
+    const timeout = window.setTimeout(() => {
+      setQuery(search);
+      loadMessages(search);
+    }, 500);
+    return () => window.clearTimeout(timeout);
+  }, [loadMessages, query, queryInput, status?.connected]);
 
   useEffect(() => () => {
     if (preview?.url) URL.revokeObjectURL(preview.url);
@@ -386,7 +402,7 @@ export default function Email({ onBack, authUser }) {
               <button type="button" onClick={() => loadMessages(query)} disabled={loading} style={buttonStyle}>Atualizar</button>
             </form>
             <div style={{ ...muted, fontSize: 12 }}>
-              Respostas e notificações do Mailsuite/Mailtrack são ocultadas automaticamente.
+              A pesquisa é feita automaticamente após você parar de digitar. Respostas e notificações do Mailsuite/Mailtrack são ocultadas.
             </div>
 
             <div className="email-grid" style={{ flex: '1 1 0', minHeight: 0, display: 'grid', gridTemplateColumns: 'minmax(260px, 34%) minmax(0, 1fr)', gridTemplateRows: 'minmax(0, 1fr)', border: `1px solid ${T.border}`, borderRadius: 18, overflow: 'hidden', background: `linear-gradient(145deg, ${T.surface}, ${T.page})`, boxShadow: '0 18px 48px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.12)', backdropFilter: 'blur(24px) saturate(150%)' }}>
