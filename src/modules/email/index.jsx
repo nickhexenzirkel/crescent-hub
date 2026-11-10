@@ -21,6 +21,27 @@ function dataEmail(valor) {
     : data.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
 }
 
+function tamanhoArquivo(bytes) {
+  if (!bytes) return 'Tamanho indisponível';
+  if (bytes < 1024) return `${bytes} B`;
+  return `${(bytes / 1024).toLocaleString('pt-BR', { maximumFractionDigits: 0 })} KB`;
+}
+
+function dadosRemetente(from) {
+  const valor = String(from || '').trim();
+  const correspondencia = valor.match(/^(.*?)\s*<([^<>]+)>$/);
+  const email = correspondencia ? correspondencia[2].trim() : valor;
+  const nomeInformado = correspondencia?.[1].trim().replace(/^["']|["']$/g, '');
+  const nome = nomeInformado || email.split('@')[0].replace(/[._-]+/g, ' ');
+  const iniciais = nome
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map(parte => parte[0].toLocaleUpperCase('pt-BR'))
+    .join('') || '?';
+  return { nome, iniciais };
+}
+
 function iframeEmail(html) {
   return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; font-src data:; base-uri 'none'; form-action 'none'"></head><body>${html}</body></html>`;
 }
@@ -252,7 +273,9 @@ export default function Email({ onBack, authUser }) {
                 aria-label="Pesquisar mensagens no Gmail"
                 style={{ flex: 1, minWidth: 0, padding: '10px 13px', borderRadius: 10, border: `1px solid ${T.border}`, background: T.surface, color: T.text, font: '14px var(--font-body)', outline: 'none' }}
               />
-              <button type="submit" disabled={loading} style={{ ...buttonStyle, background: T.gold, color: '#fff', border: 'none' }}>Pesquisar</button>
+              <button type="submit" disabled={loading} style={{ ...buttonStyle, background: T.gold, color: '#fff', border: 'none' }}>
+                {loading ? 'Pesquisando…' : 'Pesquisar'}
+              </button>
               <button type="button" onClick={() => loadMessages(query)} disabled={loading} style={buttonStyle}>Atualizar</button>
             </form>
             <div style={{ ...muted, fontSize: 12 }}>
@@ -263,20 +286,28 @@ export default function Email({ onBack, authUser }) {
               <section aria-label="Lista de mensagens" style={{ minHeight: 0, overflowY: 'auto', borderRight: `1px solid ${T.border}` }}>
                 {loading && !messages.length ? <div style={{ padding: 18, ...muted }}>Carregando mensagens…</div>
                   : !messages.length ? <div style={{ padding: 18, ...muted }}>Nenhuma mensagem encontrada.</div>
-                    : messages.map(item => (
-                      <button key={item.id} onClick={() => selectMessage(item.id)} style={{
-                        display: 'block', width: '100%', padding: '13px 15px', border: 'none', borderBottom: `1px solid ${T.border}`,
-                        borderLeft: selectedId === item.id ? `3px solid ${T.gold}` : '3px solid transparent',
-                        background: selectedId === item.id ? (T.goldGl || `${T.gold}18`) : 'transparent', color: T.text, textAlign: 'left', cursor: 'pointer',
-                      }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginBottom: 5 }}>
-                          <strong style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13 }}>{item.from || 'Remetente desconhecido'}</strong>
-                          <span style={{ ...muted, fontSize: 11, whiteSpace: 'nowrap' }}>{dataEmail(item.date)}</span>
-                        </div>
-                        <div style={{ fontSize: 13, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 4 }}>{item.subject || '(sem assunto)'}</div>
-                        <div style={{ ...muted, fontSize: 12, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{item.snippet}</div>
-                      </button>
-                    ))}
+                    : messages.map(item => {
+                      const remetente = dadosRemetente(item.from);
+                      return (
+                        <button key={item.id} onClick={() => selectMessage(item.id)} style={{
+                          display: 'block', width: '100%', minHeight: 76, padding: '11px 14px', border: 'none', borderBottom: `1px solid ${T.border}`,
+                          borderLeft: selectedId === item.id ? `3px solid ${T.gold}` : '3px solid transparent',
+                          background: selectedId === item.id ? (T.goldGl || `${T.gold}18`) : 'transparent', color: T.text, textAlign: 'left', cursor: 'pointer',
+                        }} title={item.subject || '(sem assunto)'}>
+                          <div style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', overflowWrap: 'anywhere' }}>
+                            {item.subject || '(sem assunto)'}
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, marginTop: 7 }}>
+                            <span aria-hidden="true" style={{ flex: '0 0 25px', width: 25, height: 25, display: 'grid', placeItems: 'center', borderRadius: '50%', background: T.goldGl || `${T.gold}22`, color: T.gold, fontSize: 10, fontWeight: 800 }}>
+                              {remetente.iniciais}
+                            </span>
+                            <span style={{ ...muted, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12 }}>
+                              {remetente.nome}
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })}
                 {nextPageToken && <button onClick={() => loadMessages(query, nextPageToken, true)} disabled={loading} style={{ ...buttonStyle, display: 'block', margin: 12 }}>Carregar mais</button>}
               </section>
 
@@ -293,32 +324,47 @@ export default function Email({ onBack, authUser }) {
                             {message.cc && <div><strong>Cc:</strong> {message.cc}</div>}
                             <div><strong>Data:</strong> {dataEmail(message.date)}</div>
                           </div>
-                          {message.attachments?.length > 0 && (
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 14 }}>
+                        </div>
+                        {message.attachments?.length > 0 && (
+                          <section aria-label="Anexos da mensagem" style={{ padding: '14px 18px 16px', borderBottom: `1px solid ${T.border}`, background: T.page }}>
+                            <h3 style={{ margin: '0 0 10px', fontSize: 13, fontWeight: 700 }}>
+                              Anexos <span style={{ ...muted, fontWeight: 500 }}>({message.attachments.length})</span>
+                            </h3>
+                            <div className="email-attachments-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 240px), 1fr))', gap: 10 }}>
                               {message.attachments.map(attachment => {
                                 const extension = attachment.filename.split('.').pop()?.toLowerCase();
                                 const previewable = attachment.mimeType === 'application/pdf'
                                   || ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp'].includes(attachment.mimeType)
                                   || ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].includes(extension);
                                 return (
-                                  <div key={attachment.id} style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', padding: 6, border: `1px solid ${T.border}`, borderRadius: 10 }}>
-                                    <span style={{ ...muted, fontSize: 12, maxWidth: 240, overflowWrap: 'anywhere' }}>
-                                      {attachment.filename} · {Math.ceil((attachment.size || 0) / 1024)} KB
-                                    </span>
-                                    {previewable && (
-                                      <button onClick={() => handlePreview(attachment)} disabled={downloading === attachment.id} style={{ ...buttonStyle, color: T.gold }}>
-                                        {downloading === attachment.id ? 'Carregando…' : 'Visualizar'}
+                                  <article key={attachment.id} style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 12, padding: 12, border: `1px solid ${T.border}`, borderRadius: 12, background: T.surface, boxShadow: '0 2px 8px rgba(0,0,0,.08)' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                                      <span aria-hidden="true" style={{ flex: '0 0 38px', width: 38, height: 42, display: 'grid', placeItems: 'center', borderRadius: 9, background: T.goldGl || `${T.gold}18`, color: T.gold, fontSize: 10, fontWeight: 800, textTransform: 'uppercase' }}>
+                                        {extension || 'file'}
+                                      </span>
+                                      <div style={{ minWidth: 0 }}>
+                                        <div title={attachment.filename} style={{ fontSize: 12, fontWeight: 700, lineHeight: 1.4, overflowWrap: 'anywhere', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                                          {attachment.filename}
+                                        </div>
+                                        <div style={{ ...muted, marginTop: 3, fontSize: 11 }}>{tamanhoArquivo(attachment.size)}</div>
+                                      </div>
+                                    </div>
+                                    <div style={{ display: 'flex', gap: 8, marginTop: 'auto' }}>
+                                      {previewable && (
+                                        <button onClick={() => handlePreview(attachment)} disabled={downloading === attachment.id} style={{ ...buttonStyle, flex: 1, color: T.gold }}>
+                                          {downloading === attachment.id ? 'Carregando…' : 'Visualizar'}
+                                        </button>
+                                      )}
+                                      <button onClick={() => handleDownload(attachment)} disabled={downloading === attachment.id} style={{ ...buttonStyle, flex: 1 }}>
+                                        Baixar
                                       </button>
-                                    )}
-                                    <button onClick={() => handleDownload(attachment)} disabled={downloading === attachment.id} style={buttonStyle}>
-                                      Baixar
-                                    </button>
-                                  </div>
+                                    </div>
+                                  </article>
                                 );
                               })}
                             </div>
-                          )}
-                        </div>
+                          </section>
+                        )}
                         <div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: 16 }}>
                           {message.bodyHtml
                             ? <iframe title="Conteúdo da mensagem" sandbox="" srcDoc={bodySrc} style={{ width: '100%', minHeight: 480, height: '100%', border: `1px solid ${T.border}`, borderRadius: 8, background: '#fff' }} />
