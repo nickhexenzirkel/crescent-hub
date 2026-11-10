@@ -208,7 +208,6 @@ export default function Email({ onBack, authUser }) {
   const [nextPageToken, setNextPageToken] = useState('');
   const [loading, setLoading] = useState(true);
   const [loadingMessage, setLoadingMessage] = useState(false);
-  const [detailVersion, setDetailVersion] = useState(0);
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState('');
   const [downloading, setDownloading] = useState('');
@@ -233,10 +232,9 @@ export default function Email({ onBack, authUser }) {
       setMessages(previous => append ? [...previous, ...visibleMessages] : visibleMessages);
       setNextPageToken(result.nextPageToken || '');
       if (!append) {
-        setSelectedId(visibleMessages[0]?.id || '');
+        setSelectedId('');
         setMessage(null);
-        setLoadingMessage(Boolean(visibleMessages[0]));
-        setDetailVersion(version => version + 1);
+        setLoadingMessage(false);
       }
     } catch (e) {
       if (requestId === messageListRequest.current) {
@@ -276,7 +274,7 @@ export default function Email({ onBack, authUser }) {
       .catch(e => { if (active) setError(e.message); })
       .finally(() => { if (active) setLoadingMessage(false); });
     return () => { active = false; };
-  }, [selectedId, detailVersion]);
+  }, [selectedId]);
 
   useEffect(() => {
     if (!status?.connected) return undefined;
