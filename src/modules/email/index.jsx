@@ -12,11 +12,11 @@ const buttonStyle = {
   font: '600 13px var(--font-body)',
 };
 const muted = { color: T.textS, fontSize: 13 };
-const CLIENTES = [
+const MUNICIPIOS = [
   'Acaraú', 'Acopiara', 'Alcântaras', 'Alexânia', 'Amontada', 'Angical do Piauí', 'Apuiarés', 'Aquiraz',
   'Aracati', 'Aracoiaba', 'Aratuba', 'Assaré', 'Aurora', 'Barreira', 'Baturité', 'Beberibe', 'Boa Viagem',
   'Campos Sales', 'Canindé', 'Capistrano', 'Caridade', 'Cariré', 'Carnaubal', 'Cascavel', 'Caucaia',
-  'Chaval', 'Choró', 'Chorozinho', 'Coreaú', 'Crateús', 'Cruz', 'Dep. Irapuan Pinheiro', 'Eusébio',
+  'Chaval', 'Choró', 'Chorozinho', 'Coreaú', 'Crateús', 'Cruz', 'Deputado Irapuan Pinheiro', 'Eusébio',
   'Forquilha', 'Fortaleza', 'Frecheirinha', 'General Sampaio', 'Granja', 'Granjeiro', 'Groaíras', 'Guaiúba',
   'Guaraciaba do Norte', 'Guaramiranga', 'Horizonte', 'Ibaretama', 'Ibicuitinga', 'Icapuí', 'Icó', 'Iguatu',
   'Ipu', 'Iracema', 'Itaitinga', 'Itapajé', 'Itapipoca', 'Itapiúna', 'Itarema', 'Jaguaretama', 'Jaguaribara',
@@ -28,8 +28,31 @@ const CLIENTES = [
   'Poranga', 'Potengi', 'Quixadá', 'Quixeré', 'Russas', 'Saboeiro', 'São Benedito', 'São Gonçalo do Amarante',
   'São Luís do Curu', 'Senador Pompeu', 'Senador Sá', 'Sobral', 'Solonópole', 'Tabuleiro do Norte', 'Tarrafas',
   'Tauá', 'Tejuçuoca', 'Tianguá', 'Trairi', 'Tururu', 'Ubajara', 'Umirim', 'Uruburetama', 'Uruoca',
-  'Várzea Grande', 'Viçosa do Ceará', 'Instituto São Vicente',
+  'Várzea Grande', 'Viçosa do Ceará',
 ];
+const INSTITUICOES = [
+  'Cagece', 'Câmara Municipal de Acaraú', 'Câmara Municipal de Acopiara', 'Câmara Municipal de Aquiraz',
+  'Câmara Municipal de Capistrano', 'Câmara Municipal de Eusébio', 'Câmara Municipal de Forquilha',
+  'Câmara Municipal de Groaíras', 'Câmara Municipal de Guaramiranga', 'Câmara Municipal de Itaitinga',
+  'Câmara Municipal de Itapiúna', 'Câmara Municipal de Itarema', 'Câmara Municipal de Meruoca',
+  'Câmara Municipal de Mucambo', 'Câmara Municipal de Pacujá', 'Câmara Municipal de Paracuru',
+  'Câmara Municipal de Pereiro', 'Câmara Municipal de Sobral', 'Câmara Municipal de Solonópole',
+  'Câmara Municipal de Viçosa do Ceará', 'Companhia Docas do Ceará',
+  'Departamento Estadual de Trânsito do Ceará', 'Fundação Cultural de Quixadá', 'Fungerhp',
+  'Instituto de Pesos e Medidas do Ceará', 'Instituto de Pesquisa e Estratégia Econômica do Ceará',
+  'Instituto Evolute', 'Instituto Elo Brasil', 'Instituto Municipal de Meio Ambiente',
+  'Instituto de Previdência', 'Ipece', 'Ipem/CE', 'Tribunal Regional Eleitoral do Ceará',
+  'Tribunal de Contas do Estado do Ceará', 'Tribunal Regional Federal',
+  'Serviço Autônomo de Água e Esgoto', 'Instituto São Vicente',
+];
+const EMPRESAS = [
+  '7Beneficios', 'Bras Go Mobilidade Ltda', 'Cariri Edificações, Serviços e Conduções Ltda',
+  'Dom Incorporação Ltda', 'Forma Digital Assessoria e Consultoria em Gestão Empresarial Ltda',
+  'Jaguaribe Petróleo Ltda', 'Locker Blindagem de Veículos Ltda',
+  'LPM Saúde Humana e Serviços Sociais Ltda', 'M Franklin Castro Gondim Ltda',
+];
+const CLIENTES = [...MUNICIPIOS, ...INSTITUICOES, ...EMPRESAS];
+const ALIASES_CLIENTES = { 'LPM Saúde Humana e Serviços Sociais Ltda': ['lpm'] };
 
 function normalizarNome(valor) {
   return String(valor || '')
@@ -41,7 +64,15 @@ function normalizarNome(valor) {
 }
 
 const CLIENTES_NORMALIZADOS = CLIENTES
-  .map(nome => ({ nome, normalizado: normalizarNome(nome) }))
+  .map(nome => {
+    const normalizado = normalizarNome(nome);
+    const aliasCompacto = normalizado
+      .split(' ')
+      .filter(palavra => !['da', 'das', 'de', 'do', 'dos', 'e', 'epp', 'estadual', 'ltda', 'me', 'municipal', 'regional', 'sa'].includes(palavra))
+      .join('');
+    const aliases = (ALIASES_CLIENTES[nome] || []).map(normalizarNome);
+    return { nome, normalizado, aliasCompacto, aliases };
+  })
   .sort((a, b) => b.normalizado.replace(/\s/g, '').length - a.normalizado.replace(/\s/g, '').length);
 
 function dataEmail(valor) {
@@ -77,10 +108,12 @@ function clienteRemetente(from, nomeRemetente) {
   const texto = normalizarNome(`${from || ''} ${nomeRemetente || ''}`);
   const palavras = new Set(texto.split(' '));
   const compacto = texto.replace(/\s/g, '');
-  const cliente = CLIENTES_NORMALIZADOS.find(({ normalizado }) => {
+  const cliente = CLIENTES_NORMALIZADOS.find(({ normalizado, aliasCompacto, aliases }) => {
     if (normalizado.includes(' ')) {
       return ` ${texto} `.includes(` ${normalizado} `)
-        || (normalizado.replace(/\s/g, '').length >= 6 && compacto.includes(normalizado.replace(/\s/g, '')));
+        || (normalizado.replace(/\s/g, '').length >= 6 && compacto.includes(normalizado.replace(/\s/g, '')))
+        || (aliasCompacto.length >= 6 && compacto.includes(aliasCompacto))
+        || aliases.some(alias => palavras.has(alias) || (alias.length >= 6 && compacto.includes(alias)));
     }
     return palavras.has(normalizado) || (normalizado.length >= 6 && compacto.includes(normalizado));
   });
