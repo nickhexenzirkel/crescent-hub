@@ -35,6 +35,7 @@ O servidor precisa ser atualizado e reiniciado para carregar as rotas e variavei
 - Pesquisar mensagens usando a consulta do Gmail, abrir mensagens, visualizar anexos PDF/imagem e baixar qualquer anexo diretamente pela Gmail API.
 - Ocultar respostas (cabeçalhos de resposta ou assunto começando com "Re:") e mensagens do Mailsuite/Mailtrack, com filtro no servidor e no cliente.
 - A lista mostra assunto e remetente com avatar de iniciais; detalhes completos aparecem ao abrir a mensagem. Os anexos ficam em cartões alinhados com tipo, tamanho e ações.
+- O corpo do e-mail preserva a formatação original e usa a fonte Inter do Uniko como fonte padrão.
 - A pesquisa agrupa a leitura dos metadados em uma chamada batch à Gmail API para reduzir esperas de rede.
 - Sem envio de e-mails, armazenamento de mensagens/anexos ou notificacoes. Notificacoes ficam para uma etapa futura.
 - A tela precisa ser testada com uma conta Google autorizada depois de configurar OAuth e publicar o servidor.
