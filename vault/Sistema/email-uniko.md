@@ -34,7 +34,7 @@ O servidor precisa ser atualizado e reiniciado para carregar as rotas e variavei
 - Conectar e desconectar uma conta Gmail por administrador.
 - Pesquisar mensagens usando a consulta do Gmail, abrir mensagens, visualizar anexos PDF/imagem e baixar qualquer anexo diretamente pela Gmail API.
 - Ocultar respostas (cabeçalhos de resposta ou assunto começando com "Re:") e mensagens do Mailsuite/Mailtrack, com filtro no servidor e no cliente.
-- A lista mostra assunto, remetente com avatar de iniciais e, quando identificável, o município/cliente extraído do domínio institucional ou nome do remetente. Detalhes completos aparecem ao abrir a mensagem. Os anexos ficam em cartões alinhados com tipo, tamanho e ações.
+- A lista mostra assunto, remetente com avatar de iniciais e identifica clientes de uma lista conhecida (incluindo municípios e Instituto São Vicente) pelo endereço ou nome do remetente. Também reconhece nomes concatenados como `obrascapistrano`. Detalhes completos aparecem ao abrir a mensagem. Os anexos ficam em cartões alinhados com tipo, tamanho e ações.
 - O corpo do e-mail preserva parágrafos, ênfases e conteúdo, usa a fonte Inter e adapta fundo e cor-base ao tema ativo do Uniko, neutralizando cores de fundo/texto embutidas para manter contraste.
 - A pesquisa agrupa a leitura dos metadados em uma chamada batch à Gmail API para reduzir esperas de rede.
 - Sem envio de e-mails, armazenamento de mensagens/anexos ou notificacoes. Notificacoes ficam para uma etapa futura.

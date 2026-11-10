@@ -12,7 +12,37 @@ const buttonStyle = {
   font: '600 13px var(--font-body)',
 };
 const muted = { color: T.textS, fontSize: 13 };
-const estadosBrasileiros = new Set(['ac', 'al', 'ap', 'am', 'ba', 'ce', 'df', 'es', 'go', 'ma', 'mt', 'ms', 'mg', 'pa', 'pb', 'pr', 'pe', 'pi', 'rj', 'rn', 'rs', 'ro', 'rr', 'sc', 'sp', 'se', 'to']);
+const CLIENTES = [
+  'Acaraú', 'Acopiara', 'Alcântaras', 'Alexânia', 'Amontada', 'Angical do Piauí', 'Apuiarés', 'Aquiraz',
+  'Aracati', 'Aracoiaba', 'Aratuba', 'Assaré', 'Aurora', 'Barreira', 'Baturité', 'Beberibe', 'Boa Viagem',
+  'Campos Sales', 'Canindé', 'Capistrano', 'Caridade', 'Cariré', 'Carnaubal', 'Cascavel', 'Caucaia',
+  'Chaval', 'Choró', 'Chorozinho', 'Coreaú', 'Crateús', 'Cruz', 'Dep. Irapuan Pinheiro', 'Eusébio',
+  'Forquilha', 'Fortaleza', 'Frecheirinha', 'General Sampaio', 'Granja', 'Granjeiro', 'Groaíras', 'Guaiúba',
+  'Guaraciaba do Norte', 'Guaramiranga', 'Horizonte', 'Ibaretama', 'Ibicuitinga', 'Icapuí', 'Icó', 'Iguatu',
+  'Ipu', 'Iracema', 'Itaitinga', 'Itapajé', 'Itapipoca', 'Itapiúna', 'Itarema', 'Jaguaretama', 'Jaguaribara',
+  'Jaguaribe', 'Jijoca de Jericoacoara', 'Joaquim Pires', 'Juazeiro do Piauí', 'Lavras da Mangabeira',
+  'Madalena', 'Maracanaú', 'Maranguape', 'Marco', 'Martinópole', 'Massapê', 'Meruoca', 'Miguel Alves', 'Milhã',
+  'Miraíma', 'Missão Velha', 'Mombaça', 'Monsenhor Tabosa', 'Moraújo', 'Morrinhos', 'Morro do Pilar', 'Mulungu',
+  'Nazária', 'Orós', 'Pacatuba', 'Pacujá', 'Palhano', 'Palmares', 'Palmácia', 'Paracuru', 'Paraipaba',
+  'Parnaíba', 'Pedra Branca', 'Penaforte', 'Pentecoste', 'Pereiro', 'Piquet Carneiro', 'Pires Ferreira',
+  'Poranga', 'Potengi', 'Quixadá', 'Quixeré', 'Russas', 'Saboeiro', 'São Benedito', 'São Gonçalo do Amarante',
+  'São Luís do Curu', 'Senador Pompeu', 'Senador Sá', 'Sobral', 'Solonópole', 'Tabuleiro do Norte', 'Tarrafas',
+  'Tauá', 'Tejuçuoca', 'Tianguá', 'Trairi', 'Tururu', 'Ubajara', 'Umirim', 'Uruburetama', 'Uruoca',
+  'Várzea Grande', 'Viçosa do Ceará', 'Instituto São Vicente',
+];
+
+function normalizarNome(valor) {
+  return String(valor || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLocaleLowerCase('pt-BR')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim();
+}
+
+const CLIENTES_NORMALIZADOS = CLIENTES
+  .map(nome => ({ nome, normalizado: normalizarNome(nome) }))
+  .sort((a, b) => b.normalizado.replace(/\s/g, '').length - a.normalizado.replace(/\s/g, '').length);
 
 function dataEmail(valor) {
   if (!valor) return '';
@@ -44,17 +74,23 @@ function dadosRemetente(from) {
 }
 
 function clienteRemetente(from, nomeRemetente) {
-  const email = String(from || '').match(/[\w.+-]+@([\w.-]+\.[a-z]{2,})/i)?.[1]?.toLowerCase();
-  const partesDominio = email?.split('.') || [];
-  const dominioGovernamental = partesDominio.slice(-2).join('.') === 'gov.br';
-  const indiceEstado = dominioGovernamental ? partesDominio.findIndex(parte => estadosBrasileiros.has(parte)) : -1;
-  const cidadeDominio = indiceEstado > 0 ? partesDominio[indiceEstado - 1] : '';
-  const cidadeNome = String(nomeRemetente || '').match(/(?:munic[ií]pio|prefeitura|financeiro|finan[cç]eiro|secretaria|c[aâ]mara)\s+(?:de\s+)?([A-ZÀ-Ú][\p{L}-]+)/iu)?.[1];
-  const cidade = cidadeDominio || cidadeNome;
-  if (!cidade || (indiceEstado === -1 && !cidadeNome)) return '';
-  const nomesComAcento = { parnaiba: 'Parnaíba', eusebio: 'Eusébio', aracati: 'Aracati', maracanau: 'Maracanaú', itapipoca: 'Itapipoca' };
-  const chave = cidade.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-  return nomesComAcento[chave] || cidade.charAt(0).toLocaleUpperCase('pt-BR') + cidade.slice(1);
+  const texto = normalizarNome(`${from || ''} ${nomeRemetente || ''}`);
+  const palavras = new Set(texto.split(' '));
+  const compacto = texto.replace(/\s/g, '');
+  const cliente = CLIENTES_NORMALIZADOS.find(({ normalizado }) => {
+    if (normalizado.includes(' ')) {
+      return ` ${texto} `.includes(` ${normalizado} `)
+        || (normalizado.replace(/\s/g, '').length >= 6 && compacto.includes(normalizado.replace(/\s/g, '')));
+    }
+    return palavras.has(normalizado) || (normalizado.length >= 6 && compacto.includes(normalizado));
+  });
+  if (!cliente) return '';
+  return cliente.nome
+    .split(' ')
+    .map((palavra, indice) => indice > 0 && ['da', 'das', 'de', 'do', 'dos'].includes(palavra.toLowerCase())
+      ? palavra.toLowerCase()
+      : palavra.charAt(0).toLocaleUpperCase('pt-BR') + palavra.slice(1).toLocaleLowerCase('pt-BR'))
+    .join(' ');
 }
 
 function iframeEmail(html, background, color) {
