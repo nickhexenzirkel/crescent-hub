@@ -127,9 +127,9 @@ function montarConsultaPesquisa(termo, filtros) {
     dataLimite.setUTCDate(dataLimite.getUTCDate() + 1);
     partes.push(`before:${dataLimite.toISOString().slice(0, 10).replace(/-/g, '/')}`);
   }
-  if (filtros.notaFiscal) {
+  const termosNota = filtros.notaFiscalTermo.trim().split(/\s+/).filter(Boolean);
+  if (filtros.notaFiscal || termosNota.length) {
     partes.push('{ "nota fiscal" "nota fiscal eletrônica" "NF-e" DANFE }');
-    const termosNota = filtros.notaFiscalTermo.trim().split(/\s+/).filter(Boolean);
     if (termosNota.length) partes.push(termosNota.map(termoPesquisaExato).join(' '));
   }
   return partes.join(' ');
@@ -144,6 +144,15 @@ function consultaComPasta(termos, pasta) {
   const termosPesquisa = termos.trim();
   if (pasta === 'recebidos' && !termosPesquisa) return '';
   return [termosPesquisa, consultaPasta].filter(Boolean).join(' ');
+}
+
+function pastaDasMensagens(mensagens) {
+  const possuiRecebidos = mensagens.some(mensagem => mensagem.labelIds?.includes('INBOX'));
+  const possuiEnviados = mensagens.some(mensagem => mensagem.labelIds?.includes('SENT'));
+  if (possuiRecebidos && possuiEnviados) return 'ambos';
+  if (possuiEnviados) return 'enviados';
+  if (possuiRecebidos) return 'recebidos';
+  return '';
 }
 
 function tamanhoArquivo(bytes) {
@@ -205,6 +214,7 @@ export default function Email({ onBack, authUser }) {
   const [queryInput, setQueryInput] = useState('');
   const [query, setQuery] = useState('');
   const [pasta, setPasta] = useState('recebidos');
+  const [detectarPastaDaNota, setDetectarPastaDaNota] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [filters, setFilters] = useState({ cliente: '', destinatario: '', dataInicio: '', dataFim: '', notaFiscal: false, notaFiscalTermo: '' });
   const [expandedAttachmentsFor, setExpandedAttachmentsFor] = useState('');
@@ -216,7 +226,8 @@ export default function Email({ onBack, authUser }) {
   const [error, setError] = useState('');
   const [downloading, setDownloading] = useState('');
   const [preview, setPreview] = useState(null);
-  const search = consultaComPasta(montarConsultaPesquisa(queryInput, filters), pasta);
+  const buscaAutomaticaDaNota = detectarPastaDaNota && Boolean(filters.notaFiscalTermo.trim());
+  const search = consultaComPasta(montarConsultaPesquisa(queryInput, filters), buscaAutomaticaDaNota ? 'ambos' : pasta);
   const intervaloInvalido = Boolean(filters.dataInicio && filters.dataFim && filters.dataInicio > filters.dataFim);
 
   const refreshStatus = useCallback(async () => {
@@ -225,7 +236,7 @@ export default function Email({ onBack, authUser }) {
     return current;
   }, []);
 
-  const loadMessages = useCallback(async (search = '', pageToken = '', append = false) => {
+  const loadMessages = useCallback(async (search = '', pageToken = '', append = false, detectFolder = false) => {
     const requestId = ++messageListRequest.current;
     setLoading(true);
     setError('');
@@ -235,6 +246,10 @@ export default function Email({ onBack, authUser }) {
       const visibleMessages = result.messages.filter(message => !isIgnoredMessage(message));
       setMessages(previous => append ? [...previous, ...visibleMessages] : visibleMessages);
       setNextPageToken(result.nextPageToken || '');
+      if (detectFolder) {
+        const pastaEncontrada = pastaDasMensagens(visibleMessages);
+        if (pastaEncontrada) setPasta(pastaEncontrada);
+      }
       if (!append) {
         setSelectedId('');
         setMessage(null);
@@ -286,10 +301,10 @@ export default function Email({ onBack, authUser }) {
     if (search === query) return undefined;
     const timeout = window.setTimeout(() => {
       setQuery(search);
-      loadMessages(search);
+      loadMessages(search, '', false, buscaAutomaticaDaNota);
     }, 500);
     return () => window.clearTimeout(timeout);
-  }, [intervaloInvalido, loadMessages, query, search, status?.connected]);
+  }, [buscaAutomaticaDaNota, intervaloInvalido, loadMessages, query, search, status?.connected]);
 
   useEffect(() => () => {
     if (preview?.url) URL.revokeObjectURL(preview.url);
@@ -331,7 +346,7 @@ export default function Email({ onBack, authUser }) {
     event?.preventDefault();
     if (intervaloInvalido) return;
     setQuery(search);
-    await loadMessages(search);
+    await loadMessages(search, '', false, buscaAutomaticaDaNota);
   };
 
   const selectMessage = id => {
@@ -501,11 +516,7 @@ export default function Email({ onBack, authUser }) {
                     <input
                       type="checkbox"
                       checked={filters.notaFiscal}
-                      onChange={event => setFilters(current => ({
-                        ...current,
-                        notaFiscal: event.target.checked,
-                        notaFiscalTermo: event.target.checked ? current.notaFiscalTermo : '',
-                      }))}
+                      onChange={event => setFilters(current => ({ ...current, notaFiscal: event.target.checked }))}
                       style={{ accentColor: T.gold, width: 16, height: 16 }}
                     />
                     Somente notas fiscais / NF-e
@@ -515,13 +526,19 @@ export default function Email({ onBack, authUser }) {
                     <input
                       type="text"
                       value={filters.notaFiscalTermo}
-                      disabled={!filters.notaFiscal}
-                      onChange={event => setFilters(current => ({ ...current, notaFiscalTermo: event.target.value }))}
+                      onChange={event => {
+                        const notaFiscalTermo = event.target.value;
+                        setFilters(current => ({ ...current, notaFiscalTermo }));
+                        setDetectarPastaDaNota(Boolean(notaFiscalTermo.trim()));
+                      }}
                       placeholder="Ex.: 58989 Ipu"
-                      style={{ width: '100%', boxSizing: 'border-box', padding: '9px 10px', borderRadius: 9, border: `1px solid ${T.border}`, background: filters.notaFiscal ? T.surface : `${T.page}88`, color: T.text, font: '13px var(--font-body)', opacity: filters.notaFiscal ? 1 : .6 }}
+                      style={{ width: '100%', boxSizing: 'border-box', padding: '9px 10px', borderRadius: 9, border: `1px solid ${T.border}`, background: T.surface, color: T.text, font: '13px var(--font-body)' }}
                     />
                   </label>
-                  <button type="button" onClick={() => setFilters({ cliente: '', destinatario: '', dataInicio: '', dataFim: '', notaFiscal: false, notaFiscalTermo: '' })} style={{ ...buttonStyle, justifySelf: 'start' }}>
+                  <button type="button" onClick={() => {
+                    setFilters({ cliente: '', destinatario: '', dataInicio: '', dataFim: '', notaFiscal: false, notaFiscalTermo: '' });
+                    setDetectarPastaDaNota(false);
+                  }} style={{ ...buttonStyle, justifySelf: 'start' }}>
                     Limpar filtros
                   </button>
                   {intervaloInvalido && (
@@ -556,7 +573,10 @@ export default function Email({ onBack, authUser }) {
                         key={value}
                         type="button"
                         aria-pressed={pasta === value}
-                        onClick={() => setPasta(value)}
+                        onClick={() => {
+                          setDetectarPastaDaNota(false);
+                          setPasta(value);
+                        }}
                         style={{
                           border: 'none',
                           borderRadius: 7,
