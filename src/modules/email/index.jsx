@@ -509,6 +509,13 @@ export default function Email({ onBack, authUser }) {
 
             <div className="email-grid" style={{ flex: '1 1 0', minHeight: 0, display: 'grid', gridTemplateColumns: 'minmax(260px, 34%) minmax(0, 1fr)', gridTemplateRows: 'minmax(0, 1fr)', border: `1px solid ${T.border}`, borderRadius: 18, overflow: 'hidden', background: `linear-gradient(145deg, ${T.surface}, ${T.page})`, boxShadow: '0 18px 48px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.12)', backdropFilter: 'blur(24px) saturate(150%)' }}>
               <section aria-label="Lista de mensagens" style={{ minHeight: 0, overflowY: 'auto', borderRight: `1px solid ${T.border}`, background: T.sidebarBg || T.surface, backdropFilter: 'blur(22px) saturate(150%)' }}>
+                <div style={{ position: 'sticky', top: 0, zIndex: 2, display: 'flex', alignItems: 'center', gap: 12, padding: '15px 16px', borderBottom: `1px solid ${T.border}`, background: `${T.surface}ee`, backdropFilter: 'blur(18px)' }}>
+                  <svg aria-hidden="true" width="23" height="23" viewBox="0 0 24 24" fill="none" stroke={T.gold} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="5" width="18" height="14" rx="2" />
+                    <path d="m3 7 9 6 9-6" />
+                  </svg>
+                  <h2 style={{ margin: 0, color: T.text, fontFamily: 'var(--font-brand)', fontSize: 16, fontWeight: 800 }}>Caixa de Entrada</h2>
+                </div>
                 {loading && !messages.length ? <div style={{ padding: 18, ...muted }}>Carregando mensagens…</div>
                   : !messages.length ? <div style={{ padding: 18, ...muted }}>Nenhuma mensagem encontrada.</div>
                     : messages.map(item => {
@@ -522,26 +529,30 @@ export default function Email({ onBack, authUser }) {
                           background: selecionado ? `linear-gradient(100deg, ${T.goldGl || `${T.gold}28`}, transparent 88%), ${T.surface}` : 'transparent', color: T.text, textAlign: 'left', cursor: 'pointer', transition: 'background .18s ease, box-shadow .18s ease',
                           boxShadow: selecionado ? 'inset 0 1px 0 rgba(255,255,255,.12), 0 6px 20px rgba(0,0,0,.10)' : 'none',
                         }} title={formatarAssunto(item.subject)}>
-                          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
-                            <div style={{ minWidth: 0, flex: 1, fontSize: 13, fontWeight: 750, lineHeight: 1.45, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', overflowWrap: 'anywhere' }}>
-                              {formatarAssunto(item.subject)}
-                            </div>
-                            <time title={dataEmail(item.date)} style={{ flex: '0 0 auto', padding: '3px 7px', borderRadius: 999, background: selecionado ? (T.goldGl || `${T.gold}22`) : `${T.surface}55`, color: selecionado ? T.gold : T.textS, fontSize: 10, fontWeight: 700, whiteSpace: 'nowrap' }}>
-                              {dataRelativaEmail(item.date)}
-                            </time>
-                          </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, marginTop: 8 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
                             <span aria-hidden="true" style={{ flex: '0 0 36px', width: 36, height: 36, display: 'grid', placeItems: 'center', borderRadius: '50%', background: `linear-gradient(145deg, ${T.goldGl || `${T.gold}30`}, ${T.surface}99)`, color: T.gold, fontSize: 13, fontWeight: 800, boxShadow: `0 4px 14px ${T.goldGl || `${T.gold}30`}, inset 0 1px 0 rgba(255,255,255,.26)` }}>
                               {remetente.iniciais}
                             </span>
-                            <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: T.textS, fontSize: 11, fontWeight: 600 }}>
-                              {remetente.nome}
-                            </span>
-                            {cliente && (
-                              <span style={{ flex: '0 0 auto', maxWidth: '42%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: '4px 8px', borderRadius: 999, background: T.goldGl || `${T.gold}18`, color: T.gold, fontSize: 10, fontWeight: 750, boxShadow: 'inset 0 1px 0 rgba(255,255,255,.16)' }}>
-                                {cliente}
-                              </span>
-                            )}
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                                <div style={{ minWidth: 0, flex: 1, fontSize: 13, fontWeight: 750, lineHeight: 1.45, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', overflowWrap: 'anywhere' }}>
+                                  {formatarAssunto(item.subject)}
+                                </div>
+                                <time title={dataEmail(item.date)} style={{ flex: '0 0 auto', padding: '3px 7px', borderRadius: 999, background: selecionado ? (T.goldGl || `${T.gold}22`) : `${T.surface}55`, color: selecionado ? T.gold : T.textS, fontSize: 10, fontWeight: 700, whiteSpace: 'nowrap' }}>
+                                  {dataRelativaEmail(item.date)}
+                                </time>
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, marginTop: 5 }}>
+                                <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: T.textS, fontSize: 11, fontWeight: 600 }}>
+                                  {remetente.nome}
+                                </span>
+                                {cliente && (
+                                  <span style={{ flex: '0 0 auto', maxWidth: '42%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: '4px 8px', borderRadius: 999, background: T.goldGl || `${T.gold}18`, color: T.gold, fontSize: 10, fontWeight: 750, boxShadow: 'inset 0 1px 0 rgba(255,255,255,.16)' }}>
+                                    {cliente}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
                           </div>
                         </button>
                       );
