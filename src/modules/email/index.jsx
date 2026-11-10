@@ -96,6 +96,18 @@ function dataRelativaEmail(valor) {
   return data.toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' }).replace(/\.$/, '') + '.';
 }
 
+function formatarAssunto(valor) {
+  const assunto = String(valor || '').trim().toLocaleLowerCase('pt-BR');
+  if (!assunto) return '(sem assunto)';
+  const palavrasDeLigacao = new Set(['a', 'as', 'com', 'da', 'das', 'de', 'do', 'dos', 'e', 'em', 'na', 'nas', 'no', 'nos', 'para', 'por']);
+  let primeiraPalavra = true;
+  return assunto.replace(/[\p{L}\p{N}]+/gu, palavra => {
+    if (!primeiraPalavra && palavrasDeLigacao.has(palavra)) return palavra;
+    primeiraPalavra = false;
+    return palavra.charAt(0).toLocaleUpperCase('pt-BR') + palavra.slice(1);
+  });
+}
+
 function tamanhoArquivo(bytes) {
   if (!bytes) return 'Tamanho indisponível';
   if (bytes < 1024) return `${bytes} B`;
@@ -391,10 +403,10 @@ export default function Email({ onBack, authUser }) {
                           borderLeft: selecionado ? `4px solid ${T.gold}` : '4px solid transparent',
                           background: selecionado ? `linear-gradient(100deg, ${T.goldGl || `${T.gold}28`}, transparent 88%), ${T.surface}` : 'transparent', color: T.text, textAlign: 'left', cursor: 'pointer', transition: 'background .18s ease, box-shadow .18s ease',
                           boxShadow: selecionado ? 'inset 0 1px 0 rgba(255,255,255,.12), 0 6px 20px rgba(0,0,0,.10)' : 'none',
-                        }} title={item.subject || '(sem assunto)'}>
+                        }} title={formatarAssunto(item.subject)}>
                           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
                             <div style={{ minWidth: 0, flex: 1, fontSize: 13, fontWeight: 750, lineHeight: 1.45, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', overflowWrap: 'anywhere' }}>
-                              {item.subject || '(sem assunto)'}
+                              {formatarAssunto(item.subject)}
                             </div>
                             <time title={dataEmail(item.date)} style={{ flex: '0 0 auto', padding: '3px 7px', borderRadius: 999, background: selecionado ? (T.goldGl || `${T.gold}22`) : `${T.surface}55`, color: selecionado ? T.gold : T.textS, fontSize: 10, fontWeight: 700, whiteSpace: 'nowrap' }}>
                               {dataRelativaEmail(item.date)}
