@@ -3,15 +3,6 @@ import { T } from '../../contexts/theme';
 import { disconnect, downloadAttachment, getAttachment, getMessage, getStatus, listMessages, shareConnectedAccount, startOAuth } from './api';
 import { detectarValorPesquisa, valorEmCentavos } from './valorPesquisa';
 
-const buttonStyle = {
-  border: `1px solid ${T.border}`,
-  borderRadius: 9,
-  padding: '8px 12px',
-  color: T.text,
-  background: T.surface,
-  cursor: 'pointer',
-  font: '600 13px var(--font-body)',
-};
 const muted = { color: T.textS, fontSize: 13 };
 export const MUNICIPIOS = [
   'Acaraú', 'Acopiara', 'Alcântaras', 'Alexânia', 'Amontada', 'Angical do Piauí', 'Apuiarés', 'Aquiraz',
@@ -208,6 +199,15 @@ function isIgnoredMessage(message) {
 }
 
 export default function Email({ onBack, authUser, initialMessageId, onInitialMessageHandled }) {
+  const buttonStyle = {
+    border: `1px solid ${T.border}`,
+    borderRadius: 9,
+    padding: '8px 12px',
+    color: T.text,
+    background: T.surface,
+    cursor: 'pointer',
+    font: '600 13px var(--font-body)',
+  };
   const initialMessageIdRef = useRef(initialMessageId);
   const [status, setStatus] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -476,7 +476,7 @@ export default function Email({ onBack, authUser, initialMessageId, onInitialMes
   return (
     <div style={{ position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: T.page, color: T.text, fontFamily: 'var(--font-body)' }}>
       <header style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', padding: '12px 18px', borderBottom: `1px solid ${T.border}`, background: T.topbarBg || T.surface }}>
-        <button onClick={onBack} style={{ ...buttonStyle, border: 'none', background: 'transparent' }}>‹ Módulos</button>
+        <button onClick={onBack} style={{ ...buttonStyle, border: 'none', background: 'transparent', color: T.text }}>‹ Módulos</button>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontFamily: 'var(--font-brand)', fontWeight: 800, fontSize: 19 }}>
           <span style={{ color: T.gold }}>✉</span> E-mail
         </div>
