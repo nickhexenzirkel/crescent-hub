@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { T } from '../../contexts/theme';
 import { disconnect, downloadAttachment, getAttachment, getMessage, getStatus, listMessages, shareConnectedAccount, startOAuth } from './api';
-import { detectarValorPesquisa, valorEmCentavos } from './valorPesquisa';
 
 const muted = { color: T.textS, fontSize: 13 };
 export const MUNICIPIOS = [
@@ -215,11 +214,9 @@ export default function Email({ onBack, authUser, initialMessageId, onInitialMes
   const [message, setMessage] = useState(null);
   const [queryInput, setQueryInput] = useState('');
   const [query, setQuery] = useState('');
-  const [valueQuery, setValueQuery] = useState(null);
   const [pasta, setPasta] = useState('recebidos');
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [filters, setFilters] = useState({ cliente: '', destinatario: '', dataInicio: '', dataFim: '', notaFiscalTermo: '', valor: '' });
-  const [valueSearchInfo, setValueSearchInfo] = useState(null);
+  const [filters, setFilters] = useState({ cliente: '', destinatario: '', dataInicio: '', dataFim: '', notaFiscalTermo: '' });
   const [expandedAttachmentsFor, setExpandedAttachmentsFor] = useState('');
   const messageListRequest = useRef(0);
   const [nextPageToken, setNextPageToken] = useState('');
@@ -230,11 +227,9 @@ export default function Email({ onBack, authUser, initialMessageId, onInitialMes
   const [error, setError] = useState('');
   const [downloading, setDownloading] = useState('');
   const [preview, setPreview] = useState(null);
-  const pesquisaValor = detectarValorPesquisa(queryInput, filters.valor);
   const buscaAutomaticaDaNota = Boolean(filters.notaFiscalTermo.trim());
-  const search = consultaComPasta(montarConsultaPesquisa(pesquisaValor.consulta, filters), buscaAutomaticaDaNota ? 'ambos' : pasta);
+  const search = consultaComPasta(montarConsultaPesquisa(queryInput, filters), buscaAutomaticaDaNota ? 'ambos' : pasta);
   const intervaloInvalido = Boolean(filters.dataInicio && filters.dataFim && filters.dataInicio > filters.dataFim);
-  const valorFiltroInvalido = Boolean(filters.valor.trim() && valorEmCentavos(filters.valor) === null);
 
   const refreshStatus = useCallback(async () => {
     const current = await getStatus();
@@ -242,39 +237,16 @@ export default function Email({ onBack, authUser, initialMessageId, onInitialMes
     return current;
   }, []);
 
-  const loadMessages = useCallback(async (search = '', pageToken = '', append = false, detectFolder = false, preserveSelection = false, amountCents = null) => {
+  const loadMessages = useCallback(async (search = '', pageToken = '', append = false, detectFolder = false, preserveSelection = false) => {
     const requestId = ++messageListRequest.current;
     setLoading(true);
     setError('');
-    if (amountCents !== null) {
-      setValueSearchInfo({ mensagensAnalisadas: 0, pdfsAnalisados: 0, ocrUsado: 0, falhas: 0, paginasLimitadas: 0 });
-    } else if (!append) {
-      setValueSearchInfo(null);
-    }
     try {
-      let result;
-      if (amountCents === null) {
-        result = await listMessages(search, pageToken);
-      } else {
-        const { pesquisarValorEmPdfs } = await import('./pdfSearch');
-        const consultaSemPastaRecebidos = search.replace(/\bin:inbox\b/g, '').replace(/\s+/g, ' ').trim();
-        result = await pesquisarValorEmPdfs({
-          consulta: [consultaSemPastaRecebidos, 'has:attachment filename:pdf'].filter(Boolean).join(' '),
-          pageToken,
-          centavos: amountCents,
-          listarMensagens: listMessages,
-          obterAnexo: getAttachment,
-          continuar: () => requestId === messageListRequest.current,
-          aoProgredir: progresso => {
-            if (requestId === messageListRequest.current) setValueSearchInfo(progresso);
-          },
-        });
-      }
+      const result = await listMessages(search, pageToken);
       if (requestId !== messageListRequest.current) return;
       const visibleMessages = result.messages.filter(message => !isIgnoredMessage(message));
       setMessages(previous => append ? [...previous, ...visibleMessages] : visibleMessages);
       setNextPageToken(result.nextPageToken || '');
-      if (amountCents !== null) setValueSearchInfo({ ...result, concluida: !result.nextPageToken });
       if (detectFolder) {
         const pastaEncontrada = pastaDasMensagens(visibleMessages);
         if (pastaEncontrada) setPasta(pastaEncontrada);
@@ -340,15 +312,14 @@ export default function Email({ onBack, authUser, initialMessageId, onInitialMes
 
   useEffect(() => {
     if (!status?.connected) return undefined;
-    if (intervaloInvalido || valorFiltroInvalido) return undefined;
-    if (search === query && pesquisaValor.centavos === valueQuery) return undefined;
+    if (intervaloInvalido) return undefined;
+    if (search === query) return undefined;
     const timeout = window.setTimeout(() => {
       setQuery(search);
-      setValueQuery(pesquisaValor.centavos);
-      loadMessages(search, '', false, buscaAutomaticaDaNota, false, pesquisaValor.centavos);
-    }, pesquisaValor.centavos === null ? 500 : 1200);
+      loadMessages(search, '', false, buscaAutomaticaDaNota);
+    }, 500);
     return () => window.clearTimeout(timeout);
-  }, [buscaAutomaticaDaNota, intervaloInvalido, loadMessages, pesquisaValor.centavos, query, search, status?.connected, valorFiltroInvalido, valueQuery]);
+  }, [buscaAutomaticaDaNota, intervaloInvalido, loadMessages, query, search, status?.connected]);
 
   useEffect(() => () => {
     if (preview?.url) URL.revokeObjectURL(preview.url);
@@ -388,10 +359,9 @@ export default function Email({ onBack, authUser, initialMessageId, onInitialMes
 
   const runSearch = async (event) => {
     event?.preventDefault();
-    if (intervaloInvalido || valorFiltroInvalido) return;
+    if (intervaloInvalido) return;
     setQuery(search);
-    setValueQuery(pesquisaValor.centavos);
-    await loadMessages(search, '', false, buscaAutomaticaDaNota, false, pesquisaValor.centavos);
+    await loadMessages(search, '', false, buscaAutomaticaDaNota);
   };
 
   const selectMessage = id => {
@@ -523,11 +493,11 @@ export default function Email({ onBack, authUser, initialMessageId, onInitialMes
                 <input
                   value={queryInput}
                   onChange={event => setQueryInput(event.target.value)}
-                  placeholder="Pesquisar assunto, cliente, nota fiscal ou valor (ex.: 4.230,00)"
+                  placeholder="Pesquisar assunto, cliente ou nota fiscal"
                   aria-label="Pesquisar mensagens no Gmail"
                   style={{ flex: '1 1 260px', minWidth: 0, padding: '10px 13px', borderRadius: 10, border: `1px solid ${T.border}`, background: T.surface, color: T.text, font: '14px var(--font-body)', outline: 'none' }}
                 />
-                <button type="submit" disabled={loading || intervaloInvalido || valorFiltroInvalido} style={{ ...buttonStyle, background: T.gold, color: '#fff', border: 'none', opacity: intervaloInvalido || valorFiltroInvalido ? .6 : 1 }}>
+                <button type="submit" disabled={loading || intervaloInvalido} style={{ ...buttonStyle, background: T.gold, color: '#fff', border: 'none', opacity: intervaloInvalido ? .6 : 1 }}>
                   {loading ? 'Pesquisando…' : 'Pesquisar'}
                 </button>
                 <button type="button" onClick={() => setFiltersOpen(open => !open)} aria-expanded={filtersOpen} style={buttonStyle}>
@@ -538,7 +508,7 @@ export default function Email({ onBack, authUser, initialMessageId, onInitialMes
                     </span>
                   )}
                 </button>
-                <button type="button" onClick={() => loadMessages(query, '', false, false, false, valueQuery)} disabled={loading} style={buttonStyle}>Atualizar</button>
+                <button type="button" onClick={() => loadMessages(query)} disabled={loading} style={buttonStyle}>Atualizar</button>
               </form>
               {filtersOpen && (
                 <section aria-label="Filtros de pesquisa" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 190px), 1fr))', gap: 12, padding: 14, border: `1px solid ${T.border}`, borderRadius: 14, background: `linear-gradient(145deg, ${T.surface}, ${T.page})`, boxShadow: '0 8px 22px rgba(0,0,0,.1)' }}>
@@ -598,50 +568,23 @@ export default function Email({ onBack, authUser, initialMessageId, onInitialMes
                       style={{ width: '100%', boxSizing: 'border-box', padding: '9px 10px', borderRadius: 9, border: `1px solid ${T.border}`, background: T.surface, color: T.text, font: '13px var(--font-body)' }}
                     />
                   </label>
-                  <label style={{ display: 'grid', gap: 5, color: T.text, fontSize: 12, fontWeight: 700 }}>
-                    Valor bruto ou líquido
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      value={filters.valor}
-                      onChange={event => setFilters(current => ({ ...current, valor: event.target.value }))}
-                      placeholder="Ex.: R$ 4.230,00"
-                      aria-invalid={valorFiltroInvalido}
-                      style={{ width: '100%', boxSizing: 'border-box', padding: '9px 10px', borderRadius: 9, border: `1px solid ${valorFiltroInvalido ? (T.danger || '#B42318') : T.border}`, background: T.surface, color: T.text, font: '13px var(--font-body)' }}
-                    />
-                  </label>
                   <button type="button" onClick={() => {
-                    setFilters({ cliente: '', destinatario: '', dataInicio: '', dataFim: '', notaFiscalTermo: '', valor: '' });
+                    setFilters({ cliente: '', destinatario: '', dataInicio: '', dataFim: '', notaFiscalTermo: '' });
                   }} style={{ ...buttonStyle, justifySelf: 'start' }}>
                     Limpar filtros
                   </button>
-                  {intervaloInvalido && (
-                    <div role="alert" style={{ gridColumn: '1 / -1', color: T.danger || '#B42318', fontSize: 12 }}>
-                      A data inicial não pode ser posterior à data final.
-                    </div>
-                  )}
-                  {valorFiltroInvalido && (
-                    <div role="alert" style={{ gridColumn: '1 / -1', color: T.danger || '#B42318', fontSize: 12 }}>
-                      Informe um valor válido, como 4.230,00.
-                    </div>
-                  )}
-                </section>
-              )}
-            </div>
-            <div style={{ ...muted, fontSize: 12 }}>
-              A pesquisa é feita automaticamente após você parar de digitar ou ajustar os filtros. Ao informar um valor, o Uniko analisa até 100 e-mails com PDF por lote, incluindo OCR para documentos digitalizados. Respostas e notificações do Mailsuite/Mailtrack são ocultadas.
-            </div>
-            {valueQuery !== null && valueSearchInfo && (
-              <div role="status" style={{ ...muted, fontSize: 12 }}>
-                {loading ? 'Analisando PDFs' : 'Análise de PDFs concluída'}: {valueSearchInfo.pdfsAnalisados || 0} PDF(s) em {valueSearchInfo.mensagensAnalisadas || 0} e-mail(s)
-                {valueSearchInfo.ocrUsado ? ` · OCR usado em ${valueSearchInfo.ocrUsado} página(s)` : ''}
-                {valueSearchInfo.falhas ? ` · Não foi possível ler ${valueSearchInfo.falhas} anexo(s)` : ''}
-                {valueSearchInfo.paginasLimitadas ? ` · ${valueSearchInfo.paginasLimitadas} PDF(s) ultrapassaram o limite de tamanho ou páginas` : ''}
-                {!loading && valueSearchInfo.nextPageToken ? ' · Há mais e-mails para analisar; use “Pesquisar próximos PDFs”.' : ''}
+                    {intervaloInvalido && (
+                      <div role="alert" style={{ gridColumn: '1 / -1', color: T.danger || '#B42318', fontSize: 12 }}>
+                        A data inicial não pode ser posterior à data final.
+                      </div>
+                    )}
+                  </section>
+                )}
               </div>
-            )}
-
-            <div className="email-grid" style={{ flex: '1 1 0', minHeight: 0, display: 'grid', gridTemplateColumns: 'minmax(260px, 34%) minmax(0, 1fr)', gridTemplateRows: 'minmax(0, 1fr)', border: `1px solid ${T.border}`, borderRadius: 18, overflow: 'hidden', background: `linear-gradient(145deg, ${T.surface}, ${T.page})`, boxShadow: '0 18px 48px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.12)', backdropFilter: 'blur(24px) saturate(150%)' }}>
+              <div style={{ ...muted, fontSize: 12 }}>
+                A pesquisa é feita automaticamente após você parar de digitar ou ajustar os filtros. Respostas e notificações do Mailsuite/Mailtrack são ocultadas.
+              </div>
+              <div className="email-grid" style={{ flex: '1 1 0', minHeight: 0, display: 'grid', gridTemplateColumns: 'minmax(260px, 34%) minmax(0, 1fr)', gridTemplateRows: 'minmax(0, 1fr)', border: `1px solid ${T.border}`, borderRadius: 18, overflow: 'hidden', background: `linear-gradient(145deg, ${T.surface}, ${T.page})`, boxShadow: '0 18px 48px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.12)', backdropFilter: 'blur(24px) saturate(150%)' }}>
               <section aria-label="Lista de mensagens" style={{ minHeight: 0, overflowY: 'auto', borderRight: `1px solid ${T.border}`, background: T.sidebarBg || T.surface, backdropFilter: 'blur(22px) saturate(150%)' }}>
                 <div style={{ position: 'sticky', top: 0, zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, padding: '12px 14px', borderBottom: `1px solid ${T.border}`, background: `${T.surface}ee`, backdropFilter: 'blur(18px)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -679,11 +622,7 @@ export default function Email({ onBack, authUser, initialMessageId, onInitialMes
                   </div>
                 </div>
                 {loading && !messages.length ? <div style={{ padding: 18, ...muted }}>Carregando mensagens…</div>
-                  : !messages.length ? <div style={{ padding: 18, ...muted }}>{valueQuery !== null
-                    ? (valueSearchInfo?.pdfsAnalisados === 0 && (valueSearchInfo?.falhas || valueSearchInfo?.paginasLimitadas)
-                      ? 'Nenhum PDF pôde ser lido neste lote.'
-                      : valueSearchInfo?.nextPageToken ? 'Nenhum dos PDFs lidos neste lote contém esse valor.' : 'Nenhum dos PDFs lidos contém esse valor.')
-                    : 'Nenhuma mensagem encontrada.'}</div>
+                  : !messages.length ? <div style={{ padding: 18, ...muted }}>Nenhuma mensagem encontrada.</div>
                     : messages.map(item => {
                       const remetente = dadosRemetente(item.from);
                       const cliente = clienteRemetente(item.from, remetente.nome);
@@ -723,7 +662,7 @@ export default function Email({ onBack, authUser, initialMessageId, onInitialMes
                         </button>
                       );
                     })}
-                {nextPageToken && <button onClick={() => loadMessages(query, nextPageToken, true, false, false, valueQuery)} disabled={loading} style={{ ...buttonStyle, display: 'block', margin: 12 }}>{valueQuery !== null ? 'Pesquisar próximos PDFs' : 'Carregar mais'}</button>}
+                {nextPageToken && <button onClick={() => loadMessages(query, nextPageToken, true)} disabled={loading} style={{ ...buttonStyle, display: 'block', margin: 12 }}>Carregar mais</button>}
               </section>
 
               <section aria-label="Mensagem selecionada" style={{ minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', background: `linear-gradient(155deg, ${T.page}80, ${T.surface}55)` }}>
