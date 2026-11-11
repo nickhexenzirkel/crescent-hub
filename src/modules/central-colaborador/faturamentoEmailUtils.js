@@ -76,6 +76,29 @@ export function periodoFaturadoDoAssunto(assuntoOriginal) {
   return [categoria, intervalo || data].filter(Boolean).join(' · ');
 }
 
+export function secretariaFaturadaDoAssunto(assuntoOriginal) {
+  const assunto = removerPrefixoResposta(assuntoOriginal);
+  const intervalo = new RegExp(
+    '(\\d{1,2}[./]\\d{1,2}(?:[./]\\d{2,4})?)\\s*(?:até|ate|a|[-–—])\\s*(\\d{1,2}[./]\\d{1,2}(?:[./]\\d{2,4})?)',
+    'i',
+  ).exec(assunto);
+  const municipio = /(?:[-–—]\s*)?munic[ií]pio\s+de\b/i.exec(assunto);
+  if (!intervalo || !municipio || municipio.index <= intervalo.index + intervalo[0].length) return 'GERAL';
+
+  const trecho = assunto.slice(intervalo.index + intervalo[0].length, municipio.index);
+  const secretaria = trecho
+    .replace(/\b(?:consolidado|abast(?:ecimento)?|manut(?:encao|enção)?)\b/gi, ' ')
+    .replace(/[()[\]]/g, ' ')
+    .replace(/^[\s\-–—:|;,]+|[\s\-–—:|;,]+$/g, '')
+    .replace(/\s*[-–—:|;,]\s*/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/^secretaria(?:\s+municipal)?(?:\s+(?:de|da|do|dos|das))?\s+/i, '')
+    .trim();
+
+  if (!secretaria || normalizarTexto(secretaria).includes('consolidado')) return 'GERAL';
+  return secretaria.toLocaleUpperCase('pt-BR');
+}
+
 export function agruparMensagensPorConversa(mensagens) {
   const conversas = new Map();
   for (const mensagem of mensagens) {

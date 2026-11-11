@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { T } from '../../../contexts/theme';
 import { MUNICIPIOS } from '../../email';
 import { getFaturamento } from '../../email/api';
-import { agruparMensagensPorConversa, assuntoIndicaFaturamento, formatarDataTempoReal, municipioExibidoNoAssunto, periodoFaturadoDoAssunto } from '../faturamentoEmailUtils';
+import { agruparMensagensPorConversa, assuntoIndicaFaturamento, formatarDataTempoReal, municipioExibidoNoAssunto, periodoFaturadoDoAssunto, secretariaFaturadaDoAssunto } from '../faturamentoEmailUtils';
 import {
   carregarCoresRegionais,
   carregarCadastroFaturamento,
@@ -381,6 +381,7 @@ export default function TabFaturamento({ onOpenEmail }) {
         return {
           ...mensagem,
           municipio: municipioExibidoNoAssunto(mensagem.subject, municipio),
+          secretaria: secretariaFaturadaDoAssunto(mensagem.subject),
           periodoFaturado: periodoFaturadoDoAssunto(mensagem.subject),
           responsavelFaturamento: cadastro?.responsavelFaturamento || '',
           regionais: regionalConfigurada.length ? regionalConfigurada.map(nome => ({ nome, aliases: [] })) : regionaisDaMensagem(mensagem),
@@ -405,17 +406,39 @@ export default function TabFaturamento({ onOpenEmail }) {
     : mensagens, [mensagens, regionalSelecionada]);
   const registrosFiltrados = useMemo(() => mensagensVisiveis
     .filter(mensagem => normalizar(mensagem.municipio).includes(normalizar(busca))), [busca, mensagensVisiveis]);
+  const registrosAgrupadosPorMunicipio = useMemo(() => {
+    const grupos = new Map();
+    registrosFiltrados.forEach(mensagem => {
+      if (!grupos.has(mensagem.municipio)) grupos.set(mensagem.municipio, []);
+      grupos.get(mensagem.municipio).push(mensagem);
+    });
+    return [...grupos.values()].flat();
+  }, [registrosFiltrados]);
   const registrosPorPagina = 11;
   const totalPaginas = Math.max(1, Math.ceil(registrosFiltrados.length / registrosPorPagina));
   const paginaExibida = Math.min(pagina, totalPaginas);
-  const registrosPagina = registrosFiltrados.slice((paginaExibida - 1) * registrosPorPagina, paginaExibida * registrosPorPagina);
+  const registrosPagina = registrosAgrupadosPorMunicipio.slice((paginaExibida - 1) * registrosPorPagina, paginaExibida * registrosPorPagina);
+  const registrosPaginaComAgrupamento = registrosPagina.map((mensagem, indice) => {
+    const municipioAnterior = registrosPagina[indice - 1]?.municipio;
+    if (municipioAnterior === mensagem.municipio) return { ...mensagem, exibirMunicipio: false };
+    let quantidade = 1;
+    while (registrosPagina[indice + quantidade]?.municipio === mensagem.municipio) quantidade += 1;
+    return { ...mensagem, exibirMunicipio: true, linhasMunicipio: quantidade };
+  });
   const registrosHistoricoPorPagina = 10;
   const totalPaginasHistorico = Math.max(1, Math.ceil(registrosFiltrados.length / registrosHistoricoPorPagina));
   const paginaHistoricoExibida = Math.min(paginaHistorico, totalPaginasHistorico);
-  const registrosHistoricoPagina = registrosFiltrados.slice(
+  const registrosHistoricoPagina = registrosAgrupadosPorMunicipio.slice(
     (paginaHistoricoExibida - 1) * registrosHistoricoPorPagina,
     paginaHistoricoExibida * registrosHistoricoPorPagina,
   );
+  const registrosHistoricoComAgrupamento = registrosHistoricoPagina.map((mensagem, indice) => {
+    const municipioAnterior = registrosHistoricoPagina[indice - 1]?.municipio;
+    if (municipioAnterior === mensagem.municipio) return { ...mensagem, exibirMunicipio: false };
+    let quantidade = 1;
+    while (registrosHistoricoPagina[indice + quantidade]?.municipio === mensagem.municipio) quantidade += 1;
+    return { ...mensagem, exibirMunicipio: true, linhasMunicipio: quantidade };
+  });
   const corRegional = mensagem => {
     const nome = mensagem.regionais[0]?.nome;
     if (!nome) return T.textT;
@@ -614,27 +637,29 @@ export default function TabFaturamento({ onOpenEmail }) {
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', tableLayout: 'fixed', borderCollapse: 'collapse', fontSize: 11 }}>
                   <colgroup>
-                    <col style={{ width: '18%' }} />
-                    <col style={{ width: '25%' }} />
-                    <col style={{ width: '12%' }} />
-                    <col style={{ width: '10%' }} />
                     <col style={{ width: '14%' }} />
+                    <col style={{ width: '17%' }} />
+                    <col style={{ width: '20%' }} />
                     <col style={{ width: '10%' }} />
-                    <col style={{ width: '11%' }} />
+                    <col style={{ width: '9%' }} />
+                    <col style={{ width: '12%' }} />
+                    <col style={{ width: '8%' }} />
+                    <col style={{ width: '10%' }} />
                   </colgroup>
                   <thead>
                     <tr style={{ color: T.textS, background: T.page || T.surface }}>
-                        {['Município', 'Período Faturado', 'Regional', 'Faturista', 'Data do envio', 'Enviado por', 'Ações'].map(titulo => (
+                        {['Município', 'Secretaria', 'Período Faturado', 'Regional', 'Faturista', 'Data do envio', 'Enviado por', 'Ações'].map(titulo => (
                         <th key={titulo} scope="col" style={{ padding: '10px 7px', textAlign: titulo === 'Ações' ? 'center' : 'left', fontSize: 10, fontWeight: 700, whiteSpace: 'nowrap' }}>{titulo}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {registrosPagina.map(mensagem => (
+                    {registrosPaginaComAgrupamento.map(mensagem => (
                       <tr key={mensagem.id} style={{ borderTop: `1px solid ${T.border}` }}>
-                        <td title={mensagem.municipio} style={{ padding: '10px 7px', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                        {mensagem.exibirMunicipio && <td rowSpan={mensagem.linhasMunicipio} title={mensagem.municipio} style={{ padding: '10px 7px', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 700, whiteSpace: 'nowrap', verticalAlign: 'middle' }}>
                           <span aria-hidden="true" style={{ display: 'inline-grid', placeItems: 'center', width: 15, height: 15, marginRight: 8, borderRadius: '50%', color: '#fff', background: T.success || '#17805D', fontSize: 10, lineHeight: 1 }}>✓</span>{mensagem.municipio}
-                        </td>
+                        </td>}
+                        <td title={mensagem.secretaria} style={{ padding: '10px 7px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{mensagem.secretaria}</td>
                         <td title={mensagem.periodoFaturado || '—'} style={{ padding: '10px 7px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           <span>{mensagem.periodoFaturado || '—'}</span>
                           {mensagem.quantidadeNaConversa > 1 && (
@@ -774,12 +799,13 @@ export default function TabFaturamento({ onOpenEmail }) {
                 <div style={{ overflow: 'auto' }}>
                   <table style={{ width: '100%', minWidth: 1020, borderCollapse: 'collapse', fontSize: 12 }}>
                     <thead style={{ position: 'sticky', top: 0, background: T.page || T.surface }}>
-                      <tr>{['Município', 'Período Faturado', 'Regional', 'Faturista', 'Data do envio', 'Enviado por', 'Ações'].map(titulo => <th key={titulo} scope="col" style={{ padding: '11px 14px', color: T.textS, textAlign: 'left', fontSize: 10.5, whiteSpace: 'nowrap' }}>{titulo}</th>)}</tr>
+                      <tr>{['Município', 'Secretaria', 'Período Faturado', 'Regional', 'Faturista', 'Data do envio', 'Enviado por', 'Ações'].map(titulo => <th key={titulo} scope="col" style={{ padding: '11px 14px', color: T.textS, textAlign: 'left', fontSize: 10.5, whiteSpace: 'nowrap' }}>{titulo}</th>)}</tr>
                     </thead>
                     <tbody>
-                      {registrosHistoricoPagina.map(mensagem => (
+                      {registrosHistoricoComAgrupamento.map(mensagem => (
                         <tr key={mensagem.id} style={{ borderTop: `1px solid ${T.border}` }}>
-                          <td style={{ padding: '10px 14px', fontWeight: 700 }}>{mensagem.municipio}</td>
+                          {mensagem.exibirMunicipio && <td rowSpan={mensagem.linhasMunicipio} style={{ padding: '10px 14px', fontWeight: 700, verticalAlign: 'middle' }}>{mensagem.municipio}</td>}
+                          <td style={{ padding: '10px 14px' }}>{mensagem.secretaria}</td>
                           <td style={{ padding: '10px 14px', minWidth: 170 }}>
                             <span>{mensagem.periodoFaturado || '—'}</span>
                             {mensagem.quantidadeNaConversa > 1 && (
