@@ -560,9 +560,9 @@ export default function Email({ onBack, authUser, initialMessageId, onInitialMes
               <section aria-label="Lista de mensagens" style={{ minHeight: 0, overflowY: 'auto', borderRight: `1px solid ${T.border}`, background: T.sidebarBg || T.surface, backdropFilter: 'blur(22px) saturate(150%)' }}>
                 <div style={{ position: 'sticky', top: 0, zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, padding: '12px 14px', borderBottom: `1px solid ${T.border}`, background: `${T.surface}ee`, backdropFilter: 'blur(18px)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <svg aria-hidden="true" width="23" height="23" viewBox="0 0 24 24" fill="none" stroke={T.gold} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <rect x="3" y="5" width="18" height="14" rx="2" />
-                      <path d="m3 7 9 6 9-6" />
+                    <svg aria-hidden="true" width="23" height="23" viewBox="0 0 24 24" fill="none" stroke={T.success || '#17805D'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M7 3h7l5 5v13H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" />
+                      <path d="M14 3v5h5M9 13h6M9 17h6" />
                     </svg>
                     <h2 style={{ margin: 0, color: T.text, fontFamily: 'var(--font-brand)', fontSize: 16, fontWeight: 800 }}>Caixa de Entrada</h2>
                   </div>

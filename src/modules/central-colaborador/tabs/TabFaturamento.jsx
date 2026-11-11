@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { T } from '../../../contexts/theme';
 import { MUNICIPIOS } from '../../email';
 import { getFaturamento } from '../../email/api';
-import { agruparMensagensPorConversa, assuntoIndicaFaturamento, municipioExibidoNoAssunto, periodoFaturadoDoAssunto } from '../faturamentoEmailUtils';
+import { agruparMensagensPorConversa, assuntoIndicaFaturamento, formatarDataTempoReal, municipioExibidoNoAssunto, periodoFaturadoDoAssunto } from '../faturamentoEmailUtils';
 import {
   carregarCoresRegionais,
   carregarCadastroFaturamento,
@@ -178,12 +178,18 @@ const estiloBotao = {
 
 export default function TabFaturamento({ onOpenEmail }) {
   const [periodo, setPeriodo] = useState(mesAtual);
+  const [periodoRascunho, setPeriodoRascunho] = useState(mesAtual);
   const [modoPeriodo, setModoPeriodo] = useState('mes');
+  const [modoPeriodoRascunho, setModoPeriodoRascunho] = useState('mes');
   const [dataInicio, setDataInicio] = useState(() => intervaloDoMes(mesAtual()).inicio);
+  const [dataInicioRascunho, setDataInicioRascunho] = useState(() => intervaloDoMes(mesAtual()).inicio);
   const [dataFim, setDataFim] = useState(hojeLocal);
+  const [dataFimRascunho, setDataFimRascunho] = useState(hojeLocal);
   const [dados, setDados] = useState(null);
   const [busca, setBusca] = useState('');
+  const [buscaRascunho, setBuscaRascunho] = useState('');
   const [regionalSelecionada, setRegionalSelecionada] = useState('');
+  const [regionalRascunho, setRegionalRascunho] = useState('');
   const [pagina, setPagina] = useState(1);
   const [historicoAberto, setHistoricoAberto] = useState(false);
   const [paginaHistorico, setPaginaHistorico] = useState(1);
@@ -198,7 +204,7 @@ export default function TabFaturamento({ onOpenEmail }) {
   const [coresRegionais, setCoresRegionais] = useState({});
   const [erroCadastro, setErroCadastro] = useState('');
   const [quotaAte, setQuotaAte] = useState(0);
-  const [agora, setAgora] = useState(0);
+  const [agora, setAgora] = useState(() => Date.now());
   const requisicaoAtual = useRef(0);
   const quotaAteRef = useRef(0);
   const cadastroNotificacaoRef = useRef({ clientes: [], vinculos: {} });
@@ -210,6 +216,24 @@ export default function TabFaturamento({ onOpenEmail }) {
     : `date:${dataInicio}:${dataFim}`;
   const segundosEspera = Math.max(0, Math.ceil((quotaAte - agora) / 1000));
   const periodoValido = modoPeriodo === 'mes' || (dataInicio && dataFim && dataFim >= dataInicio);
+  const filtrosRascunhoValidos = modoPeriodoRascunho === 'mes'
+    || (dataInicioRascunho && dataFimRascunho && dataFimRascunho >= dataInicioRascunho);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setAgora(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const aplicarFiltros = () => {
+    setPeriodo(periodoRascunho);
+    setModoPeriodo(modoPeriodoRascunho);
+    setDataInicio(dataInicioRascunho);
+    setDataFim(dataFimRascunho);
+    setBusca(buscaRascunho.trim());
+    setRegionalSelecionada(regionalRascunho);
+    setPagina(1);
+    setPaginaHistorico(1);
+  };
 
   useEffect(() => {
     let vivo = true;
@@ -381,7 +405,7 @@ export default function TabFaturamento({ onOpenEmail }) {
     : mensagens, [mensagens, regionalSelecionada]);
   const registrosFiltrados = useMemo(() => mensagensVisiveis
     .filter(mensagem => normalizar(mensagem.municipio).includes(normalizar(busca))), [busca, mensagensVisiveis]);
-  const registrosPorPagina = 8;
+  const registrosPorPagina = 11;
   const totalPaginas = Math.max(1, Math.ceil(registrosFiltrados.length / registrosPorPagina));
   const paginaExibida = Math.min(pagina, totalPaginas);
   const registrosPagina = registrosFiltrados.slice((paginaExibida - 1) * registrosPorPagina, paginaExibida * registrosPorPagina);
@@ -408,7 +432,7 @@ export default function TabFaturamento({ onOpenEmail }) {
         @keyframes faturamentoPulse { 50% { opacity: .35; transform: scale(.82); } }
         @media (prefers-reduced-motion: reduce) { .faturamento-pulse { animation: none !important; } }
         @media (max-width: 1050px) { .faturamento-grade { grid-template-columns: minmax(0,1fr) !important; } }
-        @media (max-width: 700px) { .faturamento-regional { overflow-x: auto; flex-wrap: nowrap !important; padding-bottom: 4px; } .faturamento-regional button { flex-shrink: 0; } .faturamento-filtros { flex-direction: column; align-items: stretch !important; } .faturamento-filtros label, .faturamento-filtros input { width: 100% !important; } }
+        @media (max-width: 700px) { .faturamento-regional { overflow-x: auto; flex-wrap: nowrap !important; padding-bottom: 4px; } .faturamento-regional button { flex-shrink: 0; } .faturamento-filtros { flex-direction: column; align-items: stretch !important; } .faturamento-filtros label, .faturamento-filtros input { width: 100% !important; box-sizing: border-box; } .faturamento-filtros-separador { display: none; } }
       `}</style>
       <header style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 14, marginBottom: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
@@ -449,20 +473,20 @@ export default function TabFaturamento({ onOpenEmail }) {
         </div>
       )}
 
-      <section style={{ marginBottom: 15, padding: '13px 15px', borderRadius: 14, background: T.surface, border: `1px solid ${T.border}` }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 9 }}>
-          <span style={{ fontSize: 12.5, fontWeight: 700, color: T.textS }}>Regional</span>
-          <div className="faturamento-regional" style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
+      <section style={{ marginBottom: 15, padding: '15px 16px', borderRadius: 16, background: T.surface, border: `1px solid ${T.border}` }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, paddingBottom: 13, borderBottom: `1px solid ${T.border}` }}>
+          <span style={{ flexShrink: 0, fontSize: 12.5, fontWeight: 700, color: T.textS }}>Regional</span>
+          <div className="faturamento-regional" style={{ display: 'flex', flex: 1, flexWrap: 'wrap', gap: 7 }}>
             {[{ nome: '', label: 'Todas' }, ...regionaisExibidas.map(regional => ({ nome: regional.nome, label: regional.nome.replace(/^Regional\s+/i, '') }))].map(regional => {
-              const ativa = regionalSelecionada === regional.nome;
+              const ativa = regionalRascunho === regional.nome;
               const cor = regional.nome ? corRegional({ regionais: [regional] }) : T.gold;
               return (
                 <button
                   type="button"
                   key={regional.nome || 'todas'}
                   aria-pressed={ativa}
-                  onClick={() => { setRegionalSelecionada(regional.nome); setPagina(1); setPaginaHistorico(1); }}
-                  style={{ padding: '7px 14px', border: `1px solid ${ativa ? cor : T.border}`, borderRadius: 999, color: ativa ? corTextoFundo(cor) : T.textS, background: ativa ? cor : 'transparent', cursor: 'pointer', font: '600 12px var(--font-body)', transition: 'all .15s' }}
+                  onClick={() => setRegionalRascunho(regional.nome)}
+                  style={{ padding: '8px 15px', border: `1px solid ${ativa ? cor : T.border}`, borderRadius: 999, color: ativa ? corTextoFundo(cor) : T.textS, background: ativa ? cor : 'transparent', cursor: 'pointer', font: '600 12px var(--font-body)', transition: 'all .15s', whiteSpace: 'nowrap' }}
                 >
                   {regional.label}
                 </button>
@@ -470,89 +494,87 @@ export default function TabFaturamento({ onOpenEmail }) {
             })}
           </div>
         </div>
-        <div className="faturamento-filtros" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10 }}>
-          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 9, padding: '7px 10px', border: `1px solid ${T.border}`, borderRadius: 11, background: T.page || T.surface }}>
-            <span style={{ color: T.textS, fontSize: 11, fontWeight: 650 }}>Período</span>
-            <div role="group" aria-label="Tipo de período" style={{ display: 'flex', padding: 3, borderRadius: 8, background: T.surface }}>
-              {[
-                ['mes', 'Mês inteiro'],
-                ['dias', 'Dias específicos'],
-              ].map(([modo, rotulo]) => (
-                <button
-                  type="button"
-                  key={modo}
-                  aria-pressed={modoPeriodo === modo}
-                  onClick={() => setModoPeriodo(modo)}
-                  style={{ padding: '6px 9px', border: 0, borderRadius: 6, color: modoPeriodo === modo ? T.text : T.textS, background: modoPeriodo === modo ? T.goldGl : 'transparent', cursor: 'pointer', font: '600 11px var(--font-body)', whiteSpace: 'nowrap' }}
-                >
-                  {rotulo}
-                </button>
-              ))}
-            </div>
-            {modoPeriodo === 'mes' ? (
-              <input
-                type="month"
-                aria-label="Mês do faturamento"
-                value={periodo}
-                onChange={event => {
-                  if (!event.target.value) return;
-                  setPeriodo(event.target.value);
-                  const intervalo = intervaloDoMes(event.target.value);
-                  setDataInicio(intervalo.inicio);
-                  setDataFim(intervalo.fim);
-                  setPagina(1);
-                  setPaginaHistorico(1);
-                }}
-                style={{ minWidth: 145, padding: '7px 8px', border: `1px solid ${T.border}`, borderRadius: 8, background: T.surface, color: T.text, font: '600 12px var(--font-body)' }}
-              />
-            ) : (
-              <>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px', border: `1px solid ${T.border}`, borderRadius: 8, background: T.surface, color: T.textS, fontSize: 10.5 }}>
-                  De
-                  <input
-                    type="date"
-                    aria-label="Data inicial do faturamento"
-                    value={dataInicio}
-                    max={dataFim || undefined}
-                    onChange={event => {
-                      setDataInicio(event.target.value);
-                      setPagina(1);
-                      setPaginaHistorico(1);
-                    }}
-                    style={{ width: 132, border: 0, background: 'transparent', color: T.text, font: '600 11px var(--font-body)' }}
-                  />
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px', border: `1px solid ${T.border}`, borderRadius: 8, background: T.surface, color: T.textS, fontSize: 10.5 }}>
-                  Até
-                  <input
-                    type="date"
-                    aria-label="Data final do faturamento"
-                    value={dataFim}
-                    min={dataInicio || undefined}
-                    onChange={event => {
-                      setDataFim(event.target.value);
-                      setPagina(1);
-                      setPaginaHistorico(1);
-                    }}
-                    style={{ width: 132, border: 0, background: 'transparent', color: T.text, font: '600 11px var(--font-body)' }}
-                  />
-                </label>
-              </>
-            )}
-          </div>
-          <label style={{ display: 'flex', flex: 1, alignItems: 'center', gap: 9, minWidth: 180, padding: '0 12px', border: `1px solid ${T.border}`, borderRadius: 11, background: T.page || T.surface }}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={T.textS} strokeWidth="1.8" strokeLinecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+        <div className="faturamento-filtros" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12, paddingTop: 13 }}>
+          <label style={{ display: 'flex', flex: '1 1 200px', alignItems: 'center', gap: 9, minWidth: 180, padding: '0 12px', border: `1px solid ${T.border}`, borderRadius: 999, background: T.page || T.surface }}>
+            <svg aria-hidden="true" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke={T.textS} strokeWidth="1.8" strokeLinecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
             <input
               type="search"
-              value={busca}
-              onChange={event => { setBusca(event.target.value); setPagina(1); setPaginaHistorico(1); }}
+              value={buscaRascunho}
+              onChange={event => setBuscaRascunho(event.target.value)}
+              onKeyDown={event => { if (event.key === 'Enter' && filtrosRascunhoValidos) aplicarFiltros(); }}
               placeholder="Buscar município..."
               aria-label="Buscar município"
               style={{ width: '100%', padding: '12px 0', border: 0, outline: 'none', background: 'transparent', color: T.text, font: '13px var(--font-body)' }}
             />
           </label>
-          <button type="button" onClick={() => atualizar(true, true)} disabled={carregando || atualizando || segundosEspera > 0 || !periodoValido} title="Consulta o Gmail agora e atualiza o cache deste período." style={{ ...estiloBotao, whiteSpace: 'nowrap', opacity: carregando || atualizando || segundosEspera > 0 || !periodoValido ? 0.65 : 1 }}>
-            {atualizando ? 'Sincronizando…' : segundosEspera > 0 ? `Aguarde ${segundosEspera}s` : 'Sincronizar agora'}
+          <span aria-hidden="true" className="faturamento-filtros-separador" style={{ width: 1, height: 38, flexShrink: 0, background: T.border }} />
+          <div role="group" aria-label="Tipo de período" style={{ display: 'flex', flexShrink: 0, padding: 3, border: `1px solid ${T.border}`, borderRadius: 999, background: T.page || T.surface }}>
+              {[
+                ['mes', 'Mês'],
+                ['dias', 'Período'],
+              ].map(([modo, rotulo]) => (
+                <button
+                  type="button"
+                  key={modo}
+                  aria-pressed={modoPeriodoRascunho === modo}
+                  onClick={() => setModoPeriodoRascunho(modo)}
+                  style={{ padding: '9px 14px', border: 0, borderRadius: 999, color: modoPeriodoRascunho === modo ? T.text : T.textS, background: modoPeriodoRascunho === modo ? T.goldGl : 'transparent', cursor: 'pointer', font: '600 12px var(--font-body)', whiteSpace: 'nowrap' }}
+                >
+                  {rotulo}
+                </button>
+              ))}
+          </div>
+          {modoPeriodoRascunho === 'mes' ? (
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 175, padding: '9px 12px', border: `1px solid ${T.border}`, borderRadius: 12, background: T.page || T.surface, color: T.text }}>
+              <svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke={T.textS} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18"/></svg>
+              <input
+                type="month"
+                aria-label="Mês do faturamento"
+                value={periodoRascunho}
+                onChange={event => {
+                  if (!event.target.value) return;
+                  const intervalo = intervaloDoMes(event.target.value);
+                  setPeriodoRascunho(event.target.value);
+                  setDataInicioRascunho(intervalo.inicio);
+                  setDataFimRascunho(intervalo.fim);
+                }}
+                style={{ width: '100%', minWidth: 130, border: 0, background: 'transparent', color: T.text, font: '600 12px var(--font-body)' }}
+              />
+            </label>
+          ) : (
+            <>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 11px', border: `1px solid ${T.border}`, borderRadius: 12, background: T.page || T.surface }}>
+                <input
+                  type="date"
+                  aria-label="Data inicial do faturamento"
+                  value={dataInicioRascunho}
+                  max={dataFimRascunho || undefined}
+                  onChange={event => setDataInicioRascunho(event.target.value)}
+                  style={{ width: 135, border: 0, background: 'transparent', color: T.text, font: '600 12px var(--font-body)' }}
+                />
+              </label>
+              <span style={{ color: T.textS, fontSize: 12 }}>até</span>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 11px', border: `1px solid ${T.border}`, borderRadius: 12, background: T.page || T.surface }}>
+                <input
+                  type="date"
+                  aria-label="Data final do faturamento"
+                  value={dataFimRascunho}
+                  min={dataInicioRascunho || undefined}
+                  onChange={event => setDataFimRascunho(event.target.value)}
+                  style={{ width: 135, border: 0, background: 'transparent', color: T.text, font: '600 12px var(--font-body)' }}
+                />
+              </label>
+            </>
+          )}
+          <span aria-hidden="true" className="faturamento-filtros-separador" style={{ width: 1, height: 38, flexShrink: 0, background: T.border }} />
+          <button
+            type="button"
+            onClick={aplicarFiltros}
+            disabled={!filtrosRascunhoValidos}
+            style={{ ...estiloBotao, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginLeft: 'auto', minHeight: 44, padding: '10px 18px', borderRadius: 999, color: '#111827', background: '#F3F4F6', borderColor: '#D1D5DB', whiteSpace: 'nowrap', opacity: filtrosRascunhoValidos ? 1 : 0.55 }}
+          >
+            <svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 7v5h-5"/><path d="M4 17v-5h5"/><path d="M5.6 9a7 7 0 0 1 11.6-2L20 12M4 12l2.8 5a7 7 0 0 0 11.6-2"/></svg>
+            Aplicar Filtros
           </button>
         </div>
       </section>
@@ -569,7 +591,7 @@ export default function TabFaturamento({ onOpenEmail }) {
         </div>
       )}
 
-      <div className="faturamento-grade" style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1.9fr) minmax(310px,.95fr)', alignItems: 'stretch', gap: 14 }}>
+      <div className="faturamento-grade" style={{ display: 'grid', gridTemplateColumns: 'minmax(0,2.8fr) minmax(270px,.75fr)', alignItems: 'stretch', gap: 14 }}>
         <section style={{ minWidth: 0, overflow: 'hidden', border: `1px solid ${T.border}`, borderRadius: 15, background: T.surface }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '15px 16px 12px' }}>
             <div>
@@ -590,21 +612,30 @@ export default function TabFaturamento({ onOpenEmail }) {
           ) : (
             <>
               <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1020, fontSize: 12 }}>
+                <table style={{ width: '100%', tableLayout: 'fixed', borderCollapse: 'collapse', fontSize: 11 }}>
+                  <colgroup>
+                    <col style={{ width: '18%' }} />
+                    <col style={{ width: '25%' }} />
+                    <col style={{ width: '12%' }} />
+                    <col style={{ width: '10%' }} />
+                    <col style={{ width: '14%' }} />
+                    <col style={{ width: '10%' }} />
+                    <col style={{ width: '11%' }} />
+                  </colgroup>
                   <thead>
                     <tr style={{ color: T.textS, background: T.page || T.surface }}>
                         {['Município', 'Período Faturado', 'Regional', 'Faturista', 'Data do envio', 'Enviado por', 'Ações'].map(titulo => (
-                        <th key={titulo} scope="col" style={{ padding: '10px 12px', textAlign: 'left', fontSize: 10.5, fontWeight: 700, whiteSpace: 'nowrap' }}>{titulo}</th>
+                        <th key={titulo} scope="col" style={{ padding: '10px 7px', textAlign: titulo === 'Ações' ? 'center' : 'left', fontSize: 10, fontWeight: 700, whiteSpace: 'nowrap' }}>{titulo}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {registrosPagina.map(mensagem => (
                       <tr key={mensagem.id} style={{ borderTop: `1px solid ${T.border}` }}>
-                        <td style={{ padding: '10px 12px', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                        <td title={mensagem.municipio} style={{ padding: '10px 7px', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 700, whiteSpace: 'nowrap' }}>
                           <span aria-hidden="true" style={{ display: 'inline-grid', placeItems: 'center', width: 15, height: 15, marginRight: 8, borderRadius: '50%', color: '#fff', background: T.success || '#17805D', fontSize: 10, lineHeight: 1 }}>✓</span>{mensagem.municipio}
                         </td>
-                        <td style={{ padding: '10px 12px', minWidth: 170 }}>
+                        <td title={mensagem.periodoFaturado || '—'} style={{ padding: '10px 7px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           <span>{mensagem.periodoFaturado || '—'}</span>
                           {mensagem.quantidadeNaConversa > 1 && (
                             <span title={`${mensagem.quantidadeNaConversa} e-mails agrupados nesta conversa`} style={{ display: 'block', marginTop: 3, color: T.textT, fontSize: 10 }}>
@@ -612,16 +643,16 @@ export default function TabFaturamento({ onOpenEmail }) {
                             </span>
                           )}
                         </td>
-                        <td style={{ padding: '10px 12px' }}>
-                          <span style={{ display: 'inline-block', padding: '5px 11px', borderRadius: 999, color: corTextoFundo(corRegional(mensagem)), background: corRegional(mensagem), fontSize: 10.5, fontWeight: 700, whiteSpace: 'nowrap' }}>{nomeRegional(mensagem)}</span>
+                        <td style={{ padding: '10px 7px', overflow: 'hidden' }}>
+                          <span title={nomeRegional(mensagem)} style={{ display: 'inline-block', maxWidth: '100%', overflow: 'hidden', padding: '5px 8px', borderRadius: 999, color: corTextoFundo(corRegional(mensagem)), background: corRegional(mensagem), fontSize: 10, fontWeight: 700, textOverflow: 'ellipsis', whiteSpace: 'nowrap', verticalAlign: 'middle' }}>{nomeRegional(mensagem)}</span>
                         </td>
-                        <td style={{ padding: '10px 12px', color: mensagem.responsavelFaturamento ? T.text : T.textT, whiteSpace: 'nowrap' }}>{mensagem.responsavelFaturamento || '—'}</td>
-                        <td style={{ padding: '10px 12px', color: T.textS, whiteSpace: 'nowrap' }}>{formatarData(mensagem.date)}</td>
-                        <td style={{ padding: '10px 12px', maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={remetenteExibido(mensagem)}>
+                        <td title={mensagem.responsavelFaturamento || '—'} style={{ padding: '10px 7px', overflow: 'hidden', color: mensagem.responsavelFaturamento ? T.text : T.textT, textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{mensagem.responsavelFaturamento || '—'}</td>
+                        <td style={{ padding: '10px 7px', overflow: 'hidden', color: T.textS, textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{formatarData(mensagem.date)}</td>
+                        <td style={{ padding: '10px 7px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={remetenteExibido(mensagem)}>
                           <span style={{ marginRight: 7, color: T.textS }}>♙</span>{remetenteExibido(mensagem)}
                         </td>
-                        <td style={{ padding: '8px 10px', textAlign: 'right' }}>
-                          <button type="button" onClick={() => onOpenEmail?.(mensagem.id)} style={{ ...estiloBotao, padding: '6px 10px', borderRadius: 999, whiteSpace: 'nowrap', fontSize: 11 }}>
+                        <td style={{ padding: '8px 5px', textAlign: 'center' }}>
+                          <button type="button" onClick={() => onOpenEmail?.(mensagem.id)} style={{ ...estiloBotao, padding: '5px 7px', borderRadius: 999, whiteSpace: 'nowrap', fontSize: 10 }}>
                             ✉&nbsp; Ver e-mail&nbsp; ›
                           </button>
                         </td>
@@ -711,7 +742,7 @@ export default function TabFaturamento({ onOpenEmail }) {
                       </span>
                       <span style={{ flexShrink: 0, padding: '4px 8px', borderRadius: 999, color: corTextoFundo(corRegional(mensagem)), background: corRegional(mensagem), fontSize: 9.5, fontWeight: 700 }}>{nomeRegional(mensagem)}</span>
                     </span>
-                    <span style={{ display: 'block', marginTop: 5, color: T.textS, fontSize: 10.5, textAlign: 'right' }}>{formatarData(mensagem.date)}</span>
+                    <span style={{ display: 'block', marginTop: 5, color: T.textS, fontSize: 10.5, textAlign: 'right' }}>{formatarDataTempoReal(mensagem.date, agora)}</span>
                   </span>
                 </button>
               ))}

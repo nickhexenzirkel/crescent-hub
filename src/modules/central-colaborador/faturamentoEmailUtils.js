@@ -40,6 +40,27 @@ export function assuntoIndicaFaturamento(assunto) {
   return /\b(?:fat|fatura|faturamento|refaturamento|nota fiscal(?: eletronica)?|nf[\s-]?e|danfe)\b/.test(texto);
 }
 
+export function formatarDataTempoReal(valor, agora = Date.now()) {
+  const timestamp = new Date(valor).getTime();
+  if (!Number.isFinite(timestamp)) return 'Data indisponível';
+  const minutos = Math.max(0, Math.floor((agora - timestamp) / 60_000));
+  if (minutos < 1) return 'Agora';
+  if (minutos < 60) return `Há ${minutos} min`;
+  if (minutos === 60) return 'Há 1 hora';
+  const data = new Date(timestamp);
+  const hoje = new Date(agora);
+  const inicioHoje = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
+  const inicioData = new Date(data.getFullYear(), data.getMonth(), data.getDate());
+  const dias = Math.round((inicioHoje - inicioData) / 86_400_000);
+  const dia = dias === 0
+    ? 'Hoje'
+    : dias === 1
+      ? 'Ontem'
+      : data.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace(/\.$/, '');
+  const hora = data.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  return `${dia}, ${hora}`;
+}
+
 export function periodoFaturadoDoAssunto(assuntoOriginal) {
   const assunto = removerPrefixoResposta(assuntoOriginal);
   const assuntoNormalizado = normalizarTexto(assunto);

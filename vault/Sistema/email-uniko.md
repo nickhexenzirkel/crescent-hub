@@ -31,6 +31,8 @@ O servidor precisa ser atualizado e reiniciado para carregar as rotas e variavei
 
 ## Escopo atual
 
+- No Acompanhar Faturamento, os filtros são organizados em duas linhas: regionais e, abaixo, busca, tipo/período e botão “Aplicar Filtros”. Alterações ficam como rascunho até aplicar; escolher outro período consulta o Gmail após a aplicação.
+- No card “Tempo Real”, envios com até 59 minutos aparecem como “Agora” ou “Há N min”; ao completar 60 minutos, mostram “Há 1 hora”, e depois passam para data/hora (por exemplo, “Hoje, 09:30”). O relógio relativo é atualizado a cada minuto.
 - Conectar e desconectar uma conta Gmail por administrador.
 - Pesquisar mensagens usando a consulta do Gmail, abrir mensagens, visualizar anexos PDF/imagem e baixar qualquer anexo diretamente pela Gmail API. Uma busca sem resultados retorna lista vazia sem enviar lote de metadados vazio ao Gmail.
 - Ocultar respostas (cabeçalhos de resposta ou assunto começando com "Re:") e mensagens do Mailsuite/Mailtrack, com filtro no servidor e no cliente.
