@@ -83,7 +83,7 @@ export function secretariaFaturadaDoAssunto(assuntoOriginal) {
     'i',
   ).exec(assunto);
   const municipio = /(?:[-–—]\s*)?munic[ií]pio\s+de\b/i.exec(assunto);
-  if (!intervalo || !municipio || municipio.index <= intervalo.index + intervalo[0].length) return 'GERAL';
+  if (!intervalo || !municipio || municipio.index <= intervalo.index + intervalo[0].length) return 'CONSOLIDADO';
 
   const trecho = assunto.slice(intervalo.index + intervalo[0].length, municipio.index);
   const secretaria = trecho
@@ -95,7 +95,7 @@ export function secretariaFaturadaDoAssunto(assuntoOriginal) {
     .replace(/^secretaria(?:\s+municipal)?(?:\s+(?:de|da|do|dos|das))?\s+/i, '')
     .trim();
 
-  if (!secretaria || normalizarTexto(secretaria).includes('consolidado')) return 'GERAL';
+  if (!secretaria || normalizarTexto(secretaria).includes('consolidado')) return 'CONSOLIDADO';
   return secretaria.toLocaleUpperCase('pt-BR');
 }
 
