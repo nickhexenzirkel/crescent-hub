@@ -14,6 +14,7 @@ async function request(path, options = {}) {
   if (!response.ok) {
     const error = new Error(data.error || 'Não foi possível consultar o Gmail.');
     error.retryAfter = Number(data.retryAfter) || Number(response.headers.get('Retry-After')) || 0;
+    error.status = response.status;
     throw error;
   }
   return data;
@@ -31,10 +32,11 @@ export function disconnect() {
   return request('/disconnect', { method: 'DELETE' });
 }
 
-export function listMessages(query, pageToken) {
+export function listMessages(query, pageToken, includeAttachments = false) {
   const params = new URLSearchParams();
   if (query.trim()) params.set('q', query.trim());
   if (pageToken) params.set('pageToken', pageToken);
+  if (includeAttachments) params.set('includeAttachments', '1');
   return request(`/messages?${params.toString()}`);
 }
 
@@ -52,6 +54,16 @@ export function getMessage(id) {
 }
 
 export async function getAttachment(messageId, attachment) {
+  if (attachment.data) {
+    const base64 = attachment.data.replace(/-/g, '+').replace(/_/g, '/')
+      .padEnd(Math.ceil(attachment.data.length / 4) * 4, '=');
+    const binary = atob(base64);
+    const bytes = Uint8Array.from(binary, character => character.charCodeAt(0));
+    return {
+      blob: new Blob([bytes], { type: attachment.mimeType || 'application/octet-stream' }),
+      filename: attachment.filename || 'anexo',
+    };
+  }
   const token = localStorage.getItem('ch_token');
   if (!token) throw new Error('Sua sessão expirou. Entre novamente no Uniko.');
   const params = new URLSearchParams({

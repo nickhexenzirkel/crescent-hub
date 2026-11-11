@@ -54,13 +54,14 @@ const NAV=[
   {id:'unikofaster',label:'Uniko Speed',   icon:<I><path d="M5 11l1.5-4.5A2 2 0 018.4 5h7.2a2 2 0 011.9 1.5L19 11"/><path d="M3 11h18v5a1 1 0 01-1 1h-1a2 2 0 01-4 0H9a2 2 0 01-4 0H4a1 1 0 01-1-1z"/><circle cx="7.5" cy="14.5" r="1"/><circle cx="16.5" cy="14.5" r="1"/></I>},
 ];
 
-/* Esconde os itens marcados adminOnly de quem não é admin.
+/* Esconde os itens marcados adminOnly de quem não é admin, exceto Faturamento
+   para colaboradores autenticados.
    `desligado` (RH → Gerenciar Usuários → Desligamento) tira as abas de ponto:
    quem saiu não acumula mais banco de horas nem falta, então não faz sentido
    continuar vendo — nem justificando — dia nenhum. */
-const NAV_FOR = (isAdmin, desligado = false) =>
+const NAV_FOR = (isAdmin, desligado = false, visitante = false) =>
   // Esconder/renomear abas (por pessoa ou pra todos) vem do Supabase — ver shared/visibilidade.js.
-  aplicarVisibilidade('aba', NAV.filter(n => (!n.adminOnly || isAdmin) && !(desligado && n.ponto)));
+  aplicarVisibilidade('aba', NAV.filter(n => (!n.adminOnly || isAdmin || (n.id === 'faturamento' && !visitante)) && !(desligado && n.ponto)));
 
 const LockIcon = () => (
   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" style={{flexShrink:0}}>
@@ -79,8 +80,8 @@ const Sidebar = ({tab,setTab,onBack,activeTheme,onTheme,onOpenSettings,userPhoto
   useVisibilidade();
   const isMobile = useIsMobile();
   const [hov,sh]=useState(null);
-  let nav = NAV_FOR(getAuthUser()?.role === 'admin', desligado);
-  if (only?.length) nav = nav.filter(n => only.includes(n.id));
+  let nav = NAV_FOR(getAuthUser()?.role === 'admin', desligado, visitante);
+  if (only?.length) nav = nav.filter(n => only.includes(n.id) || (n.id === 'faturamento' && !visitante));
   const restricted = !!only;
   if (isMobile) return null;
   return(

@@ -556,7 +556,7 @@ const ModuleSelector = ({onSelect, authUser, onLogout, onOpenNotificationSetting
     // Só admin vê (não moderador) — chamadas gravadas do WhatsApp Web, dado sensível.
     {id:'uniko-call',       label:'Uniko Call',            sub:'Chamadas gravadas e transcritas',  icon:IcoCall,        color:T.gold, bg:T.goldGl, tag:'Admin',    adminOnly:true, strictAdmin:true},
     {id:'prestacao-contas', label:'Prestações de Contas',  sub:'Gastos e comprovantes',                          icon:IcoPrestacaoContas, color:T.gold, bg:T.goldGl, tag:'Ferramenta', adminOnly:true, strictAdmin:true},
-    {id:'email',            label:'E-mail',                 sub:'Gmail · mensagens e anexos',                     icon:IcoEmail, color:T.gold, bg:T.goldGl, tag:'Admin', adminOnly:true, strictAdmin:true},
+    {id:'email',            label:'E-mail',                 sub:'Gmail · mensagens e anexos',                     icon:IcoEmail, color:T.gold, bg:T.goldGl, tag:'Gmail', adminOnly:false},
   ];
   /* Os atalhos viram "módulos" de mentira: daí em diante tudo que a tela já
      sabe fazer (ordenar, redimensionar, colorir) vale pra eles de graça. O que
@@ -583,11 +583,12 @@ const ModuleSelector = ({onSelect, authUser, onLogout, onOpenNotificationSetting
   // Esconder/renomear módulos (por pessoa ou pra todos) vem do Supabase — ver visibilidade.js.
   const filteredMods = aplicarVisibilidade('modulo', [...allMods, ...atalhoMods]
     .filter(m => {
+      if (m.id === 'email') return !visitante;
+      if (m.id === 'colaborador') return !visitante || moduloLiberadoVisitante(visitanteCfg, m.id);
       // Visitante: Dashboard RH → Configurar Visitante decide módulo por módulo
       // (os admin-only de verdade já ficam de fora pela checagem comum abaixo,
       // já que `temCargoPara` nunca bate pra quem não tem cargo real).
       if (visitante && !moduloLiberadoVisitante(visitanteCfg, m.id)) return false;
-      if (m.id === 'email') return isAdmin;
       // Atalho aponta pra um módulo de verdade via `m.modulo` (ex: atalho
       // "Seus Dados" → módulo 'colaborador') — no modo restrito, checa esse
       // alvo real, senão um atalho furava a restrição do card principal.

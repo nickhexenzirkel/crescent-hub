@@ -33,6 +33,7 @@ import {
   NOTIFICATION_SCREEN_EVENT,
   NOTIFICATION_SETTINGS_OPEN_EVENT,
 } from './shared/notificationPreferences';
+import { loadSeenNotifications, rememberSeenNotification } from './shared/seenNotifications';
 import { useIsMobile } from './hooks/useIsMobile';
 import UnikoAssistant from './shared/UnikoAssistant';
 import TarefasFixas from './shared/TarefasFixas';
@@ -484,8 +485,8 @@ export default function CrescentHub() {
     if (adminOnly.includes(id) && !podeAdminOnly && !cargoModules.has(id)) return;
     // Só admin de verdade, nem moderador (cargo ainda libera) — vitrines "em
     // breve" e Portal dos Credenciados (7 Benefícios, dado de terceiro).
-    const strictAdminOnly = ['uniko-call','prestacao-contas','7-beneficios','uniko-security','email'];
-    if (id === 'email' && authUser?.role !== 'admin') return;
+    const strictAdminOnly = ['uniko-call','prestacao-contas','7-beneficios','uniko-security'];
+    if (id === 'email' && isVisitante(authUser)) return;
     if (strictAdminOnly.includes(id) && authUser?.role !== 'admin' && !cargoModules.has(id)) return;
     // Visitante: módulos admin-only já ficaram de fora acima (role nunca bate,
     // cargoModules sempre vazio pra quem não tem id real). Os demais seguem a
@@ -495,7 +496,7 @@ export default function CrescentHub() {
     // módulos marcados nele — inclusive os que normalmente são abertos por
     // padrão pra todo mundo (Portal do Colaborador, Prisma Store, etc.).
     // Nunca vale pra admin/moderador, que continuam vendo tudo sempre.
-    if (cargoRestricted && !podeAdminOnly && !cargoModules.has(id)) return;
+    if (cargoRestricted && !podeAdminOnly && !cargoModules.has(id) && !['colaborador', 'email'].includes(id)) return;
     setPortalInitialTab(initialTab || null);
     navPush(id);
   };
@@ -596,6 +597,8 @@ export default function CrescentHub() {
 
   useEffect(() => {
     if (!authUser) return;
+    const notificationOwner = authUser.id || authUser.name;
+    for (const id of loadSeenNotifications(notificationOwner)) seenNotifIds.current.add(id);
 
     // Processa um aviso recebido (in-site + som + notificação no desktop).
     const handleNotif = (n) => {
@@ -605,6 +608,7 @@ export default function CrescentHub() {
         ? getNotificationChannels(authUser, 'faturamento_regional')
         : { screen: true, desktop: true, sound: true };
       seenNotifIds.current.add(n.id);
+      rememberSeenNotification(notificationOwner, n.id);
       if (preferenciasFaturamento.screen) setNotifQueue(q => [...q, n]);
       if (preferenciasFaturamento.sound) {
         if (n.type === 'aviso_urgente') playAlarm(); else playReminder();
@@ -761,7 +765,7 @@ export default function CrescentHub() {
         if (!due) continue;
 
         const fireKey = `${r.id}_${today}_${hhmm}`;
-        if (firedTodayRef.current.has(fireKey)) continue;
+        if (firedTodayRef.current.has(fireKey) || seenNotifIds.current.has(fireKey)) continue;
         firedTodayRef.current.add(fireKey);
 
         // __urgent__ prefix indica aviso_urgente salvo como 'lembrete' por limitação do check constraint
@@ -791,6 +795,7 @@ export default function CrescentHub() {
 
         // Marca como visto para o canal realtime não duplicar (broadcast)
         seenNotifIds.current.add(notifObj.id);
+        rememberSeenNotification(authUser.id || authUser.name, notifObj.id);
 
         // Dispara popup e som diretamente, sem esperar o realtime
         setNotifQueue(q => [...q, notifObj]);
@@ -849,7 +854,7 @@ export default function CrescentHub() {
           {screen==='uniko-fit' && <UnikoFit onBack={handleGoBack} authUser={authUser} userPhoto={userPhoto} onlyTabs={isVisitante(authUser) ? abasVisitante(visitanteCfg,'uniko-fit') : undefined}/>}
           {screen==='uniko-call' && (authUser?.role==='admin'||cargoModules.has('uniko-call')) && <UnikoCall onBack={handleGoBack}/>}
           {screen==='prestacao-contas' && (authUser?.role==='admin'||cargoModules.has('prestacao-contas')) && <PrestacaoContas onBack={handleGoBack} authUser={authUser}/>}
-          {screen==='email' && authUser?.role==='admin' && <Email onBack={handleGoBack} authUser={authUser} initialMessageId={emailInitialMessageId} onInitialMessageHandled={setEmailInitialMessageId}/>}
+          {screen==='email' && authUser && !isVisitante(authUser) && <Email onBack={handleGoBack} authUser={authUser} initialMessageId={emailInitialMessageId} onInitialMessageHandled={setEmailInitialMessageId}/>}
           {screen==='amigo-secreto' && <AmigoSecreto onBack={handleGoBack} authUser={authUser}/>}
         </div>
 

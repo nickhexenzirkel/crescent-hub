@@ -377,7 +377,7 @@ const itemAtualizacao = (r) => (r.active === false ? null : {
   corpo: r.descricao || '', imagem: r.imagem_url || null,
 });
 const itemAviso = (r) => (r.active === false ? null : {
-  id: `nt:${r.id}`, tipo: 'aviso', subtipo: r.type === 'aviso_urgente' ? 'urgente' : 'lembrete', quando: r.created_at,
+  id: `nt:${r.id}`, tipo: r.type === 'faturamento_regional' ? 'faturamento' : 'aviso', subtipo: r.type === 'faturamento_regional' ? 'faturamento' : r.type === 'aviso_urgente' ? 'urgente' : 'lembrete', quando: r.created_at,
   titulo: r.type === 'aviso_urgente' ? `Aviso urgente: ${r.title || ''}` : (r.title || 'Aviso do RH'),
   sub: r.message || 'Aviso do RH', corpo: r.message || '', ruim: r.type === 'aviso_urgente',
 });

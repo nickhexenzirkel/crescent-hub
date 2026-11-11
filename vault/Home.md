@@ -34,7 +34,7 @@ Abra a pasta `vault/` como um cofre (vault) no Obsidian.
 - [[conexao-setorial-trello]] — Conexão Setorial virou um quadro Kanban (Trello) do Financeiro no lugar do chat WhatsApp; precisa rodar supabase_conexao_setorial_trello.sql
 - [[contagem-ferias]] — Contagem regressiva de férias na aba Início do Portal — só pra um grupo seleto de 14 pessoas, cada uma vendo só a própria data
 - [[desligamento-colaborador]] — Desligamento na aba Gerenciar Usuários — tira o colaborador do ponto/portal e opção separada de bloquear o acesso; precisa de SQL + deploy na VPS
-- [[email-uniko]] — Módulo administrativo para consultar Gmail sem copiar mensagens/anexos e aba Faturamento baseada na caixa Enviados conectada; requer credenciais OAuth e deploy do servidor na VPS
+- [[email-uniko]] — Módulos E-mail e Acompanhar Faturamento para colaboradores autenticados (exceto visitantes), sem copiar mensagens/anexos; cada colaborador conecta a caixa Gmail que vai consultar; requer credenciais OAuth e deploy do servidor na VPS
 - [[fairy-scene]] — Cenário jardim encantado (Uniko Rainha das Fadas) no card + fundo da Central Alexa; e a piscada de 10s só dela
 - [[game-invites]] — Convites de jogo (Uniko Paint/Stop) — lista de amigos, notificação e navegação direta
 - [[games-ranking-geral]] — Ranking geral da aba Games — soma de pontos normalizados dos 4 jogos arcade no Supabase
