@@ -125,6 +125,7 @@ export async function salvarVinculosRegionaisFaturamento(vinculos) {
     value: JSON.stringify({ vinculos: limpos, updatedAt: new Date().toISOString() }),
   }, { onConflict: 'key' });
   if (error) throw error;
+  window.dispatchEvent(new CustomEvent(EVENTO));
   return limpos;
 }
 
@@ -187,7 +188,6 @@ export async function emitirNotificacaoFaturamento({
     active: true,
     recipient_id: recipientId,
     source_id: `faturamento:${mailbox}:${threadId || messageId}`,
-    created_at: horario.toISOString(),
   });
   if (error?.code === '23505') return false;
   if (error) throw error;
@@ -235,6 +235,40 @@ export async function salvarCadastroFaturamento(clientes) {
 }
 
 export function ouvirCadastroFaturamento(callback) {
-  window.addEventListener(EVENTO, callback);
-  return () => window.removeEventListener(EVENTO, callback);
+  let timer;
+  const atualizar = () => {
+    window.clearTimeout(timer);
+    timer = window.setTimeout(callback, 100);
+  };
+  window.addEventListener(EVENTO, atualizar);
+  const channel = supabase
+    .channel('faturamento-configuracoes-notificacoes')
+    .on('postgres_changes', {
+      event: '*',
+      schema: 'public',
+      table: 'settings',
+      filter: `key=eq.${FATURAMENTO_COMERCIAIS_KEY}`,
+    }, atualizar)
+    .on('postgres_changes', {
+      event: '*',
+      schema: 'public',
+      table: 'settings',
+      filter: `key=eq.${FATURAMENTO_CORES_REGIONAIS_KEY}`,
+    }, atualizar)
+    .on('postgres_changes', {
+      event: '*',
+      schema: 'public',
+      table: 'settings',
+      filter: `key=eq.${FATURAMENTO_VINCULOS_REGIONAIS_KEY}`,
+    }, atualizar)
+    .subscribe(status => {
+      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+        console.warn('[faturamento] Não foi possível sincronizar alterações de cadastro em tempo real:', status);
+      }
+    });
+  return () => {
+    window.clearTimeout(timer);
+    window.removeEventListener(EVENTO, atualizar);
+    supabase.removeChannel(channel);
+  };
 }

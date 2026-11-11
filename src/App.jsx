@@ -610,6 +610,7 @@ export default function CrescentHub() {
 
     // Processa um aviso recebido (in-site + som + notificação no desktop).
     const handleNotif = (n) => {
+      if (n?.type === 'faturamento_regional' && !n.recipient_id) return;
       if (n?.recipient_id && String(n.recipient_id) !== String(authUser.id)) return;
       if (!n?.active || seenNotifIds.current.has(n.id)) return;
       if (n.type === 'faturamento_regional' && !faturamentoAposInicioDaSessao(n.created_at, notificacoesAtivasDesde)) {

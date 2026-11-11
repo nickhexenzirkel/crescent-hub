@@ -427,7 +427,7 @@ export const useCaixaEntrada = (authUser) => {
 
   /* Uma consulta a todas as fontes entre `de` e `ate` (ISO; `ate` opcional). */
   const consultar = useCallback(async (de, ate, limite) => {
-    if (!nome) return;
+    if (!nome || !authUser?.id) return;
     const faixa = (q, col) => { q = q.gte(col, de); if (ate) q = q.lt(col, ate); return q.order(col, { ascending: false }).limit(limite); };
     const [bh, ph, gi, ev, ps, at, nt, cm, cls, fr, fc, fch, pc, fb, co] = await Promise.all([
       faixa(supabase.from('banco_horas').select('id,data,descricao,horas_calculadas,status,created_at,updated_at').eq('created_by', nome), 'updated_at'),
@@ -437,7 +437,10 @@ export const useCaixaEntrada = (authUser) => {
       faixa(cpf ? supabase.from('ponto_solicitacoes').select('id,cpf,ponto_cpf,titulo,data_ref,status,created_at').eq('cpf', cpf)
                 : supabase.from('ponto_solicitacoes').select('id,cpf,ponto_cpf,titulo,data_ref,status,created_at').eq('nome', nome), 'created_at'),
       faixa(supabase.from('atualizacoes').select('id,titulo,descricao,imagem_url,active,created_at').eq('active', true), 'created_at'),
-      faixa(supabase.from('notifications').select('id,type,title,message,active,created_at').eq('active', true), 'created_at'),
+      faixa(supabase.from('notifications')
+        .select('id,type,title,message,active,created_at,recipient_id')
+        .eq('active', true)
+        .or(`recipient_id.is.null,recipient_id.eq.${authUser?.id || ''}`), 'created_at'),
       faixa(supabase.from('comunicados').select('id,title,body,cat,active,created_at').eq('active', true), 'created_at'),
       faixa(supabase.from('conexao_list_shares').select('id,from_name,to_name,room_name,list_title,status,created_at').eq('to_name', nome), 'created_at'),
       faixa(supabase.from('uniko_fit_reactions').select('id,player,emoji,created_at,uniko_fit_checkins(player)'), 'created_at'),
@@ -475,7 +478,9 @@ export const useCaixaEntrada = (authUser) => {
       ...ps.map(x => itemSolicitacao(x, abonos)),
       // abono que veio de uma solicitação já aparece como "aprovada" — não repete
       ...pj.filter(j => !diasDeSolicitacao.has(j.data)).map(itemAbono),
-      ...at.map(itemAtualizacao), ...nt.map(itemAviso), ...cm.map(itemComunicado),
+      ...at.map(itemAtualizacao),
+      ...nt.filter(r => r.type !== 'faturamento_regional' || String(r.recipient_id || '') === String(authUser?.id || '')).map(itemAviso),
+      ...cm.map(itemComunicado),
       ...cls.filter(x => x.status === 'pendente').map(itemListaCompartilhada),
       // BUG (set/2026): a consulta trazia reação/comentário de QUALQUER foto do
       // sistema (não dá pra filtrar no `.eq()` porque o dono vem só no join) —
@@ -490,7 +495,7 @@ export const useCaixaEntrada = (authUser) => {
     (it) => ((it.id.startsWith('ps:') && !idsAtuais.has(it.id)) || (it.id.startsWith('cls:') && !idsClsPendentes.has(it.id))
         || (it.id.startsWith('pc:') && !idsPc.has(it.id)) || (it.id.startsWith('fb:') && !idsFb.has(it.id)))
       && String(it.quando) >= de && (!ate || String(it.quando) < ate));
-  }, [nome, cpf, juntar, authUser?.role]);
+  }, [nome, cpf, juntar, authUser?.id, authUser?.role]);
 
   // Até onde já foi carregado pra trás (ISO). Começa nos 60 dias automáticos.
   const [desde, setDesde] = useState(() => new Date(Date.now() - CAIXA_DIAS * 864e5).toISOString());
@@ -503,7 +508,7 @@ export const useCaixaEntrada = (authUser) => {
   }, [desde, consultar]);
 
   useEffect(() => {
-    if (!nome) return;
+    if (!nome || !authUser?.id) return;
     const buscar = () => consultar(new Date(Date.now() - CAIXA_DIAS * 864e5).toISOString(), null, CAIXA_MAX);
     buscar();
     const poll = setInterval(buscar, CAIXA_POLL_MS);
@@ -529,7 +534,11 @@ export const useCaixaEntrada = (authUser) => {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'atualizacoes' },
         ({ new: r }) => { if (r) juntar([itemAtualizacao(r)]); })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' },
-        ({ new: r }) => { if (r) juntar([itemAviso(r)]); })
+        ({ new: r }) => {
+          if (!r || (r.recipient_id && String(r.recipient_id) !== String(authUser?.id || ''))) return;
+          if (r.type === 'faturamento_regional' && !r.recipient_id) return;
+          juntar([itemAviso(r)]);
+        })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'comunicados' },
         ({ new: r }) => { if (r) juntar([itemComunicado(r)]); })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'correios' },
@@ -553,7 +562,7 @@ export const useCaixaEntrada = (authUser) => {
       .subscribe();
 
     return () => { clearInterval(poll); try { supabase.removeChannel(ch); } catch { /* ignora */ } };
-  }, [nome, consultar, juntar]);
+  }, [nome, consultar, juntar, authUser?.id]);
 
   const salvar = (next) => {
     setLidos(next);
