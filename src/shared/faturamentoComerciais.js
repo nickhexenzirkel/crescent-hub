@@ -154,7 +154,7 @@ export async function salvarEstadoNotificacoesFaturamento(mailbox, iniciadoEm) {
 }
 
 export async function emitirNotificacaoFaturamento({
-  messageId, mailbox, recipientId, municipio, regional, faturista, faturadoEm,
+  messageId, threadId, mailbox, recipientId, municipio, regional, faturista, faturadoEm,
 }) {
   const horario = new Date(faturadoEm);
   if (!messageId || !mailbox || !recipientId || !municipio || Number.isNaN(horario.getTime())) return false;
@@ -169,7 +169,7 @@ export async function emitirNotificacaoFaturamento({
     message: `${municipio} foi faturado em ${horarioFormatado} por ${faturista || 'faturista não identificado'}${regional ? ` · Regional ${regional}` : ''}.`,
     active: true,
     recipient_id: recipientId,
-    source_id: `faturamento:${mailbox}:${messageId}`,
+    source_id: `faturamento:${mailbox}:${threadId || messageId}`,
   });
   if (error?.code === '23505') return false;
   if (error) throw error;

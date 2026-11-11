@@ -619,21 +619,28 @@ export default function CrescentHub() {
 
     // Fallback por polling: garante a entrega dos avisos do RH mesmo se o realtime
     // perder um evento (reconexão / aba suspensa em 2º plano). Dedup via seenNotifIds.
-    let baseline = true; // 1ª passada só marca o que já existe (não reexibe avisos antigos)
+    let baseline = true;
+    let ultimaConsulta = 0;
     const pollNotifs = async () => {
-      const since = new Date(Date.now() - 6 * 60 * 1000).toISOString();
-      const { data } = await _supabase
+      const inicioConsulta = Date.now();
+      const since = new Date(baseline ? inicioConsulta - 24 * 60 * 60 * 1000 : ultimaConsulta - 60 * 1000).toISOString();
+      let consulta = _supabase
         .from('notifications')
         .select('*')
         .eq('active', true)
-        .gte('created_at', since)
-        .order('created_at', { ascending: true });
+        .gte('created_at', since);
+      if (baseline) consulta = consulta.eq('recipient_id', authUser.id);
+      const { data, error } = await consulta.order('created_at', { ascending: true });
+      if (error) {
+        console.warn('[notificações] Não foi possível consultar os avisos pendentes:', error.message);
+        return;
+      }
       for (const n of (data || [])) {
         if (seenNotifIds.current.has(n.id)) continue;
-        if (baseline) { seenNotifIds.current.add(n.id); continue; }
         handleNotif(n);
       }
       baseline = false;
+      ultimaConsulta = inicioConsulta;
     };
     pollNotifs();
     const pollId = setInterval(pollNotifs, 25000);

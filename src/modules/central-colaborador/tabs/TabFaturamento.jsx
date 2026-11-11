@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { T } from '../../../contexts/theme';
 import { MUNICIPIOS } from '../../email';
 import { getFaturamento } from '../../email/api';
+import { agruparMensagensPorConversa, assuntoIndicaFaturamento, municipioExibidoNoAssunto, periodoFaturadoDoAssunto } from '../faturamentoEmailUtils';
 import {
   carregarCoresRegionais,
   carregarCadastroFaturamento,
@@ -21,6 +22,7 @@ const REGIONAIS = REGIONAIS_FATURAMENTO.map(regional => ({
   ...regional,
   nome: `Regional ${regional.nome}`,
 }));
+const INTERVALO_SINCRONIZACAO_MS = 15 * 60 * 1000;
 
 const normalizar = valor => String(valor || '')
   .normalize('NFD')
@@ -103,6 +105,15 @@ function nomeRegionalCadastro(nome) {
   return `Regional ${nomeRegionalFaturamento(nome)}`;
 }
 
+function dataFortaleza(valor) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Fortaleza',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date(valor));
+}
+
 function mesPorExtenso(valor) {
   if (!valor) return '';
   const [ano, mes] = valor.split('-').map(Number);
@@ -126,8 +137,12 @@ async function notificarFaturamentosNovos(resultado, iniciouEm, clientes, vincul
     }
 
     for (const mensagem of resultado.messages || []) {
+      if (!assuntoIndicaFaturamento(mensagem.subject)) continue;
       const faturadoEm = Date.parse(mensagem.date || '');
-      if (!Number.isFinite(faturadoEm) || faturadoEm <= Date.parse(estado.iniciadoEm)) continue;
+      if (!Number.isFinite(faturadoEm)) continue;
+      const depoisDoInicio = faturadoEm > Date.parse(estado.iniciadoEm);
+      const mesmoDiaDaAtivacao = dataFortaleza(faturadoEm) === dataFortaleza(estado.iniciadoEm);
+      if (!depoisDoInicio && !mesmoDiaDaAtivacao) continue;
       const municipio = municipioDaMensagem(mensagem, clientes);
       const cadastro = clientes.find(cliente => normalizarCadastroFaturamento(cliente.municipio) === normalizarCadastroFaturamento(municipio));
       if (!cadastro?.regional) continue;
@@ -136,6 +151,7 @@ async function notificarFaturamentosNovos(resultado, iniciouEm, clientes, vincul
       if (!recipientId) continue;
       await emitirNotificacaoFaturamento({
         messageId: mensagem.id,
+        threadId: mensagem.threadId,
         mailbox,
         recipientId,
         municipio,
@@ -178,13 +194,14 @@ export default function TabFaturamento({ onOpenEmail }) {
   const [carregandoMais, setCarregandoMais] = useState(false);
   const [atualizadoEm, setAtualizadoEm] = useState(null);
   const [cadastroClientes, setCadastroClientes] = useState([]);
-  const [vinculosRegionais, setVinculosRegionais] = useState({});
+  const [cadastroCarregado, setCadastroCarregado] = useState(false);
   const [coresRegionais, setCoresRegionais] = useState({});
   const [erroCadastro, setErroCadastro] = useState('');
   const [quotaAte, setQuotaAte] = useState(0);
   const [agora, setAgora] = useState(0);
   const requisicaoAtual = useRef(0);
   const quotaAteRef = useRef(0);
+  const cadastroNotificacaoRef = useRef({ clientes: [], vinculos: {} });
   const filtroConsulta = useMemo(() => modoPeriodo === 'mes'
     ? { month: periodo }
     : { startDate: dataInicio, endDate: dataFim }, [modoPeriodo, periodo, dataInicio, dataFim]);
@@ -206,11 +223,16 @@ export default function TabFaturamento({ onOpenEmail }) {
         if (vivo) {
           setCadastroClientes(clientes);
           setCoresRegionais(cores);
-          setVinculosRegionais(vinculos);
+          cadastroNotificacaoRef.current = { clientes, vinculos };
           setErroCadastro('');
         }
       } catch (error) {
-        if (vivo) setErroCadastro(error.message || 'Não foi possível carregar as associações comerciais.');
+        if (vivo) {
+          setErroCadastro(error.message || 'Não foi possível carregar as associações comerciais.');
+          cadastroNotificacaoRef.current = { clientes: [], vinculos: {} };
+        }
+      } finally {
+        if (vivo) setCadastroCarregado(true);
       }
     };
     carregarCadastro();
@@ -254,7 +276,8 @@ export default function TabFaturamento({ onOpenEmail }) {
           loadedMore: anterior.loadedMore,
         };
       });
-      const avisoNotificacao = await notificarFaturamentosNovos(resultado, iniciouEm, cadastroClientes, vinculosRegionais);
+      const { clientes, vinculos } = cadastroNotificacaoRef.current;
+      const avisoNotificacao = await notificarFaturamentosNovos(resultado, iniciouEm, clientes, vinculos);
       setAviso(resultado.warning || avisoNotificacao);
       setAtualizadoEm(resultado.cachedAt ? new Date(resultado.cachedAt) : new Date());
     } catch (error) {
@@ -273,7 +296,7 @@ export default function TabFaturamento({ onOpenEmail }) {
         setAtualizando(false);
       }
     }
-  }, [cadastroClientes, consultaKey, filtroConsulta, periodoValido, vinculosRegionais]);
+  }, [consultaKey, filtroConsulta, periodoValido]);
 
   const carregarMais = async () => {
     const token = dados?.nextPageToken;
@@ -283,7 +306,8 @@ export default function TabFaturamento({ onOpenEmail }) {
     try {
       const iniciouEm = new Date().toISOString();
       const resultado = await getFaturamento(filtroConsulta, token);
-      const avisoNotificacao = await notificarFaturamentosNovos(resultado, iniciouEm, cadastroClientes, vinculosRegionais);
+      const { clientes, vinculos } = cadastroNotificacaoRef.current;
+      const avisoNotificacao = await notificarFaturamentosNovos(resultado, iniciouEm, clientes, vinculos);
       setDados(anterior => {
         if (anterior?.filterKey !== consultaKey) return anterior;
         const ids = new Set(anterior.messages.map(mensagem => mensagem.id));
@@ -311,28 +335,37 @@ export default function TabFaturamento({ onOpenEmail }) {
   };
 
   useEffect(() => {
-    const primeiraConsulta = window.setTimeout(() => atualizar(), 0);
+    if (!cadastroCarregado) return undefined;
+    const primeiraConsulta = window.setTimeout(() => atualizar(false, true), 0);
+    const sincronizacaoAutomatica = window.setInterval(() => {
+      if (document.visibilityState === 'visible') atualizar(true, true);
+    }, INTERVALO_SINCRONIZACAO_MS);
     return () => {
       window.clearTimeout(primeiraConsulta);
+      window.clearInterval(sincronizacaoAutomatica);
       requisicaoAtual.current += 1;
     };
-  }, [atualizar]);
+  }, [atualizar, cadastroCarregado]);
 
   const dadosDoPeriodo = dados?.filterKey === consultaKey ? dados : null;
-  const mensagens = useMemo(() => (dadosDoPeriodo?.messages || [])
-    .map(mensagem => {
-      const municipio = municipioDaMensagem(mensagem, cadastroClientes);
-      const cadastro = cadastroClientes.find(cliente => normalizarCadastroFaturamento(cliente.municipio) === normalizarCadastroFaturamento(municipio));
-      const regionalConfigurada = cadastro?.regional ? [nomeRegionalCadastro(cadastro.regional)] : [];
-      return {
-        ...mensagem,
-        municipio,
-        responsavelFaturamento: cadastro?.responsavelFaturamento || '',
-        regionais: regionalConfigurada.length ? regionalConfigurada.map(nome => ({ nome, aliases: [] })) : regionaisDaMensagem(mensagem),
-      };
-    })
-    .filter(mensagem => mensagem.municipio)
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()), [dadosDoPeriodo, cadastroClientes]);
+  const mensagens = useMemo(() => {
+    const mapeadas = (dadosDoPeriodo?.messages || [])
+      .map(mensagem => {
+        const municipio = municipioDaMensagem(mensagem, cadastroClientes);
+        const cadastro = cadastroClientes.find(cliente => normalizarCadastroFaturamento(cliente.municipio) === normalizarCadastroFaturamento(municipio));
+        const regionalConfigurada = cadastro?.regional ? [nomeRegionalCadastro(cadastro.regional)] : [];
+        return {
+          ...mensagem,
+          municipio: municipioExibidoNoAssunto(mensagem.subject, municipio),
+          periodoFaturado: periodoFaturadoDoAssunto(mensagem.subject),
+          responsavelFaturamento: cadastro?.responsavelFaturamento || '',
+          regionais: regionalConfigurada.length ? regionalConfigurada.map(nome => ({ nome, aliases: [] })) : regionaisDaMensagem(mensagem),
+        };
+      })
+      .filter(mensagem => mensagem.municipio && assuntoIndicaFaturamento(mensagem.subject));
+    return agruparMensagensPorConversa(mapeadas)
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [dadosDoPeriodo, cadastroClientes]);
   const regionaisExibidas = useMemo(() => {
     const mapa = new Map(REGIONAIS.map(regional => [normalizarCadastroFaturamento(regional.nome), regional]));
     cadastroClientes.forEach(cliente => {
@@ -525,7 +558,7 @@ export default function TabFaturamento({ onOpenEmail }) {
       </section>
 
       <div style={{ marginBottom: 14, color: T.textT, fontSize: 11.5, lineHeight: 1.5 }}>
-        Consulta apenas a caixa Gmail conectada por este administrador. Para poupar a cota, não há consultas automáticas periódicas; o período é consultado ao abrir ou alterar os filtros e pode ser atualizado manualmente. Os resultados ficam em cache por até 24 horas no servidor.
+        Consulta apenas a caixa Gmail conectada por este administrador. Ao abrir o painel, ele sincroniza automaticamente e repete a consulta a cada 15 minutos enquanto esta tela estiver visível. O botão permite sincronizar imediatamente. A atualização automática consome cota do Gmail; os resultados ficam em cache no servidor entre as consultas.
         {dadosDoPeriodo?.mailbox && <> Conta: {dadosDoPeriodo.mailbox}.</>}
         {atualizadoEm && <> Última sincronização: {atualizadoEm.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}.</>}
         {regionalSelecionada && <> A associação cadastrada no Dashboard RH prevalece; quando não existe, a regional ainda é identificada pelo texto do e-mail.</>}
@@ -557,10 +590,10 @@ export default function TabFaturamento({ onOpenEmail }) {
           ) : (
             <>
               <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 850, fontSize: 12 }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1020, fontSize: 12 }}>
                   <thead>
                     <tr style={{ color: T.textS, background: T.page || T.surface }}>
-                        {['Município', 'Regional', 'Faturista', 'Data do envio', 'Enviado por', 'Ações'].map(titulo => (
+                        {['Município', 'Período Faturado', 'Regional', 'Faturista', 'Data do envio', 'Enviado por', 'Ações'].map(titulo => (
                         <th key={titulo} scope="col" style={{ padding: '10px 12px', textAlign: 'left', fontSize: 10.5, fontWeight: 700, whiteSpace: 'nowrap' }}>{titulo}</th>
                       ))}
                     </tr>
@@ -570,6 +603,14 @@ export default function TabFaturamento({ onOpenEmail }) {
                       <tr key={mensagem.id} style={{ borderTop: `1px solid ${T.border}` }}>
                         <td style={{ padding: '10px 12px', fontWeight: 700, whiteSpace: 'nowrap' }}>
                           <span aria-hidden="true" style={{ display: 'inline-grid', placeItems: 'center', width: 15, height: 15, marginRight: 8, borderRadius: '50%', color: '#fff', background: T.success || '#17805D', fontSize: 10, lineHeight: 1 }}>✓</span>{mensagem.municipio}
+                        </td>
+                        <td style={{ padding: '10px 12px', minWidth: 170 }}>
+                          <span>{mensagem.periodoFaturado || '—'}</span>
+                          {mensagem.quantidadeNaConversa > 1 && (
+                            <span title={`${mensagem.quantidadeNaConversa} e-mails agrupados nesta conversa`} style={{ display: 'block', marginTop: 3, color: T.textT, fontSize: 10 }}>
+                              {mensagem.quantidadeNaConversa} e-mails agrupados
+                            </span>
+                          )}
                         </td>
                         <td style={{ padding: '10px 12px' }}>
                           <span style={{ display: 'inline-block', padding: '5px 11px', borderRadius: 999, color: corTextoFundo(corRegional(mensagem)), background: corRegional(mensagem), fontSize: 10.5, fontWeight: 700, whiteSpace: 'nowrap' }}>{nomeRegional(mensagem)}</span>
@@ -700,14 +741,22 @@ export default function TabFaturamento({ onOpenEmail }) {
             ) : (
               <>
                 <div style={{ overflow: 'auto' }}>
-                  <table style={{ width: '100%', minWidth: 850, borderCollapse: 'collapse', fontSize: 12 }}>
+                  <table style={{ width: '100%', minWidth: 1020, borderCollapse: 'collapse', fontSize: 12 }}>
                     <thead style={{ position: 'sticky', top: 0, background: T.page || T.surface }}>
-                      <tr>{['Município', 'Regional', 'Faturista', 'Data do envio', 'Enviado por', 'Ações'].map(titulo => <th key={titulo} scope="col" style={{ padding: '11px 14px', color: T.textS, textAlign: 'left', fontSize: 10.5 }}>{titulo}</th>)}</tr>
+                      <tr>{['Município', 'Período Faturado', 'Regional', 'Faturista', 'Data do envio', 'Enviado por', 'Ações'].map(titulo => <th key={titulo} scope="col" style={{ padding: '11px 14px', color: T.textS, textAlign: 'left', fontSize: 10.5, whiteSpace: 'nowrap' }}>{titulo}</th>)}</tr>
                     </thead>
                     <tbody>
                       {registrosHistoricoPagina.map(mensagem => (
                         <tr key={mensagem.id} style={{ borderTop: `1px solid ${T.border}` }}>
                           <td style={{ padding: '10px 14px', fontWeight: 700 }}>{mensagem.municipio}</td>
+                          <td style={{ padding: '10px 14px', minWidth: 170 }}>
+                            <span>{mensagem.periodoFaturado || '—'}</span>
+                            {mensagem.quantidadeNaConversa > 1 && (
+                              <span title={`${mensagem.quantidadeNaConversa} e-mails agrupados nesta conversa`} style={{ display: 'block', marginTop: 3, color: T.textT, fontSize: 10 }}>
+                                {mensagem.quantidadeNaConversa} e-mails agrupados
+                              </span>
+                            )}
+                          </td>
                           <td style={{ padding: '10px 14px' }}><span style={{ display: 'inline-block', padding: '5px 10px', borderRadius: 999, color: corTextoFundo(corRegional(mensagem)), background: corRegional(mensagem), fontSize: 10, fontWeight: 700 }}>{nomeRegional(mensagem)}</span></td>
                           <td style={{ padding: '10px 14px', color: mensagem.responsavelFaturamento ? T.text : T.textT }}>{mensagem.responsavelFaturamento || '—'}</td>
                           <td style={{ padding: '10px 14px', color: T.textS, whiteSpace: 'nowrap' }}>{formatarData(mensagem.date)}</td>
