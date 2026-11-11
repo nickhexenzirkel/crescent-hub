@@ -32,6 +32,10 @@ export function disconnect() {
   return request('/disconnect', { method: 'DELETE' });
 }
 
+export function shareConnectedAccount() {
+  return request('/shared-account', { method: 'POST' });
+}
+
 export function listMessages(query, pageToken, includeAttachments = false) {
   const params = new URLSearchParams();
   if (query.trim()) params.set('q', query.trim());

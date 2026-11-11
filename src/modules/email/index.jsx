@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { T } from '../../contexts/theme';
-import { disconnect, downloadAttachment, getAttachment, getMessage, getStatus, listMessages, startOAuth } from './api';
+import { disconnect, downloadAttachment, getAttachment, getMessage, getStatus, listMessages, shareConnectedAccount, startOAuth } from './api';
 import { detectarValorPesquisa, valorEmCentavos } from './valorPesquisa';
 
 const buttonStyle = {
@@ -226,6 +226,7 @@ export default function Email({ onBack, authUser, initialMessageId, onInitialMes
   const [loading, setLoading] = useState(true);
   const [loadingMessage, setLoadingMessage] = useState(false);
   const [connecting, setConnecting] = useState(false);
+  const [sharingAccount, setSharingAccount] = useState(false);
   const [error, setError] = useState('');
   const [downloading, setDownloading] = useState('');
   const [preview, setPreview] = useState(null);
@@ -449,6 +450,25 @@ export default function Email({ onBack, authUser, initialMessageId, onInitialMes
     }
   };
 
+  const handleShareAccount = async () => {
+    if (!window.confirm(`Definir ${status?.email} como caixa padrão para todos os colaboradores autenticados? Todos poderão consultar mensagens e anexos em modo somente leitura.`)) return;
+    setSharingAccount(true);
+    setError('');
+    try {
+      await shareConnectedAccount();
+      await refreshStatus();
+      setQuery('');
+      setQueryInput('');
+      setSelectedId('');
+      setMessage(null);
+      await loadMessages('');
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSharingAccount(false);
+    }
+  };
+
   if (!authUser || authUser.role === 'visitante') {
     return <div style={{ padding: 32, color: T.text }}>Este módulo está disponível apenas para colaboradores conectados.</div>;
   }
@@ -462,8 +482,13 @@ export default function Email({ onBack, authUser, initialMessageId, onInitialMes
         </div>
         {status?.connected && (
           <div style={{ ...muted, marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            <span>{status.email}</span>
-            <button onClick={handleDisconnect} style={buttonStyle}>Desconectar</button>
+            <span>{status.email}{status.shared ? ' · Caixa compartilhada' : ''}</span>
+            {status.canShareAccount && (
+              <button onClick={handleShareAccount} disabled={sharingAccount} style={buttonStyle}>
+                {sharingAccount ? 'Compartilhando…' : 'Definir como caixa padrão'}
+              </button>
+            )}
+            {!status.shared && <button onClick={handleDisconnect} style={buttonStyle}>Desconectar</button>}
           </div>
         )}
       </header>
@@ -477,13 +502,17 @@ export default function Email({ onBack, authUser, initialMessageId, onInitialMes
             <div style={{ color: T.gold, fontSize: 42, marginBottom: 8 }}>✉</div>
             <h1 style={{ fontFamily: 'var(--font-brand)', fontSize: 24, margin: '0 0 10px' }}>Sua caixa de entrada no Uniko</h1>
             <p style={{ ...muted, lineHeight: 1.7, margin: '0 0 20px' }}>
-              Conecte sua conta Gmail para pesquisar e consultar mensagens e anexos. O conteúdo continua no Gmail e não é copiado para o Uniko.
+              A caixa institucional permite pesquisar mensagens e anexos no Uniko. O conteúdo continua no Gmail e não é copiado para o Uniko.
             </p>
-            <button onClick={connect} disabled={connecting || status.configured === false} style={{ ...buttonStyle, border: 'none', background: T.gold, color: '#fff', padding: '11px 20px', opacity: connecting || status.configured === false ? .65 : 1 }}>
-              {connecting ? 'Conectando…' : 'Conectar conta Google'}
-            </button>
+            {authUser.role === 'admin' && (
+              <button onClick={connect} disabled={connecting || status.configured === false} style={{ ...buttonStyle, border: 'none', background: T.gold, color: '#fff', padding: '11px 20px', opacity: connecting || status.configured === false ? .65 : 1 }}>
+                {connecting ? 'Conectando…' : 'Conectar conta institucional'}
+              </button>
+            )}
             {status.configured === false && <p style={{ ...muted, margin: '14px 0 0' }}>A integração ainda precisa ser configurada no servidor.</p>}
-            <p style={{ ...muted, fontSize: 12, margin: '16px 0 0' }}>A autorização solicita somente leitura do Gmail. Cada colaborador conecta sua própria conta.</p>
+            {authUser.role === 'admin'
+              ? <p style={{ ...muted, fontSize: 12, margin: '16px 0 0' }}>Conecte faturamento@7beneficios.com e use “Definir como caixa padrão” para disponibilizá-la aos colaboradores. A autorização solicita somente leitura.</p>
+              : <p style={{ ...muted, fontSize: 12, margin: '16px 0 0' }}>A caixa institucional ainda não foi disponibilizada. Peça a um administrador para configurá-la.</p>}
           </section>
         )}
 
