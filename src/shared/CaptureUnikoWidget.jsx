@@ -12,6 +12,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { getAuthUser } from '../contexts/user';
 import { notifyDesktop } from '../utils/desktopNotify';
+import { emitScreenNotification, getNotificationChannels } from './notificationPreferences';
 import VampireScene from './vampireScene';
 import OceanScene from './oceanScene';
 import CosmosScene from './cosmosScene';
@@ -254,12 +255,16 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
     const spawnKey = `${cfg.unikoId}-${cfg.startAt || ''}`;
     if (notifiedSpawnRef.current === spawnKey) return;
     notifiedSpawnRef.current = spawnKey;
-    notifyDesktop({
+    const notification = {
       id: `capture-uniko-${spawnKey}`,
       type: 'lembrete',
       title: '.✧. Um Uniko selvagem apareceu! .✧.',
       message: `${uniko.name} está no Portal do Colaborador, na aba Início — corre lá antes que as vagas acabem! 🐱`,
-    });
+    };
+    const channels = getNotificationChannels(getAuthUser(), 'capture_uniko');
+    if (channels.screen) emitScreenNotification('capture_uniko', notification);
+    if (channels.desktop) notifyDesktop(notification);
+    if (channels.sound) playCaptureAlert();
   }, [available, cfg, uniko]);
 
   /* ── Alguém (um dos até 15) capturou? → acumula na lista; quando fecha as vagas,
@@ -341,7 +346,6 @@ const CaptureUnikoWidget = ({ cfg, inPortal = false }) => {
        assistente anunciava/mostrava o Uniko errado (mesma família do bug do resolveAttempt). ── */
   useEffect(() => {
     if (available && phase !== 'caught') {
-      playCaptureAlert();
       emitCaptureState({ available: true, uniko });
     }
     return () => { emitCaptureState({ available: false, uniko: null }); };

@@ -1636,7 +1636,7 @@ const MenuLayoutNovo = ({ mods, onSelect, getModuleColor, authUser, userPhoto, a
 
         {/* Direita — widgets, numa grade de duas colunas. `dense` deixa um
             widget pequeno subir pro buraco que um grande deixou, como no iPhone. */}
-        <div style={{ flex:'0 0 clamp(320px, 29vw, 400px)', minWidth:0, padding:'4px 4px 14px' }}>
+        <div style={{ flex:'0 0 clamp(360px, 32vw, 440px)', minWidth:0, padding:'4px 4px 14px' }}>
           <DataHoje/>
           <div ref={gradeWidRef} style={{ display:'grid', gridTemplateColumns:'repeat(2, minmax(0, 1fr))', gridAutoRows: LINHA + folga.wid,
             gap:VAO_W, gridAutoFlow:'row dense' }}>

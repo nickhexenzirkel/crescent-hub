@@ -10,6 +10,7 @@ import { LavaLamp } from './shared/components';
 import { LandingPage } from './shared/LandingPage';
 import { LoginScreen } from './shared/LoginScreen';
 import { ModuleSelector } from './shared/ModuleSelector';
+import NotificationSettingsModal from './shared/NotificationSettingsModal';
 import { Portal } from './modules/central-colaborador';
 import PontoEletronico from './modules/ponto-eletronico';
 import DashboardRH from './modules/dashboard-rh';
@@ -27,6 +28,11 @@ import PrestacaoContas from './modules/prestacao-contas';
 import AmigoSecreto from './modules/amigo-secreto';
 import Email from './modules/email';
 import { notifyDesktop, ensureNotifyPermission } from './utils/desktopNotify';
+import {
+  getNotificationChannels,
+  NOTIFICATION_SCREEN_EVENT,
+  NOTIFICATION_SETTINGS_OPEN_EVENT,
+} from './shared/notificationPreferences';
 import { useIsMobile } from './hooks/useIsMobile';
 import UnikoAssistant from './shared/UnikoAssistant';
 import TarefasFixas from './shared/TarefasFixas';
@@ -71,6 +77,8 @@ export default function CrescentHub() {
   useEffect(() => { setContadorTitulo('caixa', authUser ? caixaTitulo.naoLidos : 0); }, [authUser, caixaTitulo.naoLidos]);
   const [captureCfg, setCaptureCfg] = useState(null); // "Capture o Uniko" — global
   const [captureNumeroCfg, setCaptureNumeroCfg] = useState(null); // "Capture o Número" — sistema paralelo, global
+  const [notificationSettingsOpen, setNotificationSettingsOpen] = useState(false);
+  const [screenToast, setScreenToast] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [userPhoto, setUserPhoto] = useState(null);
   // Cargos (Dashboard RH → Gerenciar Permissões): camada ADICIONAL de acesso
@@ -503,6 +511,21 @@ export default function CrescentHub() {
   const [chatToast, setChatToast] = useState(null);     // mensagem nova do Bate-Papo do Uniko FIT (popup)
   const screenRef = useRef(screen);
   useEffect(() => { screenRef.current = screen; }, [screen]);
+  useEffect(() => {
+    const openSettings = () => setNotificationSettingsOpen(true);
+    window.addEventListener(NOTIFICATION_SETTINGS_OPEN_EVENT, openSettings);
+    return () => window.removeEventListener(NOTIFICATION_SETTINGS_OPEN_EVENT, openSettings);
+  }, []);
+  useEffect(() => {
+    const showToast = (event) => setScreenToast(event.detail || null);
+    window.addEventListener(NOTIFICATION_SCREEN_EVENT, showToast);
+    return () => window.removeEventListener(NOTIFICATION_SCREEN_EVENT, showToast);
+  }, []);
+  useEffect(() => {
+    if (!screenToast) return;
+    const timer = setTimeout(() => setScreenToast(null), 7000);
+    return () => clearTimeout(timer);
+  }, [screenToast]);
 
   const withCtx = (fn) => {
     try {
@@ -576,11 +599,17 @@ export default function CrescentHub() {
 
     // Processa um aviso recebido (in-site + som + notificação no desktop).
     const handleNotif = (n) => {
+      if (n?.recipient_id && String(n.recipient_id) !== String(authUser.id)) return;
       if (!n?.active || seenNotifIds.current.has(n.id)) return;
+      const preferenciasFaturamento = n.type === 'faturamento_regional'
+        ? getNotificationChannels(authUser, 'faturamento_regional')
+        : { screen: true, desktop: true, sound: true };
       seenNotifIds.current.add(n.id);
-      setNotifQueue(q => [...q, n]);
-      if (n.type === 'aviso_urgente') playAlarm(); else playReminder();
-      notifyDesktop(n); // pop-up no desktop (avisos do RH: urgente e lembrete geral)
+      if (preferenciasFaturamento.screen) setNotifQueue(q => [...q, n]);
+      if (preferenciasFaturamento.sound) {
+        if (n.type === 'aviso_urgente') playAlarm(); else playReminder();
+      }
+      if (preferenciasFaturamento.desktop) notifyDesktop(n);
     };
 
     const channel = _supabase
@@ -618,10 +647,13 @@ export default function CrescentHub() {
     const mostrar = (a) => {
       if (!a?.id || a.active === false || seenAtualIds.current.has(a.id)) return;
       seenAtualIds.current.add(a.id);
-      setAtualAtiva(a);
-      playReminder();
-      notifyDesktop({ id: 'atual-' + a.id, type: 'lembrete', title: '📢 ' + (a.titulo || 'Atualização'),
-        message: a.descricao || 'Nova atualização disponível!', active: true });
+      const channels = getNotificationChannels(authUser, 'atualizacoes');
+      if (channels.screen) setAtualAtiva(a);
+      if (channels.sound) playReminder();
+      if (channels.desktop) {
+        notifyDesktop({ id: 'atual-' + a.id, type: 'lembrete', title: '📢 ' + (a.titulo || 'Atualização'),
+          message: a.descricao || 'Nova atualização disponível!', active: true });
+      }
     };
     const channel = _supabase
       .channel('uniko-atualizacoes')
@@ -795,7 +827,7 @@ export default function CrescentHub() {
         <div style={{position:'relative',zIndex:1,minHeight:'100vh'}}>
           {screen==='landing'     && <LandingPage    onStart={()=>navPush('login')} onGuest={handleGuestLogin}/>}
           {screen==='login'       && <LoginScreen    onLogin={handleLogin} onGuest={handleGuestLogin}/>}
-          {screen==='modules'     && <ModuleSelector onSelect={handleModuleSelect} authUser={authUser} onLogout={handleLogout} userPhoto={userPhoto} cargoModules={cargoModules} cargoRestricted={cargoRestricted} cargoTabRestrictions={cargoTabRestrictions}/>}
+          {screen==='modules'     && <ModuleSelector onSelect={handleModuleSelect} authUser={authUser} onLogout={handleLogout} onOpenNotificationSettings={() => setNotificationSettingsOpen(true)} userPhoto={userPhoto} cargoModules={cargoModules} cargoRestricted={cargoRestricted} cargoTabRestrictions={cargoTabRestrictions}/>}
           {screen==='colaborador' && <Portal         onBack={handleGoBack} onGoAlexa={()=>navPush('alexa')} onOpenEmail={messageId=>{setEmailInitialMessageId(messageId || null);navPush('email');}} userPhoto={userPhoto} onPhotoChange={p=>setUserPhoto(p)} initialTab={portalInitialTab} visitante={isVisitante(authUser)} restrictedTabs={isVisitante(authUser) ? abasVisitante(visitanteCfg,'colaborador') : (isPlainColaborador ? cargoTabRestrictions['colaborador'] : undefined)} restrictedLembretesTabs={isVisitante(authUser) ? abasVisitante(visitanteCfg,'lembretes') : undefined}/>}
           {screen==='ponto'       && (authUser?.role==='admin'||authUser?.role==='moderador'||cargoModules.has('ponto')) && <PontoEletronico onBack={handleGoBack} isAdmin={true}/>}
           {screen==='dashboard'   && (authUser?.role==='admin'||authUser?.role==='moderador'||cargoModules.has('dashboard')) && <DashboardRH onBack={handleGoBack} adminName={authUser.name} role={authUser.role} initialTab={portalInitialTab}/>}
@@ -832,6 +864,22 @@ export default function CrescentHub() {
 
         {/* ── Atualizações — moldura em tela cheia mostrada a todos ── */}
         {authUser && <AtualizacaoOverlay atual={atualAtiva} onClose={() => setAtualAtiva(null)} />}
+
+        {authUser && screenToast && (
+          <div role="status" aria-live="polite"
+            style={{position:'fixed',top:110,right:20,zIndex:9997,width:330,maxWidth:'calc(100vw - 32px)',padding:'14px 16px',
+              borderRadius:15,background:T.surface,color:T.text,border:`1px solid ${T.border}`,boxShadow:'0 16px 50px rgba(0,0,0,.3)',
+              fontFamily:'var(--font-body)'}}>
+            <div style={{display:'flex',alignItems:'flex-start',gap:10}}>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:13,fontWeight:800,marginBottom:4}}>{screenToast.notification?.title}</div>
+                <div style={{fontSize:12,lineHeight:1.45,color:T.textS}}>{screenToast.notification?.message}</div>
+              </div>
+              <button type="button" onClick={() => setScreenToast(null)} aria-label="Fechar notificação"
+                style={{border:'none',background:'transparent',color:T.textS,cursor:'pointer',fontSize:17,lineHeight:1,padding:2}}>×</button>
+            </div>
+          </div>
+        )}
 
         {/* ── Convite de jogo — card no canto inferior direito ── */}
         {authUser && gameInvite && (
@@ -890,6 +938,10 @@ export default function CrescentHub() {
         {/* ── Capture o Uniko — widget GLOBAL (aparece em qualquer tela, com som) ── */}
         {authUser && captureCfg && <CaptureUnikoWidget cfg={captureCfg} inPortal={screen==='colaborador'} />}
         {authUser && captureNumeroCfg && <CaptureNumeroWidget cfg={captureNumeroCfg} inPortal={screen==='colaborador'} />}
+
+        {authUser && notificationSettingsOpen && (
+          <NotificationSettingsModal authUser={authUser} onClose={() => setNotificationSettingsOpen(false)} />
+        )}
 
         {/* ── Diagnóstico de performance — invisível até alguém teclar Ctrl+Alt+P
             (ou abrir com ?perf=1). Mede FPS/travadas e desliga os suspeitos um

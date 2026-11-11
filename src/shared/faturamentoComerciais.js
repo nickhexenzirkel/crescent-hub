@@ -2,6 +2,8 @@ import { supabase } from '../contexts/user';
 
 export const FATURAMENTO_COMERCIAIS_KEY = 'faturamento_comerciais';
 export const FATURAMENTO_CORES_REGIONAIS_KEY = 'faturamento_cores_regionais';
+export const FATURAMENTO_VINCULOS_REGIONAIS_KEY = 'faturamento_vinculos_regionais';
+export const FATURAMENTO_NOTIFICACOES_ESTADO_KEY = 'faturamento_notificacoes_estado';
 const EVENTO = 'uniko-faturamento-comerciais';
 
 export const REGIONAIS_FATURAMENTO = [
@@ -77,6 +79,25 @@ function lerCoresRegionais(valor) {
     .map(([nome, cor]) => [chaveRegionalFaturamento(nome), cor]));
 }
 
+function lerVinculosRegionais(valor) {
+  let parsed = valor;
+  try {
+    if (typeof valor === 'string') parsed = JSON.parse(valor);
+  } catch {
+    throw new Error('Os vínculos das regionais estão corrompidos. Corrija os dados antes de salvar.');
+  }
+  if (parsed == null) return {};
+  const vinculos = parsed.vinculos && typeof parsed.vinculos === 'object' && !Array.isArray(parsed.vinculos)
+    ? parsed.vinculos
+    : parsed;
+  if (typeof vinculos !== 'object' || Array.isArray(vinculos)) {
+    throw new Error('Os vínculos das regionais estão corrompidos. Corrija os dados antes de salvar.');
+  }
+  return Object.fromEntries(Object.entries(vinculos)
+    .filter(([regional, userId]) => regional && typeof userId === 'string' && userId.trim())
+    .map(([regional, userId]) => [chaveRegionalFaturamento(regional), userId.trim()]));
+}
+
 export async function carregarCadastroFaturamento() {
   const { data, error } = await supabase
     .from('settings')
@@ -85,6 +106,74 @@ export async function carregarCadastroFaturamento() {
     .maybeSingle();
   if (error) throw error;
   return lerCadastro(data?.value);
+}
+
+export async function carregarVinculosRegionaisFaturamento() {
+  const { data, error } = await supabase
+    .from('settings')
+    .select('value')
+    .eq('key', FATURAMENTO_VINCULOS_REGIONAIS_KEY)
+    .maybeSingle();
+  if (error) throw error;
+  return lerVinculosRegionais(data?.value);
+}
+
+export async function salvarVinculosRegionaisFaturamento(vinculos) {
+  const limpos = lerVinculosRegionais({ vinculos });
+  const { error } = await supabase.from('settings').upsert({
+    key: FATURAMENTO_VINCULOS_REGIONAIS_KEY,
+    value: JSON.stringify({ vinculos: limpos, updatedAt: new Date().toISOString() }),
+  }, { onConflict: 'key' });
+  if (error) throw error;
+  return limpos;
+}
+
+export async function carregarEstadoNotificacoesFaturamento(mailbox) {
+  const { data, error } = await supabase
+    .from('settings')
+    .select('value')
+    .eq('key', FATURAMENTO_NOTIFICACOES_ESTADO_KEY)
+    .maybeSingle();
+  if (error) throw error;
+  let estado = data?.value;
+  try {
+    if (typeof estado === 'string') estado = JSON.parse(estado);
+  } catch {
+    throw new Error('O estado das notificações de faturamento está corrompido.');
+  }
+  if (!estado || estado.mailbox !== mailbox || !Number.isFinite(Date.parse(estado.iniciadoEm || ''))) return null;
+  return estado;
+}
+
+export async function salvarEstadoNotificacoesFaturamento(mailbox, iniciadoEm) {
+  const { error } = await supabase.from('settings').upsert({
+    key: FATURAMENTO_NOTIFICACOES_ESTADO_KEY,
+    value: JSON.stringify({ mailbox, iniciadoEm }),
+  }, { onConflict: 'key' });
+  if (error) throw error;
+}
+
+export async function emitirNotificacaoFaturamento({
+  messageId, mailbox, recipientId, municipio, regional, faturista, faturadoEm,
+}) {
+  const horario = new Date(faturadoEm);
+  if (!messageId || !mailbox || !recipientId || !municipio || Number.isNaN(horario.getTime())) return false;
+  const horarioFormatado = horario.toLocaleString('pt-BR', {
+    timeZone: 'America/Fortaleza',
+    dateStyle: 'short',
+    timeStyle: 'short',
+  });
+  const { error } = await supabase.from('notifications').insert({
+    type: 'faturamento_regional',
+    title: `Faturamento realizado: ${municipio}`,
+    message: `${municipio} foi faturado em ${horarioFormatado} por ${faturista || 'faturista não identificado'}${regional ? ` · Regional ${regional}` : ''}.`,
+    active: true,
+    recipient_id: recipientId,
+    source_id: `faturamento:${mailbox}:${messageId}`,
+  });
+  if (error?.code === '23505') return false;
+  if (error) throw error;
+  return true;
 }
 
 export async function carregarCoresRegionais() {

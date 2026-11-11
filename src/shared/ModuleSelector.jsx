@@ -243,7 +243,7 @@ const SHOOT_POS = [
   {x:'74%', y:'78%', delay:'-3.1s'},
 ];
 
-const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto, cargoModules, cargoRestricted, cargoTabRestrictions}) => {
+const ModuleSelector = ({onSelect, authUser, onLogout, onOpenNotificationSettings, userPhoto, cargoModules, cargoRestricted, cargoTabRestrictions}) => {
   useVisibilidade();
   // Cargos (Dashboard RH → Gerenciar Permissões) liberam módulo por módulo
   // pra quem não é admin/moderador — camada ADICIONAL, só soma acesso, nunca
@@ -707,6 +707,8 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto, cargoModules, 
               boxShadow:T.shL, overflow:'hidden', minWidth:210,
               maxHeight:'calc(100vh - 140px)', overflowY:'auto'}}>
               {[
+                { rot:'Notificações', dica:'Gerenciar avisos', onClick:onOpenNotificationSettings,
+                  icone:<><path d="M18 8a6 6 0 00-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></> },
                 { rot:'Tema',              dica:'Cor do sistema',        onClick:()=>{ setPainelConfig('theme'); setShowSettings(true); },
                   icone:<><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.2M12 19.8V22M4.2 4.2l1.6 1.6M18.2 18.2l1.6 1.6M2 12h2.2M19.8 12H22M4.2 19.8l1.6-1.6M18.2 5.8l1.6-1.6"/></> },
                 { rot:'Conta',             dica:'Senha e dados',          onClick:()=>{ setPainelConfig('account'); setShowSettings(true); },
@@ -851,6 +853,9 @@ const ModuleSelector = ({onSelect, authUser, onLogout, userPhoto, cargoModules, 
     { id:'perfil', rot:'Perfil', dica:'Editar seus dados',
       onClick:()=>onSelect('colaborador','dados'), destaque:true,
       icone:<><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></> },
+    { id:'notificacoes', rot:'Notif.', dica:'Gerenciar notificações',
+      onClick:onOpenNotificationSettings,
+      icone:<><path d="M18 8a6 6 0 00-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></> },
     { id:'conta', rot:'Conta', dica:'Senha e dados da conta',
       onClick:()=>{ setPainelConfig('account'); setShowSettings(true); },
       icone:<><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></> },

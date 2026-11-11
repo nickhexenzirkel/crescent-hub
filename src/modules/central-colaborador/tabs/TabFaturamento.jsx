@@ -5,12 +5,16 @@ import { getFaturamento } from '../../email/api';
 import {
   carregarCoresRegionais,
   carregarCadastroFaturamento,
+  carregarEstadoNotificacoesFaturamento,
   corPadraoRegional,
   chaveRegionalFaturamento,
+  emitirNotificacaoFaturamento,
   normalizarCadastroFaturamento,
   nomeRegionalFaturamento,
   ouvirCadastroFaturamento,
   REGIONAIS_FATURAMENTO,
+  salvarEstadoNotificacoesFaturamento,
+  carregarVinculosRegionaisFaturamento,
 } from '../../../shared/faturamentoComerciais';
 
 const REGIONAIS = REGIONAIS_FATURAMENTO.map(regional => ({
@@ -111,6 +115,41 @@ function corTextoFundo(hex) {
   return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2] > 0.42 ? '#17212B' : '#FFFFFF';
 }
 
+async function notificarFaturamentosNovos(resultado, iniciouEm, clientes, vinculos) {
+  const mailbox = String(resultado.mailbox || '').trim().toLowerCase();
+  if (!mailbox || resultado.cached) return '';
+  try {
+    const estado = await carregarEstadoNotificacoesFaturamento(mailbox);
+    if (!estado) {
+      await salvarEstadoNotificacoesFaturamento(mailbox, iniciouEm);
+      return '';
+    }
+
+    for (const mensagem of resultado.messages || []) {
+      const faturadoEm = Date.parse(mensagem.date || '');
+      if (!Number.isFinite(faturadoEm) || faturadoEm <= Date.parse(estado.iniciadoEm)) continue;
+      const municipio = municipioDaMensagem(mensagem, clientes);
+      const cadastro = clientes.find(cliente => normalizarCadastroFaturamento(cliente.municipio) === normalizarCadastroFaturamento(municipio));
+      if (!cadastro?.regional) continue;
+      const regional = nomeRegionalFaturamento(cadastro.regional);
+      const recipientId = vinculos[chaveRegionalFaturamento(regional)];
+      if (!recipientId) continue;
+      await emitirNotificacaoFaturamento({
+        messageId: mensagem.id,
+        mailbox,
+        recipientId,
+        municipio,
+        regional,
+        faturista: cadastro.responsavelFaturamento || mensagem.senderName || nomeRemetente(mensagem.from),
+        faturadoEm,
+      });
+    }
+    return '';
+  } catch (error) {
+    return `Os dados foram carregados, mas não foi possível emitir a notificação de faturamento: ${error.message || 'erro desconhecido'}`;
+  }
+}
+
 const estiloBotao = {
   border: `1px solid ${T.border}`,
   borderRadius: 9,
@@ -139,6 +178,7 @@ export default function TabFaturamento({ onOpenEmail }) {
   const [carregandoMais, setCarregandoMais] = useState(false);
   const [atualizadoEm, setAtualizadoEm] = useState(null);
   const [cadastroClientes, setCadastroClientes] = useState([]);
+  const [vinculosRegionais, setVinculosRegionais] = useState({});
   const [coresRegionais, setCoresRegionais] = useState({});
   const [erroCadastro, setErroCadastro] = useState('');
   const [quotaAte, setQuotaAte] = useState(0);
@@ -158,10 +198,15 @@ export default function TabFaturamento({ onOpenEmail }) {
     let vivo = true;
     const carregarCadastro = async () => {
       try {
-        const [clientes, cores] = await Promise.all([carregarCadastroFaturamento(), carregarCoresRegionais()]);
+        const [clientes, cores, vinculos] = await Promise.all([
+          carregarCadastroFaturamento(),
+          carregarCoresRegionais(),
+          carregarVinculosRegionaisFaturamento(),
+        ]);
         if (vivo) {
           setCadastroClientes(clientes);
           setCoresRegionais(cores);
+          setVinculosRegionais(vinculos);
           setErroCadastro('');
         }
       } catch (error) {
@@ -195,6 +240,7 @@ export default function TabFaturamento({ onOpenEmail }) {
       return;
     }
     try {
+      const iniciouEm = new Date().toISOString();
       const resultado = await getFaturamento(filtroConsulta, '', { force: forcar });
       if (requisicao !== requisicaoAtual.current) return;
       setDados(anterior => {
@@ -208,7 +254,8 @@ export default function TabFaturamento({ onOpenEmail }) {
           loadedMore: anterior.loadedMore,
         };
       });
-      setAviso(resultado.warning || '');
+      const avisoNotificacao = await notificarFaturamentosNovos(resultado, iniciouEm, cadastroClientes, vinculosRegionais);
+      setAviso(resultado.warning || avisoNotificacao);
       setAtualizadoEm(resultado.cachedAt ? new Date(resultado.cachedAt) : new Date());
     } catch (error) {
       if (requisicao === requisicaoAtual.current) {
@@ -226,7 +273,7 @@ export default function TabFaturamento({ onOpenEmail }) {
         setAtualizando(false);
       }
     }
-  }, [consultaKey, filtroConsulta, periodoValido]);
+  }, [cadastroClientes, consultaKey, filtroConsulta, periodoValido, vinculosRegionais]);
 
   const carregarMais = async () => {
     const token = dados?.nextPageToken;
@@ -234,7 +281,9 @@ export default function TabFaturamento({ onOpenEmail }) {
     setCarregandoMais(true);
     setErro('');
     try {
+      const iniciouEm = new Date().toISOString();
       const resultado = await getFaturamento(filtroConsulta, token);
+      const avisoNotificacao = await notificarFaturamentosNovos(resultado, iniciouEm, cadastroClientes, vinculosRegionais);
       setDados(anterior => {
         if (anterior?.filterKey !== consultaKey) return anterior;
         const ids = new Set(anterior.messages.map(mensagem => mensagem.id));
@@ -246,8 +295,7 @@ export default function TabFaturamento({ onOpenEmail }) {
           loadedMore: true,
         };
       });
-      if (resultado.warning) setAviso(resultado.warning);
-      else setAviso('');
+      setAviso(resultado.warning || avisoNotificacao);
       setAtualizadoEm(resultado.cachedAt ? new Date(resultado.cachedAt) : new Date());
     } catch (error) {
       setErro(error.message || 'Não foi possível carregar mais registros.');

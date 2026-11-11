@@ -9,6 +9,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { getAuthUser } from '../contexts/user';
 import { notifyDesktop } from '../utils/desktopNotify';
+import { emitScreenNotification, getNotificationChannels } from './notificationPreferences';
 import ConstellationPuzzle from './ConstellationPuzzle';
 import {
   isSpawned, spawnMoment, isCaptureDone, markCaptureDone,
@@ -189,12 +190,16 @@ const CaptureNumeroWidget = ({ cfg, inPortal = false }) => {
     const spawnKey = cfg.startAt || '';
     if (notifiedSpawnRef.current === spawnKey) return;
     notifiedSpawnRef.current = spawnKey;
-    notifyDesktop({
+    const notification = {
       id: `capture-numero-${spawnKey}`,
       type: 'lembrete',
       title: '.✧. Um número da sorte apareceu! .✧.',
       message: 'Está no Portal do Colaborador, na aba Início — corre lá antes que as vagas acabem! Só revela qual número é depois que você capturar. 🎰',
-    });
+    };
+    const channels = getNotificationChannels(getAuthUser(), 'capture_numero');
+    if (channels.screen) emitScreenNotification('capture_numero', notification);
+    if (channels.desktop) notifyDesktop(notification);
+    if (channels.sound) playCaptureAlert();
   }, [available, cfg]);
 
   /* ── Alguém capturou? → acumula na lista (realtime + poll + reconsulta ao voltar pra aba).
@@ -279,7 +284,6 @@ const CaptureNumeroWidget = ({ cfg, inPortal = false }) => {
        arremessar ainda). ── */
   useEffect(() => {
     if (available && phase !== 'caught') {
-      playCaptureAlert();
       emitCaptureNumeroState({ available: true, numeroValue });
     }
     return () => { emitCaptureNumeroState({ available: false, numeroValue: null }); };

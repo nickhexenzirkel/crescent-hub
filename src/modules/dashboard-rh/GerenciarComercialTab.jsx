@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { T } from '../../contexts/theme';
+import { SERVER_URL } from '../../contexts/user';
 import { MUNICIPIOS } from '../email';
 import {
   carregarCadastroFaturamento,
   carregarCoresRegionais,
+  carregarVinculosRegionaisFaturamento,
   corPadraoRegional,
   chaveRegionalFaturamento,
   normalizarCadastroFaturamento,
@@ -11,6 +13,7 @@ import {
   REGIONAIS_FATURAMENTO,
   salvarCoresRegionais,
   salvarCadastroFaturamento,
+  salvarVinculosRegionaisFaturamento,
 } from '../../shared/faturamentoComerciais';
 
 const REGIONAIS_SUGERIDAS = REGIONAIS_FATURAMENTO.map(({ nome }) => nome);
@@ -34,6 +37,9 @@ export default function GerenciarComercialTab() {
   const [coresRegionais, setCoresRegionais] = useState({});
   const [coresRascunho, setCoresRascunho] = useState({});
   const [salvandoCor, setSalvandoCor] = useState('');
+  const [vinculosRegionais, setVinculosRegionais] = useState({});
+  const [funcionarios, setFuncionarios] = useState([]);
+  const [salvandoVinculo, setSalvandoVinculo] = useState('');
   const [nomesEmLote, setNomesEmLote] = useState({ regional: '', responsavelFaturamento: '' });
   const [novosNomesEmLote, setNovosNomesEmLote] = useState({ regional: '', responsavelFaturamento: '' });
   const arquivoRef = useRef(null);
@@ -42,10 +48,22 @@ export default function GerenciarComercialTab() {
     setCarregando(true);
     setErro('');
     try {
-      const [cadastro, cores] = await Promise.all([carregarCadastroFaturamento(), carregarCoresRegionais()]);
+      const token = localStorage.getItem('ch_token') || '';
+      const respostaFuncionarios = await fetch(`${SERVER_URL}/api/employees`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const dadosFuncionarios = await respostaFuncionarios.json().catch(() => ({}));
+      if (!respostaFuncionarios.ok) throw new Error(dadosFuncionarios.error || 'Não foi possível carregar os usuários do Uniko.');
+      const [cadastro, cores, vinculos] = await Promise.all([
+        carregarCadastroFaturamento(),
+        carregarCoresRegionais(),
+        carregarVinculosRegionaisFaturamento(),
+      ]);
       setClientes(cadastro);
       setCoresRegionais(cores);
       setCoresRascunho({});
+      setVinculosRegionais(vinculos);
+      setFuncionarios((dadosFuncionarios.employees || []).filter(funcionario => funcionario.active));
     } catch (error) {
       setErro(`Não foi possível carregar o cadastro: ${error.message || 'erro desconhecido'}`);
     } finally {
@@ -167,6 +185,26 @@ export default function GerenciarComercialTab() {
       setErro(`Não foi possível salvar a cor da regional: ${error.message || 'erro desconhecido'}`);
     } finally {
       setSalvandoCor('');
+    }
+  };
+
+  const salvarVinculoRegional = async (regional, userId) => {
+    const chave = chaveRegionalFaturamento(regional);
+    setSalvandoVinculo(chave);
+    setErro('');
+    setSucesso('');
+    try {
+      const proximosVinculos = { ...vinculosRegionais };
+      if (userId) proximosVinculos[chave] = userId;
+      else delete proximosVinculos[chave];
+      setVinculosRegionais(await salvarVinculosRegionaisFaturamento(proximosVinculos));
+      setSucesso(userId
+        ? `Notificações da regional ${regional} serão enviadas ao usuário selecionado.`
+        : `Vínculo de notificação da regional ${regional} removido.`);
+    } catch (error) {
+      setErro(`Não foi possível salvar o vínculo da regional: ${error.message || 'erro desconhecido'}`);
+    } finally {
+      setSalvandoVinculo('');
     }
   };
 
@@ -411,6 +449,33 @@ export default function GerenciarComercialTab() {
               </div>
             );
           })}
+        </div>
+      </section>
+
+      <section style={{ display: 'grid', gap: 11, padding: '15px 16px', borderRadius: 13, background: T.surface, border: `1px solid ${T.border}` }}>
+        <div>
+          <strong style={{ display: 'block', color: T.text, fontSize: 13 }}>Notificações por regional</strong>
+          <span style={{ display: 'block', marginTop: 4, color: T.textS, fontSize: 11.5, lineHeight: 1.5 }}>
+            Selecione quem deve receber um aviso quando um município da regional for faturado. O aviso informa município, horário e faturista.
+          </span>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(230px,1fr))', gap: 8 }}>
+          {regionaisCadastradas.map(({ chave, nome }) => (
+            <label key={chave} style={{ display: 'grid', gap: 5, padding: '9px 10px', border: `1px solid ${T.border}`, borderRadius: 10, color: T.textS, fontSize: 11, fontWeight: 650 }}>
+              {nome}
+              <select
+                value={vinculosRegionais[chave] || ''}
+                disabled={salvandoVinculo === chave || carregando}
+                onChange={event => salvarVinculoRegional(nome, event.target.value)}
+                style={inputStyle}
+              >
+                <option value="">Sem responsável vinculado</option>
+                {funcionarios.map(funcionario => (
+                  <option key={funcionario.id} value={funcionario.id}>{funcionario.name}</option>
+                ))}
+              </select>
+            </label>
+          ))}
         </div>
       </section>
 
