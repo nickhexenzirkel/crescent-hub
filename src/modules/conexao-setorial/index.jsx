@@ -9,6 +9,7 @@ import { T } from '../../contexts/theme';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { SERVER_URL, supabase as sb, getAuthUser, fetchPhotoByName } from '../../contexts/user';
 import { notifyDesktop, ensureNotifyPermission } from '../../utils/desktopNotify';
+import { getNotificationChannels } from '../../shared/notificationPreferences';
 import SalasLobby from './SalasLobby';
 import { fetchColegas } from '../../shared/gameInvites';
 import { sendListShare, fetchListShare, respondListShare, fetchMyAcceptedShares,
@@ -290,10 +291,13 @@ export default function ConexaoSetorial({ onBack, authUser, initialTab }) {
   // ── Notificação ─────────────────────────────────────────────
   const fireNotif = useCallback((title, message) => {
     if (!notifOnRef.current) return;
-    playChime();
-    notifyDesktop({ id: 'cs-' + Date.now(), type: 'lembrete', title, message });
-    setToast({ title, message });
-    setTimeout(() => setToast(null), 6000);
+    const channels = getNotificationChannels(getAuthUser(), 'conexao_setorial');
+    if (channels.sound) playChime();
+    if (channels.desktop) notifyDesktop({ id: 'cs-' + Date.now(), type: 'lembrete', title, message });
+    if (channels.screen) {
+      setToast({ title, message });
+      setTimeout(() => setToast(null), 6000);
+    }
   }, []);
 
   // ── Carrega o quadro ────────────────────────────────────────

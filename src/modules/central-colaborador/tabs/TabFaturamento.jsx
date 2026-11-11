@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { T } from '../../../contexts/theme';
 import { MUNICIPIOS } from '../../email';
 import { getFaturamento } from '../../email/api';
-import { agruparMensagensPorConversa, assuntoIndicaFaturamento, formatarDataTempoReal, municipioExibidoNoAssunto, periodoFaturadoDoAssunto, secretariaFaturadaDoAssunto } from '../faturamentoEmailUtils';
+import { agruparMensagensPorConversa, assuntoIndicaFaturamento, faturamentoAposInicioDaSessao, formatarDataTempoReal, municipioExibidoNoAssunto, periodoFaturadoDoAssunto, secretariaFaturadaDoAssunto } from '../faturamentoEmailUtils';
 import {
   carregarCoresRegionais,
   carregarCadastroFaturamento,
@@ -105,15 +105,6 @@ function nomeRegionalCadastro(nome) {
   return `Regional ${nomeRegionalFaturamento(nome)}`;
 }
 
-function dataFortaleza(valor) {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Fortaleza',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date(valor));
-}
-
 function mesPorExtenso(valor) {
   if (!valor) return '';
   const [ano, mes] = valor.split('-').map(Number);
@@ -126,23 +117,21 @@ function corTextoFundo(hex) {
   return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2] > 0.42 ? '#17212B' : '#FFFFFF';
 }
 
-async function notificarFaturamentosNovos(resultado, iniciouEm, clientes, vinculos) {
+async function notificarFaturamentosNovos(resultado, sessaoNotificacoes, clientes, vinculos) {
   const mailbox = String(resultado.mailbox || '').trim().toLowerCase();
-  if (!mailbox || resultado.cached) return '';
+  if (!mailbox) return '';
   try {
-    const estado = await carregarEstadoNotificacoesFaturamento(mailbox);
+    const estado = await carregarEstadoNotificacoesFaturamento(mailbox, sessaoNotificacoes.id);
     if (!estado) {
-      await salvarEstadoNotificacoesFaturamento(mailbox, iniciouEm);
+      await salvarEstadoNotificacoesFaturamento(mailbox, sessaoNotificacoes.iniciouEm, sessaoNotificacoes.id);
       return '';
     }
+    if (resultado.cached) return '';
 
     for (const mensagem of resultado.messages || []) {
       if (!assuntoIndicaFaturamento(mensagem.subject)) continue;
       const faturadoEm = Date.parse(mensagem.date || '');
-      if (!Number.isFinite(faturadoEm)) continue;
-      const depoisDoInicio = faturadoEm > Date.parse(estado.iniciadoEm);
-      const mesmoDiaDaAtivacao = dataFortaleza(faturadoEm) === dataFortaleza(estado.iniciadoEm);
-      if (!depoisDoInicio && !mesmoDiaDaAtivacao) continue;
+      if (!faturamentoAposInicioDaSessao(mensagem.date, estado.iniciadoEm)) continue;
       const municipio = municipioDaMensagem(mensagem, clientes);
       const cadastro = clientes.find(cliente => normalizarCadastroFaturamento(cliente.municipio) === normalizarCadastroFaturamento(municipio));
       if (!cadastro?.regional) continue;
@@ -177,6 +166,10 @@ const estiloBotao = {
 };
 
 export default function TabFaturamento({ onOpenEmail }) {
+  const [sessaoNotificacoes] = useState(() => ({
+    id: globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`,
+    iniciouEm: new Date().toISOString(),
+  }));
   const [periodo, setPeriodo] = useState(mesAtual);
   const [periodoRascunho, setPeriodoRascunho] = useState(mesAtual);
   const [modoPeriodo, setModoPeriodo] = useState('mes');
@@ -286,7 +279,6 @@ export default function TabFaturamento({ onOpenEmail }) {
       return;
     }
     try {
-      const iniciouEm = new Date().toISOString();
       const resultado = await getFaturamento(filtroConsulta, '', { force: forcar });
       if (requisicao !== requisicaoAtual.current) return;
       setDados(anterior => {
@@ -301,7 +293,7 @@ export default function TabFaturamento({ onOpenEmail }) {
         };
       });
       const { clientes, vinculos } = cadastroNotificacaoRef.current;
-      const avisoNotificacao = await notificarFaturamentosNovos(resultado, iniciouEm, clientes, vinculos);
+      const avisoNotificacao = await notificarFaturamentosNovos(resultado, sessaoNotificacoes, clientes, vinculos);
       setAviso(resultado.warning || avisoNotificacao);
       setAtualizadoEm(resultado.cachedAt ? new Date(resultado.cachedAt) : new Date());
     } catch (error) {
@@ -320,7 +312,7 @@ export default function TabFaturamento({ onOpenEmail }) {
         setAtualizando(false);
       }
     }
-  }, [consultaKey, filtroConsulta, periodoValido]);
+  }, [consultaKey, filtroConsulta, periodoValido, sessaoNotificacoes.id]);
 
   const carregarMais = async () => {
     const token = dados?.nextPageToken;
@@ -328,10 +320,9 @@ export default function TabFaturamento({ onOpenEmail }) {
     setCarregandoMais(true);
     setErro('');
     try {
-      const iniciouEm = new Date().toISOString();
       const resultado = await getFaturamento(filtroConsulta, token);
       const { clientes, vinculos } = cadastroNotificacaoRef.current;
-      const avisoNotificacao = await notificarFaturamentosNovos(resultado, iniciouEm, clientes, vinculos);
+      const avisoNotificacao = await notificarFaturamentosNovos(resultado, sessaoNotificacoes, clientes, vinculos);
       setDados(anterior => {
         if (anterior?.filterKey !== consultaKey) return anterior;
         const ids = new Set(anterior.messages.map(mensagem => mensagem.id));

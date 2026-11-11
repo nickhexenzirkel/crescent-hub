@@ -128,7 +128,7 @@ export async function salvarVinculosRegionaisFaturamento(vinculos) {
   return limpos;
 }
 
-export async function carregarEstadoNotificacoesFaturamento(mailbox) {
+export async function carregarEstadoNotificacoesFaturamento(mailbox, sessionId) {
   const { data, error } = await supabase
     .from('settings')
     .select('value')
@@ -141,11 +141,28 @@ export async function carregarEstadoNotificacoesFaturamento(mailbox) {
   } catch {
     throw new Error('O estado das notificações de faturamento está corrompido.');
   }
-  if (!estado || estado.mailbox !== mailbox || !Number.isFinite(Date.parse(estado.iniciadoEm || ''))) return null;
+  if (!estado || estado.mailbox !== mailbox) return null;
+  if (sessionId) {
+    const iniciadoEm = estado.sessoes?.[sessionId];
+    return Number.isFinite(Date.parse(iniciadoEm || '')) ? { mailbox, iniciadoEm } : null;
+  }
   return estado;
 }
 
-export async function salvarEstadoNotificacoesFaturamento(mailbox, iniciadoEm) {
+export async function salvarEstadoNotificacoesFaturamento(mailbox, iniciadoEm, sessionId) {
+  if (sessionId) {
+    const estadoAtual = await carregarEstadoNotificacoesFaturamento(mailbox);
+    const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const sessoes = Object.fromEntries(Object.entries(estadoAtual?.sessoes || {})
+      .filter(([, inicio]) => Date.parse(inicio) >= cutoff));
+    sessoes[sessionId] = iniciadoEm;
+    const { error } = await supabase.from('settings').upsert({
+      key: FATURAMENTO_NOTIFICACOES_ESTADO_KEY,
+      value: JSON.stringify({ mailbox, sessoes }),
+    }, { onConflict: 'key' });
+    if (error) throw error;
+    return;
+  }
   const { error } = await supabase.from('settings').upsert({
     key: FATURAMENTO_NOTIFICACOES_ESTADO_KEY,
     value: JSON.stringify({ mailbox, iniciadoEm }),
@@ -170,6 +187,7 @@ export async function emitirNotificacaoFaturamento({
     active: true,
     recipient_id: recipientId,
     source_id: `faturamento:${mailbox}:${threadId || messageId}`,
+    created_at: horario.toISOString(),
   });
   if (error?.code === '23505') return false;
   if (error) throw error;

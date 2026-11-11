@@ -1,17 +1,27 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { T } from '../contexts/theme';
 import { ensureNotifyPermission, notifyPermission } from '../utils/desktopNotify';
 import {
+  getGlobalNotificationDefaults,
   getNotificationPreferences,
+  hasPersonalNotificationOverride,
   NOTIFICATION_CATEGORIES,
   NOTIFICATION_MODES,
+  resetNotificationMode,
   saveNotificationMode,
 } from './notificationPreferences';
+import { GLOBAL_NOTIFICATION_PREFERENCES_CHANGED_EVENT } from './globalNotificationPreferences';
 
 export default function NotificationSettingsModal({ authUser, onClose }) {
   const [preferences, setPreferences] = useState(() => getNotificationPreferences(authUser));
   const [status, setStatus] = useState('');
   const [savingError, setSavingError] = useState('');
+
+  useEffect(() => {
+    const atualizar = () => setPreferences(getNotificationPreferences(authUser));
+    window.addEventListener(GLOBAL_NOTIFICATION_PREFERENCES_CHANGED_EVENT, atualizar);
+    return () => window.removeEventListener(GLOBAL_NOTIFICATION_PREFERENCES_CHANGED_EVENT, atualizar);
+  }, [authUser]);
 
   const changeMode = async (category, mode) => {
     if (!saveNotificationMode(authUser, category, mode)) {
@@ -20,6 +30,7 @@ export default function NotificationSettingsModal({ authUser, onClose }) {
     }
     setSavingError('');
     setPreferences(current => ({ ...current, [category]: mode }));
+    setStatus('Preferência pessoal salva somente neste dispositivo.');
 
     if (mode === 'desktop' || mode === 'both') {
       const permission = await ensureNotifyPermission();
@@ -28,9 +39,17 @@ export default function NotificationSettingsModal({ authUser, onClose }) {
         : permission === 'denied'
           ? 'A permissão do desktop foi bloqueada no navegador. Altere-a nas configurações do site.'
           : 'O navegador não oferece notificações do desktop.');
-    } else {
-      setStatus('');
     }
+  };
+
+  const usarPadrao = category => {
+    if (!resetNotificationMode(authUser, category)) {
+      setSavingError('Não foi possível aplicar o padrão da empresa neste navegador.');
+      return;
+    }
+    setSavingError('');
+    setPreferences(getNotificationPreferences(authUser));
+    setStatus(`Padrão da empresa aplicado: ${NOTIFICATION_MODES.find(mode => mode.id === getGlobalNotificationDefaults()[category])?.label || 'padrão'}.`);
   };
 
   const initialPermission = notifyPermission();
@@ -38,7 +57,7 @@ export default function NotificationSettingsModal({ authUser, onClose }) {
     ? 'A permissão do desktop está bloqueada nas configurações do navegador.'
     : initialPermission === 'unsupported'
       ? 'Este navegador não oferece notificações do desktop.'
-      : 'As preferências ficam salvas neste navegador para este usuário.');
+      : 'O padrão é definido pela empresa e sincronizado entre dispositivos. Preferências pessoais são exceções salvas apenas neste navegador.');
 
   return (
     <div
@@ -73,6 +92,15 @@ export default function NotificationSettingsModal({ authUser, onClose }) {
               borderRadius: 13 }}>
               <legend style={{ padding: '0 5px', color: T.text, fontSize: 13, fontWeight: 800 }}>{category.label}</legend>
               <div style={{ margin: '0 0 10px', color: T.textS, fontSize: 11.5 }}>{category.description}</div>
+              {hasPersonalNotificationOverride(authUser, category.id) && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 9, color: T.textT, fontSize: 10.5 }}>
+                  <span>Preferência pessoal neste dispositivo</span>
+                  <button type="button" onClick={() => usarPadrao(category.id)}
+                    style={{ border: `1px solid ${T.border}`, borderRadius: 7, padding: '5px 8px', background: 'transparent', color: T.gold, cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: 10.5, fontWeight: 700 }}>
+                    Usar padrão da empresa
+                  </button>
+                </div>
+              )}
               <div role="radiogroup" aria-label={`Tipo de notificação: ${category.label}`}
                 style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(125px, 1fr))', gap: 7 }}>
                 {NOTIFICATION_MODES.map(mode => {

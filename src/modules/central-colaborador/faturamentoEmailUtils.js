@@ -61,6 +61,15 @@ export function formatarDataTempoReal(valor, agora = Date.now()) {
   return `${dia}, ${hora}`;
 }
 
+export function faturamentoAposInicioDaSessao(dataFaturamento, inicioSessao) {
+  const timestamp = valor => typeof valor === 'number' ? valor : Date.parse(valor || '');
+  const faturadoEm = timestamp(dataFaturamento);
+  const sessaoIniciadaEm = timestamp(inicioSessao);
+  return Number.isFinite(faturadoEm)
+    && Number.isFinite(sessaoIniciadaEm)
+    && faturadoEm > sessaoIniciadaEm;
+}
+
 export function periodoFaturadoDoAssunto(assuntoOriginal) {
   const assunto = removerPrefixoResposta(assuntoOriginal);
   const assuntoNormalizado = normalizarTexto(assunto);

@@ -8,59 +8,105 @@ export const NOTIFICATION_MODES = [
   { id: 'desktop', label: 'Só no desktop' },
   { id: 'both', label: 'Tela + desktop' },
   { id: 'sound', label: 'Só som da aba' },
+  { id: 'screen_sound', label: 'Tela + som da aba' },
 ];
 
 export const NOTIFICATION_CATEGORIES = [
   { id: 'atualizacoes', label: 'Atualizações', description: 'Mural de novidades do RH.' },
+  { id: 'avisos_rh', label: 'Avisos e lembretes do RH', description: 'Avisos gerais, urgentes e lembretes pessoais.' },
   { id: 'capture_uniko', label: 'Spawn de Unikos', description: 'Quando um Uniko fica disponível para captura.' },
   { id: 'capture_numero', label: 'Spawn de Números', description: 'Quando um número fica disponível para captura.' },
   { id: 'chat_secreto', label: 'Mensagens do Chat Secreto', description: 'Novas mensagens no Blog Secreto do UNIKO.' },
   { id: 'faturamento_regional', label: 'Faturamento da regional', description: 'Quando um município da sua regional é faturado.' },
+  { id: 'convites_jogos', label: 'Convites de jogos', description: 'Convites para jogar Uniko Paint e Stop.' },
+  { id: 'chat_uniko_fit', label: 'Bate-Papo do Uniko FIT', description: 'Novas mensagens enquanto você está fora do módulo.' },
+  { id: 'conexao_setorial', label: 'Conexão Setorial', description: 'Avisos de novas mensagens recebidas na conexão.' },
 ];
 
-const DEFAULT_MODES = {
+export const DEFAULT_NOTIFICATION_MODES = {
   atualizacoes: 'both',
+  avisos_rh: 'both',
   capture_uniko: 'desktop',
   capture_numero: 'desktop',
   chat_secreto: 'screen',
   faturamento_regional: 'both',
+  convites_jogos: 'both',
+  chat_uniko_fit: 'both',
+  conexao_setorial: 'both',
 };
 
+const validMode = mode => NOTIFICATION_MODES.some(({ id }) => id === mode);
 const preferenceKey = (user) => {
   const identity = user?.cpf || user?.name || user?.id || 'anon';
   return `uniko_notification_preferences_${String(identity).trim().toLowerCase()}`;
 };
 
-function legacyChatMode(user) {
-  const name = String(user?.name || 'anon').toLowerCase();
-  const common = localStorage.getItem(`uniko_blog_notifications_${name}`);
-  const savedSound = localStorage.getItem(`uniko_blog_sound_${name}`);
-  const savedAlerts = localStorage.getItem(`uniko_blog_alerts_${name}`);
-  if (common == null && savedSound == null && savedAlerts == null) return DEFAULT_MODES.chat_secreto;
-  const sound = savedSound == null ? common !== '0' : savedSound !== '0';
-  const alerts = savedAlerts == null ? common !== '0' : savedAlerts !== '0';
-  if (sound && !alerts) return 'sound';
-  if (!sound && !alerts) return 'off';
-  return 'screen';
-}
-
-export function getNotificationPreferences(user) {
+function storedPreferences(user) {
   try {
     const saved = JSON.parse(localStorage.getItem(preferenceKey(user)) || '{}');
-    return Object.fromEntries(NOTIFICATION_CATEGORIES.map(({ id }) => [
-      id,
-      NOTIFICATION_MODES.some(({ id: mode }) => mode === saved[id])
-        ? saved[id]
-        : id === 'chat_secreto' ? legacyChatMode(user) : DEFAULT_MODES[id],
-    ]));
+    return saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : {};
   } catch {
-    return { ...DEFAULT_MODES };
+    return {};
   }
 }
 
+function legacyChatPreference(user) {
+  try {
+    const name = String(user?.name || 'anon').toLowerCase();
+    const common = localStorage.getItem(`uniko_blog_notifications_${name}`);
+    const savedSound = localStorage.getItem(`uniko_blog_sound_${name}`);
+    const savedAlerts = localStorage.getItem(`uniko_blog_alerts_${name}`);
+    if (common == null && savedSound == null && savedAlerts == null) return null;
+    const sound = savedSound == null ? common !== '0' : savedSound !== '0';
+    const alerts = savedAlerts == null ? common !== '0' : savedAlerts !== '0';
+    if (sound && !alerts) return 'sound';
+    if (!sound && !alerts) return 'off';
+    return 'screen';
+  } catch {
+    return null;
+  }
+}
+
+let globalPreferences = null;
+const DEFAULTS_CHANGED_EVENT = 'uniko:notification-defaults-changed';
+
+export function setGlobalNotificationDefaults(preferences) {
+  if (!preferences || typeof preferences !== 'object') return;
+  globalPreferences = Object.fromEntries(NOTIFICATION_CATEGORIES.map(({ id }) => [
+    id,
+    validMode(preferences[id]) ? preferences[id] : DEFAULT_NOTIFICATION_MODES[id],
+  ]));
+  window.dispatchEvent(new CustomEvent(DEFAULTS_CHANGED_EVENT, {
+    detail: { preferences: { ...globalPreferences } },
+  }));
+}
+
+export function getGlobalNotificationDefaults() {
+  return globalPreferences ? { ...globalPreferences } : { ...DEFAULT_NOTIFICATION_MODES };
+}
+
+export function hasPersonalNotificationOverride(user, category) {
+  const saved = storedPreferences(user);
+  return validMode(saved[category]) || (category === 'chat_secreto' && legacyChatPreference(user) != null);
+}
+
+function effectiveMode(user, category, saved) {
+  if (validMode(saved[category])) return saved[category];
+  if (category === 'chat_secreto') {
+    const legacy = legacyChatPreference(user);
+    if (legacy) return legacy;
+  }
+  return globalPreferences?.[category] || DEFAULT_NOTIFICATION_MODES[category];
+}
+
+export function getNotificationPreferences(user) {
+  const saved = storedPreferences(user);
+  return Object.fromEntries(NOTIFICATION_CATEGORIES.map(({ id }) => [id, effectiveMode(user, id, saved)]));
+}
+
 export function saveNotificationMode(user, category, mode) {
-  if (!DEFAULT_MODES[category] || !NOTIFICATION_MODES.some(({ id }) => id === mode)) return false;
-  const preferences = getNotificationPreferences(user);
+  if (!Object.hasOwn(DEFAULT_NOTIFICATION_MODES, category) || !validMode(mode)) return false;
+  const preferences = storedPreferences(user);
   preferences[category] = mode;
   try {
     localStorage.setItem(preferenceKey(user), JSON.stringify(preferences));
@@ -73,12 +119,34 @@ export function saveNotificationMode(user, category, mode) {
   }
 }
 
+export function resetNotificationMode(user, category) {
+  if (!Object.hasOwn(DEFAULT_NOTIFICATION_MODES, category)) return false;
+  const preferences = storedPreferences(user);
+  delete preferences[category];
+  try {
+    if (category === 'chat_secreto') {
+      const name = String(user?.name || 'anon').toLowerCase();
+      localStorage.removeItem(`uniko_blog_notifications_${name}`);
+      localStorage.removeItem(`uniko_blog_sound_${name}`);
+      localStorage.removeItem(`uniko_blog_alerts_${name}`);
+    }
+    if (Object.keys(preferences).length) localStorage.setItem(preferenceKey(user), JSON.stringify(preferences));
+    else localStorage.removeItem(preferenceKey(user));
+    window.dispatchEvent(new CustomEvent(NOTIFICATION_PREFERENCE_CHANGED_EVENT, {
+      detail: { category, mode: getNotificationPreferences(user)[category], user: String(user?.cpf || user?.name || user?.id || 'anon').toLowerCase() },
+    }));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function getNotificationChannels(user, category) {
-  const mode = getNotificationPreferences(user)[category] || DEFAULT_MODES[category] || 'both';
+  const mode = getNotificationPreferences(user)[category] || DEFAULT_NOTIFICATION_MODES[category] || 'both';
   return {
-    screen: mode === 'screen' || mode === 'both',
+    screen: mode === 'screen' || mode === 'both' || mode === 'screen_sound',
     desktop: mode === 'desktop' || mode === 'both',
-    sound: mode === 'sound',
+    sound: mode === 'sound' || mode === 'screen_sound',
   };
 }
 

@@ -27,12 +27,14 @@ import Beneficios7 from './modules/beneficios-7';
 import PrestacaoContas from './modules/prestacao-contas';
 import AmigoSecreto from './modules/amigo-secreto';
 import Email from './modules/email';
+import { faturamentoAposInicioDaSessao } from './modules/central-colaborador/faturamentoEmailUtils';
 import { notifyDesktop, ensureNotifyPermission } from './utils/desktopNotify';
 import {
   getNotificationChannels,
   NOTIFICATION_SCREEN_EVENT,
   NOTIFICATION_SETTINGS_OPEN_EVENT,
 } from './shared/notificationPreferences';
+import { startGlobalNotificationPreferencesSync } from './shared/globalNotificationPreferences';
 import { loadSeenNotifications, rememberSeenNotification } from './shared/seenNotifications';
 import { useIsMobile } from './hooks/useIsMobile';
 import UnikoAssistant from './shared/UnikoAssistant';
@@ -596,24 +598,35 @@ export default function CrescentHub() {
   }, [authUser]);
 
   useEffect(() => {
+    if (!authUser) return undefined;
+    return startGlobalNotificationPreferencesSync();
+  }, [authUser]);
+
+  useEffect(() => {
     if (!authUser) return;
     const notificationOwner = authUser.id || authUser.name;
+    const notificacoesAtivasDesde = Date.now();
     for (const id of loadSeenNotifications(notificationOwner)) seenNotifIds.current.add(id);
 
     // Processa um aviso recebido (in-site + som + notificação no desktop).
     const handleNotif = (n) => {
       if (n?.recipient_id && String(n.recipient_id) !== String(authUser.id)) return;
       if (!n?.active || seenNotifIds.current.has(n.id)) return;
-      const preferenciasFaturamento = n.type === 'faturamento_regional'
+      if (n.type === 'faturamento_regional' && !faturamentoAposInicioDaSessao(n.created_at, notificacoesAtivasDesde)) {
+        seenNotifIds.current.add(n.id);
+        rememberSeenNotification(notificationOwner, n.id);
+        return;
+      }
+      const preferenciasNotificacao = n.type === 'faturamento_regional'
         ? getNotificationChannels(authUser, 'faturamento_regional')
-        : { screen: true, desktop: true, sound: true };
+        : getNotificationChannels(authUser, 'avisos_rh');
       seenNotifIds.current.add(n.id);
       rememberSeenNotification(notificationOwner, n.id);
-      if (preferenciasFaturamento.screen) setNotifQueue(q => [...q, n]);
-      if (preferenciasFaturamento.sound) {
+      if (preferenciasNotificacao.screen) setNotifQueue(q => [...q, n]);
+      if (preferenciasNotificacao.sound) {
         if (n.type === 'aviso_urgente') playAlarm(); else playReminder();
       }
-      if (preferenciasFaturamento.desktop) notifyDesktop(n);
+      if (preferenciasNotificacao.desktop) notifyDesktop(n);
     };
 
     const channel = _supabase
@@ -692,11 +705,14 @@ export default function CrescentHub() {
   useEffect(() => {
     if (!authUser?.name) return;
     const off = subscribeGameInvites(authUser.name, (inv) => {
-      setGameInvite(inv);
-      playReminder();
-      notifyDesktop({ id: 'invite-' + inv.id, type: 'lembrete',
-        title: `🎮 ${nomeChamado(inv.from_name)} te convidou!`,
-        message: `Vem jogar ${GAME_LABEL[inv.game] || 'Uniko'}${inv.room_name ? ` — sala "${inv.room_name}"` : ''}!`, active: true });
+      const channels = getNotificationChannels(authUser, 'convites_jogos');
+      if (channels.screen) setGameInvite(inv);
+      if (channels.sound) playReminder();
+      if (channels.desktop) {
+        notifyDesktop({ id: 'invite-' + inv.id, type: 'lembrete',
+          title: `🎮 ${nomeChamado(inv.from_name)} te convidou!`,
+          message: `Vem jogar ${GAME_LABEL[inv.game] || 'Uniko'}${inv.room_name ? ` — sala "${inv.room_name}"` : ''}!`, active: true });
+      }
     });
     return off;
   }, [authUser]);
@@ -711,10 +727,17 @@ export default function CrescentHub() {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'uniko_fit_chat' }, async ({ new: row }) => {
         if (row.player === authUser.name || row.tipo !== 'texto' || !row.texto?.trim()) return;
         if (screenRef.current === 'uniko-fit') return;
+        const channels = getNotificationChannels(authUser, 'chat_uniko_fit');
         let photo = null;
-        try { photo = await fetchPhotoByName(row.player); } catch {}
-        setChatToast({ id: row.id, player: row.player, texto: row.texto, photo });
-        playReminder();
+        if (channels.screen) {
+          try { photo = await fetchPhotoByName(row.player); } catch {}
+          setChatToast({ id: row.id, player: row.player, texto: row.texto, photo });
+        }
+        if (channels.sound) playReminder();
+        if (channels.desktop) {
+          notifyDesktop({ id: `uniko-fit-chat-${row.id}`, type: 'lembrete',
+            title: `💬 ${row.player}`, message: 'Nova mensagem no Bate-Papo do Uniko FIT.', active: true });
+        }
       })
       .subscribe();
     return () => _supabase.removeChannel(ch);
@@ -797,10 +820,12 @@ export default function CrescentHub() {
         seenNotifIds.current.add(notifObj.id);
         rememberSeenNotification(authUser.id || authUser.name, notifObj.id);
 
-        // Dispara popup e som diretamente, sem esperar o realtime
-        setNotifQueue(q => [...q, notifObj]);
-        if (isUrgent) playAlarm(); else playReminder();
-        notifyDesktop(notifObj); // pop-up no desktop via extensão (lembretes pessoais)
+        const channels = getNotificationChannels(authUser, 'avisos_rh');
+        if (channels.screen) setNotifQueue(q => [...q, notifObj]);
+        if (channels.sound) {
+          if (isUrgent) playAlarm(); else playReminder();
+        }
+        if (channels.desktop) notifyDesktop(notifObj);
       }
     };
 
