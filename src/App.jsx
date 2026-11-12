@@ -87,6 +87,7 @@ export default function CrescentHub() {
   const [captureNumeroCfg, setCaptureNumeroCfg] = useState(null); // "Capture o Número" — sistema paralelo, global
   const [notificationSettingsOpen, setNotificationSettingsOpen] = useState(false);
   const [screenToast, setScreenToast] = useState(null);
+  const [emailNotificationStatus, setEmailNotificationStatus] = useState('');
   const [authChecked, setAuthChecked] = useState(false);
   const [userPhoto, setUserPhoto] = useState(null);
   // Cargos (Dashboard RH → Gerenciar Permissões): camada ADICIONAL de acesso
@@ -612,8 +613,11 @@ export default function CrescentHub() {
     let interval = null;
     let inFlight = false;
     let conectado = false;
+    let habilitado = false;
+    let habilitadoAnterior = false;
     let primeiraConsulta = true;
     let inicializada = false;
+    let habilitadaDesde = Date.now();
     let ultimaConsulta = 0;
     let proximaConsultaAte = 0;
     let ultimaFalhaLogada = 0;
@@ -649,17 +653,21 @@ export default function CrescentHub() {
     };
 
     const consultar = async () => {
-      if (!active || inFlight) return;
+      if (!active || !habilitado || inFlight) return;
       const canais = getNotificationChannels(authUser, 'email_recebidos');
       if (!canais.screen && !canais.sound && !canais.desktop) return;
       if (Date.now() < proximaConsultaAte) return;
       inFlight = true;
       try {
         if (!conectado) {
+          setEmailNotificationStatus('Verificando conexão com a Caixa de Entrada…');
           const status = await getEmailStatus();
-          if (!active) return;
+          if (!active || !habilitado) return;
           conectado = Boolean(status.connected);
-          if (!conectado) return;
+          if (!conectado) {
+            setEmailNotificationStatus('Preferência ativada, mas a conta Gmail não está conectada no servidor.');
+            return;
+          }
         }
 
         const inicioConsulta = Date.now();
@@ -677,19 +685,26 @@ export default function CrescentHub() {
           if (!paginaAtual.nextPageToken) break;
           paginaAtual = await listEmailMessages(consultaGmail, paginaAtual.nextPageToken, false, { includeReplies: true });
         }
-        if (!active) return;
+        if (!active || !habilitado) return;
         primeiraConsulta = false;
-        if (!inicializada) mensagens.forEach(mensagem => {
-          if (mensagem.id) vistos.add(mensagem.id);
-        });
-        else registrarMensagens(mensagens);
+        if (!inicializada) {
+          const recebidasAposAtivacao = [];
+          mensagens.forEach(mensagem => {
+            if (!mensagem.id) return;
+            if (Number(mensagem.internalDate) >= habilitadaDesde) recebidasAposAtivacao.push(mensagem);
+            else vistos.add(mensagem.id);
+          });
+          registrarMensagens(recebidasAposAtivacao);
+        } else registrarMensagens(mensagens);
         inicializada = true;
         ultimaConsulta = inicioConsulta;
         proximaConsultaAte = 0;
+        setEmailNotificationStatus('Ativada e conectada. Novos e-mails são verificados a cada minuto.');
       } catch (error) {
         if (error.status === 401) conectado = false;
         const espera = Number(error.retryAfter) || 0;
         if (espera > 0) proximaConsultaAte = Date.now() + espera * 1000;
+        setEmailNotificationStatus(`Não foi possível consultar a Caixa de Entrada: ${error.message || 'erro desconhecido'}`);
         if (Date.now() - ultimaFalhaLogada > 5 * 60_000) {
           ultimaFalhaLogada = Date.now();
           console.warn('[notificações de e-mail] Não foi possível consultar a Caixa de Entrada:', error.message);
@@ -701,17 +716,32 @@ export default function CrescentHub() {
 
     const atualizarPolling = () => {
       const canais = getNotificationChannels(authUser, 'email_recebidos');
-      const habilitado = canais.screen || canais.sound || canais.desktop;
-      if (!habilitado) {
+      const deveHabilitar = canais.screen || canais.sound || canais.desktop;
+      if (!deveHabilitar) {
+        habilitado = false;
+        habilitadoAnterior = false;
         if (interval) window.clearInterval(interval);
         interval = null;
+        primeiraConsulta = true;
+        inicializada = false;
+        habilitadaDesde = Date.now();
+        ultimaConsulta = 0;
+        proximaConsultaAte = 0;
+        vistos.clear();
+        setEmailNotificationStatus('Notificações de e-mail desativadas.');
+        return;
+      }
+      habilitado = true;
+      if (!habilitadoAnterior) {
+        habilitadaDesde = Date.now();
         primeiraConsulta = true;
         inicializada = false;
         ultimaConsulta = 0;
         proximaConsultaAte = 0;
         vistos.clear();
-        return;
+        setEmailNotificationStatus('Ativada. Verificando a conexão com a Caixa de Entrada…');
       }
+      habilitadoAnterior = true;
       if (interval) return;
       consultar();
       interval = window.setInterval(consultar, intervaloMs);
@@ -1108,7 +1138,8 @@ export default function CrescentHub() {
         {authUser && captureNumeroCfg && <CaptureNumeroWidget cfg={captureNumeroCfg} inPortal={screen==='colaborador'} />}
 
         {authUser && notificationSettingsOpen && (
-          <NotificationSettingsModal authUser={authUser} onClose={() => setNotificationSettingsOpen(false)} />
+          <NotificationSettingsModal authUser={authUser} emailNotificationStatus={emailNotificationStatus}
+            onClose={() => setNotificationSettingsOpen(false)} />
         )}
 
         {/* ── Diagnóstico de performance — invisível até alguém teclar Ctrl+Alt+P

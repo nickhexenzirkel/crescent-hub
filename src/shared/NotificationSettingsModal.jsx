@@ -13,7 +13,7 @@ import {
 } from './notificationPreferences';
 import { GLOBAL_NOTIFICATION_PREFERENCES_CHANGED_EVENT } from './globalNotificationPreferences';
 
-export default function NotificationSettingsModal({ authUser, onClose }) {
+export default function NotificationSettingsModal({ authUser, emailNotificationStatus, onClose }) {
   const [preferences, setPreferences] = useState(() => getNotificationPreferences(authUser));
   const [status, setStatus] = useState('');
   const [savingError, setSavingError] = useState('');
@@ -93,6 +93,11 @@ export default function NotificationSettingsModal({ authUser, onClose }) {
               borderRadius: 13 }}>
               <legend style={{ padding: '0 5px', color: T.text, fontSize: 13, fontWeight: 800 }}>{category.label}</legend>
               <div style={{ margin: '0 0 10px', color: T.textS, fontSize: 11.5 }}>{category.description}</div>
+              {category.id === 'email_recebidos' && (
+                <div role="status" aria-live="polite" style={{ margin: '0 0 10px', color: T.textT, fontSize: 11.5, lineHeight: 1.5 }}>
+                  {emailNotificationStatus || 'Desativada. Ao ativar, somente novos e-mails recebidos serão notificados.'}
+                </div>
+              )}
               {hasPersonalNotificationOverride(authUser, category.id) && (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 9, color: T.textT, fontSize: 10.5 }}>
                   <span>Preferência pessoal neste dispositivo</span>
