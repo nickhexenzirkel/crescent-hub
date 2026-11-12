@@ -32,6 +32,7 @@ O servidor precisa ser atualizado e reiniciado para carregar as rotas e variavei
 ## Escopo atual
 
 - No Acompanhar Faturamento, os filtros são organizados em duas linhas: regionais e, abaixo, busca, tipo/período e botão “Aplicar Filtros”. Alterações ficam como rascunho até aplicar; escolher outro período consulta o Gmail após a aplicação.
+- O filtro regional compara uma chave normalizada, para que os nomes inferidos do e-mail (sem o prefixo “Regional”) coincidam com os chips e com os nomes cadastrados. Ao abrir o módulo E-mail, o fundo global animado não é montado: a tela ocupa o viewport e cobre esse fundo, então mantê-lo ativo só consumia recursos.
 - No card “Tempo Real”, envios com até 59 minutos aparecem como “Agora” ou “Há N min”; ao completar 60 minutos, mostram “Há 1 hora”, e depois passam para data/hora (por exemplo, “Hoje, 09:30”). O relógio relativo é atualizado a cada minuto.
 - Conectar e definir a caixa institucional compartilhada é restrito a administradores; os demais colaboradores autenticados usam a caixa padrão em modo somente leitura. Contas individuais previamente conectadas permanecem como contingência enquanto a caixa compartilhada não for configurada.
 - Pesquisar mensagens usando a consulta do Gmail, abrir mensagens, visualizar anexos PDF/imagem e baixar qualquer anexo diretamente pela Gmail API. Uma busca sem resultados retorna lista vazia sem enviar lote de metadados vazio ao Gmail.

@@ -859,7 +859,7 @@ export default function CrescentHub() {
       <style>{FONTS}</style>
       <style>{`body.uw-active .floating-theme-btn{display:none!important}`}</style>
       <div style={{minHeight:'100vh',background:T.page,color:T.text,fontFamily:'var(--font-body)',position:'relative'}}>
-        <LavaLamp/>
+        {screen !== 'email' && <LavaLamp/>}
         <EfeitoSazonal screen={screen}/>
         <div style={{position:'relative',zIndex:1,minHeight:'100vh'}}>
           {screen==='landing'     && <LandingPage    onStart={()=>navPush('login')} onGuest={handleGuestLogin}/>}

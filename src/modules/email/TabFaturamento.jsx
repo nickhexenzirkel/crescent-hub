@@ -397,9 +397,14 @@ export default function TabFaturamento({ onOpenEmail }) {
     });
     return [...mapa.values()];
   }, [cadastroClientes]);
-  const mensagensVisiveis = useMemo(() => regionalSelecionada
-    ? mensagens.filter(mensagem => mensagem.regionais.some(regional => regional.nome === regionalSelecionada))
-    : mensagens, [mensagens, regionalSelecionada]);
+  const chaveRegionalSelecionada = regionalSelecionada
+    ? chaveRegionalFaturamento(regionalSelecionada)
+    : '';
+  const mensagensVisiveis = useMemo(() => chaveRegionalSelecionada
+    ? mensagens.filter(mensagem => mensagem.regionais.some(
+      regional => chaveRegionalFaturamento(regional.nome) === chaveRegionalSelecionada,
+    ))
+    : mensagens, [mensagens, chaveRegionalSelecionada]);
   const registrosFiltrados = useMemo(() => mensagensVisiveis
     .filter(mensagem => normalizar(mensagem.municipio).includes(normalizar(busca))), [busca, mensagensVisiveis]);
   const registrosAgrupadosPorMunicipio = useMemo(() => {
