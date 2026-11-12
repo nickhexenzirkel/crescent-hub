@@ -25,16 +25,24 @@ export default function NotificationSettingsModal({ authUser, emailNotificationS
   }, [authUser]);
 
   const changeMode = async (category, mode) => {
+    console.info('[notificações] Clique em opção de preferência pessoal.', { category, mode });
     if (!saveNotificationMode(authUser, category, mode)) {
+      console.error('[notificações] Preferência pessoal não foi ativada porque o salvamento falhou.', { category, mode });
       setSavingError('Não foi possível salvar a preferência neste navegador.');
       return;
     }
     setSavingError('');
     setPreferences(current => ({ ...current, [category]: mode }));
+    console.info('[notificações] Preferência pessoal salva.', {
+      category,
+      mode,
+      channels: getNotificationChannels(authUser, category),
+    });
     setStatus('Preferência pessoal salva somente neste dispositivo.');
 
     if (getNotificationChannels(authUser, category).desktop) {
       const permission = await ensureNotifyPermission();
+      console.info('[notificações] Resultado da permissão desktop.', { permission });
       setStatus(permission === 'granted'
         ? 'Notificações do desktop estão autorizadas neste navegador.'
         : permission === 'denied'
@@ -44,12 +52,18 @@ export default function NotificationSettingsModal({ authUser, emailNotificationS
   };
 
   const usarPadrao = category => {
+    console.info('[notificações] Clique para restaurar o padrão da empresa.', { category });
     if (!resetNotificationMode(authUser, category)) {
       setSavingError('Não foi possível aplicar o padrão da empresa neste navegador.');
       return;
     }
     setSavingError('');
     setPreferences(getNotificationPreferences(authUser));
+    console.info('[notificações] Padrão da empresa aplicado.', {
+      category,
+      mode: getGlobalNotificationDefaults()[category],
+      channels: getNotificationChannels(authUser, category),
+    });
     setStatus(`Padrão da empresa aplicado: ${notificationModesForCategory(category).find(mode => mode.id === getGlobalNotificationDefaults()[category])?.label || 'padrão'}.`);
   };
 

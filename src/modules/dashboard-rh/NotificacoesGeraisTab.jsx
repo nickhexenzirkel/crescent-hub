@@ -32,6 +32,13 @@ export default function NotificacoesGeraisTab() {
         setConfigDisponivel(true);
       })
       .catch(error => {
+        console.error('[notificações gerais] Falha ao carregar o padrão compartilhado do Supabase.', {
+          name: error?.name,
+          message: error?.message || String(error),
+          code: error?.code,
+          details: error?.details,
+          hint: error?.hint,
+        });
         if (active) setErro(`Não foi possível carregar as configurações compartilhadas: ${error.message || 'erro desconhecido'}. Verifique se a migração de notificações foi aplicada no Supabase principal.`);
       })
       .finally(() => { if (active) setCarregando(false); });
@@ -42,6 +49,7 @@ export default function NotificacoesGeraisTab() {
   }, []);
 
   const alterar = async (category, mode) => {
+    console.info('[notificações gerais] Clique em opção de padrão da empresa.', { category, mode });
     setSalvando(category);
     setErro('');
     setMensagem('');
@@ -50,7 +58,17 @@ export default function NotificacoesGeraisTab() {
       setPreferences(resultado);
       setConfigDisponivel(true);
       setMensagem(`Padrão de “${NOTIFICATION_CATEGORIES.find(item => item.id === category)?.label}” salvo e sincronizado.`);
+      console.info('[notificações gerais] Padrão salvo e sincronizado.', { category, mode });
     } catch (error) {
+      console.error('[notificações gerais] Falha ao salvar o padrão no Supabase.', {
+        category,
+        mode,
+        name: error?.name,
+        message: error?.message || String(error),
+        code: error?.code,
+        details: error?.details,
+        hint: error?.hint,
+      });
       setErro(`Não foi possível salvar. ${error.message || 'Erro desconhecido.'}`);
     } finally {
       setSalvando('');

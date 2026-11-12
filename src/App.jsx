@@ -625,6 +625,7 @@ export default function CrescentHub() {
     const intervaloMs = 60_000;
 
     const registrarMensagens = mensagens => {
+      let notificacoesDisparadas = 0;
       for (const mensagem of mensagens) {
         if (!mensagem.id || vistos.has(mensagem.id)) continue;
         vistos.add(mensagem.id);
@@ -644,6 +645,14 @@ export default function CrescentHub() {
         }
         if (canais.sound) playReminder();
         if (canais.desktop) notifyDesktop(notificacao);
+        notificacoesDisparadas += 1;
+      }
+      if (mensagens.length || notificacoesDisparadas) {
+        console.info('[notificações de e-mail] Processamento de mensagens novas concluído.', {
+          encontradas: mensagens.length,
+          notificacoesDisparadas,
+          canais: getNotificationChannels(authUser, 'email_recebidos'),
+        });
       }
       if (vistos.size > 200) {
         const recentes = [...vistos].slice(-100);
@@ -661,11 +670,18 @@ export default function CrescentHub() {
       try {
         if (!conectado) {
           setEmailNotificationStatus('Verificando conexão com a Caixa de Entrada…');
+          console.info('[notificações de e-mail] Consultando estado da conexão Gmail.');
           const status = await getEmailStatus();
           if (!active || !habilitado) return;
           conectado = Boolean(status.connected);
+          console.info('[notificações de e-mail] Estado da conexão Gmail recebido.', {
+            configured: Boolean(status.configured),
+            connected: conectado,
+            shared: Boolean(status.shared),
+          });
           if (!conectado) {
             setEmailNotificationStatus('Preferência ativada, mas a conta Gmail não está conectada no servidor.');
+            console.warn('[notificações de e-mail] Polling interrompido: não há conta Gmail conectada para este usuário.');
             return;
           }
         }
@@ -675,17 +691,29 @@ export default function CrescentHub() {
         const consultaGmail = eraPrimeiraConsulta
           ? 'in:inbox newer_than:1d'
           : `in:inbox after:${Math.max(0, Math.floor((ultimaConsulta - 120_000) / 1000))}`;
+        console.debug('[notificações de e-mail] Consultando Gmail.', {
+          query: consultaGmail,
+          includeReplies: true,
+          primeiraConsulta: eraPrimeiraConsulta,
+        });
         const consulta = await listEmailMessages(consultaGmail, '', false, { includeReplies: true });
 
         const mensagens = [];
+        let paginasConsultadas = 0;
         let paginaAtual = consulta;
         while (active) {
+          paginasConsultadas += 1;
           mensagens.push(...(paginaAtual.messages || []).filter(mensagem =>
             mensagem.labelIds?.includes('INBOX') && !mensagem.labelIds?.includes('SENT')));
           if (!paginaAtual.nextPageToken) break;
           paginaAtual = await listEmailMessages(consultaGmail, paginaAtual.nextPageToken, false, { includeReplies: true });
         }
         if (!active || !habilitado) return;
+        console.debug('[notificações de e-mail] Resultado da consulta Gmail.', {
+          paginasConsultadas,
+          mensagensRecebidasNaCaixa: mensagens.length,
+          mensagensComDataDisponivel: mensagens.filter(mensagem => Number(mensagem.internalDate) > 0).length,
+        });
         primeiraConsulta = false;
         if (!inicializada) {
           const recebidasAposAtivacao = [];
@@ -700,11 +728,19 @@ export default function CrescentHub() {
         ultimaConsulta = inicioConsulta;
         proximaConsultaAte = 0;
         setEmailNotificationStatus('Ativada e conectada. Novos e-mails são verificados a cada minuto.');
+        console.info('[notificações de e-mail] Polling concluído com sucesso.');
       } catch (error) {
         if (error.status === 401) conectado = false;
         const espera = Number(error.retryAfter) || 0;
         if (espera > 0) proximaConsultaAte = Date.now() + espera * 1000;
         setEmailNotificationStatus(`Não foi possível consultar a Caixa de Entrada: ${error.message || 'erro desconhecido'}`);
+        console.error('[notificações de e-mail] Falha durante o polling.', {
+          name: error?.name,
+          message: error?.message || String(error),
+          status: error?.status,
+          retryAfter: espera,
+          stack: error?.stack,
+        });
         if (Date.now() - ultimaFalhaLogada > 5 * 60_000) {
           ultimaFalhaLogada = Date.now();
           console.warn('[notificações de e-mail] Não foi possível consultar a Caixa de Entrada:', error.message);
@@ -718,6 +754,7 @@ export default function CrescentHub() {
       const canais = getNotificationChannels(authUser, 'email_recebidos');
       const deveHabilitar = canais.screen || canais.sound || canais.desktop;
       if (!deveHabilitar) {
+        if (habilitado) console.info('[notificações de e-mail] Polling desativado.', { canais });
         habilitado = false;
         habilitadoAnterior = false;
         if (interval) window.clearInterval(interval);
@@ -733,6 +770,7 @@ export default function CrescentHub() {
       }
       habilitado = true;
       if (!habilitadoAnterior) {
+        console.info('[notificações de e-mail] Polling ativado pela preferência.', { canais });
         habilitadaDesde = Date.now();
         primeiraConsulta = true;
         inicializada = false;
@@ -748,17 +786,25 @@ export default function CrescentHub() {
     };
     const preferenciasPessoaisMudaram = event => {
       if (event.detail?.category && event.detail.category !== 'email_recebidos') return;
+      console.info('[notificações de e-mail] Evento de preferência pessoal recebido.', {
+        category: event.detail?.category,
+        mode: event.detail?.mode,
+      });
       atualizarPolling();
     };
 
     window.addEventListener(NOTIFICATION_PREFERENCE_CHANGED_EVENT, preferenciasPessoaisMudaram);
-    window.addEventListener(GLOBAL_NOTIFICATION_PREFERENCES_CHANGED_EVENT, atualizarPolling);
+    const padraoGlobalMudou = () => {
+      console.info('[notificações de e-mail] Evento de padrão global recebido.');
+      atualizarPolling();
+    };
+    window.addEventListener(GLOBAL_NOTIFICATION_PREFERENCES_CHANGED_EVENT, padraoGlobalMudou);
     atualizarPolling();
     return () => {
       active = false;
       if (interval) window.clearInterval(interval);
       window.removeEventListener(NOTIFICATION_PREFERENCE_CHANGED_EVENT, preferenciasPessoaisMudaram);
-      window.removeEventListener(GLOBAL_NOTIFICATION_PREFERENCES_CHANGED_EVENT, atualizarPolling);
+      window.removeEventListener(GLOBAL_NOTIFICATION_PREFERENCES_CHANGED_EVENT, padraoGlobalMudou);
     };
   }, [authUser]);
 

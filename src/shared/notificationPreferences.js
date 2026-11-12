@@ -121,7 +121,10 @@ export function getNotificationPreferences(user) {
 }
 
 export function saveNotificationMode(user, category, mode) {
-  if (!Object.hasOwn(DEFAULT_NOTIFICATION_MODES, category) || !isValidNotificationMode(category, mode)) return false;
+  if (!Object.hasOwn(DEFAULT_NOTIFICATION_MODES, category) || !isValidNotificationMode(category, mode)) {
+    console.error('[notificações] Preferência inválida; não foi salva.', { category, mode });
+    return false;
+  }
   const preferences = storedPreferences(user);
   preferences[category] = mode;
   try {
@@ -130,7 +133,13 @@ export function saveNotificationMode(user, category, mode) {
       detail: { category, mode, user: String(user?.cpf || user?.name || user?.id || 'anon').toLowerCase() },
     }));
     return true;
-  } catch {
+  } catch (error) {
+    console.error('[notificações] Falha ao salvar preferência no armazenamento local.', {
+      category,
+      mode,
+      name: error?.name,
+      message: error?.message || String(error),
+    });
     return false;
   }
 }
@@ -152,7 +161,12 @@ export function resetNotificationMode(user, category) {
       detail: { category, mode: getNotificationPreferences(user)[category], user: String(user?.cpf || user?.name || user?.id || 'anon').toLowerCase() },
     }));
     return true;
-  } catch {
+  } catch (error) {
+    console.error('[notificações] Falha ao restaurar preferência padrão no armazenamento local.', {
+      category,
+      name: error?.name,
+      message: error?.message || String(error),
+    });
     return false;
   }
 }
