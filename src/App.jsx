@@ -27,7 +27,7 @@ import Beneficios7 from './modules/beneficios-7';
 import PrestacaoContas from './modules/prestacao-contas';
 import AmigoSecreto from './modules/amigo-secreto';
 import Email from './modules/email';
-import { faturamentoAposInicioDaSessao } from './modules/central-colaborador/faturamentoEmailUtils';
+import { faturamentoAposInicioDaSessao } from './modules/email/faturamentoEmailUtils';
 import { notifyDesktop, ensureNotifyPermission } from './utils/desktopNotify';
 import {
   getNotificationChannels,
@@ -117,7 +117,6 @@ export default function CrescentHub() {
   // acesso de quem já vê tudo por padrão.
   const isPlainColaborador = authUser?.role !== 'admin' && authUser?.role !== 'moderador';
   const [portalInitialTab, setPortalInitialTab] = useState(null); // aba com que o Portal abre (ex: "dados" ao clicar em "Editar perfil")
-  const [emailInitialMessageId, setEmailInitialMessageId] = useState(null);
   const isMobile = useIsMobile();
   // 7 Benefícios embute um site de terceiro num <iframe>: desmontar o
   // componente a cada troca de módulo destruía e recarregava esse iframe do
@@ -866,7 +865,7 @@ export default function CrescentHub() {
           {screen==='landing'     && <LandingPage    onStart={()=>navPush('login')} onGuest={handleGuestLogin}/>}
           {screen==='login'       && <LoginScreen    onLogin={handleLogin} onGuest={handleGuestLogin}/>}
           {screen==='modules'     && <ModuleSelector onSelect={handleModuleSelect} authUser={authUser} onLogout={handleLogout} onOpenNotificationSettings={() => setNotificationSettingsOpen(true)} userPhoto={userPhoto} cargoModules={cargoModules} cargoRestricted={cargoRestricted} cargoTabRestrictions={cargoTabRestrictions}/>}
-          {screen==='colaborador' && <Portal         onBack={handleGoBack} onGoAlexa={()=>navPush('alexa')} onOpenEmail={messageId=>{setEmailInitialMessageId(messageId || null);navPush('email');}} userPhoto={userPhoto} onPhotoChange={p=>setUserPhoto(p)} initialTab={portalInitialTab} visitante={isVisitante(authUser)} restrictedTabs={isVisitante(authUser) ? abasVisitante(visitanteCfg,'colaborador') : (isPlainColaborador ? cargoTabRestrictions['colaborador'] : undefined)} restrictedLembretesTabs={isVisitante(authUser) ? abasVisitante(visitanteCfg,'lembretes') : undefined}/>}
+          {screen==='colaborador' && <Portal         onBack={handleGoBack} onGoAlexa={()=>navPush('alexa')} userPhoto={userPhoto} onPhotoChange={p=>setUserPhoto(p)} initialTab={portalInitialTab} visitante={isVisitante(authUser)} restrictedTabs={isVisitante(authUser) ? abasVisitante(visitanteCfg,'colaborador') : (isPlainColaborador ? cargoTabRestrictions['colaborador'] : undefined)} restrictedLembretesTabs={isVisitante(authUser) ? abasVisitante(visitanteCfg,'lembretes') : undefined}/>}
           {screen==='ponto'       && (authUser?.role==='admin'||authUser?.role==='moderador'||cargoModules.has('ponto')) && <PontoEletronico onBack={handleGoBack} isAdmin={true}/>}
           {screen==='dashboard'   && (authUser?.role==='admin'||authUser?.role==='moderador'||cargoModules.has('dashboard')) && <DashboardRH onBack={handleGoBack} adminName={authUser.name} role={authUser.role} initialTab={portalInitialTab}/>}
           {screen==='alexa'       && <CentralAlexa        onBack={handleGoBack} userPhoto={userPhoto} initialTab={portalInitialTab} onlyTabs={isVisitante(authUser) ? abasVisitante(visitanteCfg,'alexa') : undefined}/>}
@@ -880,7 +879,7 @@ export default function CrescentHub() {
           {screen==='uniko-fit' && <UnikoFit onBack={handleGoBack} authUser={authUser} userPhoto={userPhoto} onlyTabs={isVisitante(authUser) ? abasVisitante(visitanteCfg,'uniko-fit') : undefined}/>}
           {screen==='uniko-call' && (authUser?.role==='admin'||cargoModules.has('uniko-call')) && <UnikoCall onBack={handleGoBack}/>}
           {screen==='prestacao-contas' && (authUser?.role==='admin'||cargoModules.has('prestacao-contas')) && <PrestacaoContas onBack={handleGoBack} authUser={authUser}/>}
-          {screen==='email' && authUser && !isVisitante(authUser) && <Email onBack={handleGoBack} authUser={authUser} initialMessageId={emailInitialMessageId} onInitialMessageHandled={setEmailInitialMessageId}/>}
+          {screen==='email' && authUser && !isVisitante(authUser) && <Email onBack={handleGoBack} authUser={authUser}/>}
           {screen==='amigo-secreto' && <AmigoSecreto onBack={handleGoBack} authUser={authUser}/>}
         </div>
 

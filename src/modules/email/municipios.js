@@ -1,0 +1,18 @@
+export const MUNICIPIOS = [
+  'Acaraú', 'Acopiara', 'Alcântaras', 'Alexânia', 'Amontada', 'Angical do Piauí', 'Apuiarés', 'Aquiraz',
+  'Aracati', 'Aracoiaba', 'Aratuba', 'Assaré', 'Aurora', 'Barreira', 'Baturité', 'Beberibe', 'Boa Viagem',
+  'Campos Sales', 'Canindé', 'Capistrano', 'Caridade', 'Cariré', 'Carnaubal', 'Cascavel', 'Caucaia',
+  'Chaval', 'Choró', 'Chorozinho', 'Coreaú', 'Crateús', 'Cruz', 'Deputado Irapuan Pinheiro', 'Eusébio',
+  'Forquilha', 'Fortaleza', 'Frecheirinha', 'General Sampaio', 'Granja', 'Granjeiro', 'Groaíras', 'Guaiúba',
+  'Guaraciaba do Norte', 'Guaramiranga', 'Horizonte', 'Ibaretama', 'Ibicuitinga', 'Icapuí', 'Icó', 'Iguatu',
+  'Ipu', 'Iracema', 'Itaitinga', 'Itapajé', 'Itapipoca', 'Itapiúna', 'Itarema', 'Jaguaretama', 'Jaguaribara',
+  'Jaguaribe', 'Jijoca de Jericoacoara', 'Joaquim Pires', 'Juazeiro do Piauí', 'Lavras da Mangabeira',
+  'Madalena', 'Maracanaú', 'Maranguape', 'Marco', 'Martinópole', 'Massapê', 'Meruoca', 'Miguel Alves', 'Milhã',
+  'Miraíma', 'Missão Velha', 'Mombaça', 'Monsenhor Tabosa', 'Moraújo', 'Morrinhos', 'Morro do Pilar', 'Mulungu',
+  'Nazária', 'Orós', 'Pacatuba', 'Pacujá', 'Palhano', 'Palmares', 'Palmácia', 'Paracuru', 'Paraipaba',
+  'Parnaíba', 'Pedra Branca', 'Penaforte', 'Pentecoste', 'Pereiro', 'Piquet Carneiro', 'Pires Ferreira',
+  'Poranga', 'Potengi', 'Quixadá', 'Quixeré', 'Russas', 'Saboeiro', 'São Benedito', 'São Gonçalo do Amarante',
+  'São Luís do Curu', 'Senador Pompeu', 'Senador Sá', 'Sobral', 'Solonópole', 'Tabuleiro do Norte', 'Tarrafas',
+  'Tauá', 'Tejuçuoca', 'Tianguá', 'Trairi', 'Tururu', 'Ubajara', 'Umirim', 'Uruburetama', 'Uruoca',
+  'Várzea Grande', 'Viçosa do Ceará',
+];

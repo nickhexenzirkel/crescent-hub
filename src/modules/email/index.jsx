@@ -1,26 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { T } from '../../contexts/theme';
 import { disconnect, downloadAttachment, getAttachment, getMessage, getStatus, listMessages, shareConnectedAccount, startOAuth } from './api';
+import TabFaturamento from './TabFaturamento';
+import { MUNICIPIOS } from './municipios';
+
+export { MUNICIPIOS };
 
 const muted = { color: T.textS, fontSize: 13 };
-export const MUNICIPIOS = [
-  'Acaraú', 'Acopiara', 'Alcântaras', 'Alexânia', 'Amontada', 'Angical do Piauí', 'Apuiarés', 'Aquiraz',
-  'Aracati', 'Aracoiaba', 'Aratuba', 'Assaré', 'Aurora', 'Barreira', 'Baturité', 'Beberibe', 'Boa Viagem',
-  'Campos Sales', 'Canindé', 'Capistrano', 'Caridade', 'Cariré', 'Carnaubal', 'Cascavel', 'Caucaia',
-  'Chaval', 'Choró', 'Chorozinho', 'Coreaú', 'Crateús', 'Cruz', 'Deputado Irapuan Pinheiro', 'Eusébio',
-  'Forquilha', 'Fortaleza', 'Frecheirinha', 'General Sampaio', 'Granja', 'Granjeiro', 'Groaíras', 'Guaiúba',
-  'Guaraciaba do Norte', 'Guaramiranga', 'Horizonte', 'Ibaretama', 'Ibicuitinga', 'Icapuí', 'Icó', 'Iguatu',
-  'Ipu', 'Iracema', 'Itaitinga', 'Itapajé', 'Itapipoca', 'Itapiúna', 'Itarema', 'Jaguaretama', 'Jaguaribara',
-  'Jaguaribe', 'Jijoca de Jericoacoara', 'Joaquim Pires', 'Juazeiro do Piauí', 'Lavras da Mangabeira',
-  'Madalena', 'Maracanaú', 'Maranguape', 'Marco', 'Martinópole', 'Massapê', 'Meruoca', 'Miguel Alves', 'Milhã',
-  'Miraíma', 'Missão Velha', 'Mombaça', 'Monsenhor Tabosa', 'Moraújo', 'Morrinhos', 'Morro do Pilar', 'Mulungu',
-  'Nazária', 'Orós', 'Pacatuba', 'Pacujá', 'Palhano', 'Palmares', 'Palmácia', 'Paracuru', 'Paraipaba',
-  'Parnaíba', 'Pedra Branca', 'Penaforte', 'Pentecoste', 'Pereiro', 'Piquet Carneiro', 'Pires Ferreira',
-  'Poranga', 'Potengi', 'Quixadá', 'Quixeré', 'Russas', 'Saboeiro', 'São Benedito', 'São Gonçalo do Amarante',
-  'São Luís do Curu', 'Senador Pompeu', 'Senador Sá', 'Sobral', 'Solonópole', 'Tabuleiro do Norte', 'Tarrafas',
-  'Tauá', 'Tejuçuoca', 'Tianguá', 'Trairi', 'Tururu', 'Ubajara', 'Umirim', 'Uruburetama', 'Uruoca',
-  'Várzea Grande', 'Viçosa do Ceará',
-];
 const INSTITUICOES = [
   'Cagece', 'Câmara Municipal de Acaraú', 'Câmara Municipal de Acopiara', 'Câmara Municipal de Aquiraz',
   'Câmara Municipal de Capistrano', 'Câmara Municipal de Eusébio', 'Câmara Municipal de Forquilha',
@@ -197,7 +183,7 @@ function isIgnoredMessage(message) {
   return /mailsuite|mail[\s._-]*track/i.test(`${message.from || ''} ${message.subject || ''}`);
 }
 
-export default function Email({ onBack, authUser, initialMessageId, onInitialMessageHandled }) {
+export default function Email({ onBack, authUser }) {
   const buttonStyle = {
     border: `1px solid ${T.border}`,
     borderRadius: 9,
@@ -207,7 +193,7 @@ export default function Email({ onBack, authUser, initialMessageId, onInitialMes
     cursor: 'pointer',
     font: '600 13px var(--font-body)',
   };
-  const initialMessageIdRef = useRef(initialMessageId);
+  const [activeTab, setActiveTab] = useState('email');
   const [status, setStatus] = useState(null);
   const [messages, setMessages] = useState([]);
   const [selectedId, setSelectedId] = useState('');
@@ -273,18 +259,7 @@ export default function Email({ onBack, authUser, initialMessageId, onInitialMes
         if (!active) return;
         setStatus(current);
         if (current.connected) {
-          const initialMessageId = initialMessageIdRef.current;
-          if (initialMessageId) {
-            setPasta('enviados');
-            setQuery('in:sent');
-          }
-          await loadMessages(initialMessageId ? 'in:sent' : '', '', false, false, Boolean(initialMessageId));
-          if (active && initialMessageId) {
-            setSelectedId(initialMessageId);
-            setMessage(null);
-            setLoadingMessage(true);
-            onInitialMessageHandled?.(null);
-          }
+          await loadMessages('');
           return;
         }
         setLoading(false);
@@ -296,7 +271,7 @@ export default function Email({ onBack, authUser, initialMessageId, onInitialMes
         }
       });
     return () => { active = false; };
-  }, [loadMessages, onInitialMessageHandled]);
+  }, [loadMessages]);
 
   useEffect(() => {
     if (!selectedId) {
@@ -439,6 +414,20 @@ export default function Email({ onBack, authUser, initialMessageId, onInitialMes
     }
   };
 
+  const abrirMensagemDeFaturamento = messageId => {
+    setActiveTab('email');
+    if (!messageId) return;
+    setPasta('enviados');
+    setFilters({ cliente: '', destinatario: '', dataInicio: '', dataFim: '', notaFiscalTermo: '' });
+    setFiltersOpen(false);
+    setQueryInput('');
+    setQuery('in:sent');
+    setSelectedId(messageId);
+    setMessage(null);
+    setLoadingMessage(true);
+    loadMessages('in:sent', '', false, false, true);
+  };
+
   if (!authUser || authUser.role === 'visitante') {
     return <div style={{ padding: 32, color: T.text }}>Este módulo está disponível apenas para colaboradores conectados.</div>;
   }
@@ -450,6 +439,30 @@ export default function Email({ onBack, authUser, initialMessageId, onInitialMes
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontFamily: 'var(--font-brand)', fontWeight: 800, fontSize: 19 }}>
           <span style={{ color: T.gold }}>✉</span> E-mail
         </div>
+        <nav role="tablist" aria-label="Seções do módulo de e-mail" style={{ display: 'flex', gap: 6, padding: 4, borderRadius: 12, background: T.page }}>
+          {[
+            { id: 'email', label: 'E-MAIL' },
+            { id: 'faturamento', label: 'Acompanhar Faturamento' },
+          ].map(tab => (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              style={{
+                ...buttonStyle,
+                padding: '8px 12px',
+                borderColor: activeTab === tab.id ? T.gold : 'transparent',
+                background: activeTab === tab.id ? T.goldGl : 'transparent',
+                color: activeTab === tab.id ? T.gold : T.textS,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </nav>
         {status?.connected && (
           <div style={{ ...muted, marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             <span>{status.email}{status.shared ? ' · Caixa compartilhada' : ''}</span>
@@ -463,7 +476,7 @@ export default function Email({ onBack, authUser, initialMessageId, onInitialMes
         )}
       </header>
 
-      <main style={{ flex: '1 1 0', minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', padding: 16, gap: 12 }}>
+      <main style={{ flex: '1 1 0', minHeight: 0, overflow: 'hidden', display: activeTab === 'email' ? 'flex' : 'none', flexDirection: 'column', padding: 16, gap: 12 }}>
         {!status && loading ? <div style={muted}>Verificando conexão…</div> : null}
         {error && <div role="alert" style={{ padding: '10px 12px', borderRadius: 9, background: T.dangerGl || '#FDECEC', color: T.danger || '#B42318', fontSize: 13 }}>{error}</div>}
 
@@ -770,6 +783,11 @@ export default function Email({ onBack, authUser, initialMessageId, onInitialMes
           </>
         )}
       </main>
+      {activeTab === 'faturamento' && (
+        <main style={{ flex: '1 1 0', minHeight: 0, overflowY: 'auto', padding: 16 }}>
+          <TabFaturamento onOpenEmail={abrirMensagemDeFaturamento} />
+        </main>
+      )}
       {preview && (
         <div role="presentation" onClick={() => setPreview(null)} style={{ position: 'fixed', inset: 0, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 18, background: 'rgba(0,0,0,.72)' }}>
           <section role="dialog" aria-modal="true" aria-label={`Anexo ${preview.filename}`} onClick={event => event.stopPropagation()} style={{ display: 'flex', flexDirection: 'column', width: 'min(1100px, 96vw)', height: 'min(900px, 92vh)', background: T.surface, color: T.text, borderRadius: 14, overflow: 'hidden', boxShadow: '0 20px 70px rgba(0,0,0,.4)' }}>

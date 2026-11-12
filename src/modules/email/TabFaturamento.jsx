@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { T } from '../../../contexts/theme';
-import { MUNICIPIOS } from '../../email';
-import { getFaturamento } from '../../email/api';
-import { agruparMensagensPorConversa, assuntoIndicaFaturamento, faturamentoAposInicioDaSessao, formatarDataTempoReal, municipioExibidoNoAssunto, periodoFaturadoDoAssunto, secretariaFaturadaDoAssunto } from '../faturamentoEmailUtils';
+import { T } from '../../contexts/theme';
+import { MUNICIPIOS } from './municipios';
+import { getFaturamento } from './api';
+import { agruparMensagensPorConversa, assuntoIndicaFaturamento, faturamentoAposInicioDaSessao, formatarDataTempoReal, municipioExibidoNoAssunto, periodoFaturadoDoAssunto, secretariaFaturadaDoAssunto } from './faturamentoEmailUtils';
 import {
   carregarCoresRegionais,
   carregarCadastroFaturamento,
@@ -16,7 +16,7 @@ import {
   REGIONAIS_FATURAMENTO,
   salvarEstadoNotificacoesFaturamento,
   carregarVinculosRegionaisFaturamento,
-} from '../../../shared/faturamentoComerciais';
+} from '../../shared/faturamentoComerciais';
 
 const REGIONAIS = REGIONAIS_FATURAMENTO.map(regional => ({
   ...regional,

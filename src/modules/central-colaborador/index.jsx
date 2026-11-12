@@ -26,7 +26,6 @@ import { TabUnikoStop } from './tabs/TabUnikoStop';
 import { TabUnikoPalavras } from './tabs/TabUnikoPalavras';
 import { TabUnikoFaster } from './tabs/TabUnikoFaster';
 import { TabUnikoSuspect } from './tabs/TabUnikoSuspect';
-import TabFaturamento from './tabs/TabFaturamento';
 import CentralLembretes from '../central-lembretes';
 import { syncCollectionFromServer } from '../../shared/captureUniko';
 import { subscribeRoletaPing } from '../../shared/roletaSorte';
@@ -61,7 +60,7 @@ const ehCelularDeitado = () => {
 // Permissões) recortando quais abas do Portal um cargo específico enxerga
 // — ex: cargo "Comercial" só vendo Seus Dados/Financeiro/Meus Lembretes/
 // Eventos/Feedback. undefined/[] = sem restrição, comportamento de sempre.
-const Portal = ({onBack, onGoAlexa, onOpenEmail, userPhoto, onPhotoChange, initialTab, restrictedTabs, visitante, restrictedLembretesTabs}) => {
+const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange, initialTab, restrictedTabs, visitante, restrictedLembretesTabs}) => {
   useVisibilidade();
   const isMobile = useIsMobile();
   const [celularDeitado, setCelularDeitado] = useState(ehCelularDeitado);
@@ -72,10 +71,9 @@ const Portal = ({onBack, onGoAlexa, onOpenEmail, userPhoto, onPhotoChange, initi
   }, []);
   // "Início" não entra numa restrição de cargo (não tem como marcar ela na
   // tela de permissões) — pra quem é restrito, a home vira a 1ª aba liberada.
-  const homeTab = restrictedTabs?.length && restrictedTabs[0] !== 'faturamento' ? restrictedTabs[0] : 'inicio';
+  const homeTab = restrictedTabs?.length ? restrictedTabs[0] : 'inicio';
   const [tab,st]=useState(() => {
-    if (restrictedTabs?.length && (!initialTab || (!restrictedTabs.includes(initialTab) && !(initialTab === 'faturamento' && !visitante)))) return homeTab;
-    if (initialTab === 'faturamento' && visitante) return homeTab;
+    if (initialTab === 'faturamento' || (restrictedTabs?.length && (!initialTab || !restrictedTabs.includes(initialTab)))) return homeTab;
     return initialTab || 'inicio';
   });
   // Rede de segurança: QUALQUER navegação (sidebar, menu mobile, convite de
@@ -83,8 +81,7 @@ const Portal = ({onBack, onGoAlexa, onOpenEmail, userPhoto, onPhotoChange, initi
   // aba fora da lista liberada volta sozinha pra homeTab — centraliza a
   // trava aqui em vez de caçar cada `st('inicio')` espalhado pelo arquivo.
   useEffect(() => {
-    if ((restrictedTabs?.length && !restrictedTabs.includes(tab) && !(tab === 'faturamento' && !visitante))
-      || (tab === 'faturamento' && visitante)) st(homeTab);
+    if (tab === 'faturamento' || (restrictedTabs?.length && !restrictedTabs.includes(tab))) st(homeTab);
   }, [tab, restrictedTabs, homeTab, visitante]);
   // Uniko Wave só MONTA na primeira vez que a aba é aberta (senão todo mundo que
   // abre o Portal carregaria o iframe do jogo à toa) — mas depois disso NUNCA
@@ -241,7 +238,6 @@ const Portal = ({onBack, onGoAlexa, onOpenEmail, userPhoto, onPhotoChange, initi
   const render=()=>{
     if(tab==='inicio')     return <TabInicio setTab={st} onGoAlexa={onGoAlexa} activeTheme={activeTheme} userPhoto={userPhoto} onPhotoChange={onPhotoChange} profileComplete={profileComplete}/>;
     if(tab==='financeiro') return <TabFinanceiro/>;
-    if(tab==='faturamento' && !visitante) return <TabFaturamento onOpenEmail={onOpenEmail}/>;
     if(tab==='dados')      return <TabDados onProfileSaved={handleProfileSaved}/>;
     // Desligado não vê (nem justifica) ponto: o cálculo dele parou na data do
     // desligamento. As abas somem da navegação, mas a guarda fica aqui também
@@ -406,7 +402,7 @@ const Portal = ({onBack, onGoAlexa, onOpenEmail, userPhoto, onPhotoChange, initi
             <div style={{width:36,height:4,borderRadius:99,background:T.border,margin:'0 auto 16px'}}/>
             <div style={{fontSize:11,color:T.textD,letterSpacing:'.09em',textTransform:'uppercase',
               padding:'0 4px 10px',fontWeight:600}}>Navegação</div>
-            {NAV_FOR(getAuthUser()?.role==='admin', desligado.off, visitante).filter(n=>!restrictedTabs?.length||restrictedTabs.includes(n.id)||(n.id==='faturamento'&&!visitante)).map(n=>{
+            {NAV_FOR(getAuthUser()?.role==='admin', desligado.off).filter(n=>!restrictedTabs?.length||restrictedTabs.includes(n.id)).map(n=>{
               const locked = n.id==='uniko' && !profileComplete;
               return(
                 <div key={n.id}
