@@ -27,14 +27,19 @@ import Beneficios7 from './modules/beneficios-7';
 import PrestacaoContas from './modules/prestacao-contas';
 import AmigoSecreto from './modules/amigo-secreto';
 import Email from './modules/email';
+import { getStatus as getEmailStatus, listMessages as listEmailMessages } from './modules/email/api';
 import { faturamentoAposInicioDaSessao } from './modules/email/faturamentoEmailUtils';
 import { notifyDesktop, ensureNotifyPermission } from './utils/desktopNotify';
 import {
   getNotificationChannels,
+  NOTIFICATION_PREFERENCE_CHANGED_EVENT,
   NOTIFICATION_SCREEN_EVENT,
   NOTIFICATION_SETTINGS_OPEN_EVENT,
 } from './shared/notificationPreferences';
-import { startGlobalNotificationPreferencesSync } from './shared/globalNotificationPreferences';
+import {
+  GLOBAL_NOTIFICATION_PREFERENCES_CHANGED_EVENT,
+  startGlobalNotificationPreferencesSync,
+} from './shared/globalNotificationPreferences';
 import { loadSeenNotifications, rememberSeenNotification } from './shared/seenNotifications';
 import { useIsMobile } from './hooks/useIsMobile';
 import UnikoAssistant from './shared/UnikoAssistant';
@@ -599,6 +604,132 @@ export default function CrescentHub() {
   useEffect(() => {
     if (!authUser) return undefined;
     return startGlobalNotificationPreferencesSync();
+  }, [authUser]);
+
+  useEffect(() => {
+    if (!authUser || isVisitante(authUser)) return undefined;
+    let active = true;
+    let interval = null;
+    let inFlight = false;
+    let conectado = false;
+    let primeiraConsulta = true;
+    let inicializada = false;
+    let ultimaConsulta = 0;
+    let proximaConsultaAte = 0;
+    let ultimaFalhaLogada = 0;
+    const vistos = new Set();
+    const intervaloMs = 60_000;
+
+    const registrarMensagens = mensagens => {
+      for (const mensagem of mensagens) {
+        if (!mensagem.id || vistos.has(mensagem.id)) continue;
+        vistos.add(mensagem.id);
+        const canais = getNotificationChannels(authUser, 'email_recebidos');
+        if (!canais.screen && !canais.sound && !canais.desktop) continue;
+        const notificacao = {
+          id: `email-${mensagem.id}`,
+          type: 'lembrete',
+          title: 'Novo e-mail recebido',
+          message: [mensagem.subject, mensagem.from].filter(Boolean).join(' · ') || 'Há uma nova mensagem na Caixa de Entrada.',
+          active: true,
+        };
+        if (canais.screen) {
+          window.dispatchEvent(new CustomEvent(NOTIFICATION_SCREEN_EVENT, {
+            detail: { category: 'email_recebidos', notification: notificacao },
+          }));
+        }
+        if (canais.sound) playReminder();
+        if (canais.desktop) notifyDesktop(notificacao);
+      }
+      if (vistos.size > 200) {
+        const recentes = [...vistos].slice(-100);
+        vistos.clear();
+        recentes.forEach(id => vistos.add(id));
+      }
+    };
+
+    const consultar = async () => {
+      if (!active || inFlight) return;
+      const canais = getNotificationChannels(authUser, 'email_recebidos');
+      if (!canais.screen && !canais.sound && !canais.desktop) return;
+      if (Date.now() < proximaConsultaAte) return;
+      inFlight = true;
+      try {
+        if (!conectado) {
+          const status = await getEmailStatus();
+          if (!active) return;
+          conectado = Boolean(status.connected);
+          if (!conectado) return;
+        }
+
+        const inicioConsulta = Date.now();
+        const eraPrimeiraConsulta = primeiraConsulta;
+        const consultaGmail = eraPrimeiraConsulta
+          ? 'in:inbox newer_than:1d'
+          : `in:inbox after:${Math.max(0, Math.floor((ultimaConsulta - 120_000) / 1000))}`;
+        const consulta = await listEmailMessages(consultaGmail, '', false, { includeReplies: true });
+
+        const mensagens = [];
+        let paginaAtual = consulta;
+        while (active) {
+          mensagens.push(...(paginaAtual.messages || []).filter(mensagem =>
+            mensagem.labelIds?.includes('INBOX') && !mensagem.labelIds?.includes('SENT')));
+          if (!paginaAtual.nextPageToken) break;
+          paginaAtual = await listEmailMessages(consultaGmail, paginaAtual.nextPageToken, false, { includeReplies: true });
+        }
+        if (!active) return;
+        primeiraConsulta = false;
+        if (!inicializada) mensagens.forEach(mensagem => {
+          if (mensagem.id) vistos.add(mensagem.id);
+        });
+        else registrarMensagens(mensagens);
+        inicializada = true;
+        ultimaConsulta = inicioConsulta;
+        proximaConsultaAte = 0;
+      } catch (error) {
+        if (error.status === 401) conectado = false;
+        const espera = Number(error.retryAfter) || 0;
+        if (espera > 0) proximaConsultaAte = Date.now() + espera * 1000;
+        if (Date.now() - ultimaFalhaLogada > 5 * 60_000) {
+          ultimaFalhaLogada = Date.now();
+          console.warn('[notificações de e-mail] Não foi possível consultar a Caixa de Entrada:', error.message);
+        }
+      } finally {
+        inFlight = false;
+      }
+    };
+
+    const atualizarPolling = () => {
+      const canais = getNotificationChannels(authUser, 'email_recebidos');
+      const habilitado = canais.screen || canais.sound || canais.desktop;
+      if (!habilitado) {
+        if (interval) window.clearInterval(interval);
+        interval = null;
+        primeiraConsulta = true;
+        inicializada = false;
+        ultimaConsulta = 0;
+        proximaConsultaAte = 0;
+        vistos.clear();
+        return;
+      }
+      if (interval) return;
+      consultar();
+      interval = window.setInterval(consultar, intervaloMs);
+    };
+    const preferenciasPessoaisMudaram = event => {
+      if (event.detail?.category && event.detail.category !== 'email_recebidos') return;
+      atualizarPolling();
+    };
+
+    window.addEventListener(NOTIFICATION_PREFERENCE_CHANGED_EVENT, preferenciasPessoaisMudaram);
+    window.addEventListener(GLOBAL_NOTIFICATION_PREFERENCES_CHANGED_EVENT, atualizarPolling);
+    atualizarPolling();
+    return () => {
+      active = false;
+      if (interval) window.clearInterval(interval);
+      window.removeEventListener(NOTIFICATION_PREFERENCE_CHANGED_EVENT, preferenciasPessoaisMudaram);
+      window.removeEventListener(GLOBAL_NOTIFICATION_PREFERENCES_CHANGED_EVENT, atualizarPolling);
+    };
   }, [authUser]);
 
   useEffect(() => {

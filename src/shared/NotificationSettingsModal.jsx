@@ -3,10 +3,11 @@ import { T } from '../contexts/theme';
 import { ensureNotifyPermission, notifyPermission } from '../utils/desktopNotify';
 import {
   getGlobalNotificationDefaults,
+  getNotificationChannels,
   getNotificationPreferences,
   hasPersonalNotificationOverride,
   NOTIFICATION_CATEGORIES,
-  NOTIFICATION_MODES,
+  notificationModesForCategory,
   resetNotificationMode,
   saveNotificationMode,
 } from './notificationPreferences';
@@ -32,7 +33,7 @@ export default function NotificationSettingsModal({ authUser, onClose }) {
     setPreferences(current => ({ ...current, [category]: mode }));
     setStatus('Preferência pessoal salva somente neste dispositivo.');
 
-    if (mode === 'desktop' || mode === 'both') {
+    if (getNotificationChannels(authUser, category).desktop) {
       const permission = await ensureNotifyPermission();
       setStatus(permission === 'granted'
         ? 'Notificações do desktop estão autorizadas neste navegador.'
@@ -49,7 +50,7 @@ export default function NotificationSettingsModal({ authUser, onClose }) {
     }
     setSavingError('');
     setPreferences(getNotificationPreferences(authUser));
-    setStatus(`Padrão da empresa aplicado: ${NOTIFICATION_MODES.find(mode => mode.id === getGlobalNotificationDefaults()[category])?.label || 'padrão'}.`);
+    setStatus(`Padrão da empresa aplicado: ${notificationModesForCategory(category).find(mode => mode.id === getGlobalNotificationDefaults()[category])?.label || 'padrão'}.`);
   };
 
   const initialPermission = notifyPermission();
@@ -103,7 +104,7 @@ export default function NotificationSettingsModal({ authUser, onClose }) {
               )}
               <div role="radiogroup" aria-label={`Tipo de notificação: ${category.label}`}
                 style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(125px, 1fr))', gap: 7 }}>
-                {NOTIFICATION_MODES.map(mode => {
+                {notificationModesForCategory(category.id).map(mode => {
                   const selected = preferences[category.id] === mode.id;
                   return (
                     <button key={mode.id} type="button" role="radio" aria-checked={selected}

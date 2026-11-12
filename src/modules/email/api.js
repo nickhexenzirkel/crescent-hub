@@ -36,11 +36,12 @@ export function shareConnectedAccount() {
   return request('/shared-account', { method: 'POST' });
 }
 
-export function listMessages(query, pageToken, includeAttachments = false) {
+export function listMessages(query, pageToken, includeAttachments = false, { includeReplies = false } = {}) {
   const params = new URLSearchParams();
   if (query.trim()) params.set('q', query.trim());
   if (pageToken) params.set('pageToken', pageToken);
   if (includeAttachments) params.set('includeAttachments', '1');
+  if (includeReplies) params.set('includeReplies', '1');
   return request(`/messages?${params.toString()}`);
 }
 

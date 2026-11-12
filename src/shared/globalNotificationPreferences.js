@@ -2,7 +2,7 @@ import { supabase } from '../contexts/user';
 import {
   DEFAULT_NOTIFICATION_MODES,
   NOTIFICATION_CATEGORIES,
-  NOTIFICATION_MODES,
+  isValidNotificationMode,
   setGlobalNotificationDefaults,
 } from './notificationPreferences';
 
@@ -19,7 +19,7 @@ function normalizePreferences(value) {
   }
   return Object.fromEntries(NOTIFICATION_CATEGORIES.map(({ id }) => {
     const mode = preferences?.[id];
-    return [id, NOTIFICATION_MODES.some(option => option.id === mode)
+    return [id, isValidNotificationMode(id, mode)
       ? mode
       : DEFAULT_NOTIFICATION_MODES[id]];
   }));

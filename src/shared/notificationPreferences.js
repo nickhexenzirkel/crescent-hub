@@ -9,11 +9,18 @@ export const NOTIFICATION_MODES = [
   { id: 'both', label: 'Tela + desktop' },
   { id: 'sound', label: 'Só som da aba' },
   { id: 'screen_sound', label: 'Tela + som da aba' },
+  { id: 'screen_sound_desktop', label: 'Tela + som + desktop' },
 ];
 
 export const NOTIFICATION_CATEGORIES = [
   { id: 'atualizacoes', label: 'Atualizações', description: 'Mural de novidades do RH.' },
   { id: 'avisos_rh', label: 'Avisos e lembretes do RH', description: 'Avisos gerais, urgentes e lembretes pessoais.' },
+  {
+    id: 'email_recebidos',
+    label: 'E-mails recebidos',
+    description: 'Novas mensagens recebidas na Caixa de Entrada do Gmail. A verificação ocorre enquanto o Uniko estiver aberto.',
+    modes: ['off', 'screen', 'screen_sound', 'screen_sound_desktop'],
+  },
   { id: 'capture_uniko', label: 'Spawn de Unikos', description: 'Quando um Uniko fica disponível para captura.' },
   { id: 'capture_numero', label: 'Spawn de Números', description: 'Quando um número fica disponível para captura.' },
   { id: 'chat_secreto', label: 'Mensagens do Chat Secreto', description: 'Novas mensagens no Blog Secreto do UNIKO.' },
@@ -26,6 +33,7 @@ export const NOTIFICATION_CATEGORIES = [
 export const DEFAULT_NOTIFICATION_MODES = {
   atualizacoes: 'both',
   avisos_rh: 'both',
+  email_recebidos: 'off',
   capture_uniko: 'desktop',
   capture_numero: 'desktop',
   chat_secreto: 'screen',
@@ -36,6 +44,14 @@ export const DEFAULT_NOTIFICATION_MODES = {
 };
 
 const validMode = mode => NOTIFICATION_MODES.some(({ id }) => id === mode);
+export const isValidNotificationMode = (categoryId, mode) => {
+  const category = NOTIFICATION_CATEGORIES.find(({ id }) => id === categoryId);
+  return validMode(mode) && (!category?.modes || category.modes.includes(mode));
+};
+export const notificationModesForCategory = categoryId => {
+  const category = NOTIFICATION_CATEGORIES.find(({ id }) => id === categoryId);
+  return NOTIFICATION_MODES.filter(mode => !category?.modes || category.modes.includes(mode.id));
+};
 const preferenceKey = (user) => {
   const identity = user?.cpf || user?.name || user?.id || 'anon';
   return `uniko_notification_preferences_${String(identity).trim().toLowerCase()}`;
@@ -74,7 +90,7 @@ export function setGlobalNotificationDefaults(preferences) {
   if (!preferences || typeof preferences !== 'object') return;
   globalPreferences = Object.fromEntries(NOTIFICATION_CATEGORIES.map(({ id }) => [
     id,
-    validMode(preferences[id]) ? preferences[id] : DEFAULT_NOTIFICATION_MODES[id],
+    isValidNotificationMode(id, preferences[id]) ? preferences[id] : DEFAULT_NOTIFICATION_MODES[id],
   ]));
   window.dispatchEvent(new CustomEvent(DEFAULTS_CHANGED_EVENT, {
     detail: { preferences: { ...globalPreferences } },
@@ -87,11 +103,11 @@ export function getGlobalNotificationDefaults() {
 
 export function hasPersonalNotificationOverride(user, category) {
   const saved = storedPreferences(user);
-  return validMode(saved[category]) || (category === 'chat_secreto' && legacyChatPreference(user) != null);
+  return isValidNotificationMode(category, saved[category]) || (category === 'chat_secreto' && legacyChatPreference(user) != null);
 }
 
 function effectiveMode(user, category, saved) {
-  if (validMode(saved[category])) return saved[category];
+  if (isValidNotificationMode(category, saved[category])) return saved[category];
   if (category === 'chat_secreto') {
     const legacy = legacyChatPreference(user);
     if (legacy) return legacy;
@@ -105,7 +121,7 @@ export function getNotificationPreferences(user) {
 }
 
 export function saveNotificationMode(user, category, mode) {
-  if (!Object.hasOwn(DEFAULT_NOTIFICATION_MODES, category) || !validMode(mode)) return false;
+  if (!Object.hasOwn(DEFAULT_NOTIFICATION_MODES, category) || !isValidNotificationMode(category, mode)) return false;
   const preferences = storedPreferences(user);
   preferences[category] = mode;
   try {
@@ -144,9 +160,9 @@ export function resetNotificationMode(user, category) {
 export function getNotificationChannels(user, category) {
   const mode = getNotificationPreferences(user)[category] || DEFAULT_NOTIFICATION_MODES[category] || 'both';
   return {
-    screen: mode === 'screen' || mode === 'both' || mode === 'screen_sound',
-    desktop: mode === 'desktop' || mode === 'both',
-    sound: mode === 'sound' || mode === 'screen_sound',
+    screen: mode === 'screen' || mode === 'both' || mode === 'screen_sound' || mode === 'screen_sound_desktop',
+    desktop: mode === 'desktop' || mode === 'both' || mode === 'screen_sound_desktop',
+    sound: mode === 'sound' || mode === 'screen_sound' || mode === 'screen_sound_desktop',
   };
 }
 

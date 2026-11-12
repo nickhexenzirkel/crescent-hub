@@ -3,7 +3,7 @@ import { T } from '../../contexts/theme';
 import {
   DEFAULT_NOTIFICATION_MODES,
   NOTIFICATION_CATEGORIES,
-  NOTIFICATION_MODES,
+  notificationModesForCategory,
 } from '../../shared/notificationPreferences';
 import {
   GLOBAL_NOTIFICATION_PREFERENCES_CHANGED_EVENT,
@@ -84,7 +84,7 @@ export default function NotificacoesGeraisTab() {
               <p style={{ margin: '4px 0 0', color: T.textS, fontSize: 11.5 }}>{category.description}</p>
             </div>
             <div role="radiogroup" aria-label={`Padrão: ${category.label}`} style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
-              {NOTIFICATION_MODES.map(mode => {
+              {notificationModesForCategory(category.id).map(mode => {
                 const selected = preferences[category.id] === mode.id;
                 return (
                   <button
