@@ -514,7 +514,12 @@ export default function TabFaturamento({ onOpenEmail }) {
                   type="button"
                   key={regional.nome || 'todas'}
                   aria-pressed={ativa}
-                  onClick={() => setRegionalRascunho(regional.nome)}
+                  onClick={() => {
+                    setRegionalRascunho(regional.nome);
+                    setRegionalSelecionada(regional.nome);
+                    setPagina(1);
+                    setPaginaHistorico(1);
+                  }}
                   style={{ padding: '8px 15px', border: `1px solid ${ativa ? cor : T.border}`, borderRadius: 999, color: ativa ? corTextoFundo(cor) : T.textS, background: ativa ? cor : 'transparent', cursor: 'pointer', font: '600 12px var(--font-body)', transition: 'all .15s', whiteSpace: 'nowrap' }}
                 >
                   {regional.label}
