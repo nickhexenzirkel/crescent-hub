@@ -441,7 +441,7 @@ export default function Email({ onBack, authUser }) {
         </div>
         <nav role="tablist" aria-label="Seções do módulo de e-mail" style={{ display: 'flex', gap: 6, padding: 4, borderRadius: 12, background: T.page }}>
           {[
-            { id: 'email', label: 'E-MAIL' },
+            { id: 'email', label: 'Caixa de Entrada' },
             { id: 'faturamento', label: 'Acompanhar Faturamento' },
           ].map(tab => (
             <button

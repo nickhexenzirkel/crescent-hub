@@ -7,7 +7,7 @@ metadata:
 
 # E-mail no Uniko
 
-O módulo **E-mail** possui duas abas: **E-MAIL** e **Acompanhar Faturamento**. Fica disponível para colaboradores autenticados, incluindo cargos com acesso restrito; visitantes são bloqueados. O acesso às rotas Gmail exige sessão válida (`requireAuth`). A caixa institucional padrão é `faturamento@7beneficios.com`; depois de um administrador defini-la como compartilhada, ela prevalece sobre conexões individuais antigas e todos os colaboradores autenticados consultam essa mesma caixa, somente para leitura. Sem a conta compartilhada configurada, conexões individuais antigas continuam como contingência.
+O módulo **E-mail** possui duas abas: **Caixa de Entrada** e **Acompanhar Faturamento**. Fica disponível para colaboradores autenticados, incluindo cargos com acesso restrito; visitantes são bloqueados. O acesso às rotas Gmail exige sessão válida (`requireAuth`). A caixa institucional padrão é `faturamento@7beneficios.com`; depois de um administrador defini-la como compartilhada, ela prevalece sobre conexões individuais antigas e todos os colaboradores autenticados consultam essa mesma caixa, somente para leitura. Sem a conta compartilhada configurada, conexões individuais antigas continuam como contingência.
 
 Um administrador conecta a conta Google institucional e clica em **Definir como caixa padrão**. O servidor só permite compartilhar o endereço esperado, mantém o token criptografado com AES-256-GCM no Supabase `settings` e nunca o envia ao navegador. A conexão usa somente `https://www.googleapis.com/auth/gmail.readonly`; busca, leitura e download de anexos consultam o Gmail sob demanda. O Uniko não grava cópias de mensagens nem anexos.
 
