@@ -1,3 +1,5 @@
+import { compactPhotoCache } from '../contexts/user';
+
 export const NOTIFICATION_SETTINGS_OPEN_EVENT = 'uniko:open-notification-settings';
 export const NOTIFICATION_PREFERENCE_CHANGED_EVENT = 'uniko:notification-preference-changed';
 export const NOTIFICATION_SCREEN_EVENT = 'uniko:screen-notification';
@@ -120,28 +122,64 @@ export function getNotificationPreferences(user) {
   return Object.fromEntries(NOTIFICATION_CATEGORIES.map(({ id }) => [id, effectiveMode(user, id, saved)]));
 }
 
-export function saveNotificationMode(user, category, mode) {
+const storageErrorDetails = error => ({
+  name: error?.name || 'Error',
+  code: error?.code || error?.number || '',
+  message: error?.message || String(error),
+});
+
+const isStorageQuotaError = error => error?.name === 'QuotaExceededError'
+  || error?.name === 'NS_ERROR_DOM_QUOTA_REACHED'
+  || error?.code === 22
+  || error?.code === 1014;
+
+export async function saveNotificationMode(user, category, mode) {
   if (!Object.hasOwn(DEFAULT_NOTIFICATION_MODES, category) || !isValidNotificationMode(category, mode)) {
     console.error('[notificações] Preferência inválida; não foi salva.', { category, mode });
     return false;
   }
   const preferences = storedPreferences(user);
   preferences[category] = mode;
+  const key = preferenceKey(user);
+  const value = JSON.stringify(preferences);
   try {
-    localStorage.setItem(preferenceKey(user), JSON.stringify(preferences));
+    localStorage.setItem(key, value);
+  } catch (error) {
+    if (!isStorageQuotaError(error)) {
+      console.error(`[notificações] Falha ao salvar preferência no armazenamento local (${storageErrorDetails(error).name}: ${storageErrorDetails(error).message}).`, {
+        category, mode, key, error: storageErrorDetails(error),
+      });
+      return false;
+    }
+
+    console.warn('[notificações] Armazenamento local cheio; compactando o cache de fotos e tentando salvar novamente.', {
+      category,
+      mode,
+      key,
+      error: storageErrorDetails(error),
+    });
+    await compactPhotoCache();
+    try {
+      localStorage.setItem(key, value);
+    } catch (retryError) {
+      console.error(`[notificações] A preferência continua sem ser salva após compactar o cache (${storageErrorDetails(retryError).name}: ${storageErrorDetails(retryError).message}).`, {
+        category, mode, key, error: storageErrorDetails(retryError),
+      });
+      return false;
+    }
+  }
+  try {
     window.dispatchEvent(new CustomEvent(NOTIFICATION_PREFERENCE_CHANGED_EVENT, {
       detail: { category, mode, user: String(user?.cpf || user?.name || user?.id || 'anon').toLowerCase() },
     }));
-    return true;
   } catch (error) {
-    console.error('[notificações] Falha ao salvar preferência no armazenamento local.', {
+    console.error('[notificações] Preferência salva, mas não foi possível notificar os componentes abertos.', {
       category,
       mode,
-      name: error?.name,
-      message: error?.message || String(error),
+      error: storageErrorDetails(error),
     });
-    return false;
   }
+  return true;
 }
 
 export function resetNotificationMode(user, category) {

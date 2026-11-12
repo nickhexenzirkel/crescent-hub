@@ -26,7 +26,7 @@ export default function NotificationSettingsModal({ authUser, emailNotificationS
 
   const changeMode = async (category, mode) => {
     console.info('[notificações] Clique em opção de preferência pessoal.', { category, mode });
-    if (!saveNotificationMode(authUser, category, mode)) {
+    if (!await saveNotificationMode(authUser, category, mode)) {
       console.error('[notificações] Preferência pessoal não foi ativada porque o salvamento falhou.', { category, mode });
       setSavingError('Não foi possível salvar a preferência neste navegador.');
       return;
