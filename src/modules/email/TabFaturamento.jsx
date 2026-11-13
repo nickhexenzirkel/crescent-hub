@@ -22,7 +22,7 @@ const REGIONAIS = REGIONAIS_FATURAMENTO.map(regional => ({
   ...regional,
   nome: `Regional ${regional.nome}`,
 }));
-const INTERVALO_SINCRONIZACAO_MS = 15 * 60 * 1000;
+const INTERVALO_SINCRONIZACAO_MS = 5 * 60 * 1000;
 
 const normalizar = valor => String(valor || '')
   .normalize('NFD')
@@ -614,7 +614,7 @@ export default function TabFaturamento({ onOpenEmail }) {
       </section>
 
       <div style={{ marginBottom: 14, color: T.textT, fontSize: 11.5, lineHeight: 1.5 }}>
-        Consulta apenas a caixa Gmail conectada por este administrador. Ao abrir o painel, ele sincroniza automaticamente e repete a consulta a cada 15 minutos enquanto esta tela estiver visível. O botão permite sincronizar imediatamente. A atualização automática consome cota do Gmail; os resultados ficam em cache no servidor entre as consultas.
+        Consulta apenas a caixa Gmail conectada por este administrador. Ao abrir o painel, ele sincroniza automaticamente e repete a consulta a cada 5 minutos enquanto esta tela estiver visível. O botão permite sincronizar imediatamente. A atualização automática consome cota do Gmail; os resultados ficam em cache no servidor por até 4 minutos para compartilhar consultas recentes.
         {dadosDoPeriodo?.mailbox && <> Conta: {dadosDoPeriodo.mailbox}.</>}
         {atualizadoEm && <> Última sincronização: {atualizadoEm.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}.</>}
         {regionalSelecionada && <> A associação cadastrada no Dashboard RH prevalece; quando não existe, a regional ainda é identificada pelo texto do e-mail.</>}
