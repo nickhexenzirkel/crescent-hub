@@ -622,7 +622,7 @@ export default function CrescentHub() {
     let proximaConsultaAte = 0;
     let ultimaFalhaLogada = 0;
     const vistos = new Set();
-    const intervaloMs = 5 * 60_000;
+    const intervaloMs = 12 * 60_000;
 
     const registrarMensagens = mensagens => {
       let notificacoesDisparadas = 0;
@@ -726,7 +726,7 @@ export default function CrescentHub() {
         inicializada = true;
         ultimaConsulta = inicioConsulta;
         proximaConsultaAte = 0;
-        setEmailNotificationStatus('Ativada e conectada. Novos e-mails são verificados a cada 5 minutos.');
+        setEmailNotificationStatus('Ativada e conectada. Novos e-mails são verificados a cada 12 minutos.');
         console.info('[notificações de e-mail] Polling concluído com sucesso.');
       } catch (error) {
         if (error.status === 401) conectado = false;
