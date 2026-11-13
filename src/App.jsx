@@ -622,7 +622,7 @@ export default function CrescentHub() {
     let proximaConsultaAte = 0;
     let ultimaFalhaLogada = 0;
     const vistos = new Set();
-    const intervaloMs = 60_000;
+    const intervaloMs = 5 * 60_000;
 
     const registrarMensagens = mensagens => {
       let notificacoesDisparadas = 0;
@@ -688,9 +688,8 @@ export default function CrescentHub() {
 
         const inicioConsulta = Date.now();
         const eraPrimeiraConsulta = primeiraConsulta;
-        const consultaGmail = eraPrimeiraConsulta
-          ? 'in:inbox newer_than:1d'
-          : `in:inbox after:${Math.max(0, Math.floor((ultimaConsulta - 120_000) / 1000))}`;
+        const referenciaConsulta = eraPrimeiraConsulta ? habilitadaDesde : ultimaConsulta;
+        const consultaGmail = `in:inbox after:${Math.max(0, Math.floor((referenciaConsulta - 120_000) / 300_000) * 300)}`;
         console.debug('[notificações de e-mail] Consultando Gmail.', {
           query: consultaGmail,
           includeReplies: true,
@@ -727,7 +726,7 @@ export default function CrescentHub() {
         inicializada = true;
         ultimaConsulta = inicioConsulta;
         proximaConsultaAte = 0;
-        setEmailNotificationStatus('Ativada e conectada. Novos e-mails são verificados a cada minuto.');
+        setEmailNotificationStatus('Ativada e conectada. Novos e-mails são verificados a cada 5 minutos.');
         console.info('[notificações de e-mail] Polling concluído com sucesso.');
       } catch (error) {
         if (error.status === 401) conectado = false;
