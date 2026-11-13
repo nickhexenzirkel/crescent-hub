@@ -356,9 +356,9 @@ export default function TabFaturamento({ onOpenEmail }) {
 
   useEffect(() => {
     if (!cadastroCarregado) return undefined;
-    const primeiraConsulta = window.setTimeout(() => atualizar(false, true), 0);
+    const primeiraConsulta = window.setTimeout(() => atualizar(false), 0);
     const sincronizacaoAutomatica = window.setInterval(() => {
-      if (document.visibilityState === 'visible') atualizar(true, true);
+      if (document.visibilityState === 'visible') atualizar(true);
     }, INTERVALO_SINCRONIZACAO_MS);
     return () => {
       window.clearTimeout(primeiraConsulta);
