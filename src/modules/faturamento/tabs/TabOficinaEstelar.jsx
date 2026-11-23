@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
 import { T } from '../../../contexts/theme';
 import { supabase } from '../../../contexts/user';
 import { StellarHero } from '../StellarHero';
@@ -10,6 +9,7 @@ import { PdfMerge } from '../PdfMerge';
 import { logAssinatura } from '../assinaturaDb';
 import rubricaUrl from '../../../assets/assinatura-cleanderson.png';
 import logo7ServUrl from '../../../assets/logo-7beneficios.png';
+import logoTimbradoUrl from '../../../assets/oficio-logo.png';
 
 const HERO_ICON = (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.85)"
@@ -98,12 +98,23 @@ const CartaDoc = ({ form }) => {
   const TDc = {...TD,textAlign:'center',width:22};
 
   return (
-    <div style={{background:'#fff',padding:'18px 22px',fontSize:10,fontFamily:'Arial,Helvetica,sans-serif',color:'#111',lineHeight:1.5,minWidth:520}}>
+    <div style={{background:'#fff',width:794,minHeight:1123,boxSizing:'border-box',display:'flex',flexDirection:'column',
+      fontSize:10,fontFamily:'Arial,Helvetica,sans-serif',color:'#111',lineHeight:1.5}}>
 
-      {/* ── Logo + Título ── */}
-      {logoSrc && (
+      {/* ── Papel timbrado 7SERV ── */}
+      <div style={{height:170,position:'relative',flexShrink:0}}>
+        <div style={{position:'absolute',top:20,left:0,right:0,height:99,background:'#07856a'}}/>
+        <div style={{position:'absolute',top:15,left:0,width:129,height:154,background:'#13475b'}}/>
+        <img src={logoTimbradoUrl} alt="Logo 7SERV" style={{position:'absolute',top:2,left:-17,width:186,height:134,objectFit:'contain'}}/>
+        <div style={{position:'absolute',top:50,left:360,color:'#fff',fontSize:48,fontWeight:'bold',letterSpacing:2}}>
+          BENEFÍCIOS
+        </div>
+      </div>
+
+      <div style={{padding:'10px 48px 18px',flex:1}}>
+      {logoSrc && logoSrc !== logo7ServUrl && (
         <div style={{textAlign:'center',marginBottom:8}}>
-          <img src={logoSrc} alt="Logo" style={{maxHeight:56,maxWidth:200,objectFit:'contain'}}/>
+          <img src={logoSrc} alt="Logo da empresa" style={{maxHeight:56,maxWidth:200,objectFit:'contain'}}/>
         </div>
       )}
       <div style={{textAlign:'center',fontWeight:'bold',fontSize:14,marginBottom:13,letterSpacing:'.08em',textDecoration:'underline'}}>
@@ -277,8 +288,268 @@ const CartaDoc = ({ form }) => {
           </div>
         </div>
       </div>
+      </div>
+
     </div>
   );
+};
+
+const carregarImagemPdf = async (src) => {
+  if (!src) return null;
+  const image = new Image();
+  image.crossOrigin = 'anonymous';
+  image.src = src;
+  await image.decode();
+  const canvas = document.createElement('canvas');
+  canvas.width = image.naturalWidth;
+  canvas.height = image.naturalHeight;
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('Não foi possível preparar uma imagem do documento.');
+  context.drawImage(image, 0, 0);
+  return { data: canvas.toDataURL('image/png'), width: image.naturalWidth, height: image.naturalHeight };
+};
+
+const gerarCartaPdfVetorial = async (form) => {
+  const px = (value) => value * 25.4 / 96;
+  const [logoTimbrado, logoEmpresa, assinatura] = await Promise.all([
+    carregarImagemPdf(logoTimbradoUrl),
+    form.logoSrc && form.logoSrc !== logo7ServUrl ? carregarImagemPdf(form.logoSrc) : null,
+    carregarImagemPdf(form.sigSrc),
+  ]);
+  const rows = [...form.retificacoes];
+  while (rows.length < 10) rows.push({ codigo: '', texto: '' });
+
+  const pdf = new jsPDF({ unit: 'mm', format: 'a4', compress: true });
+  pdf.setProperties({ title: `Carta de Correção - ${form.empresa || '7SERV'}`, author: '7SERV Gestão de Benefícios LTDA' });
+  const pageWidth = 210, bodyX = px(48), bodyWidth = pageWidth - bodyX * 2;
+  const black = [17, 17, 17], blue = [26, 111, 181], gray = [232, 232, 232];
+  const setFont = (size, bold = false, color = black) => {
+    pdf.setFont('helvetica', bold ? 'bold' : 'normal');
+    pdf.setFontSize(size);
+    pdf.setTextColor(...color);
+  };
+  const drawText = (value, x, y, { size = 7.5, bold = false, color = black, align = 'left', maxWidth } = {}) => {
+    const text = String(value ?? '');
+    if (!text) return;
+    setFont(size, bold, color);
+    let fittedSize = size;
+    while (maxWidth && pdf.getTextWidth(text) > maxWidth && fittedSize > 5.2) {
+      fittedSize -= 0.2;
+      pdf.setFontSize(fittedSize);
+    }
+    pdf.text(text, x, y, { align });
+  };
+  const drawLine = (x1, y1, x2, y2, color = [102, 102, 102], width = 0.2) => {
+    pdf.setDrawColor(...color);
+    pdf.setLineWidth(width);
+    pdf.line(x1, y1, x2, y2);
+  };
+  const drawBox = (x, y, width, height, fill = null, border = [153, 153, 153]) => {
+    pdf.setDrawColor(...border);
+    pdf.setLineWidth(0.2);
+    if (fill) {
+      pdf.setFillColor(...fill);
+      pdf.rect(x, y, width, height, 'FD');
+    } else {
+      pdf.rect(x, y, width, height);
+    }
+  };
+  const fitImage = (image, maxWidth, maxHeight) => {
+    const ratio = Math.min(maxWidth / image.width, maxHeight / image.height);
+    return { width: image.width * ratio, height: image.height * ratio };
+  };
+
+  pdf.setFillColor(7, 133, 106);
+  pdf.rect(0, px(20), pageWidth, px(99), 'F');
+  pdf.setFillColor(19, 71, 91);
+  pdf.rect(0, px(15), px(129), px(154), 'F');
+  const headerLogoSize = fitImage(logoTimbrado, px(186), px(134));
+  pdf.addImage(logoTimbrado.data, 'PNG',
+    px(-17) + (px(186) - headerLogoSize.width) / 2,
+    px(2) + (px(134) - headerLogoSize.height) / 2,
+    headerLogoSize.width, headerLogoSize.height);
+  drawText('BENEFÍCIOS', px(360), px(95), { size: 36, bold: true, color: [255, 255, 255] });
+
+  let y = px(180);
+  if (logoEmpresa) {
+    const logoSize = fitImage(logoEmpresa, px(200), px(56));
+    pdf.addImage(logoEmpresa.data, 'PNG', (pageWidth - logoSize.width) / 2, y, logoSize.width, logoSize.height);
+    y += logoSize.height + px(8);
+  }
+
+  drawText('CARTA DE CORREÇÃO', pageWidth / 2, y + px(14), { size: 10.5, bold: true, align: 'center' });
+  y += px(27);
+
+  const cityY = y + px(19);
+  drawText('CIDADE', bodyX, cityY, { bold: true });
+  drawText(form.cidade || '                    ', bodyX + px(45), cityY, { size: 7.9, bold: true });
+  drawLine(bodyX + px(42), y + px(22), bodyX + px(175), y + px(22), [68, 68, 68]);
+  drawText(',', bodyX + px(179), cityY);
+  drawText('DIA:', bodyX + px(198), cityY, { bold: true });
+  const dayX = bodyX + px(224);
+  drawBox(dayX, y + px(4), px(27), px(20));
+  drawText(String(form.dia).padStart(2, '0'), dayX + px(13.5), cityY, { align: 'center' });
+  drawText('/ MÊS:', dayX + px(31), cityY, { bold: true });
+  const monthX = dayX + px(70);
+  drawBox(monthX, y + px(4), px(27), px(20));
+  drawText(String(Number(form.mes) + 1).padStart(2, '0'), monthX + px(13.5), cityY, { align: 'center' });
+  drawText('/ ANO:', monthX + px(31), cityY, { bold: true });
+  const yearX = monthX + px(68);
+  drawBox(yearX, y + px(4), px(36), px(20));
+  drawText(form.ano, yearX + px(18), cityY, { align: 'center' });
+  y += px(34);
+
+  const drawCompanyRow = (label, value, color = black) => {
+    const baseline = y + px(11);
+    drawText(label, bodyX, baseline, { bold: true });
+    drawText(value, bodyX + px(61), baseline, { bold: true, color, maxWidth: bodyWidth - px(64) });
+    drawLine(bodyX + px(58), y + px(13), bodyX + bodyWidth, y + px(13), [68, 68, 68]);
+    y += px(25);
+  };
+  drawCompanyRow('EMPRESA', form.empresa);
+  drawCompanyRow('ENDEREÇO', form.endereco);
+  drawText(`CNPJ: ${form.cnpj}`, bodyX, y + px(10), { bold: true });
+  drawText(`I.E ${form.ie}`, bodyX + px(152), y + px(10), { bold: true });
+  y += px(28);
+
+  const nfHeaderHeight = px(18), nfRowHeight = px(33);
+  const nfWidths = [bodyWidth * 0.35, bodyWidth * 0.25, bodyWidth * 0.4];
+  const nfHeaders = ['DESCRIÇÃO', 'N.F.Nº', 'EMISSÃO'];
+  let nfX = bodyX;
+  nfWidths.forEach((width, index) => {
+    drawBox(nfX, y, width, nfHeaderHeight, gray, [102, 102, 102]);
+    drawText(nfHeaders[index], nfX + width / 2, y + px(12), { size: 6.75, bold: true, align: 'center' });
+    nfX += width;
+  });
+  nfX = bodyX;
+  nfWidths.forEach((width) => {
+    drawBox(nfX, y + nfHeaderHeight, width, nfRowHeight, null, [153, 153, 153]);
+    nfX += width;
+  });
+  const typeY = y + nfHeaderHeight + px(21);
+  setFont(7);
+  const nossaWidth = pdf.getTextWidth('NOSSA'), suaWidth = pdf.getTextWidth('SUA');
+  const circleRadius = px(4.5), labelGap = px(5), choiceGap = px(7);
+  const choiceWidth = nossaWidth + suaWidth + labelGap * 2 + choiceGap + circleRadius * 4;
+  let choiceX = bodyX + (nfWidths[0] - choiceWidth) / 2;
+  drawText('NOSSA', choiceX, typeY, { size: 7 });
+  choiceX += nossaWidth + labelGap + circleRadius;
+  pdf.setDrawColor(51, 51, 51); pdf.setFillColor(51, 51, 51); pdf.setLineWidth(0.45);
+  pdf.circle(choiceX, typeY - px(3), circleRadius, form.nfTipo === 'nossa' ? 'FD' : 'S');
+  choiceX += circleRadius + choiceGap;
+  drawText('SUA', choiceX, typeY, { size: 7 });
+  choiceX += suaWidth + labelGap + circleRadius;
+  pdf.circle(choiceX, typeY - px(3), circleRadius, form.nfTipo === 'sua' ? 'FD' : 'S');
+  drawText(form.nfNumero, bodyX + nfWidths[0] + nfWidths[1] / 2, typeY, { size: 11.25, bold: true, color: blue, align: 'center' });
+  const [emissaoAno = '', emissaoMes = '', emissaoDia = ''] = form.nfDataEmissao ? form.nfDataEmissao.split('-') : [];
+  drawText(emissaoDia && emissaoMes && emissaoAno ? `${emissaoDia}/${emissaoMes}/${emissaoAno}` : '',
+    bodyX + nfWidths[0] + nfWidths[1] + nfWidths[2] / 2, typeY, { size: 9, bold: true, color: blue, align: 'center' });
+  y += nfHeaderHeight + nfRowHeight + px(8);
+
+  const cartaIntro = 'Em face do que determina a legislaçao fiscal vigente, vimos pela presente comunicar-lhe que a Nota Fiscal em referência contém a (s) irregularidade (s) que abaixo apontamos, e que solicitamos as devidas providências.';
+  setFont(7.125);
+  const introLines = pdf.splitTextToSize(cartaIntro, bodyWidth);
+  pdf.text(introLines, bodyX, y + px(9));
+  y += introLines.length * px(14) + px(7);
+
+  const codeHeaderHeight = px(18), codeRowHeight = px(17);
+  const codeWidths = [bodyWidth * 0.05, bodyWidth * 0.20, bodyWidth * 0.05, bodyWidth * 0.20,
+    bodyWidth * 0.05, bodyWidth * 0.20, bodyWidth * 0.05, bodyWidth * 0.20];
+  const codeHeaders = ['Cód.', 'Especificações', 'Cód.', 'Especificações', 'Cód.', 'Especificações', 'Cód.', 'Especificações'];
+  let codeX = bodyX;
+  codeHeaders.forEach((label, index) => {
+    drawBox(codeX, y, codeWidths[index], codeHeaderHeight, gray, [102, 102, 102]);
+    drawText(label, codeX + (index % 2 ? px(4) : codeWidths[index] / 2), y + px(12),
+      { size: 6.75, bold: true, align: index % 2 ? 'left' : 'center', maxWidth: codeWidths[index] - px(2) });
+    codeX += codeWidths[index];
+  });
+  for (let row = 0; row < 12; row++) {
+    const values = [COL1[row]?.c, COL1[row]?.l, COL2[row]?.c, COL2[row]?.l,
+      COL3[row]?.c, COL3[row]?.l, row === 0 ? '999' : '', row === 0 ? 'Outras' : ''];
+    codeX = bodyX;
+    values.forEach((value, index) => {
+      drawBox(codeX, y + codeHeaderHeight + row * codeRowHeight, codeWidths[index], codeRowHeight, null, [204, 204, 204]);
+      drawText(value, codeX + (index % 2 ? px(3) : codeWidths[index] / 2), y + codeHeaderHeight + row * codeRowHeight + px(12),
+        { size: 6.75, align: index % 2 ? 'left' : 'center', maxWidth: codeWidths[index] - px(2) });
+      codeX += codeWidths[index];
+    });
+  }
+  y += codeHeaderHeight + 12 * codeRowHeight + px(8);
+
+  const retifHeaderHeight = px(29), retifRowHeight = px(17), retifCodeWidth = bodyWidth * 0.14;
+  drawBox(bodyX, y, retifCodeWidth, retifHeaderHeight, gray, [102, 102, 102]);
+  drawText('Códigos com', bodyX + retifCodeWidth / 2, y + px(11), { size: 6.75, bold: true, align: 'center' });
+  drawText('Irregularidades', bodyX + retifCodeWidth / 2, y + px(22), { size: 6.75, bold: true, align: 'center' });
+  drawBox(bodyX + retifCodeWidth, y, bodyWidth - retifCodeWidth, retifHeaderHeight, gray, [102, 102, 102]);
+  drawText('Retificações a serem consideradas', bodyX + retifCodeWidth + px(4), y + px(18), { size: 6.75, bold: true });
+  rows.forEach((row, index) => {
+    const rowY = y + retifHeaderHeight + index * retifRowHeight;
+    drawBox(bodyX, rowY, retifCodeWidth, retifRowHeight);
+    drawBox(bodyX + retifCodeWidth, rowY, bodyWidth - retifCodeWidth, retifRowHeight);
+    drawText(row.codigo, bodyX + retifCodeWidth / 2, rowY + px(12), {
+      size: row.codigo || row.texto ? 7.875 : 7.125,
+      bold: Boolean(row.codigo || row.texto),
+      color: row.codigo || row.texto ? blue : black,
+      align: 'center',
+      maxWidth: retifCodeWidth - px(4),
+    });
+    drawText(row.texto, bodyX + retifCodeWidth + px(4), rowY + px(12), {
+      size: row.codigo || row.texto ? 7.5 : 7.125,
+      bold: Boolean(row.codigo || row.texto),
+      color: row.codigo || row.texto ? blue : black,
+      maxWidth: bodyWidth - retifCodeWidth - px(7),
+    });
+  });
+  y += retifHeaderHeight + rows.length * retifRowHeight + px(10);
+
+  const encerramento = 'Para evitar qualquer sanção fiscal, solicitamos acusarem o recebimento desta, na cópia que a acompanha, devendo a via de V.Sª ficar arquivada com a nota fiscal em questão.';
+  setFont(7.125);
+  const encerramentoLines = pdf.splitTextToSize(encerramento, bodyWidth);
+  pdf.text(encerramentoLines, bodyX, y + px(9));
+  y += encerramentoLines.length * px(14) + px(9);
+
+  const sigHeight = assinatura ? fitImage(assinatura, px(200), px(38)).height : 0;
+  const sigX = bodyX + bodyWidth - px(220);
+  if (assinatura) {
+    const sigSize = fitImage(assinatura, px(200), px(38));
+    pdf.addImage(assinatura.data, 'PNG', sigX + (px(220) - sigSize.width) / 2, y, sigSize.width, sigSize.height);
+  }
+  const signatureLineY = y + (assinatura ? sigHeight : px(28));
+  drawLine(sigX, signatureLineY, sigX + px(220), signatureLineY);
+  drawText('Atenciosamente,', sigX + px(110), signatureLineY + px(14), { size: 7.5, align: 'center' });
+  y = signatureLineY + px(24);
+
+  const receiptGap = px(18), receiptWidth = (bodyWidth - receiptGap) / 2;
+  const rightX = bodyX + receiptWidth + receiptGap;
+  drawText('Acusamos recebimento da 1ª via.', bodyX, y + px(10), { size: 7.5 });
+  drawText('LOCAL E DATA', bodyX, y + px(27), { size: 7.5, bold: true });
+  drawLine(bodyX, y + px(43), bodyX + receiptWidth * 0.9, y + px(43));
+  drawText('ASSINATURA', bodyX, y + px(62), { size: 7.5, bold: true });
+  drawLine(bodyX, y + px(78), bodyX + receiptWidth * 0.9, y + px(78));
+
+  drawText('R. Social', rightX, y + px(6), { size: 6.75, color: [85, 85, 85] });
+  drawBox(rightX, y + px(9), receiptWidth, px(24));
+  drawText(form.empresa || 'Razão Social', rightX + px(7), y + px(25), { size: 8.625, bold: true, maxWidth: receiptWidth - px(14) });
+  drawText('Ender.', rightX, y + px(41), { size: 6.75, color: [85, 85, 85] });
+  drawBox(rightX, y + px(44), receiptWidth, px(24));
+  drawText(form.endereco, rightX + px(7), y + px(60), { size: 7.5, bold: true, color: blue, maxWidth: receiptWidth - px(14) });
+  const companyDataY = y + px(78);
+  drawText('CNPJ', rightX, companyDataY, { size: 7 });
+  const cnpjBoxX = rightX + px(27), cnpjBoxWidth = px(118);
+  drawBox(cnpjBoxX, companyDataY - px(11), cnpjBoxWidth, px(17));
+  drawText(form.cnpj, cnpjBoxX + px(4), companyDataY, { size: 7.5, bold: true, maxWidth: cnpjBoxWidth - px(8) });
+  const ieLabelX = cnpjBoxX + cnpjBoxWidth + px(10);
+  setFont(7);
+  const ieLabelWidth = pdf.getTextWidth('I.Estadual');
+  drawText('I.Estadual', ieLabelX, companyDataY, { size: 7 });
+  const ieBoxX = ieLabelX + ieLabelWidth + px(7);
+  const ieBoxWidth = rightX + receiptWidth - ieBoxX;
+  drawBox(ieBoxX, companyDataY - px(11), ieBoxWidth, px(17));
+  drawText(form.ie, ieBoxX + px(4), companyDataY, { size: 7.5, bold: true, maxWidth: ieBoxWidth - px(8) });
+
+  const finalHeight = Math.max(297, y + px(88));
+  if (finalHeight > 297) pdf.internal.pageSize.setHeight(finalHeight);
+  return pdf;
 };
 
 /* ── Formulário + Preview ── */
@@ -317,41 +588,11 @@ const TabCarta = () => {
 
   const [pdfBusy, setPdfBusy] = useState(false);
 
-  // Gera o PDF direto no código (html2canvas + jsPDF) em vez de passar pelo
-  // diálogo de impressão do navegador — sem diálogo, não existe cabeçalho/
-  // rodapé do Chrome (data, título, "about:blank") pra carimbar em cima do
-  // documento, então o problema nem chega a existir.
+  // Mantém textos e tabelas vetoriais no PDF; somente as imagens são rasterizadas.
   const downloadCartaPdf = async () => {
-    const src = document.getElementById('carta-doc');
-    if (!src) return;
     setPdfBusy(true);
-    // O preview fica dentro de um painel com scroll próprio (overflow:auto,
-    // maxHeight:84vh — ver abaixo). Se o usuário tivesse rolado esse painel pra
-    // baixo antes de clicar em Baixar, o html2canvas capturava a partir da
-    // posição de scroll ERRADA (bug conhecido da lib com containers scrolláveis
-    // aninhados) — o resultado saía cortado pela metade (só a parte que estava
-    // visível). Zera o scroll do painel (E da janela) antes de capturar e
-    // restaura depois, pra sempre capturar o documento inteiro do topo.
-    const scrollParent = src.closest('[style*="overflow"]') || src.parentElement;
-    const prevParentScroll = scrollParent ? scrollParent.scrollTop : 0;
-    const prevWinScroll = window.scrollY;
-    if (scrollParent) scrollParent.scrollTop = 0;
-    window.scrollTo(0, 0);
     try {
-      // scale mais alto (era 2) — a fonte pequena do documento (9-10px) ficava
-      // borrada/"péssima qualidade" no PDF final. windowWidth/Height + x/y=0
-      // força o html2canvas a enxergar o elemento como se estivesse sozinho no
-      // topo da página, sem depender do scroll de nenhum ancestral.
-      const canvas = await html2canvas(src, {
-        scale: 3, useCORS: true, backgroundColor: '#ffffff',
-        scrollX: 0, scrollY: 0,
-        windowWidth: src.scrollWidth, windowHeight: src.scrollHeight,
-      });
-      const imgData = canvas.toDataURL('image/png');
-      // Página do PDF do tamanho exato do documento (px → mm, 96dpi)
-      const wMm = src.offsetWidth * 25.4 / 96, hMm = src.offsetHeight * 25.4 / 96;
-      const pdf = new jsPDF({ unit: 'mm', format: [wMm, hMm] });
-      pdf.addImage(imgData, 'PNG', 0, 0, wMm, hMm);
+      const pdf = await gerarCartaPdfVetorial(form);
       const empresaSlug = (form.empresa || 'documento').trim().slice(0, 40).replace(/[^\p{L}\p{N}]+/gu, '-') || 'documento';
       pdf.save(`Carta de Correcao - ${empresaSlug}.pdf`);
 
