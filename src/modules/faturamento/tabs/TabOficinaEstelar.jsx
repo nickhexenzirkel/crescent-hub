@@ -533,7 +533,7 @@ const gerarCartaPdfVetorial = async (form) => {
   drawText('Ender.', rightX, y + px(41), { size: 6.75, color: [85, 85, 85] });
   drawBox(rightX, y + px(44), receiptWidth, px(24));
   drawText(form.endereco, rightX + px(7), y + px(60), { size: 7.5, bold: true, color: blue, maxWidth: receiptWidth - px(14) });
-  const companyDataY = y + px(78);
+  const companyDataY = y + px(87);
   drawText('CNPJ', rightX, companyDataY, { size: 7 });
   const cnpjBoxX = rightX + px(27), cnpjBoxWidth = px(118);
   drawBox(cnpjBoxX, companyDataY - px(11), cnpjBoxWidth, px(17));
@@ -547,7 +547,7 @@ const gerarCartaPdfVetorial = async (form) => {
   drawBox(ieBoxX, companyDataY - px(11), ieBoxWidth, px(17));
   drawText(form.ie, ieBoxX + px(4), companyDataY, { size: 7.5, bold: true, maxWidth: ieBoxWidth - px(8) });
 
-  const finalHeight = Math.max(297, y + px(88));
+  const finalHeight = Math.max(297, y + px(100));
   if (finalHeight > 297) pdf.internal.pageSize.setHeight(finalHeight);
   return pdf;
 };
