@@ -11,6 +11,8 @@ metadata:
 
 **LOBBY DE SALAS (jul/2026, substituiu a sala global única):** o lobby lista as salas (nome, tema, avatares de quem está lá, botão Entrar) e deixa criar sala com nome + tema. **Cada sala = uma linha da tabela**, o `id` é o código. Salas de usuário vazias e paradas há **20min** são deletadas pelo próprio lobby ao listar.
 
+**Seleção de salas em destaque (nov/2026):** cards maiores com emoji do tema em destaque, nome da sala, avatares e quantidade de pessoas sempre visível, além do botão amplo "Jogar nesta sala". O perfil do jogador também ganhou foto e nome maiores; o botão Criar sala segue destacado no cabeçalho. A grade continua responsiva e a lógica de salas não muda.
+
 **Sala Geral REMOVIDA (ago/2026):** a linha fixa `'global'` foi tirada — o `load()` do Lobby **filtra** `GLOBAL_ROOM` da lista e **apaga** a linha do banco se estiver vazia (não recria mais). Quando **não há nenhuma sala** (após `carregou`), o fundo mostra a frase *"Para jogar, crie uma sala e um tema e chame seus amigos para jogar!"* + mascote. (As migrations antigas ainda semeiam 'global', mas o app remove sozinho.)
 
 **Editor de perfil abre só 1x (fix ago/2026):** além de `fecharPerfil` gravar `up_profile_seen`, um effect de MONTAGEM marca a flag assim que o editor abre automaticamente — sem isso reaparecia a cada refresh. Reabrir é sempre possível pelo botão "Editar perfil". Componentes: `Lobby` e `Sala` no mesmo arquivo, com um componente raiz que alterna entre os dois — sair de uma sala é desmontar o `Sala`, o que reseta canais e estado de graça.

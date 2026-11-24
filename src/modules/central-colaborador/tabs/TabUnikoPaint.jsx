@@ -1246,34 +1246,34 @@ const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker, zoomOut }) => {
             style={compacto ? { flex: pequeno ? 1 : undefined, justifyContent: 'center', padding: '11px 14px' } : undefined} />
           <button onClick={() => setCriando(v => !v)}
             style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-              padding: compacto ? '11px 14px' : '9px 16px', borderRadius: 999, border: 'none', flex: pequeno ? 1 : undefined,
-              background: '#fff', color: A, fontSize: 13, fontWeight: 800, cursor: 'pointer',
+              padding: compacto ? '13px 16px' : '12px 20px', borderRadius: 999, border: 'none', flex: pequeno ? 1 : undefined,
+              background: '#fff', color: A, fontSize: 15, fontWeight: 800, cursor: 'pointer',
               touchAction: 'manipulation', boxShadow: '0 3px 12px rgba(0,0,0,.18)' }}>
-            <IcoPlus size={15} />Criar sala
+            <IcoPlus size={18} />Criar sala
           </button>
         </div>
       </div>
 
       {/* Seu perfil — card destacado: Uniko atual + nome + editar */}
       <div style={{ background: cardBg, border: `1.5px solid ${A}44`, borderRadius: 16,
-        padding: compacto ? '12px 14px' : '16px 20px',
-        boxShadow: T.sh, flexShrink: 0, display: 'flex', alignItems: 'center', gap: compacto ? 12 : 16, flexWrap: 'wrap' }}>
+        padding: compacto ? '16px' : '20px 24px',
+        boxShadow: T.sh, flexShrink: 0, display: 'flex', alignItems: 'center', gap: compacto ? 16 : 20, flexWrap: 'wrap' }}>
         <div style={{ position: 'relative', flexShrink: 0 }}>
-          <img src={photo} alt="" style={{ width: pequeno ? 52 : 66, height: pequeno ? 52 : 66, borderRadius: '50%', objectFit: 'cover',
-            background: '#fff', border: `3px solid ${A}`, boxShadow: `0 4px 14px ${AG}` }} />
+          <img src={photo} alt={`Foto de ${name}`} style={{ width: pequeno ? 78 : 104, height: pequeno ? 78 : 104, borderRadius: '50%', objectFit: 'cover',
+            background: '#fff', border: `4px solid ${A}`, boxShadow: `0 6px 20px ${AG}` }} />
         </div>
         <div style={{ flex: 1, minWidth: 140 }}>
           <div style={{ fontSize: 11, fontWeight: 800, color: T.textT, textTransform: 'uppercase', letterSpacing: '.06em' }}>Seu perfil no jogo</div>
-          <div style={{ fontSize: pequeno ? 17 : 20, fontWeight: 800, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.2 }}>{name}</div>
+          <div style={{ fontSize: pequeno ? 21 : 28, fontWeight: 800, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.2 }}>{name}</div>
           {!pequeno && <div style={{ fontSize: 12, color: T.textT, marginTop: 1 }}>É assim que a galera te vê nas partidas.</div>}
         </div>
         <button onClick={onAbrirPicker}
           style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9,
-            padding: compacto ? '12px 18px' : '12px 22px', borderRadius: 12, border: 'none',
+            padding: compacto ? '14px 20px' : '16px 26px', borderRadius: 14, border: 'none',
             flexBasis: pequeno ? '100%' : 'auto',
-            background: `linear-gradient(135deg, ${A}, ${A2})`, color: '#fff', fontSize: pequeno ? 14 : 15, fontWeight: 800,
+            background: `linear-gradient(135deg, ${A}, ${A2})`, color: '#fff', fontSize: pequeno ? 15 : 17, fontWeight: 800,
             cursor: 'pointer', touchAction: 'manipulation', boxShadow: `0 6px 18px ${AG}` }}>
-          <IcoEdit size={18} />
+          <IcoEdit size={21} />
           Editar perfil
         </button>
       </div>
@@ -1338,14 +1338,14 @@ const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker, zoomOut }) => {
           position: 'relative', zIndex: 1 }}>
           SALAS ({rooms.length})
         </div>
-        {/* `minmax(260px, 340px)` e não `1fr`: com 1fr os cards ESTICAM pra ocupar
+        {/* `minmax(280px, 360px)` e não `1fr`: com 1fr os cards ESTICAM pra ocupar
             a linha toda, então em tela grande (ou com poucas salas) cada card
             virava um bloco enorme, enquanto em tela menor ficava compacto — era
-            a mesma tela parecendo dois layouts diferentes. Teto de 340px + o
+            a mesma tela parecendo dois layouts diferentes. Teto de 360px + o
             grid alinhado à esquerda mantém o card sempre do mesmo tamanho. */}
         <div style={{ display: 'grid',
-          gridTemplateColumns: pequeno ? '1fr' : 'repeat(auto-fill, minmax(260px, 340px))',
-          justifyContent: 'start', gap: 12, position: 'relative', zIndex: 1 }}>
+          gridTemplateColumns: pequeno ? '1fr' : 'repeat(auto-fill, minmax(280px, 360px))',
+          justifyContent: 'start', gap: 14, position: 'relative', zIndex: 1 }}>
           {rooms.map(r => {
             const st = r.state || {};
             const tema = themeById(st.themeId);
@@ -1355,31 +1355,19 @@ const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker, zoomOut }) => {
             const cor = corDoTema(st.themeId);   // cada tema tem sua cor de tinta
             return (
               <div key={r.id} className="up-card up-fade"
-                style={{ background: cardBg, border: `1.5px solid ${cor}55`, borderRadius: 14,
-                  padding: 14, boxShadow: T.sh, display: 'flex', flexDirection: 'column', gap: 10,
+                style={{ background: `linear-gradient(180deg, ${cor}12 0%, ${cardBg} 48%)`, border: `2px solid ${cor}55`, borderRadius: 18,
+                  padding: compacto ? 16 : 20, boxShadow: T.sh, display: 'flex', flexDirection: 'column', gap: 14,
                   position: 'relative', overflow: 'hidden' }}
                 onMouseEnter={e => { e.currentTarget.style.borderColor = cor; e.currentTarget.style.boxShadow = `0 10px 26px ${cor}44`; }}
                 onMouseLeave={e => { e.currentTarget.style.borderColor = `${cor}55`; e.currentTarget.style.boxShadow = T.sh; }}>
                 {/* respingo da cor do tema, no canto */}
-                <Splat y="-22px" size={78} cor={cor} rot={34} op={0.13} forma={r.id.charCodeAt(0) % 3}
+                <Splat y="-22px" size={100} cor={cor} rot={34} op={0.13} forma={r.id.charCodeAt(0) % 3}
                   style={{ left: 'auto', right: '-16px' }} />
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 9, position: 'relative', zIndex: 1 }}>
-                  <div style={{ width: 40, height: 40, borderRadius: 11, flexShrink: 0, display: 'flex',
-                    alignItems: 'center', justifyContent: 'center', fontSize: 20,
-                    background: `linear-gradient(135deg, ${cor}2e, ${cor}14)`, border: `1px solid ${cor}33` }}>{tema.emoji}</div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 14, fontWeight: 800, color: T.text, whiteSpace: 'nowrap',
-                      overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {st.nome || (fixa ? 'Sala Geral' : 'Sala')}
-                    </div>
-                    {/* bolinha colorida em vez de texto colorido: várias cores da
-                        paleta não têm contraste pra texto (e há tema escuro). */}
-                    <div style={{ fontSize: 11.5, color: T.textT, marginTop: 2, display: 'flex', alignItems: 'center', gap: 5 }}>
-                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: cor, flexShrink: 0,
-                        boxShadow: `0 0 0 2px ${cor}33` }} />
-                      <b style={{ color: T.text, fontWeight: 700 }}>{tema.nome}</b>
-                      {fixa && <span style={{ color: T.textD }}>· fixa</span>}
-                    </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
+                  position: 'relative', zIndex: 1, minHeight: 28 }}>
+                  <div style={{ padding: '5px 10px', borderRadius: 999, background: `${cor}18`, color: T.text,
+                    fontSize: 11, fontWeight: 800, letterSpacing: '.04em' }}>
+                    {tema.nome.toLocaleUpperCase('pt-BR')}
                   </div>
                   {jogando && (
                     <div style={{ padding: '3px 8px', borderRadius: 999, background: '#28a06018', color: '#28a060',
@@ -1396,35 +1384,55 @@ const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker, zoomOut }) => {
                   )}
                 </div>
 
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center',
+                  gap: 7, position: 'relative', zIndex: 1, flex: 1, justifyContent: 'center', minWidth: 0 }}>
+                  <div style={{ width: pequeno ? 82 : 96, height: pequeno ? 82 : 96, borderRadius: '50%',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                    fontSize: pequeno ? 48 : 56, background: `linear-gradient(145deg, ${cor}2e, ${cor}12)`,
+                    border: `3px solid ${cor}88`, boxShadow: `0 5px 18px ${cor}30, inset 0 0 0 5px ${cardBg}` }}>
+                    <span role="img" aria-label={tema.nome}>{tema.emoji}</span>
+                  </div>
+                  <div style={{ width: '100%', fontSize: pequeno ? 19 : 21, fontWeight: 800, color: T.text,
+                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.2 }}>
+                    {st.nome || (fixa ? 'Sala Geral' : 'Sala')}
+                  </div>
+                  {fixa && <div style={{ fontSize: 11, color: T.textD }}>Sala fixa</div>}
+                </div>
+
                 {/* Quem está na sala */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 7, minHeight: 30, position: 'relative', zIndex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, minHeight: 48, position: 'relative', zIndex: 1,
+                  padding: '9px 11px', borderRadius: 12, background: `${cor}10`, border: `1px solid ${cor}25` }}>
                   {gente.length ? (
-                    <>
-                      <div style={{ display: 'flex' }}>
-                        {gente.slice(0, 6).map((p, i) => (
-                          <img key={p.name} src={p.photo || '/UNIKO_NEW.png'} alt="" title={p.name}
-                            style={{ width: 27, height: 27, borderRadius: '50%', objectFit: 'cover', background: T.surfaceSub,
-                              border: `2px solid ${cardBg}`, marginLeft: i ? -8 : 0 }} />
-                        ))}
-                      </div>
-                      <span style={{ fontSize: 11.5, color: T.textT }}>
-                        {gente.length === 1 ? `${gente[0].name.split(' ')[0]} está aqui`
-                          : `${gente.length} jogadores`}
-                      </span>
-                    </>
+                  <div style={{ display: 'flex', alignItems: 'center', flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', flexShrink: 0 }}>
+                      {gente.slice(0, 5).map((p, i) => (
+                        <img key={p.name} src={p.photo || '/UNIKO_NEW.png'} alt="" title={p.name}
+                          style={{ width: 38, height: 38, borderRadius: '50%', objectFit: 'cover', background: T.surfaceSub,
+                            border: `2px solid ${cardBg}`, marginLeft: i ? -10 : 0 }} />
+                      ))}
+                    </div>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: T.text, marginLeft: 10, overflow: 'hidden',
+                      textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {gente.length === 1 ? gente[0].name.split(' ')[0] : 'Pessoas na sala'}
+                    </span>
+                    </div>
                   ) : (
-                    <span style={{ fontSize: 11.5, color: T.textD, display: 'flex', alignItems: 'center', gap: 5 }}>
-                      <IcoUsers size={13} />Vazia — seja o primeiro
+                  <span style={{ fontSize: 12, color: T.textD, display: 'flex', alignItems: 'center', gap: 7, flex: 1 }}>
+                    <IcoUsers size={17} />Seja o primeiro a entrar
                     </span>
                   )}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0, color: cor }}>
+                  <IcoUsers size={17} />
+                  <span style={{ fontSize: 16, fontWeight: 900 }}>{gente.length}</span>
+                  </div>
                 </div>
 
                 <button className="up-btn" onClick={() => { SFX.entrou(); onEnter(r.id); }}
-                  style={{ width: '100%', padding: compacto ? '13px' : '9px', borderRadius: 10, border: 'none', color: textoSobre(cor),
-                    fontSize: pequeno ? 14 : 13, fontWeight: 800, cursor: 'pointer', position: 'relative', zIndex: 1,
+                  style={{ width: '100%', padding: compacto ? '16px' : '15px', borderRadius: 13, border: 'none', color: textoSobre(cor),
+                  fontSize: pequeno ? 16 : 17, fontWeight: 900, letterSpacing: '.02em', cursor: 'pointer', position: 'relative', zIndex: 1,
                     touchAction: 'manipulation',
-                    background: cor, boxShadow: `0 4px 14px ${cor}55` }}>
-                  Entrar
+                  background: `linear-gradient(135deg, ${cor}, ${cor}dd)`, boxShadow: `0 5px 16px ${cor}55` }}>
+                  Jogar nesta sala
                 </button>
 
                 {/* Confirmação de exclusão — cobre o próprio card */}
