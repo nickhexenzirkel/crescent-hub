@@ -236,6 +236,7 @@ const TopBar = ({tab,onBack}) => {
   const [notifOpen,setNO]=useState(false);
   const [notifs,setNotifs]=useState([]);
   const unread=notifs.filter(n=>!n.read).length;
+  const paintCompacto = tab==='unikopaint';
 
   useEffect(()=>{
     _supabase.from('comunicados').select('*').eq('active',true)
@@ -253,7 +254,7 @@ const TopBar = ({tab,onBack}) => {
 
   if(tab==='inicio')return null;
   return(
-    <div className="portal-topbar" style={{height:52,display:'flex',alignItems:'center',gap:isMobile?8:12,padding:isMobile?'0 14px':'0 30px',
+    <div className="portal-topbar" style={{height:paintCompacto?32:52,display:'flex',alignItems:'center',gap:isMobile?8:12,padding:paintCompacto?'0 25px':isMobile?'0 14px':'0 30px',
       background:T.topbarBg,backdropFilter:'blur(12px)',
       borderBottom:`1px solid ${T.border}`,flexShrink:0,
       fontFamily:'var(--font-body)',position:'relative',zIndex:300}}>
@@ -261,20 +262,20 @@ const TopBar = ({tab,onBack}) => {
         onMouseEnter={e=>e.currentTarget.style.background=T.surfaceSub||'rgba(0,0,0,0.04)'}
         onMouseLeave={e=>e.currentTarget.style.background='transparent'}
         style={{display:'flex',alignItems:'center',gap:7,background:'none',border:'none',
-          cursor:'pointer',color:T.textS,fontFamily:'var(--font-body)',fontSize:14,
+          cursor:'pointer',color:T.textS,fontFamily:'var(--font-body)',fontSize:paintCompacto?12:14,
           padding:'4px 9px',borderRadius:7,transition:'background .14s'}}>← Voltar</button>
       <div style={{width:1,height:16,background:T.divider}}/>
-      <div style={{fontSize:14,color:T.textT,flex:1}}>
+      <div style={{fontSize:paintCompacto?12:14,color:T.textT,flex:1}}>
         Portal do Colaborador<span style={{color:T.textD,margin:'0 5px'}}>›</span>
         <strong style={{color:T.text,fontWeight:500}}>{nm[tab]||tab}</strong>
       </div>
       <div style={{position:'relative'}}>
         <button onClick={()=>setNO(o=>!o)} style={{position:'relative',
           background:notifOpen?T.goldGl:'none',border:'none',cursor:'pointer',
-          width:36,height:36,borderRadius:10,outline:'none',
+          width:paintCompacto?28:36,height:paintCompacto?28:36,borderRadius:10,outline:'none',
           display:'flex',alignItems:'center',justifyContent:'center',
           color:T.textS,transition:'all .15s'}}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+          <svg width={paintCompacto?15:18} height={paintCompacto?15:18} viewBox="0 0 24 24" fill="none"
             stroke={unread>0?T.gold:'currentColor'} strokeWidth="1.8" strokeLinecap="round">
             <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/>
             <path d="M13.73 21a2 2 0 01-3.46 0"/></svg>

@@ -299,13 +299,19 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange, initialTab, restri
   // Onboarding), que ficam fora dele e continuam no tamanho real da tela —
   // modal encolhido junto seria estranho de usar.
   const isGameTab = tab==='unikowave';
-  const barraCompacta = tab==='unikowave' || tab==='unikocamera' || (tab==='lembretes' && lembCompacto);
+  // Paint usa a navegação recolhida e, dentro da sala, ocupa a área disponível inteira.
+  const barraCompacta = tab==='unikowave' || tab==='unikopaint' || tab==='unikocamera' || (tab==='lembretes' && lembCompacto);
+  const paintEmTelaCheia = tab==='unikopaint';
+  const alturaTopBar = paintEmTelaCheia ? 32 : 52;
+  const paddingPortalVertical = tab==='unikowave' ? 0 : isMobile ? 16 : paintEmTelaCheia ? 52 : 28;
+  const paddingPortalHorizontal = tab==='unikowave' ? 0 : isMobile ? 16 : paintEmTelaCheia ? 25 : 34;
+  const paddingPortalBottom = tab==='unikowave' ? 0 : isMobile ? 76 : paintEmTelaCheia ? 0 : 28;
   const zoomOut = !isMobile && !isGameTab;
   return(
     <>
     <div key={activeTheme} style={{display:'flex',minHeight:zoomOut?'calc(100vh / 0.8)':'100vh',background:T.page,fontFamily:'var(--font-body)',zoom:zoomOut?0.8:undefined}}>
       {!(tab==='unikowave' && celularDeitado) && <Sidebar tab={tab} setTab={st} onBack={onBack} activeTheme={activeTheme} onTheme={handleTheme} onOpenSettings={()=>setShowSettings(true)} userPhoto={userPhoto} profileComplete={profileComplete} collapsed={barraCompacta} desligado={desligado.off} only={restrictedTabs} visitante={visitante}/>}
-      <div className="portal-conteudo" style={{marginLeft:isMobile?0:((tab==='unikocamera'||(tab==='lembretes'&&lembCompacto))?76:(tab==='unikowave'?(celularDeitado?0:76):280)),flex:1,display:'flex',flexDirection:'column',minHeight:zoomOut?'calc(100vh / 0.8)':'100vh',
+      <div className="portal-conteudo" style={{marginLeft:isMobile?0:((tab==='unikopaint'||tab==='unikocamera'||(tab==='lembretes'&&lembCompacto))?76:(tab==='unikowave'?(celularDeitado?0:76):280)),flex:1,display:'flex',flexDirection:'column',minHeight:zoomOut?'calc(100vh / 0.8)':'100vh',
         // minWidth:0 é o que de fato faz a página respeitar a tela: sem isso,
         // um item flex ('flex:1') tem largura mínima automática = a largura
         // do conteúdo mais largo lá dentro (min-content), IGNORANDO o
@@ -327,7 +333,7 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange, initialTab, restri
             rolava). Com `basis:auto` o `height` vira a base e a altura se mantém.
             Só pro Paint pra não mexer no layout das outras abas. */}
         <div className="portal-area" style={{flex: (tab==='unikopaint'||tab==='unikostop'||tab==='unikopalavras'||tab==='unikofaster'||tab==='unikocamera') ? '1 1 auto' : 1,
-          padding: tab==='unikowave' ? 0 : (isMobile?'16px':'28px 34px'),
+          paddingTop:paddingPortalVertical,paddingLeft:paddingPortalHorizontal,paddingRight:paddingPortalHorizontal,
           overflowY: (tab==='unikowave'||tab==='unikopaint'||tab==='unikostop'||tab==='unikopalavras'||tab==='unikofaster'||tab==='unikocamera') ? 'hidden' : 'auto',
           // Trava de segurança: nenhuma aba deve exigir rolagem PARA OS LADOS pra
           // ver informação ou alcançar um botão — se algum card/linha (ellipsis
@@ -337,14 +343,14 @@ const Portal = ({onBack, onGoAlexa, userPhoto, onPhotoChange, initialTab, restri
           // de que dava pra arrastar).
           overflowX: 'hidden',
           minHeight: (tab==='unikopaint'||tab==='unikostop'||tab==='unikopalavras'||tab==='unikofaster'||tab==='unikocamera') ? 0 : undefined,
-          paddingBottom: tab==='unikowave' ? 0 : (isMobile?'76px':'28px'),
+          paddingBottom:paddingPortalBottom,
           // Com zoomOut, o 100vh/52px têm que compensar o encolhimento (÷0.8) —
           // mesma lógica do zoom do Seletor de módulos: sem isso a caixa sobra
           // menor que a tela (zoomOut sempre implica desktop, então os outros
           // ramos do ternário original — mobile/jogo — não precisam dessa conta).
           height: tab==='unikowave' ? '100vh' : (zoomOut
-            ? (tab==='inicio' ? 'calc(100vh / 0.8)' : 'calc((100vh - 52px) / 0.8)')
-            : ((!isMobile&&tab==='inicio')?'100vh':(!isMobile?'calc(100vh - 52px)':undefined)))}}>
+            ? (tab==='inicio' ? 'calc(100vh / 0.8)' : `calc((100vh - ${alturaTopBar}px) / 0.8)`)
+            : ((!isMobile&&tab==='inicio')?'100vh':(!isMobile?`calc(100vh - ${alturaTopBar}px)`:undefined)))}}>
           {waveVisited && <TabUnikoWave active={tab==='unikowave'}/>}
           {tab!=='unikowave' && render()}
         </div>

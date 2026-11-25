@@ -104,10 +104,14 @@ const useTela = (zoomOut) => {
     const dedo = window.matchMedia?.('(pointer: coarse)').matches ?? false;
     const paisagem = L > A;
     const compacto = dedo || L < 820;
+    const lobbyDenso = zoomOut && (L < 1160 || A < 850);
+    const lobbyEscala90 = zoomOut && !lobbyDenso && A < 930;
     return {
       compacto, paisagem,
       pequeno: Math.min(L, A) < 500,
       empilhado: compacto && !(paisagem && L >= 900 && A >= 620),
+      lobbyDenso, lobbyEscala90,
+      lobbyLargo: L / A > 1.6,
     };
   };
   const [t, setT] = useState(ler);
@@ -118,7 +122,9 @@ const useTela = (zoomOut) => {
     const fn = () => setT(p => {
       const n = ler();
       return (n.compacto === p.compacto && n.paisagem === p.paisagem
-        && n.pequeno === p.pequeno && n.empilhado === p.empilhado) ? p : n;
+        && n.pequeno === p.pequeno && n.empilhado === p.empilhado
+        && n.lobbyDenso === p.lobbyDenso && n.lobbyEscala90 === p.lobbyEscala90
+        && n.lobbyLargo === p.lobbyLargo) ? p : n;
     });
     fn(); // `zoomOut` pode ter mudado sem nenhum resize (ex.: trocou de aba) — recalcula na hora
     window.addEventListener('resize', fn);
@@ -174,6 +180,12 @@ const UP = {
   red:    '#FF4D5E',
   ink:    '#1A1A2E',
 };
+const ROOM_BLUE = '#1765F5';
+const ROOM_TEXT = '#173B73';
+const ROOM_MUTED = '#64748B';
+const ROOM_BORDER = '#D5E1F0';
+const ROOM_SUB = '#F3F7FC';
+const ROOM_SHADOW = '0 4px 14px rgba(12, 48, 110, .12)';
 /* Preto ou branco por cima desta cor? Amarelo/lima/ciano pedem texto escuro;
    rosa/roxo/vermelho pedem branco. Sem isso o texto do botão some no fundo.
    (As cores vivas NUNCA são usadas como cor de TEXTO: várias têm contraste <3:1
@@ -207,8 +219,8 @@ const SPLAT_PATHS = [
   'M46 6c13 0 18 12 26 19s16 12 15 25-13 17-22 22-11 18-23 16S24 74 15 66 2 45 7 33s10-13 17-19S33 6 46 6z',
   'M50 4c9 6 8 16 15 23s19 8 20 20-11 16-15 26-4 20-16 22-19-9-29-14S6 66 6 54s5-16 9-25S41-2 50 4z',
 ];
-const Splat = ({ x, y, size = 60, cor, rot = 0, op = 0.14, forma = 0, pingos = true, style }) => (
-  <svg aria-hidden viewBox="0 0 92 92" width={size} height={size}
+const Splat = ({ x, y, size = 60, cor, rot = 0, op = 0.14, forma = 0, pingos = true, style, className }) => (
+  <svg aria-hidden className={className} viewBox="0 0 92 92" width={size} height={size}
     style={{ position: 'absolute', left: x, top: y, opacity: op, pointerEvents: 'none',
       transform: `rotate(${rot}deg)`, zIndex: 0, ...style }}>
     <path d={SPLAT_PATHS[forma % SPLAT_PATHS.length]} fill={cor} />
@@ -228,6 +240,12 @@ const SPLATS_HEADER = [
   { x: '68%', y: '46%',  size: 40, forma: 0, rot: 78,  op: 0.18 },
   { x: '86%', y: '-14%', size: 62, forma: 1, rot: 250, op: 0.15 },
 ];
+const RoomBackdrop = () => (
+  <div aria-hidden style={{ position: 'absolute', inset: 0, zIndex: 0, overflow: 'hidden', pointerEvents: 'none',
+    backgroundColor: ROOM_BLUE,
+    backgroundImage: "linear-gradient(rgba(6, 18, 45, .08), rgba(6, 18, 45, .08)), url('/uniko-paint-background-neon.png')",
+    backgroundPosition: 'center top', backgroundSize: 'cover', backgroundRepeat: 'no-repeat' }} />
+);
 /* Sala sem ninguém e parada há mais de 20min é lixo — o lobby faz a faxina. */
 const ROOM_TTL_MS = 20 * 60_000;
 
@@ -889,11 +907,22 @@ const PAINT_CSS = `
 @keyframes upTurnOut { to { opacity: 0; transform: scale(1.1); } }
 @keyframes upAvatarIn { 0% { transform: scale(.4) rotate(-14deg); opacity: 0; } 70% { transform: scale(1.08) rotate(4deg); } 100% { transform: scale(1) rotate(0); opacity: 1; } }
 @keyframes upRing { 0% { transform: scale(.9); opacity: .8; } 100% { transform: scale(1.5); opacity: 0; } }
+@keyframes upResultIn { 0% { opacity: 0; transform: translateY(14px) scale(.96); } 100% { opacity: 1; transform: none; } }
+@keyframes upResultTitle { 0% { opacity: 0; transform: scale(.55) rotate(-5deg); } 72% { transform: scale(1.08) rotate(1deg); } 100% { opacity: 1; transform: scale(1) rotate(0); } }
+@keyframes upSplatIn { 0% { opacity: 0; transform: scale(.25) rotate(-25deg); } 70% { opacity: .2; transform: scale(1.08) rotate(8deg); } 100% { opacity: .16; transform: scale(1) rotate(0); } }
+@keyframes upTurnShine { 0% { transform: translateX(-120%) rotate(18deg); } 100% { transform: translateX(120%) rotate(18deg); } }
 .up-turn   { animation: upTurnIn .45s cubic-bezier(.2,1.3,.4,1) both; }
 .up-turn-out { animation: upTurnOut .35s ease-in both; }
 .up-avatar { animation: upAvatarIn .55s cubic-bezier(.2,1.4,.4,1) both; }
 .up-ring   { position: absolute; inset: -6px; border-radius: 50%; border: 3px solid currentColor; animation: upRing 1.6s ease-out infinite; }
 .up-ring2  { animation-delay: .55s; }
+.up-result { animation: upResultIn .5s cubic-bezier(.2,.8,.2,1) both; }
+.up-result-title { animation: upResultTitle .62s cubic-bezier(.2,1.3,.4,1) both; }
+.up-result-splat { animation: upSplatIn .7s cubic-bezier(.2,1,.3,1) both; }
+.up-turn-title { animation: upResultTitle .58s cubic-bezier(.2,1.3,.4,1) .08s both; }
+.up-turn-shine { position: absolute; inset: -40% auto -40% -35%; width: 30%; pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.22), transparent);
+  animation: upTurnShine 1.4s ease-in-out .2s both; }
 /* Barra de rolagem visível nos palpites. A global do app é de 4px com trilho
    transparente — some no card do chat, e sem enxergar a barra parece que nada
    rola. Aqui ela tem 9px, trilho marcado e polegar rosa da paleta. */
@@ -932,10 +961,35 @@ const PAINT_CSS = `
 .up-btn   { transition: transform .12s ease, box-shadow .12s ease, filter .12s ease; }
 .up-btn:hover:not(:disabled)  { transform: translateY(-1px); filter: brightness(1.06); }
 .up-btn:active:not(:disabled) { transform: translateY(1px) scale(.98); }
+.up-create-room-button:focus-visible {
+  outline: 3px solid #fff; outline-offset: -5px; box-shadow: 0 0 0 4px rgba(168,59,255,.9);
+}
 .up-urgent { animation: upShake .5s ease-in-out infinite; }
 .up-drawing-badge { animation: upPulse 2s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) {
-  .up-mascote, .up-mascote-big, .up-halo::before, .up-ring, .up-urgent, .up-drawing-badge { animation: none !important; }
+  .up-mascote, .up-mascote-big, .up-halo::before, .up-ring, .up-urgent, .up-drawing-badge,
+  .up-result, .up-result-title, .up-result-splat, .up-turn-title, .up-turn-shine { animation: none !important; }
+}
+`;
+
+const PORTAL_ROOM_CSS = `
+body.up-active .portal-area {
+  background-color: #1765F5;
+  background-image: linear-gradient(rgba(6, 18, 45, .08), rgba(6, 18, 45, .08)),
+    url('/uniko-paint-background-neon.png');
+  background-position: center top;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+body.up-room-active .portal-topbar,
+body.up-room-active .portal-mobilenav { display: none !important; }
+body.up-room-active .portal-area {
+  height: calc(100vh / 0.8) !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+@media (max-width: 767px), (max-height: 520px) and (pointer: coarse) {
+  body.up-room-active .portal-area { height: 100vh !important; }
 }
 `;
 
@@ -1077,7 +1131,7 @@ const semTabela = (erro) => !!erro && (erro.code === 'PGRST205' || erro.code ===
 
 /* ── Ranking geral (lobby) ──────────────────────────────────────────────────
    Soma dos pontos de todas as partidas. Ver supabase_uniko_paint_ranking.sql. */
-const RankingGeral = ({ name, cardBg, maxAltura }) => {
+const RankingGeral = ({ name, maxAltura, compacto }) => {
   const [linhas, setLinhas] = useState(null);   // null = carregando
   const [faltaSql, setFaltaSql] = useState(false);
 
@@ -1102,44 +1156,48 @@ const RankingGeral = ({ name, cardBg, maxAltura }) => {
   const medalha = (i) => (i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}º`);
 
   return (
-    <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 14, padding: 14,
-      boxShadow: T.sh, display: 'flex', flexDirection: 'column', minHeight: 0, height: '100%', overflow: 'hidden',
+    <div style={{ background: T.dark ? 'rgba(20,10,52,.76)' : 'rgba(255,255,255,.78)',
+      border: '1px solid rgba(91,220,255,.68)', borderRadius: 16, padding: compacto ? 14 : 18,
+      backdropFilter: 'blur(16px) saturate(1.3)', WebkitBackdropFilter: 'blur(16px) saturate(1.3)',
+      boxShadow: '0 0 18px rgba(34,207,255,.25), 0 0 32px rgba(168,59,255,.2), inset 0 0 20px rgba(34,207,255,.08)',
+      display: 'flex', flexDirection: 'column', minHeight: 0, height: '100%', overflow: 'hidden',
       maxHeight: maxAltura }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 11, flexShrink: 0 }}>
-        <span style={{ fontSize: 17 }}>🏆</span>
-        <span style={{ fontSize: 12, fontWeight: 800, color: T.textT, letterSpacing: '.07em' }}>RANKING GERAL</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: compacto ? 9 : 14, flexShrink: 0 }}>
+        <span style={{ fontSize: compacto ? 19 : 21 }}>🏆</span>
+        <span style={{ fontSize: compacto ? 13 : 15, fontWeight: 800, color: T.textS, letterSpacing: '.07em' }}>RANKING GERAL</span>
       </div>
       {faltaSql ? (
-        <div style={{ fontSize: 12, color: T.textT, lineHeight: 1.5 }}>
+        <div style={{ fontSize: 14, color: T.textS, lineHeight: 1.5 }}>
           Falta rodar <b style={{ color: T.text }}>supabase_uniko_paint_ranking.sql</b> no Supabase.
         </div>
       ) : linhas === null ? (
-        <div style={{ fontSize: 12, color: T.textD }}>Carregando...</div>
+        <div style={{ fontSize: 14, color: T.textS }}>Carregando...</div>
       ) : !linhas.length ? (
-        <div style={{ fontSize: 12, color: T.textD, lineHeight: 1.5 }}>
+        <div style={{ fontSize: 14, color: T.textS, lineHeight: 1.5 }}>
           Ninguém pontuou ainda. Jogue uma partida e apareça aqui!
         </div>
       ) : (
-        <div className="up-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <div className="up-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
           {linhas.map((l, i) => {
             const eu = l.player === name || l.player === authName();
             return (
               <div key={l.player} className="up-fade" style={{ display: 'flex', alignItems: 'center', gap: 8,
-                padding: '7px 8px', borderRadius: 9, background: eu ? `${A}12` : 'transparent',
+                padding: compacto ? '7px 8px' : '10px 9px', borderRadius: 10, background: eu ? `${A}18` : 'transparent',
                 border: eu ? `1px solid ${A}44` : '1px solid transparent' }}>
-                <span style={{ fontSize: i < 3 ? 15 : 11, fontWeight: 800, color: i < 3 ? T.text : T.textD,
-                  width: 22, textAlign: 'center', flexShrink: 0 }}>{medalha(i)}</span>
+                <span style={{ fontSize: compacto ? (i < 3 ? 16 : 12) : (i < 3 ? 18 : 14), fontWeight: 800,
+                  color: i < 3 ? T.text : T.textS,
+                  width: 28, textAlign: 'center', flexShrink: 0 }}>{medalha(i)}</span>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: eu ? 800 : 700, color: T.text,
+                  <div style={{ fontSize: compacto ? 14 : 15, fontWeight: eu ? 800 : 700, color: T.text,
                     whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {l.player.split(' ')[0]}{eu && ' (você)'}
                   </div>
-                  <div style={{ fontSize: 10.5, color: T.textT }}>
+                  <div style={{ fontSize: compacto ? 11.5 : 12.5, color: T.textS }}>
                     {l.partidas} {l.partidas === 1 ? 'partida' : 'partidas'}
                     {l.vitorias > 0 && ` · ${l.vitorias} 🏅`}
                   </div>
                 </div>
-                <span style={{ fontSize: 13.5, fontWeight: 800, color: A, flexShrink: 0 }}>{l.pontos}</span>
+                <span style={{ fontSize: compacto ? 14 : 16, fontWeight: 900, color: A, flexShrink: 0 }}>{l.pontos}</span>
               </div>
             );
           })}
@@ -1157,8 +1215,11 @@ const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker, zoomOut }) => {
   const [temaSala, setTemaSala] = useState('geral');
   const [erro, setErro] = useState('');
   const [confirmarEx, setConfirmarEx] = useState(null);  // id da sala a excluir
-  const { compacto, empilhado, pequeno } = useTela(zoomOut);
+  const { compacto, empilhado, pequeno, lobbyDenso, lobbyLargo, lobbyEscala90 } = useTela(zoomOut);
+  const escalaLobby = lobbyEscala90 && lobbyLargo ? 0.9 : 1;
+  const dimensaoLobby = `${100 / escalaLobby}%`;
   const cardBg = T.surface || '#fff';
+  const glassSurface = T.dark ? 'rgba(20,10,52,.76)' : 'rgba(255,255,255,.78)';
   const isAdmin = getAuthUser()?.role === 'admin';
 
   const load = useCallback(async () => {
@@ -1216,72 +1277,75 @@ const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker, zoomOut }) => {
   const podeExcluir = (r) => r.id !== GLOBAL_ROOM && (isAdmin || r.state?.criador === name);
 
   return (
-    <div className="up-sembarra" style={{ display: 'flex', flexDirection: 'column', gap: compacto ? 10 : 14,
-      height: '100%', minHeight: 0,
+    <div className="up-sembarra" style={{ display: 'flex', flexDirection: 'column',
+      gap: compacto ? 10 : lobbyDenso ? 10 : 14,
+      width: dimensaoLobby, height: dimensaoLobby, minHeight: 0, flexShrink: 0,
+      transform: escalaLobby < 1 ? `scale(${escalaLobby})` : undefined,
+      transformOrigin: 'top left',
       /* No celular o lobby rola por conta própria: a área do Portal fica com
          overflow hidden (por causa da sala, que é tela cheia) e sem isso os
          cards de sala mais abaixo ficavam inalcançáveis. */
       overflowY: compacto ? 'auto' : undefined, WebkitOverflowScrolling: 'touch' }}>
       <style>{PAINT_CSS}</style>
-      {/* Cabeçalho */}
-      <div className="up-hd" style={{ borderRadius: 16, padding: compacto ? '11px 13px' : '14px 18px',
-        display: 'flex', alignItems: 'center', gap: compacto ? 10 : 14, flexWrap: pequeno ? 'wrap' : 'nowrap',
-        // brilho embutido no próprio background (evita uma camada só pra isso)
-        background: `radial-gradient(circle at 12% 18%, rgba(255,255,255,.28) 0%, transparent 46%),
-                     radial-gradient(circle at 88% 82%, rgba(255,255,255,.2) 0%, transparent 42%), ${RAINBOW}`,
-        boxShadow: `0 8px 26px ${AG}`,
-        position: 'relative', overflow: 'hidden', flexShrink: 0 }}>
-        {/* respingos de tinta por cima do arco-íris (ficam no fundo via .up-hd) */}
-        {SPLATS_HEADER.map((s, i) => <Splat key={i} {...s} cor="#fff" />)}
-        <Mascote size={pequeno ? 46 : compacto ? 62 : 80} />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontFamily: 'var(--font-brand)', fontSize: pequeno ? 18 : 22, fontWeight: 800, color: '#fff' }}>Uniko Paint</div>
-          <div style={{ fontSize: pequeno ? 11 : 12, color: 'rgba(255,255,255,.85)' }}>Entre numa sala ou crie a sua</div>
+      {/* Espaço para deixar o mascote e o título integrados ao fundo livres acima do perfil. */}
+      <div aria-hidden style={{ height: pequeno ? 'clamp(190px, 45vw, 250px)'
+        : empilhado ? 'clamp(240px, 30vw, 300px)'
+          : escalaLobby < 1 ? 'clamp(200px, 16vw, 220px)'
+          : lobbyDenso
+        ? (lobbyLargo ? 'clamp(190px, 16.5vw, 225px)' : 'clamp(220px, 20vw, 270px)')
+            : 'clamp(300px, 23vw, 330px)',
+        flexShrink: 0 }} />
+
+      {/* Perfil e ações em uma faixa compacta, logo abaixo da arte. */}
+      <div style={{ display: 'grid', gridTemplateColumns: empilhado ? '1fr' : 'minmax(0, 1fr) auto',
+        alignItems: 'center', gap: compacto ? 9 : 12,
+        padding: compacto ? '10px 12px' : lobbyDenso ? '8px 12px' : '12px 16px',
+        background: glassSurface, border: '1px solid rgba(91,220,255,.72)', borderRadius: 15,
+        backdropFilter: 'blur(16px) saturate(1.3)', WebkitBackdropFilter: 'blur(16px) saturate(1.3)',
+        boxShadow: '0 0 18px rgba(34,207,255,.28), 0 0 30px rgba(168,59,255,.2), inset 0 0 20px rgba(34,207,255,.08)',
+        flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+          <img src={photo} alt={`Foto de ${name}`}
+            style={{ width: pequeno ? 46 : lobbyDenso ? 46 : 54, height: pequeno ? 46 : lobbyDenso ? 46 : 54,
+              borderRadius: '50%', objectFit: 'cover',
+              background: '#fff', border: `3px solid ${A}`, flexShrink: 0 }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: lobbyDenso ? 9 : 10, fontWeight: 800, color: T.textS, textTransform: 'uppercase', letterSpacing: '.06em' }}>
+              Seu perfil no jogo
+            </div>
+            <div style={{ fontSize: pequeno ? 16 : lobbyDenso ? 16 : 18, fontWeight: 800, color: T.text,
+              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.2 }}>{name}</div>
+          </div>
+          <button onClick={onAbrirPicker} aria-label="Editar perfil"
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              padding: pequeno ? '9px 10px' : lobbyDenso ? '8px 11px' : '10px 14px',
+              borderRadius: 11, border: 'none',
+              background: `linear-gradient(135deg, ${A}, ${A2})`, color: '#fff', fontSize: 12, fontWeight: 800,
+              cursor: 'pointer', touchAction: 'manipulation', flexShrink: 0 }}>
+            <IcoEdit size={16} />{pequeno ? 'Editar' : 'Editar perfil'}
+          </button>
         </div>
-        {/* No celular os dois botões descem pra uma linha só deles e dividem a
-            largura — espremidos no canto viravam alvos de 2mm. */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
-          flexBasis: pequeno ? '100%' : 'auto' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: pequeno ? 'stretch' : 'flex-end',
+          gap: 8, gridColumn: empilhado ? 1 : 2, gridRow: empilhado ? 2 : 1 }}>
           <ConvidarButton game="paint" roomId={null} accent={A}
-            style={compacto ? { flex: pequeno ? 1 : undefined, justifyContent: 'center', padding: '11px 14px' } : undefined} />
+            style={{ flex: pequeno ? 1 : undefined, justifyContent: 'center',
+              padding: lobbyDenso ? '8px 11px' : '10px 14px', minHeight: lobbyDenso ? 36 : 42 }} />
           <button onClick={() => setCriando(v => !v)}
             style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-              padding: compacto ? '13px 16px' : '12px 20px', borderRadius: 999, border: 'none', flex: pequeno ? 1 : undefined,
-              background: '#fff', color: A, fontSize: 15, fontWeight: 800, cursor: 'pointer',
-              touchAction: 'manipulation', boxShadow: '0 3px 12px rgba(0,0,0,.18)' }}>
-            <IcoPlus size={18} />Criar sala
+                padding: lobbyDenso ? '8px 12px' : '10px 15px', minHeight: lobbyDenso ? 36 : 42,
+                borderRadius: 999, border: 'none', flex: pequeno ? 1 : undefined,
+                background: '#fff', color: A, fontSize: lobbyDenso ? 12 : 13, fontWeight: 800, cursor: 'pointer',
+              touchAction: 'manipulation', boxShadow: '0 3px 12px rgba(0,0,0,.14)' }}>
+            <IcoPlus size={17} />Criar sala
           </button>
         </div>
       </div>
 
-      {/* Seu perfil — card destacado: Uniko atual + nome + editar */}
-      <div style={{ background: cardBg, border: `1.5px solid ${A}44`, borderRadius: 16,
-        padding: compacto ? '16px' : '20px 24px',
-        boxShadow: T.sh, flexShrink: 0, display: 'flex', alignItems: 'center', gap: compacto ? 16 : 20, flexWrap: 'wrap' }}>
-        <div style={{ position: 'relative', flexShrink: 0 }}>
-          <img src={photo} alt={`Foto de ${name}`} style={{ width: pequeno ? 78 : 104, height: pequeno ? 78 : 104, borderRadius: '50%', objectFit: 'cover',
-            background: '#fff', border: `4px solid ${A}`, boxShadow: `0 6px 20px ${AG}` }} />
-        </div>
-        <div style={{ flex: 1, minWidth: 140 }}>
-          <div style={{ fontSize: 11, fontWeight: 800, color: T.textT, textTransform: 'uppercase', letterSpacing: '.06em' }}>Seu perfil no jogo</div>
-          <div style={{ fontSize: pequeno ? 21 : 28, fontWeight: 800, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.2 }}>{name}</div>
-          {!pequeno && <div style={{ fontSize: 12, color: T.textT, marginTop: 1 }}>É assim que a galera te vê nas partidas.</div>}
-        </div>
-        <button onClick={onAbrirPicker}
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9,
-            padding: compacto ? '14px 20px' : '16px 26px', borderRadius: 14, border: 'none',
-            flexBasis: pequeno ? '100%' : 'auto',
-            background: `linear-gradient(135deg, ${A}, ${A2})`, color: '#fff', fontSize: pequeno ? 15 : 17, fontWeight: 800,
-            cursor: 'pointer', touchAction: 'manipulation', boxShadow: `0 6px 18px ${AG}` }}>
-          <IcoEdit size={21} />
-          Editar perfil
-        </button>
-      </div>
-
       {/* Criar sala */}
       {criando && (
-        <div style={{ background: cardBg, border: `1px solid ${A}55`, borderRadius: 14, padding: 16,
-          boxShadow: T.sh, flexShrink: 0 }}>
+        <div style={{ background: glassSurface, border: `1px solid ${A}99`, borderRadius: 14, padding: 16,
+          backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
+          boxShadow: `0 0 18px ${A}44, 0 0 30px rgba(34,207,255,.16)`, flexShrink: 0 }}>
           <div style={{ fontSize: 13.5, fontWeight: 800, color: T.text, marginBottom: 11 }}>Nova sala</div>
           <input value={nomeSala} onChange={e => setNomeSala(e.target.value)} maxLength={28}
             onKeyDown={e => e.key === 'Enter' && criarSala()}
@@ -1323,18 +1387,20 @@ const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker, zoomOut }) => {
       {/* Salas + ranking lado a lado. minmax(0,1fr) na linha pelo mesmo motivo de
           sempre: sem isso a linha cresce com o conteúdo e estica a página. */}
       <div style={{ flex: empilhado ? undefined : 1, display: 'grid',
-        gridTemplateColumns: empilhado ? '1fr' : '1fr 268px',
+        marginTop: lobbyDenso && lobbyLargo ? -8 : 0,
+        gridTemplateColumns: empilhado ? '1fr' : lobbyDenso ? '1fr 300px' : '1fr 336px',
         /* Empilhado, as duas caixas viram linhas de altura livre e quem rola é o
            lobby inteiro — travar a altura aqui espremia a lista de salas. */
         gridTemplateRows: empilhado ? 'auto auto' : 'minmax(0, 1fr)', gap: 12, minHeight: 0 }}>
       {/* Lista de salas — sem barra de rolagem (não vai ter sala demais), mas
           ainda rolável pela roda se um dia passar da tela. */}
-      <div className="up-sembarra" style={{ overflowY: empilhado ? 'visible' : 'auto', minHeight: 0, position: 'relative' }}>
+      <div className="up-sembarra" style={{ display: 'flex', flexDirection: 'column',
+        overflowY: empilhado ? 'visible' : 'auto', minHeight: 0, position: 'relative' }}>
         {/* respingos coloridos bem sutis no fundo da lista */}
         <Splat x="-3%"  y="14%" size={190} cor={UP.cyan}   rot={18}  op={0.05} forma={1} />
         <Splat x="72%"  y="52%" size={230} cor={UP.pink}   rot={200} op={0.045} forma={2} />
         <Splat x="34%"  y="78%" size={160} cor={UP.yellow} rot={95}  op={0.05} forma={0} />
-        <div style={{ fontSize: 11.5, fontWeight: 800, color: T.textT, letterSpacing: '.08em', marginBottom: 10,
+        <div style={{ fontSize: 12.5, fontWeight: 800, color: T.textS, letterSpacing: '.08em', marginBottom: 10,
           position: 'relative', zIndex: 1 }}>
           SALAS ({rooms.length})
         </div>
@@ -1344,8 +1410,9 @@ const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker, zoomOut }) => {
             a mesma tela parecendo dois layouts diferentes. Teto de 360px + o
             grid alinhado à esquerda mantém o card sempre do mesmo tamanho. */}
         <div style={{ display: 'grid',
-          gridTemplateColumns: pequeno ? '1fr' : 'repeat(auto-fill, minmax(280px, 360px))',
-          justifyContent: 'start', gap: 14, position: 'relative', zIndex: 1 }}>
+          gridTemplateColumns: pequeno ? '1fr' : lobbyDenso
+            ? 'repeat(auto-fill, minmax(240px, 320px))' : 'repeat(auto-fill, minmax(280px, 360px))',
+          justifyContent: 'start', gap: lobbyDenso ? 10 : 14, position: 'relative', zIndex: 1 }}>
           {rooms.map(r => {
             const st = r.state || {};
             const tema = themeById(st.themeId);
@@ -1353,20 +1420,24 @@ const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker, zoomOut }) => {
             const fixa = r.id === GLOBAL_ROOM;
             const jogando = st.phase === 'drawing' || st.phase === 'reveal';
             const cor = corDoTema(st.themeId);   // cada tema tem sua cor de tinta
+            const brilhoCard = `0 0 18px ${cor}55, 0 0 34px ${cor}2b, inset 0 0 22px ${cor}12`;
             return (
               <div key={r.id} className="up-card up-fade"
-                style={{ background: `linear-gradient(180deg, ${cor}12 0%, ${cardBg} 48%)`, border: `2px solid ${cor}55`, borderRadius: 18,
-                  padding: compacto ? 16 : 20, boxShadow: T.sh, display: 'flex', flexDirection: 'column', gap: 14,
+                style={{ background: `linear-gradient(180deg, ${cor}30 0%, ${glassSurface} 72%)`,
+                  border: `1px solid ${cor}bb`, borderRadius: 18,
+                  padding: lobbyDenso ? 14 : compacto ? 16 : 20, boxShadow: brilhoCard,
+                  backdropFilter: 'blur(16px) saturate(1.3)', WebkitBackdropFilter: 'blur(16px) saturate(1.3)',
+                  display: 'flex', flexDirection: 'column', gap: 14,
                   position: 'relative', overflow: 'hidden' }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = cor; e.currentTarget.style.boxShadow = `0 10px 26px ${cor}44`; }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = `${cor}55`; e.currentTarget.style.boxShadow = T.sh; }}>
+                onMouseEnter={e => { e.currentTarget.style.borderColor = cor; e.currentTarget.style.boxShadow = `0 0 24px ${cor}88, 0 0 40px ${cor}44, inset 0 0 24px ${cor}20`; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = `${cor}bb`; e.currentTarget.style.boxShadow = brilhoCard; }}>
                 {/* respingo da cor do tema, no canto */}
                 <Splat y="-22px" size={100} cor={cor} rot={34} op={0.13} forma={r.id.charCodeAt(0) % 3}
                   style={{ left: 'auto', right: '-16px' }} />
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
                   position: 'relative', zIndex: 1, minHeight: 28 }}>
-                  <div style={{ padding: '5px 10px', borderRadius: 999, background: `${cor}18`, color: T.text,
-                    fontSize: 11, fontWeight: 800, letterSpacing: '.04em' }}>
+                  <div style={{ padding: '5px 10px', borderRadius: 999, background: `${cor}28`, color: T.text,
+                    fontSize: lobbyDenso ? 10 : 11, fontWeight: 800, letterSpacing: '.04em' }}>
                     {tema.nome.toLocaleUpperCase('pt-BR')}
                   </div>
                   {jogando && (
@@ -1376,9 +1447,9 @@ const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker, zoomOut }) => {
                   {podeExcluir(r) && (
                     <button onClick={() => setConfirmarEx(r.id)} title="Excluir esta sala"
                       style={{ width: 26, height: 26, borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        border: `1px solid ${T.border}`, background: 'transparent', color: T.textT, cursor: 'pointer', flexShrink: 0 }}
+                        border: `1px solid ${T.border}`, background: 'transparent', color: T.textS, cursor: 'pointer', flexShrink: 0 }}
                       onMouseEnter={e => { e.currentTarget.style.color = '#E63946'; e.currentTarget.style.borderColor = '#E6394655'; }}
-                      onMouseLeave={e => { e.currentTarget.style.color = T.textT; e.currentTarget.style.borderColor = T.border; }}>
+                      onMouseLeave={e => { e.currentTarget.style.color = T.textS; e.currentTarget.style.borderColor = T.border; }}>
                       <IcoTrash size={13} />
                     </button>
                   )}
@@ -1386,52 +1457,56 @@ const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker, zoomOut }) => {
 
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center',
                   gap: 7, position: 'relative', zIndex: 1, flex: 1, justifyContent: 'center', minWidth: 0 }}>
-                  <div style={{ width: pequeno ? 82 : 96, height: pequeno ? 82 : 96, borderRadius: '50%',
+                  <div style={{ width: pequeno ? 82 : lobbyDenso ? 82 : 96,
+                    height: pequeno ? 82 : lobbyDenso ? 82 : 96, borderRadius: '50%',
                     display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                    fontSize: pequeno ? 48 : 56, background: `linear-gradient(145deg, ${cor}2e, ${cor}12)`,
-                    border: `3px solid ${cor}88`, boxShadow: `0 5px 18px ${cor}30, inset 0 0 0 5px ${cardBg}` }}>
+                    fontSize: pequeno ? 48 : lobbyDenso ? 50 : 56, background: `linear-gradient(145deg, ${cor}40, ${cor}20)`,
+                    border: `3px solid ${cor}bb`, boxShadow: `0 5px 18px ${cor}30, inset 0 0 0 5px ${cardBg}` }}>
                     <span role="img" aria-label={tema.nome}>{tema.emoji}</span>
                   </div>
-                  <div style={{ width: '100%', fontSize: pequeno ? 19 : 21, fontWeight: 800, color: T.text,
+                  <div style={{ width: '100%', fontSize: pequeno ? 19 : lobbyDenso ? 19 : 21, fontWeight: 800, color: T.text,
                     whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.2 }}>
                     {st.nome || (fixa ? 'Sala Geral' : 'Sala')}
                   </div>
-                  {fixa && <div style={{ fontSize: 11, color: T.textD }}>Sala fixa</div>}
+                  {fixa && <div style={{ fontSize: 11, color: T.textS }}>Sala fixa</div>}
                 </div>
 
                 {/* Quem está na sala */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, minHeight: 48, position: 'relative', zIndex: 1,
-                  padding: '9px 11px', borderRadius: 12, background: `${cor}10`, border: `1px solid ${cor}25` }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: lobbyDenso ? 9 : 12,
+                  minHeight: lobbyDenso ? 42 : 48, position: 'relative', zIndex: 1,
+                  padding: lobbyDenso ? '7px 9px' : '9px 11px', borderRadius: 12,
+                  background: `${cor}1c`, border: `1px solid ${cor}35` }}>
                   {gente.length ? (
-                  <div style={{ display: 'flex', alignItems: 'center', flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', flexShrink: 0 }}>
-                      {gente.slice(0, 5).map((p, i) => (
-                        <img key={p.name} src={p.photo || '/UNIKO_NEW.png'} alt="" title={p.name}
-                          style={{ width: 38, height: 38, borderRadius: '50%', objectFit: 'cover', background: T.surfaceSub,
-                            border: `2px solid ${cardBg}`, marginLeft: i ? -10 : 0 }} />
-                      ))}
-                    </div>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: T.text, marginLeft: 10, overflow: 'hidden',
-                      textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {gente.length === 1 ? gente[0].name.split(' ')[0] : 'Pessoas na sala'}
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', flexShrink: 0 }}>
+                        {gente.slice(0, 5).map((p, i) => (
+                          <img key={p.name} src={p.photo || '/UNIKO_NEW.png'} alt="" title={p.name}
+                            style={{ width: lobbyDenso ? 34 : 38, height: lobbyDenso ? 34 : 38,
+                              borderRadius: '50%', objectFit: 'cover', background: T.surfaceSub,
+                              border: `2px solid ${cardBg}`, marginLeft: i ? -10 : 0 }} />
+                        ))}
+                      </div>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: T.text, marginLeft: 10, overflow: 'hidden',
+                        textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {gente.length === 1 ? gente[0].name.split(' ')[0] : 'Pessoas na sala'}
+                      </span>
                     </div>
                   ) : (
-                  <span style={{ fontSize: 12, color: T.textD, display: 'flex', alignItems: 'center', gap: 7, flex: 1 }}>
-                    <IcoUsers size={17} />Seja o primeiro a entrar
+                    <span style={{ fontSize: 12, color: T.textS, display: 'flex', alignItems: 'center', gap: 7, flex: 1 }}>
+                      <IcoUsers size={17} />Seja o primeiro a entrar
                     </span>
                   )}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0, color: cor }}>
-                  <IcoUsers size={17} />
-                  <span style={{ fontSize: 16, fontWeight: 900 }}>{gente.length}</span>
+                    <IcoUsers size={17} />
+                    <span style={{ fontSize: 16, fontWeight: 900 }}>{gente.length}</span>
                   </div>
                 </div>
 
                 <button className="up-btn" onClick={() => { SFX.entrou(); onEnter(r.id); }}
                   style={{ width: '100%', padding: compacto ? '16px' : '15px', borderRadius: 13, border: 'none', color: textoSobre(cor),
-                  fontSize: pequeno ? 16 : 17, fontWeight: 900, letterSpacing: '.02em', cursor: 'pointer', position: 'relative', zIndex: 1,
+                    fontSize: pequeno ? 16 : lobbyDenso ? 15 : 17, fontWeight: 900, letterSpacing: '.02em', cursor: 'pointer', position: 'relative', zIndex: 1,
                     touchAction: 'manipulation',
-                  background: `linear-gradient(135deg, ${cor}, ${cor}dd)`, boxShadow: `0 5px 16px ${cor}55` }}>
+                    background: `linear-gradient(135deg, ${cor}, ${cor}dd)`, boxShadow: `0 5px 16px ${cor}55` }}>
                   Jogar nesta sala
                 </button>
 
@@ -1460,25 +1535,33 @@ const Lobby = ({ name, photo, porSala, onEnter, onAbrirPicker, zoomOut }) => {
             );
           })}
         </div>
-        {!rooms.length && (
-          !carregou ? (
-            <div style={{ textAlign: 'center', padding: 40, color: T.textD, fontSize: 13 }}>
-              Carregando salas...
+        {!rooms.length && (carregou ? (
+          <div className="up-card up-fade"
+            style={{ position: 'relative', flex: 1, minHeight: empilhado ? 230 : 0, width: '100%',
+              marginTop: 0, overflow: 'hidden', borderRadius: 18,
+              border: '1px solid rgba(91,220,255,.72)', background: 'rgba(12,5,45,.82)',
+              boxShadow: '0 0 18px rgba(34,207,255,.25), 0 0 32px rgba(168,59,255,.2)' }}>
+            <div style={{ position: 'absolute', inset: 0, containerType: 'size' }}>
+              <img src="/uniko-paint-create-room.png" alt=""
+                style={{ display: 'block', position: 'absolute', inset: 0, width: '100%', height: '100%',
+                  objectFit: 'cover', objectPosition: 'center top', pointerEvents: 'none' }} />
+              <button type="button" className="up-create-room-button" onClick={() => setCriando(true)}
+                aria-label="Criar sala"
+                style={{ position: 'absolute', left: '36.3cqw', top: '20.5cqw', width: '27.4cqw', height: '6.25cqw',
+                  padding: 0, border: 0, borderRadius: 999, background: 'transparent',
+                  cursor: 'pointer', touchAction: 'manipulation' }} />
             </div>
-          ) : (
-            <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
-              alignItems: 'center', justifyContent: 'center', gap: 14, textAlign: 'center', padding: 24, pointerEvents: 'none' }}>
-              <Mascote size={92} />
-              <div style={{ fontFamily: 'var(--font-brand)', fontSize: 20, fontWeight: 800, color: T.text, maxWidth: 460, lineHeight: 1.3 }}>
-                Para jogar, crie uma sala e um tema e chame seus amigos para jogar!
-              </div>
-              <div style={{ fontSize: 13, color: T.textT }}>Use o botão <b style={{ color: A }}>Criar sala</b> ali em cima 👆</div>
-            </div>
-          )
-        )}
+          </div>
+        ) : (
+          <div style={{ flex: 1, display: 'grid', placeItems: 'center', padding: 12,
+            color: T.textD, fontSize: 12 }}>
+            Carregando salas...
+          </div>
+        ))}
       </div>
 
-      <RankingGeral name={name} cardBg={cardBg} maxAltura={empilhado ? (pequeno ? 320 : 420) : undefined} />
+      <RankingGeral name={name} compacto={lobbyDenso}
+        maxAltura={empilhado ? (pequeno ? 320 : 420) : undefined} />
       </div>
     </div>
   );
@@ -1515,6 +1598,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker, zoomOut })
   const { compacto, empilhado, pequeno, paisagem } = useTela(zoomOut);
   const { h: alturaVis, top: topoVis } = useAlturaVisivel(compacto, zoomOut);
   const [chatAberto, setChatAberto]   = useState(true);
+  const [chatAba, setChatAba]         = useState('respostas');
   const [sheetJog, setSheetJog]       = useState(false);   // gaveta "Jogadores"
   const [menuMob, setMenuMob]         = useState(false);   // gaveta "⋯"
   const [sheetFerr, setSheetFerr]     = useState(false);   // gaveta "Ferramentas"
@@ -1527,6 +1611,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker, zoomOut })
   const drag      = useRef(null);
   const pending   = useRef([]);     // segmentos a enviar (batch)
   const chatEndRef = useRef(null);
+  const registrosEndRef = useRef(null);
   const isDrawerRef = useRef(false);
   const stateRef    = useRef(null);
   const hostRef     = useRef(false);
@@ -1812,7 +1897,10 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker, zoomOut })
     chanRef.current?.send({ type: 'broadcast', event: 'guess', payload: { name, text } });
     onGuessMsg({ name, text });
   };
-  useEffect(() => { chatEndRef.current?.scrollIntoView({ block: 'nearest' }); }, [chat]);
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ block: 'nearest' });
+    registrosEndRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [chat, chatAberto, chatAba]);
 
   /* ── Denunciar desenho ────────────────────────────────────────────────
      Qualquer um que NÃO seja o desenhista pode denunciar (desenho impróprio,
@@ -2242,13 +2330,28 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker, zoomOut })
   }, []);
 
   /* ── UI ──────────────────────────────────────────────────────────────── */
-  const cardBg = T.surface || '#fff';
+  const darkRoom = !!T.dark;
+  const cardBg = darkRoom ? '#1E293B' : '#fff';
+  const roomText = darkRoom ? '#F1F5F9' : ROOM_TEXT;
+  const roomMuted = darkRoom ? '#B7C4D8' : ROOM_MUTED;
+  const roomBorder = darkRoom ? '#46546A' : ROOM_BORDER;
+  const roomSub = darkRoom ? '#29384F' : ROOM_SUB;
+  const roomInput = darkRoom ? '#172235' : ROOM_SUB;
+  const roomShadow = darkRoom ? '0 5px 18px rgba(0,0,0,.32)' : ROOM_SHADOW;
+  const roomAccent = darkRoom ? '#8DB8FF' : ROOM_BLUE;
+  const tintaSobrePapel = roomText;
+  const tintaSecundariaSobrePapel = roomMuted;
   const ranked = useMemo(() => {
     const sc = state?.scores || {};
     return [...players].map(p => ({ ...p, pts: sc[p.name] || 0 })).sort((a, b) => b.pts - a.pts);
   }, [players, state?.scores]);
   const temaAtual = themeById(state?.themeId);
   const noLobby = !state || state.phase === 'lobby' || state.phase === 'over';
+  const jogadoresDaRodada = players.filter(p => p.name !== state?.drawer);
+  const todosAcertaram = state?.phase === 'reveal' && jogadoresDaRodada.length > 0
+    && jogadoresDaRodada.every(p => state.hits?.includes(p.name));
+  const semAcertos = state?.phase === 'reveal' && !state.hits?.length
+    && !state.pulada && !state.denunciada;
 
   /* Botão de ferramenta. No celular vai SÓ o ícone (o nome fica no title): o
      rótulo embaixo obriga o botão a ter 54px de largura, e aí as 10 ferramentas
@@ -2262,9 +2365,9 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker, zoomOut })
           width: compacto ? undefined : 54, height: compacto ? 42 : undefined, minWidth: compacto ? 42 : undefined,
           padding: compacto ? 0 : '8px 4px',
           borderRadius: 10, cursor: 'pointer', transition: 'all .12s', touchAction: 'manipulation',
-          border: on ? `2px solid ${A}` : `1px solid ${T.border}`,
-          background: on ? `${A}18` : (T.surfaceSub || 'rgba(0,0,0,.03)'),
-          color: on ? A : T.text, transform: (on && !compacto) ? 'translateY(-1px)' : 'none' }}>
+          border: on ? `2px solid ${A}` : `1px solid ${roomBorder}`,
+          background: on ? `${A}18` : roomSub,
+          color: on ? A : roomText, transform: (on && !compacto) ? 'translateY(-1px)' : 'none' }}>
         <Ico size={compacto ? 21 : 20} />
         {!compacto && <span style={{ fontSize: 9.5, fontWeight: 700 }}>{t.nome}</span>}
       </button>
@@ -2287,18 +2390,18 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker, zoomOut })
           <img src={p.photo || '/UNIKO_NEW.png'} alt=""
             style={{ width: 46, height: 46, borderRadius: '50%', objectFit: 'cover',
               border: `2.5px solid ${desenhando ? A : acertou ? '#28a060' : 'transparent'}`,
-              background: T.surfaceSub, boxShadow: desenhando ? `0 0 0 3px ${A}22` : 'none' }} />
+              background: roomSub, boxShadow: desenhando ? `0 0 0 3px ${A}22` : 'none' }} />
           {i === 0 && (state?.scores?.[p.name] > 0) && (
             <div style={{ position: 'absolute', top: -7, right: -5, color: '#F0B429' }}><IcoCrown size={16} /></div>
           )}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 14, fontWeight: p.name === name ? 800 : 700, color: T.text,
+          <div style={{ fontSize: 14, fontWeight: p.name === name ? 800 : 700, color: roomText,
             whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.25 }}>
             {p.name.split(' ')[0]}{p.name === name && ' (você)'}
           </div>
-          <div style={{ fontSize: 11.5, color: T.textT, display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
-            <b style={{ color: T.text, fontWeight: 700 }}>{p.pts}</b> pts
+          <div style={{ fontSize: 11.5, color: roomMuted, display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+            <b style={{ color: roomText, fontWeight: 700 }}>{p.pts}</b> pts
             {desenhando && <span style={{ color: A, fontWeight: 700 }}>• desenhando</span>}
             {acertou && <span style={{ color: '#28a060', fontWeight: 700 }}>• acertou</span>}
             {p.name === host && <span title="Host da partida" style={{ opacity: .6 }}>• host</span>}
@@ -2315,9 +2418,9 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker, zoomOut })
               title={votei ? `Clique para RETIRAR seu voto de expulsar ${p.name.split(' ')[0]}` : `Votar para expulsar ${p.name.split(' ')[0]} da sala`}
               style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 3,
                 padding: compacto ? '9px 11px' : '4px 7px', borderRadius: 8,
-                border: `1px solid ${votei ? '#E63946' : votos.length ? '#E6394655' : T.border}`,
+                border: `1px solid ${votei ? '#E63946' : votos.length ? '#E6394655' : roomBorder}`,
                 background: votei ? '#E6394622' : votos.length ? '#E6394610' : 'transparent',
-                color: votei ? '#E63946' : T.textT, cursor: 'pointer', touchAction: 'manipulation',
+                color: votei ? '#E63946' : roomMuted, cursor: 'pointer', touchAction: 'manipulation',
                 fontSize: compacto ? 13 : 11, fontWeight: 700, lineHeight: 1 }}>
               {votei ? '↩' : '🚪'}{votos.length > 0 ? <span>{votos.length}/{alvo}</span> : null}
             </button>
@@ -2340,17 +2443,17 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker, zoomOut })
         return (
           <div key={p.name} style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
             padding: '4px 10px 4px 4px', borderRadius: 999,
-            background: desenhando ? `${A}1e` : acertou ? '#28a06014' : (T.surfaceSub || 'rgba(0,0,0,.04)'),
-            border: `1px solid ${desenhando ? A : acertou ? '#28a06055' : T.border}` }}>
+            background: desenhando ? `${A}1e` : acertou ? '#28a06014' : roomSub,
+            border: `1px solid ${desenhando ? A : acertou ? '#28a06055' : roomBorder}` }}>
             <img src={p.photo || '/UNIKO_NEW.png'} alt=""
-              style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', background: T.surfaceSub }} />
+              style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', background: roomSub }} />
             <div style={{ lineHeight: 1.15 }}>
-              <div style={{ fontSize: 11.5, fontWeight: 800, color: T.text, maxWidth: 76,
+              <div style={{ fontSize: 11.5, fontWeight: 800, color: roomText, maxWidth: 76,
                 whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {(i === 0 && state?.scores?.[p.name] > 0) ? '👑 ' : ''}{p.name.split(' ')[0]}
               </div>
               <div style={{ fontSize: 10, fontWeight: 700,
-                color: desenhando ? A : acertou ? '#28a060' : T.textT }}>
+                color: desenhando ? A : acertou ? '#28a060' : roomMuted }}>
                 {desenhando ? 'desenhando' : acertou ? 'acertou' : `${p.pts} pts`}
               </div>
             </div>
@@ -2375,7 +2478,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker, zoomOut })
           <span key={i} style={{ letterSpacing: '.18em', whiteSpace: 'nowrap' }}>{g.join(' ')}</span>
         ))}
       </span>
-      <span style={{ fontSize: 11, color: T.textD, fontWeight: 600, letterSpacing: 0 }}>
+      <span style={{ fontSize: 11, color: roomMuted, fontWeight: 600, letterSpacing: 0 }}>
         ({contaLetras(word)} letras
         {maskParts(word).length > 1 ? `, ${maskParts(word).length} palavras` : ''})
       </span>
@@ -2390,10 +2493,10 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker, zoomOut })
       style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, flexShrink: 0,
         height: compacto ? 44 : undefined, minWidth: soIcone ? 44 : undefined,
         padding: soIcone ? 0 : (compacto ? '8px 13px' : '6px 12px'), borderRadius: soIcone ? 11 : 999,
-        border: `1px solid ${revelar >= maxHints(word) ? T.border : A}`,
+        border: `1px solid ${revelar >= maxHints(word) ? roomBorder : A}`,
         cursor: revelar >= maxHints(word) ? 'not-allowed' : 'pointer', touchAction: 'manipulation',
         background: revelar >= maxHints(word) ? 'transparent' : `${A}14`,
-        color: revelar >= maxHints(word) ? T.textD : A, fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>
+        color: revelar >= maxHints(word) ? roomMuted : A, fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>
       <IcoBulb size={soIcone ? 18 : 13} />{soIcone ? null : (pequeno ? 'Dica' : 'Dar dica')}
     </button>
   );
@@ -2408,10 +2511,10 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker, zoomOut })
         height: compacto ? 44 : undefined, minWidth: (soIcone && !confirmPular) ? 44 : undefined,
         padding: (soIcone && !confirmPular) ? 0 : (compacto ? '8px 13px' : '6px 12px'),
         borderRadius: soIcone ? 11 : 999,
-        border: `1px solid ${!podePular ? T.border : confirmPular ? UP.red : UP.orange}`,
+        border: `1px solid ${!podePular ? roomBorder : confirmPular ? UP.red : UP.orange}`,
         cursor: podePular ? 'pointer' : 'not-allowed', touchAction: 'manipulation',
         background: !podePular ? 'transparent' : confirmPular ? `${UP.red}18` : `${UP.orange}14`,
-        color: !podePular ? T.textD : confirmPular ? UP.red : UP.orange,
+        color: !podePular ? roomMuted : confirmPular ? UP.red : UP.orange,
         fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>
       <IcoSkip size={soIcone ? 18 : 13} />
       {confirmPular ? 'Confirmar?' : (soIcone ? null : (pequeno ? 'Pular' : 'Pular vez'))}
@@ -2423,10 +2526,10 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker, zoomOut })
         : 'Denunciar desenho impróprio ou fora do tema — com votos suficientes, a rodada encerra e quem desenhou não pontua'}
       style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0,
         padding: compacto ? '8px 13px' : '6px 12px', borderRadius: 999,
-        border: `1px solid ${jaDenunciei ? T.border : UP.red}`,
+        border: `1px solid ${jaDenunciei ? roomBorder : UP.red}`,
         cursor: podeDenunciar ? 'pointer' : 'not-allowed', touchAction: 'manipulation',
         background: jaDenunciei ? 'transparent' : `${UP.red}14`,
-        color: jaDenunciei ? T.textD : UP.red, fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>
+        color: jaDenunciei ? roomMuted : UP.red, fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>
       <IcoFlag size={13} />{jaDenunciei ? 'Denunciado' : 'Denunciar'}
       {totalVotantes > 0 && ` (${state?.reports?.length || 0}/${totalVotantes})`}
     </button>
@@ -2434,8 +2537,8 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker, zoomOut })
   const relogio = (
     <div className={secsLeft <= 5 ? 'up-urgent' : undefined}
       style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 11px', borderRadius: 999,
-        background: secsLeft <= 10 ? '#E6394622' : T.surfaceSub, transition: 'background .3s, color .3s',
-        color: secsLeft <= 10 ? '#E63946' : T.text, fontWeight: 800, fontSize: 13.5,
+        background: secsLeft <= 10 ? '#E6394622' : roomSub, transition: 'background .3s, color .3s',
+        color: secsLeft <= 10 ? '#E63946' : roomText, fontWeight: 800, fontSize: 13.5,
         minWidth: pequeno ? 44 : 54, justifyContent: 'center', flexShrink: 0 }}>
       {secsLeft}s
     </div>
@@ -2449,17 +2552,17 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker, zoomOut })
   /* Barra de status. Só quebra em duas linhas no CELULAR — num tablet cabe tudo
      numa linha, e quebrar lá era gastar altura à toa. */
   const barraStatus = (
-    <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: compacto ? 10 : 12,
+    <div style={{ background: cardBg, border: `1px solid ${roomBorder}`, borderRadius: compacto ? 10 : 12,
       padding: compacto ? '7px 9px' : '9px 14px', display: 'flex', alignItems: 'center',
-      gap: compacto ? 8 : 12, flexWrap: pequeno ? 'wrap' : 'nowrap', boxShadow: T.sh, flexShrink: 0 }}>
+      gap: compacto ? 8 : 12, flexWrap: pequeno ? 'wrap' : 'nowrap', boxShadow: roomShadow, flexShrink: 0 }}>
       {state?.phase === 'drawing' ? (
         <>
-          <div style={{ fontSize: 12, color: T.textT, whiteSpace: 'nowrap' }}>
+          <div style={{ fontSize: 12, color: roomMuted, whiteSpace: 'nowrap' }}>
             {pequeno ? `${state.round}${state.totalRounds ? `/${state.totalRounds}` : ''}`
                      : `Rodada ${state.round}${state.totalRounds ? ` de ${state.totalRounds}` : ''}`}
           </div>
           <div style={{ flex: 1, textAlign: 'center', fontFamily: 'var(--font-brand)', fontSize: pequeno ? 17 : 20,
-            fontWeight: 800, color: T.text, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontWeight: 800, color: roomText, display: 'flex', alignItems: 'center', justifyContent: 'center',
             gap: 8, flexWrap: 'wrap', minWidth: 0 }}>
             {palavraDaRodada}
           </div>
@@ -2472,7 +2575,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker, zoomOut })
           )}
         </>
       ) : (
-        <div style={{ flex: 1, textAlign: 'center', fontSize: 13, color: T.textT, fontWeight: 600 }}>
+        <div style={{ flex: 1, textAlign: 'center', fontSize: 13, color: roomMuted, fontWeight: 600 }}>
           {state?.phase === 'reveal' ? <>A palavra era <b style={{ color: A }}>{state.lastWord}</b>
             {state.denunciada && <span style={{ color: UP.red, fontWeight: 700 }}> · 🚩 denunciado</span>}</>
             : state?.phase === 'over' ? 'Fim de jogo!'
@@ -2485,7 +2588,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker, zoomOut })
   /* O canvas e tudo que aparece por cima dele. */
   const areaCanvas = (extra) => (
     <div style={{ position: 'relative', flex: 1, minHeight: 0, borderRadius: compacto ? 10 : 14, overflow: 'hidden',
-      border: `1px solid ${T.border}`, boxShadow: T.sh,
+      border: `1px solid ${roomBorder}`, boxShadow: roomShadow,
       /* O "papel" mantém a proporção 16:10 e o resto da caixa é moldura.
          Antes o canvas era esticado pra preencher (width/height 100%): como as
          ações são normalizadas 0..1, cada tela deformava o desenho de um jeito
@@ -2501,7 +2604,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker, zoomOut })
          circularidade — os percentuais resolvem contra o tamanho real do
          flex container, que já é definido (`flex:1, minHeight:0` seguro pelo
          pai) — e mantém a mesma centralização sem esticar/deformar. */
-      background: T.surfaceSub || 'rgba(0,0,0,.05)',
+      background: roomSub,
       display: 'flex', alignItems: 'center', justifyContent: 'center', ...extra }}>
       <canvas ref={attachCanvas}
         onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerLeave={up} onPointerCancel={up}
@@ -2517,37 +2620,59 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker, zoomOut })
           cursor: isDrawer ? (tool === 'fill' ? 'cell' : 'crosshair') : 'default' }} />
 
       {state?.phase !== 'drawing' && (
-        <div className="up-scroll" style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
+        <div className="up-scroll up-result" style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
           alignItems: 'center', justifyContent: 'center', gap: compacto ? 9 : 12, textAlign: 'center',
-          padding: compacto ? 14 : 20, overflowY: 'auto', background: 'rgba(255,255,255,.9)' }}>
+          padding: compacto ? 14 : 20, overflowY: 'auto',
+          background: darkRoom ? 'rgba(24,33,49,.95)' : 'rgba(255,255,255,.9)' }}>
+          {SPLATS_HEADER.map((s, i) => <Splat key={i} {...s}
+            cor={[UP.cyan, UP.yellow, UP.pink, UP.lime, UP.purple][i]}
+            className="up-result-splat" style={{ animationDelay: `${i * 0.1}s` }} />)}
+          <div style={{ position: 'relative', zIndex: 1, width: '100%', display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center', gap: compacto ? 9 : 12 }}>
           <Mascote size={pequeno ? 72 : 112} halo big />
           {state?.phase === 'over' ? (
             <>
-              <div style={{ fontFamily: 'var(--font-brand)', fontSize: pequeno ? 18 : 21, fontWeight: 800, color: T.text }}>
+              <div className="up-result-title" style={{ fontFamily: 'var(--font-brand)', fontSize: pequeno ? 23 : 30,
+                fontWeight: 900, color: '#FFC93B', WebkitTextStroke: '1px #173B73',
+                textShadow: '0 3px 0 #173B73, 0 7px 16px rgba(23,59,115,.22)' }}>
+                FIM DE JOGO!
+              </div>
+              <div style={{ fontFamily: 'var(--font-brand)', fontSize: pequeno ? 18 : 21, fontWeight: 800, color: tintaSobrePapel }}>
                 🏆 {ranked[0]?.name?.split(' ')[0] || '—'} venceu!
               </div>
-              <div style={{ fontSize: 13, color: T.textT }}>
+              <div style={{ fontSize: 13, color: tintaSecundariaSobrePapel }}>
                 {ranked.slice(0, 3).map((p, i) => `${i + 1}º ${p.name.split(' ')[0]} — ${p.pts} pts`).join('   ·   ')}
               </div>
             </>
           ) : state?.phase === 'reveal' ? (
             <div style={{ textAlign: 'center' }}>
+              <div className="up-result-title" style={{ fontFamily: 'var(--font-brand)', fontSize: pequeno ? 22 : 29,
+                fontWeight: 900, color: '#FFC93B', WebkitTextStroke: '1px #173B73',
+                textShadow: '0 3px 0 #173B73, 0 7px 16px rgba(23,59,115,.22)', marginBottom: 8 }}>
+                {todosAcertaram ? 'OBRA DE ARTE!' : semAcertos ? 'TEMPO ESGOTADO!' :
+                  state.pulada ? 'PASSOU A VEZ!' : state.denunciada ? 'RODADA ENCERRADA!' : 'FIM DA RODADA!'}
+              </div>
+              {todosAcertaram && (
+                <div style={{ fontSize: 14, color: tintaSecundariaSobrePapel, fontWeight: 700, marginBottom: 8 }}>
+                  Todos acertaram a resposta!
+                </div>
+              )}
               {state.pulada && (
-                <div style={{ fontSize: 13, fontWeight: 700, color: UP.orange, marginBottom: 5 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#A64B00', marginBottom: 5 }}>
                   ⏭ {state.drawer?.split(' ')[0]} passou a vez
                 </div>
               )}
               {state.denunciada && (
-                <div style={{ fontSize: 13, fontWeight: 700, color: UP.red, marginBottom: 5 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#B42332', marginBottom: 5 }}>
                   🚩 desenho denunciado — {state.drawer?.split(' ')[0]} não pontuou nesta rodada
                 </div>
               )}
-              <div style={{ fontFamily: 'var(--font-brand)', fontSize: pequeno ? 18 : 21, fontWeight: 800, color: T.text }}>
-                A palavra era <span style={{ color: A }}>{state.lastWord}</span>
+              <div style={{ fontFamily: 'var(--font-brand)', fontSize: pequeno ? 18 : 21, fontWeight: 800, color: tintaSobrePapel }}>
+                A palavra era <span style={{ color: roomAccent }}>{state.lastWord}</span>
               </div>
             </div>
           ) : (
-            <div style={{ fontFamily: 'var(--font-brand)', fontSize: pequeno ? 17 : 19, fontWeight: 800, color: T.text }}>
+            <div style={{ fontFamily: 'var(--font-brand)', fontSize: pequeno ? 17 : 19, fontWeight: 800, color: tintaSobrePapel }}>
               {state?.nome || 'Sala'}
             </div>
           )}
@@ -2555,9 +2680,9 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker, zoomOut })
           {/* O tema é o da sala, definido na criação — não se vota. */}
           {noLobby && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 14px', borderRadius: 999,
-              background: `${A}12`, border: `1px solid ${A}44` }}>
+              background: roomSub, border: `1px solid ${roomBorder}` }}>
               <span style={{ fontSize: 16 }}>{temaAtual.emoji}</span>
-              <span style={{ fontSize: 12.5, color: T.text, fontWeight: 700 }}>Tema: {temaAtual.nome}</span>
+              <span style={{ fontSize: 12.5, color: tintaSobrePapel, fontWeight: 700 }}>Tema: {temaAtual.nome}</span>
             </div>
           )}
 
@@ -2565,17 +2690,18 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker, zoomOut })
             isHost ? (
               <>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap', justifyContent: 'center' }}>
-                  <span style={{ fontSize: 12, color: T.textT, fontWeight: 600 }}>Cada um desenha</span>
+                  <span style={{ fontSize: 12, color: tintaSecundariaSobrePapel, fontWeight: 600 }}>Cada um desenha</span>
                   {LAP_OPTIONS.map(n => (
                     <button key={n} onClick={() => setLaps(n)}
                       style={{ minWidth: compacto ? 38 : 30, padding: compacto ? '8px 10px' : '5px 9px', borderRadius: 8,
                         cursor: 'pointer', fontSize: 12.5, fontWeight: 700, touchAction: 'manipulation',
-                        border: laps === n ? `1.5px solid ${A}` : `1px solid ${T.border}`,
-                        background: laps === n ? `${A}14` : 'transparent', color: laps === n ? A : T.text }}>
+                        border: laps === n ? `1.5px solid ${roomAccent}` : `1px solid ${roomBorder}`,
+                        background: laps === n ? (darkRoom ? '#294976' : '#EAF2FF') : 'transparent',
+                        color: laps === n ? roomAccent : tintaSobrePapel }}>
                       {n}×
                     </button>
                   ))}
-                  <span style={{ fontSize: 11.5, color: T.textD }}>
+                  <span style={{ fontSize: 11.5, color: tintaSecundariaSobrePapel }}>
                     = {laps * Math.max(players.length, 1)} rodadas
                     {' '}(~{Math.round(laps * Math.max(players.length, 1) * (ROUND_MS + REVEAL_MS) / 60000)} min)
                   </span>
@@ -2584,24 +2710,25 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker, zoomOut })
                     carregar deixava a partida SEM TEMA (ver startRound). */}
                 <button className="up-btn" onClick={startGame} disabled={players.length < MIN_PLAYERS || !state}
                   style={{ padding: compacto ? '13px 30px' : '11px 26px', borderRadius: 999, border: 'none',
-                    background: (players.length < MIN_PLAYERS || !state) ? T.textD : `linear-gradient(135deg, ${A}, ${A2})`,
+                    background: (players.length < MIN_PLAYERS || !state) ? '#94A3B8' : 'linear-gradient(135deg, #287BFA, #104FCB)',
                     color: '#fff', fontSize: compacto ? 15 : 14, fontWeight: 800, touchAction: 'manipulation',
                     cursor: (players.length < MIN_PLAYERS || !state) ? 'not-allowed' : 'pointer',
                     boxShadow: (players.length < MIN_PLAYERS || !state) ? 'none' : `0 6px 18px ${AG}` }}>
                   {!state ? 'Carregando sala...' : state.phase === 'over' ? 'Jogar de novo' : 'Começar partida'}
                 </button>
                 {players.length < MIN_PLAYERS && (
-                  <div style={{ fontSize: 12, color: T.textT }}>
+                  <div style={{ fontSize: 12, color: tintaSecundariaSobrePapel }}>
                     Chame mais gente! Precisa de pelo menos {MIN_PLAYERS} jogadores nesta sala.
                   </div>
                 )}
               </>
             ) : (
-              <div style={{ fontSize: 12, color: T.textT, fontStyle: 'italic' }}>
+              <div style={{ fontSize: 12, color: tintaSecundariaSobrePapel, fontStyle: 'italic' }}>
                 Esperando {host?.split(' ')[0] || 'o host'} começar a partida...
               </div>
             )
           )}
+          </div>
         </div>
       )}
 
@@ -2628,11 +2755,20 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker, zoomOut })
       {vez && (
         <div className="up-turn" style={{ position: 'absolute', inset: 0, zIndex: 5, display: 'flex',
           flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: pequeno ? 10 : 16,
-          pointerEvents: 'none', background: `linear-gradient(160deg, ${A}f2, ${A2}ee 60%, ${A3}f2)` }}>
-          <div style={{ position: 'absolute', inset: 0, opacity: .2,
+          pointerEvents: 'none', overflow: 'hidden', background: `linear-gradient(160deg, ${A}f2, ${A2}ee 60%, ${A3}f2)` }}>
+          <div className="up-turn-shine" />
+          {SPLATS_HEADER.map((s, i) => <Splat key={i} {...s}
+            cor={[UP.cyan, UP.yellow, UP.lime, UP.orange, '#fff'][i]}
+            className="up-result-splat" style={{ animationDelay: `${i * 0.1}s` }} />)}
+          <div style={{ position: 'absolute', inset: 0, opacity: .2, zIndex: 0,
             background: 'radial-gradient(circle at 20% 25%, #fff 0%, transparent 40%), radial-gradient(circle at 80% 75%, #fff 0%, transparent 38%)' }} />
+          <div className="up-turn-title" style={{ zIndex: 1, fontFamily: 'var(--font-brand)', fontSize: pequeno ? 20 : 26,
+            fontWeight: 900, color: '#FFC93B', WebkitTextStroke: '1px #173B73',
+            textShadow: '0 3px 0 #173B73, 0 7px 16px rgba(0,0,0,.2)', letterSpacing: '.04em' }}>
+            NOVA RODADA!
+          </div>
           {/* Avatar gigante com anéis pulsando */}
-          <div className="up-avatar" style={{ position: 'relative', color: '#fff' }}>
+          <div className="up-avatar" style={{ position: 'relative', zIndex: 1, color: '#fff' }}>
             <div className="up-ring" />
             <div className="up-ring up-ring2" />
             <img src={vez.photo || MASCOTE} alt=""
@@ -2672,7 +2808,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker, zoomOut })
         <button key={c} onClick={() => { setColor(c); if (tool === 'eraser') setTool('brush'); }} title={c}
           style={{ width: compacto ? 28 : 26, height: compacto ? 28 : 26, borderRadius: '50%', background: c,
             cursor: 'pointer', transition: 'transform .12s', touchAction: 'manipulation',
-            border: color === c ? `3px solid ${A}` : `1px solid ${T.border}`,
+            border: color === c ? `3px solid ${A}` : `1px solid ${roomBorder}`,
             transform: color === c ? 'scale(1.12)' : 'none' }} />
       ))}
     </div>
@@ -2682,8 +2818,8 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker, zoomOut })
       style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
         height: compacto ? 44 : undefined, padding: compacto ? '0 11px' : '9px 12px', borderRadius: 11,
         cursor: 'pointer', touchAction: 'manipulation',
-        border: filled ? `2px solid ${A}` : `1px solid ${T.border}`,
-        background: filled ? `${A}14` : 'transparent', color: filled ? A : T.text, fontSize: 12, fontWeight: 700 }}>
+        border: filled ? `2px solid ${A}` : `1px solid ${roomBorder}`,
+        background: filled ? `${A}14` : 'transparent', color: filled ? A : roomText, fontSize: 12, fontWeight: 700 }}>
       <div style={{ width: 14, height: 14, borderRadius: 3, border: '2px solid currentColor',
         background: filled ? 'currentColor' : 'transparent' }} />
       {filled ? 'Cheio' : 'Vazado'}
@@ -2694,7 +2830,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker, zoomOut })
       style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3,
         flexShrink: 0, width: compacto ? 44 : 54, height: compacto ? 44 : undefined,
         padding: compacto ? 0 : '8px 4px', borderRadius: 11, cursor: 'pointer', touchAction: 'manipulation',
-        border: `1px solid ${T.border}`, background: 'transparent', color: T.text }}>
+        border: `1px solid ${roomBorder}`, background: 'transparent', color: roomText }}>
       <IcoUndo size={20} />{!compacto && <span style={{ fontSize: 9.5, fontWeight: 700 }}>Desfazer</span>}
     </button>
   );
@@ -2708,7 +2844,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker, zoomOut })
     </button>
   );
   const bolinhaTamanho = (s, cor) => (
-    <div style={{ width: Math.min(s, 22), height: Math.min(s, 22), borderRadius: '50%', background: cor || T.text }} />
+    <div style={{ width: Math.min(s, 22), height: Math.min(s, 22), borderRadius: '50%', background: cor || roomText }} />
   );
   const grupoTamanhos = (
     <div style={{ display: 'flex', gap: 5, alignItems: 'center', flexShrink: 0 }}>
@@ -2716,18 +2852,18 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker, zoomOut })
         <button key={s} onClick={() => setSize(s)} title={`${s}px`}
           style={{ width: compacto ? 44 : 38, height: compacto ? 44 : 38, borderRadius: 9, cursor: 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center', touchAction: 'manipulation', flexShrink: 0,
-            border: size === s ? `2px solid ${A}` : `1px solid ${T.border}`,
+            border: size === s ? `2px solid ${A}` : `1px solid ${roomBorder}`,
             background: size === s ? `${A}14` : 'transparent' }}>
           {bolinhaTamanho(s)}
         </button>
       ))}
     </div>
   );
-  const divisor = <div style={{ width: 1, height: 40, background: T.border, flexShrink: 0 }} />;
+  const divisor = <div style={{ width: 1, height: 40, background: roomBorder, flexShrink: 0 }} />;
 
   const barraCompleta = (
-    <div className="up-sembarra" style={{ background: cardBg, border: `1px solid ${T.border}`,
-      borderRadius: compacto ? 10 : 12, padding: compacto ? '8px 10px' : '9px 12px', boxShadow: T.sh, flexShrink: 0,
+    <div className="up-sembarra" style={{ background: cardBg, border: `1px solid ${roomBorder}`,
+      borderRadius: compacto ? 10 : 12, padding: compacto ? '8px 10px' : '9px 12px', boxShadow: roomShadow, flexShrink: 0,
       display: 'flex', alignItems: 'center', gap: compacto ? 8 : 12, flexWrap: 'wrap' }}>
       <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>{TOOLS.map(btnTool)}</div>
       {divisor}
@@ -2755,8 +2891,8 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker, zoomOut })
     /* EM PÉ empilha (ações em cima, cores embaixo); DEITADO tudo numa faixa só
        que rola de lado — deitado sobra largura e falta altura, e cada linha a
        mais da barra sai direto do tamanho do desenho. */
-    <div className="up-sembarra" style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 11,
-      padding: 7, boxShadow: T.sh, flexShrink: 0, display: 'flex', gap: 6,
+    <div className="up-sembarra" style={{ background: cardBg, border: `1px solid ${roomBorder}`, borderRadius: 11,
+      padding: 7, boxShadow: roomShadow, flexShrink: 0, display: 'flex', gap: 6,
       flexDirection: paisagem ? 'row' : 'column',
       alignItems: paisagem ? 'center' : 'stretch',
       overflowX: paisagem ? 'auto' : 'visible' }}>
@@ -2776,67 +2912,101 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker, zoomOut })
   );
   const barraFerramentas = isDrawer && (empilhado ? barraCompacta : barraCompleta);
 
-  const painelChat = (
-    <div style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: compacto ? 10 : 14, display: 'flex',
-      flexDirection: 'column', height: '100%', minHeight: 0, overflow: 'hidden', boxShadow: T.sh }}>
-      <div style={{ padding: compacto ? '7px 10px' : '10px 12px', borderBottom: `1px solid ${T.border}`, fontSize: 11,
-        fontWeight: 800, color: T.textT, letterSpacing: '.08em', flexShrink: 0,
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span>PALPITES</span>
-        {compacto && (
-          <button onClick={() => setChatAberto(false)} title="Esconder palpites"
-            style={{ border: 'none', background: 'transparent', color: T.textT, fontSize: 15, cursor: 'pointer',
-              padding: '0 4px', lineHeight: 1, touchAction: 'manipulation' }}>▾</button>
-        )}
-      </div>
-      {/* minHeight:0 + flexShrink nos irmãos: sem isso a lista não encolhe abaixo
-          do próprio conteúdo e empurra o card inteiro conforme o chat enche. */}
-      <div className="up-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden',
-        padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 5 }}>
-        {!chat.length && (
-          <div style={{ fontSize: 12, color: T.textD, textAlign: 'center', marginTop: compacto ? 6 : 20, lineHeight: 1.5 }}>
-            Escreva seu palpite aqui.<br />Quem acerta primeiro leva mais pontos!
-          </div>
-        )}
-        {chat.map(m => (
+  const respostas = chat.filter(m => m.kind !== 'sys');
+  const registros = chat.filter(m => m.kind === 'sys');
+  const renderMensagens = (mensagens, fim, ehRegistro) => (
+    <div className="up-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden',
+      padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 5 }}>
+      {!mensagens.length && (
+        <div style={{ fontSize: 12, color: roomMuted, textAlign: 'center', margin: 'auto 0', lineHeight: 1.5 }}>
+          {ehRegistro ? 'Os acontecimentos da sala aparecerão aqui.' : 'Escreva seu palpite aqui. Quem acerta primeiro leva mais pontos!'}
+        </div>
+      )}
+      {mensagens.map(m => {
+        const quase = m.kind === 'quase' || m.kind === 'quase-oculto';
+        const destaque = m.kind === 'hit' || quase;
+        return (
           <div key={m.id} className="up-chat" style={{ fontSize: 12.5, lineHeight: 1.45,
-            color: m.kind === 'hit' ? '#28a060' : (m.kind === 'quase' || m.kind === 'quase-oculto') ? UP.orange
-              : m.kind === 'sys' ? T.textT : T.text,
-            fontStyle: m.kind === 'sys' ? 'italic' : 'normal',
-            fontWeight: (m.kind === 'quase' || m.kind === 'quase-oculto') ? 700 : 400,
-            background: m.kind === 'hit' ? '#28a06012' : (m.kind === 'quase' || m.kind === 'quase-oculto') ? `${UP.orange}14` : 'transparent',
-            border: (m.kind === 'quase' || m.kind === 'quase-oculto') ? `1px solid ${UP.orange}44` : 'none',
-            borderRadius: (m.kind === 'hit' || m.kind === 'quase' || m.kind === 'quase-oculto') ? 7 : 0,
-            padding: (m.kind === 'hit' || m.kind === 'quase' || m.kind === 'quase-oculto') ? '4px 7px' : 0,
+            color: m.kind === 'hit' ? (darkRoom ? '#63D995' : '#21834F')
+              : quase ? (darkRoom ? '#FFC078' : '#A64B00') : roomText,
+            fontStyle: ehRegistro ? 'italic' : 'normal', fontWeight: quase ? 700 : 400,
+            background: m.kind === 'hit' ? (darkRoom ? '#153B2B' : '#28a06012')
+              : quase ? `${UP.orange}14` : ehRegistro ? roomSub : 'transparent',
+            border: quase ? `1px solid ${UP.orange}66` : ehRegistro ? `1px solid ${roomBorder}` : 'none',
+            borderRadius: destaque || ehRegistro ? 7 : 0,
+            padding: destaque || ehRegistro ? '5px 7px' : 0,
             opacity: m.kind === 'muted' ? .5 : 1 }}>
             {m.kind === 'hit' && <IcoCheck size={12} />}{' '}
+            {ehRegistro ? <span aria-hidden style={{ color: roomAccent, marginRight: 4 }}>●</span> : null}
             {m.kind !== 'quase' && <b style={{ fontWeight: 700 }}>{m.name.split(' ')[0]}</b>}{' '}
             <span>{m.text}</span>
           </div>
-        ))}
-        <div ref={chatEndRef} />
-      </div>
-      <div style={{ padding: 9, borderTop: `1px solid ${T.border}`, display: 'flex', gap: 6, flexShrink: 0 }}>
-        <input value={guess} onChange={e => setGuess(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && sendGuess()}
-          placeholder={isDrawer ? 'Você está desenhando...' : iHit ? 'Você acertou!' : 'Seu palpite...'}
-          disabled={isDrawer}
-          enterKeyHint="send" autoComplete="off" autoCorrect="off"
-          style={{ flex: 1, minWidth: 0, padding: compacto ? '10px 11px' : '8px 11px', borderRadius: 9,
-            border: `1px solid ${T.border}`,
-            background: T.surfaceInput || 'rgba(0,0,0,.025)', color: T.text,
-            /* 16px no celular NÃO é estética: abaixo disso o Safari do iPhone dá
-               zoom sozinho ao focar o campo e a tela do jogo sai do lugar. */
-            fontSize: compacto ? 16 : 12.5,
-            fontFamily: 'var(--font-body)', outline: 'none' }} />
-        <button onClick={sendGuess} disabled={isDrawer} aria-label="Enviar palpite"
-          style={{ width: compacto ? 44 : 34, borderRadius: 9, border: 'none', touchAction: 'manipulation',
-            cursor: isDrawer ? 'not-allowed' : 'pointer',
-            background: isDrawer ? T.textD : `linear-gradient(135deg, ${A}, ${A2})`, color: '#fff',
-            display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <IcoSend size={15} />
-        </button>
-      </div>
+        );
+      })}
+      <div ref={fim} />
+    </div>
+  );
+  const entradaPalpite = (
+    <div style={{ padding: 9, borderTop: `1px solid ${roomBorder}`, display: 'flex', gap: 6, flexShrink: 0 }}>
+      <input value={guess} onChange={e => setGuess(e.target.value)}
+        onKeyDown={e => e.key === 'Enter' && sendGuess()}
+        placeholder={isDrawer ? 'Você está desenhando...' : iHit ? 'Você acertou!' : 'Seu palpite...'}
+        disabled={isDrawer}
+        enterKeyHint="send" autoComplete="off" autoCorrect="off"
+        style={{ flex: 1, minWidth: 0, padding: compacto ? '10px 11px' : '8px 11px', borderRadius: 9,
+          border: `1px solid ${roomBorder}`, background: roomInput, color: roomText,
+          fontSize: compacto ? 16 : 12.5, fontFamily: 'var(--font-body)', outline: 'none' }} />
+      <button onClick={sendGuess} disabled={isDrawer} aria-label="Enviar palpite"
+        style={{ width: compacto ? 44 : 34, borderRadius: 9, border: 'none', touchAction: 'manipulation',
+          cursor: isDrawer ? 'not-allowed' : 'pointer',
+          background: isDrawer ? '#94A3B8' : `linear-gradient(135deg, ${roomAccent}, ${darkRoom ? '#3979E8' : '#104FCB'})`,
+          color: darkRoom && !isDrawer ? '#10213A' : '#fff',
+          display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <IcoSend size={15} />
+      </button>
+    </div>
+  );
+  const painelChat = (
+    <div style={{ background: cardBg, border: `1px solid ${roomBorder}`, borderRadius: compacto ? 10 : 14,
+      height: '100%', minHeight: 0, overflow: 'hidden', boxShadow: roomShadow }}>
+      {compacto ? (
+        <div style={{ height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ padding: '7px 10px', borderBottom: `1px solid ${roomBorder}`, display: 'flex',
+            alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {['respostas', 'registros'].map(aba => (
+                <button key={aba} onClick={() => setChatAba(aba)}
+                  style={{ border: `1px solid ${chatAba === aba ? roomAccent : roomBorder}`,
+                    borderRadius: 999, padding: '5px 10px', background: chatAba === aba ? roomAccent : cardBg,
+                    color: chatAba === aba ? (darkRoom ? '#10213A' : '#fff') : roomText, fontSize: 11, fontWeight: 800,
+                    letterSpacing: '.05em', cursor: 'pointer', touchAction: 'manipulation' }}>
+                  {aba.toUpperCase()}
+                </button>
+              ))}
+            </div>
+            <button onClick={() => setChatAberto(false)} title="Esconder chat"
+              style={{ border: 'none', background: 'transparent', color: roomMuted, fontSize: 17,
+                cursor: 'pointer', padding: '0 4px', lineHeight: 1, touchAction: 'manipulation' }}>▾</button>
+          </div>
+          {chatAba === 'respostas'
+            ? <>{renderMensagens(respostas, chatEndRef, false)}{entradaPalpite}</>
+            : renderMensagens(registros, registrosEndRef, true)}
+        </div>
+      ) : (
+        <div style={{ height: '100%', minHeight: 0, display: 'grid', gridTemplateColumns: '1.2fr 1fr' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, borderRight: `1px solid ${roomBorder}` }}>
+            <div style={{ padding: '9px 12px', borderBottom: `1px solid ${roomBorder}`, color: roomAccent,
+              fontSize: 11, fontWeight: 800, letterSpacing: '.08em', flexShrink: 0 }}>RESPOSTAS</div>
+            {renderMensagens(respostas, chatEndRef, false)}
+            {entradaPalpite}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+            <div style={{ padding: '9px 12px', borderBottom: `1px solid ${roomBorder}`, color: roomAccent,
+              fontSize: 11, fontWeight: 800, letterSpacing: '.08em', flexShrink: 0 }}>REGISTROS</div>
+            {renderMensagens(registros, registrosEndRef, true)}
+          </div>
+        </div>
+      )}
     </div>
   );
 
@@ -2848,7 +3018,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker, zoomOut })
      virava moldura vazia, porque a largura da tela já é o teto do desenho. */
   const corpoEmpilhado = (
     <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: paisagem ? 'row' : 'column',
-      gap: 6, padding: 6 }}>
+      gap: 6, padding: 6, position: 'relative', zIndex: 1 }}>
       <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
         {!paisagem && stripJogadores}
         {barraStatus}
@@ -2872,36 +3042,29 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker, zoomOut })
     </div>
   );
 
-  /* TRÊS COLUNAS (computador e tablet deitado): jogadores | desenho | palpites.
-     `gridTemplateRows: minmax(0,1fr)` é obrigatório: sem isso a linha do grid é
-     `auto` (= max-content) e CRESCE conforme o chat enche, esticando junto o
-     canvas até não dar mais pra desenhar. minHeight:0 nos filhos não resolve
-     sozinho; quem manda no tamanho é a linha. */
+  /* Computador e tablet deitado: jogadores à esquerda; desenho e chat empilhados à direita. */
   const corpoTresColunas = (
     <div style={{ flex: 1, display: 'grid',
-      gridTemplateColumns: `${compacto ? 190 : 216}px minmax(0, 1fr)${chatAberto ? ` ${compacto ? 230 : 254}px` : ''}`,
+      gridTemplateColumns: `${compacto ? 190 : 216}px minmax(0, 1fr)`,
       gridTemplateRows: 'minmax(0, 1fr)', gap: compacto ? 8 : 12, minHeight: 0, overflow: 'hidden',
-      padding: compacto ? 6 : 0 }}>
+      padding: compacto ? 6 : 0, position: 'relative', zIndex: 1 }}>
       {/* Jogadores — mesma trava de altura do chat (sala cheia rolava o card) */}
-      <div className="up-scroll" style={{ background: cardBg, border: `1px solid ${T.border}`, borderRadius: 14,
-        padding: 11, height: '100%', minHeight: 0, overflowY: 'auto', boxShadow: T.sh }}>
-        <div style={{ fontSize: 11, fontWeight: 800, color: T.textT, letterSpacing: '.08em', marginBottom: 9 }}>
+      <div className="up-scroll" style={{ background: cardBg, border: `1px solid ${roomBorder}`, borderRadius: 14,
+        padding: 11, height: '100%', minHeight: 0, overflowY: 'auto', boxShadow: roomShadow }}>
+        <div style={{ fontSize: 11, fontWeight: 800, color: roomAccent, letterSpacing: '.08em', marginBottom: 9 }}>
           JOGADORES ({players.length})
         </div>
         {listaJogadores}
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: compacto ? 8 : 9, minHeight: 0 }}>
-        {barraStatus}
-        {areaCanvas()}
-        {barraFerramentas}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: compacto ? 8 : 9, minWidth: 0, minHeight: 0 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: compacto ? 8 : 9, flex: 1, minHeight: 0 }}>
+          {barraStatus}
+          {areaCanvas()}
+          {barraFerramentas}
+        </div>
+        {chatAberto && <div style={{ flex: `0 0 ${compacto ? 205 : 220}px`, minHeight: 150 }}>{painelChat}</div>}
       </div>
-
-      {/* Chat — `height:100%` + `overflow:hidden` fecham a altura do card no
-          tamanho da linha do grid. Sem isso ele ia crescendo junto com o chat
-          (e aí a lista nunca "transborda", então a barra de rolagem nunca
-          aparecia — o card é que esticava). */}
-      {chatAberto && painelChat}
     </div>
   );
 
@@ -2914,12 +3077,12 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker, zoomOut })
         display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
       <div onClick={e => e.stopPropagation()} className="up-scroll"
         style={{ width: '100%', maxWidth: pequeno ? undefined : 560, maxHeight: '72vh', overflowY: 'auto',
-          background: cardBg, borderRadius: '18px 18px 0 0', padding: 14,
+          background: cardBg, border: `1px solid ${roomBorder}`, borderRadius: '18px 18px 0 0', padding: 14,
           paddingBottom: 'max(14px, env(safe-area-inset-bottom))' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-          <div style={{ fontSize: 12, fontWeight: 800, color: T.textT, letterSpacing: '.08em' }}>{titulo}</div>
+          <div style={{ fontSize: 12, fontWeight: 800, color: roomAccent, letterSpacing: '.08em' }}>{titulo}</div>
           <button onClick={fechar} aria-label="Fechar"
-            style={{ border: 'none', background: 'transparent', color: T.textS || T.textT, fontSize: 24,
+            style={{ border: 'none', background: 'transparent', color: roomMuted, fontSize: 24,
               lineHeight: 1, cursor: 'pointer', touchAction: 'manipulation', padding: '0 6px' }}>×</button>
         </div>
         {conteudo}
@@ -2942,7 +3105,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker, zoomOut })
           cursor: 'pointer', ...(props.style || {}) }}>{filho}</button>
     );
     return (
-      <div style={{ position: 'fixed', inset: 0, zIndex: 4000, background: T.page || '#fff',
+      <div style={{ position: 'fixed', inset: 0, zIndex: 4000, background: '#1765F5', isolation: 'isolate', overflow: 'hidden',
         display: 'flex', flexDirection: 'column',
         /* `alturaVis` = visualViewport: com o teclado aberto o iOS não encolhe a
            janela, só a área visível — sem isso o campo de palpite ficava atrás
@@ -2955,13 +3118,14 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker, zoomOut })
         paddingBottom: 'env(safe-area-inset-bottom)',
         paddingLeft: 'env(safe-area-inset-left)', paddingRight: 'env(safe-area-inset-right)',
         overscrollBehavior: 'none' }}>
+        <RoomBackdrop />
         <style>{PAINT_CSS}</style>
 
         {/* Cabeçalho enxuto */}
         <div className="up-hd" style={{ display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0,
           padding: pequeno ? '6px 8px' : '8px 12px', paddingTop: 'max(6px, env(safe-area-inset-top))',
           background: `radial-gradient(circle at 12% 18%, rgba(255,255,255,.28) 0%, transparent 46%), ${RAINBOW}`,
-          position: 'relative', overflow: 'hidden' }}>
+          position: 'relative', zIndex: 1, overflow: 'hidden' }}>
           <Mascote size={pequeno ? 30 : 40} />
           <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ fontFamily: 'var(--font-brand)', fontSize: pequeno ? 14 : 17, fontWeight: 800, color: '#fff',
@@ -2998,8 +3162,8 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker, zoomOut })
                 <button key={t.id} onClick={() => { setTool(t.id); setSheetFerr(false); }}
                   style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
                     gap: 5, height: 66, borderRadius: 12, cursor: 'pointer', touchAction: 'manipulation',
-                    border: on ? `2px solid ${A}` : `1px solid ${T.border}`,
-                    background: on ? `${A}18` : (T.surfaceSub || 'rgba(0,0,0,.03)'), color: on ? A : T.text }}>
+                    border: on ? `2px solid ${A}` : `1px solid ${roomBorder}`,
+                    background: on ? `${A}18` : roomSub, color: on ? A : roomText }}>
                   <Ico size={22} />
                   <span style={{ fontSize: 10.5, fontWeight: 700 }}>{t.nome}</span>
                 </button>
@@ -3015,10 +3179,10 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker, zoomOut })
               <button key={s} onClick={() => { setSize(s); setSheetTam(false); }}
                 style={{ flex: 1, height: 66, borderRadius: 12, cursor: 'pointer', display: 'flex',
                   alignItems: 'center', justifyContent: 'center', touchAction: 'manipulation',
-                  border: size === s ? `2px solid ${A}` : `1px solid ${T.border}`,
-                  background: size === s ? `${A}14` : (T.surfaceSub || 'rgba(0,0,0,.03)') }}>
+                  border: size === s ? `2px solid ${A}` : `1px solid ${roomBorder}`,
+                  background: size === s ? `${A}14` : roomSub }}>
                 <div style={{ width: Math.min(s, 30), height: Math.min(s, 30), borderRadius: '50%',
-                  background: size === s ? A : T.text }} />
+                  background: size === s ? A : roomText }} />
               </button>
             ))}
           </div>
@@ -3029,14 +3193,14 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker, zoomOut })
           <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
             <button onClick={() => { setSomOn(v => !v); if (!somOn) SFX.clique(); }}
               style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '13px 14px', borderRadius: 12,
-                border: `1px solid ${T.border}`, background: 'transparent', color: T.text,
+                border: `1px solid ${roomBorder}`, background: cardBg, color: roomText,
                 fontSize: 14, fontWeight: 700, cursor: 'pointer', touchAction: 'manipulation' }}>
               {somOn ? <IcoSom size={17} /> : <IcoMudo size={17} />}
               {somOn ? 'Sons ligados' : 'Sons desligados'}
             </button>
             <button onClick={() => { setMenuMob(false); onAbrirPicker(); }}
               style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '13px 14px', borderRadius: 12,
-                border: `1px solid ${T.border}`, background: 'transparent', color: T.text,
+                border: `1px solid ${roomBorder}`, background: cardBg, color: roomText,
                 fontSize: 14, fontWeight: 700, cursor: 'pointer', touchAction: 'manipulation' }}>
               <img src={photo} alt="" style={{ width: 26, height: 26, borderRadius: '50%', objectFit: 'cover', background: '#fff' }} />
               Meu Uniko
@@ -3051,16 +3215,23 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker, zoomOut })
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, height: '100%', minHeight: 0, overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, overflow: 'hidden',
+      position: 'relative', isolation: 'isolate', background: ROOM_BLUE, padding: 'clamp(16px, 2.4vw, 36px)',
+      boxSizing: 'border-box' }}>
+      <RoomBackdrop />
       <style>{PAINT_CSS}</style>
-      <GameAdminBanner visible={players.some(player => player.isAdmin)} />
+      <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: 12,
+        width: '100%', maxWidth: 1600, maxHeight: 960, height: '100%', minHeight: 0, margin: 'auto' }}>
+        <div style={{ position: 'relative', zIndex: 1 }}>
+          <GameAdminBanner visible={players.some(player => player.isAdmin)} />
+        </div>
       {/* Cabeçalho */}
       <div className="up-hd" style={{ borderRadius: 16, padding: '13px 18px', display: 'flex', alignItems: 'center', gap: 13,
         // brilho embutido no próprio background (evita uma camada só pra isso)
         background: `radial-gradient(circle at 12% 18%, rgba(255,255,255,.28) 0%, transparent 46%),
                      radial-gradient(circle at 88% 82%, rgba(255,255,255,.2) 0%, transparent 42%), ${RAINBOW}`,
         boxShadow: `0 8px 26px ${AG}`,
-        position: 'relative', overflow: 'hidden', flexShrink: 0 }}>
+        position: 'relative', zIndex: 1, overflow: 'hidden', flexShrink: 0 }}>
         {/* respingos de tinta por cima do arco-íris (ficam no fundo via .up-hd) */}
         {SPLATS_HEADER.map((s, i) => <Splat key={i} {...s} cor="#fff" />)}
         <Mascote size={68} />
@@ -3114,7 +3285,8 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker, zoomOut })
         </button>
       </div>
 
-      {corpoTresColunas}
+        {corpoTresColunas}
+      </div>
     </div>
   );
 };
@@ -3129,6 +3301,10 @@ const TabUnikoPaint = ({ zoomOut }) => {
   const isAdmin = getAuthUser()?.role === 'admin';
   const [photo, setPhoto] = useState(() => myPhotoSrc());   // URL — não o data URL!
   const [room, setRoom]   = useState(null);       // null = lobby
+  useEffect(() => {
+    document.body.classList.toggle('up-room-active', !!room);
+    return () => document.body.classList.remove('up-room-active');
+  }, [room]);
   const [todos, setTodos] = useState([]);         // [{name, photo, room}]
   const [sqlMissing, setSqlMissing] = useState(false);
   // NÃO abre sozinho: `up_name`/`up_photo_src` (e o "já vi") são por APARELHO
@@ -3300,6 +3476,7 @@ const TabUnikoPaint = ({ zoomOut }) => {
 
   return (
     <>
+      <style>{PORTAL_ROOM_CSS}</style>
       {room
         ? <Sala roomId={room} name={name} photo={photo} players={naSala}
             onLeave={() => setRoom(null)} onAbrirPicker={abrirPicker} zoomOut={zoomOut} />
