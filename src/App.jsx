@@ -808,7 +808,7 @@ export default function CrescentHub() {
   }, [authUser]);
 
   useEffect(() => {
-    if (!authUser) return;
+    if (!authUser?.id) return;
     const notificationOwner = authUser.id || authUser.name;
     const notificacoesAtivasDesde = Date.now();
     for (const id of loadSeenNotifications(notificationOwner)) seenNotifIds.current.add(id);

@@ -1,4 +1,5 @@
 // src/modules/uniko-security/securitySupabase.js
+// Singleton compartilhado com os módulos Uniko Safer e Call.
 // Client Supabase do Uniko Security — MESMO projeto dedicado do Uniko Safer
 // (decisão deliberada, ver supabase_uniko_security.sql: reaproveita
 // jwt_claims()/current_role_uniko() já configurados ali, em vez de duplicar

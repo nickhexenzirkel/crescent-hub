@@ -11,6 +11,8 @@ metadata:
 
 Ambos empurram para `notifQueue` (popup in-site: urgente = tela cheia, lembrete = canto) e tocam som.
 
+**Visitantes:** sessões sem UUID autenticado (`authUser.id`) não iniciam a assinatura nem o polling dos avisos, evitando consultas com `recipient_id` nulo.
+
 **Pop-up no DESKTOP via extensão Cat-bot** (adicionado 2026-06-08): `App.jsx` tem `notifyDesktop(n)` que faz `window.postMessage({type:'UNIKO_NOTIFY_SHOW', notif})`. Fluxo: página → `extension/content-script.js` (prefixo `UNIKO_NOTIFY_` em ALLOWED_PREFIXES, encaminho silencioso) → `extension/background.js` `showDesktopNotification()` → `chrome.notifications.create` (id estável `uniko-<id>` evita duplicar entre abas; urgente = requireInteraction; clique foca a aba). Requer permissão `notifications` no manifest (extensão v1.1.0) — **usuário precisa recarregar a extensão**.
 
 **Limitação:** só dispara com alguma aba do Crescent Hub aberta (mesmo em 2º plano). Para notificar com o Hub fechado, a extensão precisaria pollar o Supabase sozinha (não implementado). Ver [[unikowave-architecture]] para o padrão de mensagens da extensão.

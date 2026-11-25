@@ -34,6 +34,8 @@ O nome do contato pode ser inferido na importação quando uma mensagem do bot c
 A pesquisa geral aceita nome, telefone e texto das mensagens e pode limitar resultados por data inicial/final. A pesquisa por texto consulta mensagens do SCHAT no banco e lista as conversas com correspondências mais recentes; ao selecionar uma delas, o filtro de texto e o período são aplicados também dentro da conversa. Cada conversa também tem seus próprios campos de busca de texto e data inicial/final. A busca geral retorna até mil mensagens correspondentes por consulta; períodos ou termos mais específicos podem reduzir resultados muito amplos.
 
 ## Atualização (22/set/2026): Supabase dedicado já existe e está em uso
+**Instância compartilhada:** Uniko Security, Safer e Call importam o mesmo cliente de `src/modules/uniko-security/securitySupabase.js`. Não criar outro `createClient` com a mesma chave de armazenamento; isso causa concorrência no Supabase Auth.
+
 O projeto dedicado (`npfgggoavzzyzcjjachi`, plano Micro) já foi aprovado e `saferSupabase.js` já aponta pra ele — a seção acima ("fallback pro principal", "pendente aprovação") ficou obsoleta.
 
 **Incidente resolvido:** depois da correção de RLS geral (`supabase_seguranca_rls_uniko_safer.sql`, commit `c5759c6`), toda importação no Safer passou a falhar com "new row violates row-level security policy". Causa raiz, em cadeia:
