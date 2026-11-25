@@ -920,6 +920,18 @@ const PAINT_CSS = `
 .up-result-title { animation: upResultTitle .62s cubic-bezier(.2,1.3,.4,1) both; }
 .up-result-splat { animation: upSplatIn .7s cubic-bezier(.2,1,.3,1) both; }
 .up-turn-title { animation: upResultTitle .58s cubic-bezier(.2,1.3,.4,1) .08s both; }
+.up-overlay-title {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: .42em .95em; border: 1px solid rgba(255,255,255,.78); border-radius: 999px;
+  background: linear-gradient(120deg, ${UP.pink}, ${UP.purple} 56%, ${UP.cyan});
+  color: #fff; text-shadow: 0 2px 10px rgba(20,25,60,.3);
+  box-shadow: 0 8px 24px rgba(168,59,255,.24), inset 0 1px 0 rgba(255,255,255,.28);
+  letter-spacing: .03em; -webkit-text-stroke: 0;
+}
+.up-turn-title {
+  background: rgba(24,33,49,.3);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+}
 .up-turn-shine { position: absolute; inset: -40% auto -40% -35%; width: 30%; pointer-events: none;
   background: linear-gradient(90deg, transparent, rgba(255,255,255,.22), transparent);
   animation: upTurnShine 1.4s ease-in-out .2s both; }
@@ -2632,9 +2644,8 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker, zoomOut })
           <Mascote size={pequeno ? 72 : 112} halo big />
           {state?.phase === 'over' ? (
             <>
-              <div className="up-result-title" style={{ fontFamily: 'var(--font-brand)', fontSize: pequeno ? 23 : 30,
-                fontWeight: 900, color: '#FFC93B', WebkitTextStroke: '1px #173B73',
-                textShadow: '0 3px 0 #173B73, 0 7px 16px rgba(23,59,115,.22)' }}>
+              <div className="up-overlay-title up-result-title" style={{ fontFamily: 'var(--font-brand)', fontSize: pequeno ? 23 : 30,
+                fontWeight: 900 }}>
                 FIM DE JOGO!
               </div>
               <div style={{ fontFamily: 'var(--font-brand)', fontSize: pequeno ? 18 : 21, fontWeight: 800, color: tintaSobrePapel }}>
@@ -2646,9 +2657,8 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker, zoomOut })
             </>
           ) : state?.phase === 'reveal' ? (
             <div style={{ textAlign: 'center' }}>
-              <div className="up-result-title" style={{ fontFamily: 'var(--font-brand)', fontSize: pequeno ? 22 : 29,
-                fontWeight: 900, color: '#FFC93B', WebkitTextStroke: '1px #173B73',
-                textShadow: '0 3px 0 #173B73, 0 7px 16px rgba(23,59,115,.22)', marginBottom: 8 }}>
+              <div className="up-overlay-title up-result-title" style={{ fontFamily: 'var(--font-brand)', fontSize: pequeno ? 22 : 29,
+                fontWeight: 900, marginBottom: 8 }}>
                 {todosAcertaram ? 'OBRA DE ARTE!' : semAcertos ? 'TEMPO ESGOTADO!' :
                   state.pulada ? 'PASSOU A VEZ!' : state.denunciada ? 'RODADA ENCERRADA!' : 'FIM DA RODADA!'}
               </div>
@@ -2762,9 +2772,8 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker, zoomOut })
             className="up-result-splat" style={{ animationDelay: `${i * 0.1}s` }} />)}
           <div style={{ position: 'absolute', inset: 0, opacity: .2, zIndex: 0,
             background: 'radial-gradient(circle at 20% 25%, #fff 0%, transparent 40%), radial-gradient(circle at 80% 75%, #fff 0%, transparent 38%)' }} />
-          <div className="up-turn-title" style={{ zIndex: 1, fontFamily: 'var(--font-brand)', fontSize: pequeno ? 20 : 26,
-            fontWeight: 900, color: '#FFC93B', WebkitTextStroke: '1px #173B73',
-            textShadow: '0 3px 0 #173B73, 0 7px 16px rgba(0,0,0,.2)', letterSpacing: '.04em' }}>
+          <div className="up-overlay-title up-turn-title" style={{ zIndex: 1, fontFamily: 'var(--font-brand)', fontSize: pequeno ? 20 : 26,
+            fontWeight: 900 }}>
             NOVA RODADA!
           </div>
           {/* Avatar gigante com anéis pulsando */}
@@ -3063,7 +3072,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker, zoomOut })
           {areaCanvas()}
           {barraFerramentas}
         </div>
-        {chatAberto && <div style={{ flex: `0 0 ${compacto ? 205 : 220}px`, minHeight: 150 }}>{painelChat}</div>}
+        {chatAberto && <div style={{ flex: compacto ? '0 0 205px' : '0 0 clamp(150px, 20vh, 180px)', minHeight: 140 }}>{painelChat}</div>}
       </div>
     </div>
   );
@@ -3216,7 +3225,7 @@ const Sala = ({ roomId, name, photo, players, onLeave, onAbrirPicker, zoomOut })
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, overflow: 'hidden',
-      position: 'relative', isolation: 'isolate', background: ROOM_BLUE, padding: 'clamp(16px, 2.4vw, 36px)',
+      position: 'relative', isolation: 'isolate', background: ROOM_BLUE, padding: 'clamp(12px, 1.8vw, 28px)',
       boxSizing: 'border-box' }}>
       <RoomBackdrop />
       <style>{PAINT_CSS}</style>
